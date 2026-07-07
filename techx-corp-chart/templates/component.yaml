@@ -1,0 +1,18 @@
+{{- range $name, $config := .Values.components }}
+    {{- $config := set . "Capabilities" $.Capabilities }}
+    {{- $config := set . "Template" $.Template }}
+    {{- $config := set . "name" ($name | lower) }}
+    {{- $config := set . "Release" $.Release }}
+    {{- $config := set . "Chart" $.Chart }}
+    {{- $config := set . "serviceAccount" $.Values.serviceAccount }}
+    {{- $config := set . "observability" $.Values.observability }}
+    {{- $config := set . "defaultValues" $.Values.default }}
+
+    {{- if $config.enabled -}}
+        {{- include "techx-corp.deployment" $config -}}
+        {{- include "techx-corp.service" $config -}}
+        {{- include "techx-corp.ingress" $config -}}
+        {{- include "techx-corp.configmap" $config -}}
+    {{ end }}
+
+{{- end }}

@@ -1,0 +1,11 @@
+# AIO: cắm LLM thật thay mock (envOverrides = upsert, không xoá env khác).
+# Secret llm-api-key tạo trước: kubectl -n techx-<aio> create secret generic llm-api-key --from-literal=key=<REAL_KEY>
+components:
+  product-reviews:
+    envOverrides:
+      - name: LLM_BASE_URL
+        value: https://api.openai.com/v1        # hoặc Bedrock-compatible gateway
+      - name: LLM_MODEL
+        value: gpt-4o-mini
+      - name: OPENAI_API_KEY
+        valueFrom: { secretKeyRef: { name: llm-api-key, key: key } }

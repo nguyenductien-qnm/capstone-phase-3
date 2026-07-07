@@ -1,0 +1,18 @@
+# Per-TF: flagd sync read-only từ nguồn cấu hình flag trung tâm của BTC.
+# Ghép khi deploy:  helm ... -f values-flagd-sync.yaml
+# Thay <TOKEN> bằng token BTC cấp cho TF. Token không bí mật với TF - chỉ để chặn
+# truy cập vu vơ từ internet; TF không tự đổi được flag vì nguồn trung tâm sync đè lên.
+components:
+  flagd:
+    # 1) Gỡ flagd-ui local (không cho toggle bằng web trong cluster TF)
+    sidecarContainers: []
+    # 2) Đổi nguồn flag: từ file local -> central http có bearer (token literal, không cần shell expand)
+    command:
+      - "/flagd-build"
+      - "start"
+      - "--port"
+      - "8013"
+      - "--ofrep-port"
+      - "8016"
+      - "--sources"
+      - '[{"uri":"https://122.248.223.194.sslip.io/flags.json","provider":"http","authHeader":"Bearer 8de6246060a65f500bc44988467c5985b77d0808998284f9"}]'
