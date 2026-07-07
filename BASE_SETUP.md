@@ -41,3 +41,5 @@ capstone-phase-3/
 * **Quản trị & Đồng bộ GitOps:** Sử dụng giao diện điều khiển ArgoCD theo tài khoản admin cấp sẵn tại `DEPLOY.md`.
 * **Gỡ bỏ hệ thống tránh phát sinh chi phí AWS:** Xem quy trình dọn dẹp an toàn tại [DESTROY.md](file:///Users/ductiennguyen/Documents/Project/xbrain/capstone-phase-3/terraform/md/DESTROY.md).
 * **Tra cứu thông số tài nguyên & Cổng dịch vụ:** Xem bảng tra cứu tại [RESOURCES.md](file:///Users/ductiennguyen/Documents/Project/xbrain/capstone-phase-3/terraform/md/RESOURCES.md).
+
+<!-- Branch protection test -->
