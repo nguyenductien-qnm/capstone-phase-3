@@ -19,7 +19,7 @@ cd ..
 
 ## Bước 2: Build & Đẩy ảnh lên ECR
 
-Kéo ảnh mẫu `amd64` từ Docker Hub, tự biên dịch dịch vụ `shipping` (Rust) thành bản `amd64`, và đẩy tất cả lên ECR:
+Kéo ảnh mẫu `amd64` từ Docker Hub và đẩy tất cả lên ECR:
 
 ```sh
 ./deploy/push-seed-images.sh
@@ -57,6 +57,15 @@ Tự động đồng bộ và quản lý trạng thái qua Git.
 Chỉ chạy một lần, không tự động đồng bộ khi thay đổi code.
 
 ```sh
+# Thêm các helm repositories cần thiết
+helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
+helm repo add grafana https://grafana.github.io/helm-charts
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo add jaegertracing https://jaegertracing.github.io/helm-charts
+helm repo add opensearch https://opensearch-project.github.io/helm-charts
+helm repo update
+
+# Build dependency và cài đặt
 helm dependency build ./techx-corp-chart
 helm upgrade --install techx-corp ./techx-corp-chart -n techx-tf1 --create-namespace -f deploy/values-flagd-sync.yaml
 ```

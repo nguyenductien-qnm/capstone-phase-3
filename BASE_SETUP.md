@@ -35,11 +35,7 @@ capstone-phase-3/
 
 ## 2. Hướng dẫn nhanh cho các vai trò vận hành
 
-Để bắt đầu làm việc hoặc phân chia công việc cho các nhóm chuyên trách (CDO - Platform, CDO - FinOps, AIO):
-
-* **Dựng mới hạ tầng & Deploy ứng dụng:** Xem hướng dẫn chi tiết tại [DEPLOY.md](file:///Users/ductiennguyen/Documents/Project/xbrain/capstone-phase-3/terraform/md/DEPLOY.md).
-* **Quản trị & Đồng bộ GitOps:** Sử dụng giao diện điều khiển ArgoCD theo tài khoản admin cấp sẵn tại `DEPLOY.md`.
-* **Gỡ bỏ hệ thống tránh phát sinh chi phí AWS:** Xem quy trình dọn dẹp an toàn tại [DESTROY.md](file:///Users/ductiennguyen/Documents/Project/xbrain/capstone-phase-3/terraform/md/DESTROY.md).
-* **Tra cứu thông số tài nguyên & Cổng dịch vụ:** Xem bảng tra cứu tại [RESOURCES.md](file:///Users/ductiennguyen/Documents/Project/xbrain/capstone-phase-3/terraform/md/RESOURCES.md).
-
-<!-- Branch protection test -->
+- **Dựng mới hạ tầng & Deploy ứng dụng:** Xem hướng dẫn chi tiết tại `DEPLOY.md`.
+- **Quản trị & Đồng bộ GitOps:** Sử dụng giao diện điều khiển ArgoCD theo tài khoản admin cấp sẵn tại `DEPLOY.md`.
+- **Gỡ bỏ hệ thống tránh phát sinh chi phí AWS:** Xem quy trình dọn dẹp an toàn tại `DESTROY.md`.
+- **Tra cứu thông số tài nguyên & Cổng dịch vụ:** Xem bảng tra cứu tại `RESOURCES.md`.
