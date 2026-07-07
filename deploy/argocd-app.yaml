@@ -8,10 +8,10 @@ spec:
 
   source:
     # URL của git repository chứa mã nguồn của bạn
-    repoURL: "https://github.com/TechX-Corp/xbrain-learners.git"
+    repoURL: "https://github.com/nguyenductien-qnm/capstone-phase-3.git"
     targetRevision: main
     # Đường dẫn trỏ tới thư mục Helm Chart của bạn trong Git
-    path: phase3/techx-corp-chart
+    path: techx-corp-chart
 
     # Cấu hình ArgoCD chạy Helm để sinh tài nguyên
     helm:
