@@ -44,5 +44,11 @@ for s in "${services[@]}"; do
   docker push "$REG:1.0-$s"
 done
 
+if [ -d "techx-corp-platform/src/shipping" ]; then
+  echo "----------------------------------------"
+  echo "Phát hiện mã nguồn shipping (Rust). Tiến hành biên dịch amd64 chuẩn từ nguồn..."
+  docker buildx build --platform linux/amd64 -t "$REG:1.0-shipping" -f techx-corp-platform/src/shipping/Dockerfile --push techx-corp-platform
+fi
+
 echo "----------------------------------------"
 echo "Đã đẩy thành công tất cả 18 images lên ECR!"
