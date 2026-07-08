@@ -41,3 +41,9 @@ variable "environment" {
     error_message = "Environment must be one of [dev, staging, prod]."
   }
 }
+
+variable "admin_user_arns" {
+  description = "List of IAM User ARNs to grant admin access to the EKS cluster"
+  type        = list(string)
+  default     = []
+}
