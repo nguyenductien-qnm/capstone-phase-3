@@ -9,7 +9,7 @@ sequenceDiagram
     participant Reviews as Product Reviews Service
     participant Flagd as OpenFeature/Flagd
     participant Valkey as Valkey (valkey-cart:6379)
-    participant Bedrock as AWS Bedrock (Claude 3.5 Sonnet)
+    participant Bedrock as AWS Bedrock (Claude 3.0 Sonnet)
 
     Client->>Reviews: GetProductReviews(product_id)
     
@@ -70,7 +70,7 @@ sequenceDiagram
 
 ### 3.2 Cấu hình vòng đời và bộ nhớ (TTL & Eviction)
 - **TTL (Time To Live):** **24 giờ** (86,400 giây). Sau 24 giờ, cache key tự động hết hạn, đảm bảo thông tin tóm tắt được làm mới hàng ngày khi có reviews mới của người dùng.
-- **Eviction Policy (Chính sách giải phóng bộ nhớ):** `allkeys-lru` (loại bỏ các key ít được truy cập nhất khi bộ nhớ của cụm `valkey-cart` chạm ngưỡng giới hạn). Quyết định này giúp bảo vệ bộ đệm của giỏ hàng (`valkey-cart`) không bị tràn do dữ liệu review summaries.
+- **Eviction Policy (Chính sách giải phóng bộ nhớ):** `volatile-lru` (loại bỏ các key có thiết lập TTL ít được truy cập nhất khi bộ nhớ của cụm `valkey-cart` chạm ngưỡng giới hạn). Quyết định này giúp bảo vệ tuyệt đối dữ liệu giỏ hàng (`valkey-cart`) không bị xóa nhầm khi bộ đệm đầy.
 
 ### 3.3 Cấu hình biến môi trường (Environment Variables)
 Để đồng bộ hoàn toàn với **Hợp đồng tích hợp dịch vụ Product Reviews** với CDO, việc kết nối được cấu hình qua các biến môi trường sau:

@@ -21,7 +21,7 @@
   * Dịch vụ `product-reviews` đang gọi trực tiếp mock API `llm` trên cụm K8s (EKS).
 * **3 Rủi ro nghiêm trọng nhất (SPOF & Bottlenecks):**
   1. *Độ trễ và Chi phí:* API Bedrock trực tiếp tốn ~1.5s - 2.5s và chi phí token khổng lồ cho mỗi lượt xem sản phẩm.
-  2. *Độ tin cậy:* Gọi model chính (Claude 3.5 Sonnet) dễ bị nghẽn (429 Rate Limit) hoặc sập (500) khiến tính năng tóm tắt sập hoàn toàn.
+  2. *Độ tin cậy:* Gọi model chính (Claude 3.0 Sonnet) dễ bị nghẽn (429 Rate Limit) hoặc sập (500) khiến tính năng tóm tắt sập hoàn toàn.
   3. *Excessive Agency:* Trợ lý ảo Shopping Copilot tự ý gọi API giỏ hàng (`add_to_cart`) mà không có sự đồng ý của khách nếu bị Prompt Injection.
 
 <!-- slide -->
@@ -31,9 +31,9 @@
   * TTL: **24 giờ** (bỏ qua cache qua flag `llmReviewsCacheEnabled`).
   * *ROI:* Giảm **90% chi phí token** và phản hồi cache cực nhanh (< 50ms).
 * **ADR-002 (Model Fallback Routing):**
-  * Model chính: Claude 3.5 Sonnet.
+  * Model chính: Claude 3.0 Sonnet.
   * Model phụ: Claude 3 Haiku (rẻ hơn 10x, nhanh hơn 3x).
-  * Quy tắc: Lỗi/Timeout > 2.0s tự động retry 2 lần. Nếu vẫn lỗi, tự chuyển sang Haiku; nếu Haiku sập mới trả về mock.
+  * Quy tắc: Lỗi/Timeout > 5.0s tự động retry 2 lần. Nếu vẫn lỗi, tự chuyển sang Haiku; nếu Haiku sập mới trả về mock.
 
 <!-- slide -->
 ## Slide 4: Trợ Lý Shopping Copilot An Toàn (PoC)
@@ -77,7 +77,7 @@
 Để chứng minh tính khả thi về mặt tài chính trước CFO, dưới đây là bảng so sánh chi phí ước lượng dựa trên **100,000 lượt xem sản phẩm/ngày** (Tần suất trung bình của storefront):
 
 ### 1. Bảng giá đầu vào AWS Bedrock (Vùng us-west-2):
-* **Claude 3.5 Sonnet:** $0.003 / 1k Input Tokens | $0.015 / 1k Output Tokens
+* **Claude 3.0 Sonnet:** $0.003 / 1k Input Tokens | $0.015 / 1k Output Tokens
 * **Claude 3 Haiku:** $0.00025 / 1k Input Tokens | $0.00125 / 1k Output Tokens
 * *Giả định:* Mỗi request tóm tắt có Input = 1,500 tokens (dữ liệu reviews gộp), Output = 200 tokens (bản tóm tắt).
 
@@ -109,5 +109,5 @@
 ### 👤 3. SRE Lead: "Rủi ro kỹ thuật là gì? Nhỡ code của các bạn làm sập hệ thống hoặc gây lỗi dây chuyền thì sao?"
 * **Lập luận bảo vệ:**
   > *"Thưa SRE Lead, chúng tôi đã đặt an toàn hệ thống lên hàng đầu với 2 chốt chặn kỹ thuật:*
-  > *1. **Model Fallback Routing (ADR-002):** Khi AWS Bedrock bị lỗi (429/500) hoặc timeout > 2.0s, hệ thống tự động retry 2 lần và chuyển đổi sang model backup Claude 3 Haiku trong vòng 500ms, đảm bảo tính liên tục của dịch vụ và không làm nghẽn thread pool của product-reviews.*
+  > *1. **Model Fallback Routing (ADR-002):** Khi AWS Bedrock bị lỗi (429/500) hoặc timeout > 5.0s, hệ thống tự động retry 2 lần và chuyển đổi sang model backup Claude 3 Haiku trong vòng 500ms, đảm bảo tính liên tục của dịch vụ và không làm nghẽn thread pool của product-reviews.*
   > *2. **AIOps Closed-Loop Safety Boundary:** Kịch bản tự khắc phục lỗi của chúng tôi được thiết kế theo chuẩn SRE nghiêm ngặt: luôn chạy Dry-run trước để kiểm tra quyền; giới hạn Blast Radius (không restart quá 1 pod/giờ để tránh cascade loop); đo đạc metrics 120s sau sửa lỗi, nếu latency storefront không giảm về ngưỡng bình thường thì tự động kích hoạt Rollback cấu hình cũ; cuối cùng, nếu fail 3 lần liên tiếp, Circuit Breaker sẽ đóng băng tự động và báo động cho kỹ sư trực on-call."*

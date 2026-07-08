@@ -6,12 +6,12 @@ Sơ đồ dưới đây thể hiện quy trình xử lý lỗi khi dịch vụ `
 
 ```mermaid
 graph TD
-    Start["Bắt đầu: Yêu cầu tóm tắt review"] --> InitCall["Khởi tạo cuộc gọi Claude 3.5 Sonnet"]
-    InitCall --> CallSonnet{"Gọi Claude 3.5 Sonnet<br>ID: anthropic.claude-3-sonnet-20240229-v1:0"}
+    Start["Bắt đầu: Yêu cầu tóm tắt review"] --> InitCall["Khởi tạo cuộc gọi Claude 3.0 Sonnet"]
+    InitCall --> CallSonnet{"Gọi Claude 3.0 Sonnet<br>ID: anthropic.claude-3-sonnet-20240229-v1:0"}
     
     CallSonnet -- "Thành công (200 OK)" --> ReturnResult["Trả về kết quả tóm tắt"]
     
-    CallSonnet -- "Lỗi 429 / 500 / Timeout > 2.0s" --> CheckRetry{"Đã thử lại đủ 2 lần chưa?"}
+    CallSonnet -- "Lỗi 429 / 500 / Timeout > 5.0s" --> CheckRetry{"Đã thử lại đủ 2 lần chưa?"}
     CheckRetry -- "Chưa đủ" --> RetrySonnet["Thực hiện Thử lại (Retry) với Exponential Backoff"]
     RetrySonnet --> CallSonnet
     
@@ -36,12 +36,12 @@ Dưới đây là các thông số chi tiết cấu hình cho cơ chế Fallback
 
 | Tham số | Model chính (Primary Model) | Model dự phòng (Fallback Model) |
 |---|---|---|
-| **Tên Model** | Claude 3.5 Sonnet | Claude 3 Haiku |
+| **Tên Model** | Claude 3.0 Sonnet | Claude 3 Haiku |
 | **Model ID AWS Bedrock** | `anthropic.claude-3-sonnet-20240229-v1:0` | `anthropic.claude-3-haiku-20240307-v1:0` |
-| **Timeout tối đa (p95 threshold)** | **2.0 giây (2000ms)** | **1.0 giây (1000ms)** |
+| **Timeout tối đa (p95 threshold)** | **5.0 giây (5000ms)** | **1.0 giây (1000ms)** |
 | **Số lần tự động thử lại (Retries)** | **Tối đa 2 lần** (Tổng cộng tối đa 3 cuộc gọi) | **Tối đa 1 lần** (Tổng cộng tối đa 2 cuộc gọi) |
 | **Cơ chế giãn cách (Retry Backoff)** | Exponential backoff (Base: 200ms, Factor: 1.5, Jitter: True) | Exponential backoff (Base: 100ms, Factor: 1.5, Jitter: True) |
-| **Lỗi kích hoạt thử lại & fallback** | HTTP 429 (Rate Limit), HTTP 500/503 (Server Error), ClientTimeout (> 2.0s) | HTTP 429, HTTP 500/503, ClientTimeout (> 1.0s) |
+| **Lỗi kích hoạt thử lại & fallback** | HTTP 429 (Rate Limit), HTTP 500/503 (Server Error), ClientTimeout (> 5.0s) | HTTP 429, HTTP 500/503, ClientTimeout (> 1.0s) |
 
 ### Chi tiết về Retry Backoff cho Model chính:
 - Lần thử lại 1: Đợi ~200ms (kèm ngẫu nhiên jitter để giảm tải đồng loạt).
@@ -52,7 +52,7 @@ Dưới đây là các thông số chi tiết cấu hình cho cơ chế Fallback
 Để linh hoạt chuyển đổi và tinh chỉnh hệ thống mà không cần build lại mã nguồn, các tham số cấu hình được tiêm qua biến môi trường của pod `product-reviews`:
 - `LLM_MAIN_MODEL`: ID của model chính trên AWS Bedrock (Mặc định: `anthropic.claude-3-sonnet-20240229-v1:0`).
 - `LLM_FALLBACK_MODEL`: ID của model dự phòng trên AWS Bedrock (Mặc định: `anthropic.claude-3-haiku-20240307-v1:0`).
-- `LLM_TIMEOUT`: Giới hạn thời gian phản hồi (timeout) cho model chính tính bằng giây (Mặc định: `2.0`).
+- `LLM_TIMEOUT`: Giới hạn thời gian phản hồi (timeout) cho model chính tính bằng giây (Mặc định: `5.0`).
 - `LLM_MAX_RETRIES`: Số lần tự động thử lại tối đa trước khi thực hiện fallback (Mặc định: `2`).
 
 
@@ -62,6 +62,6 @@ Cơ chế fallback được điều khiển động qua OpenFeature để quản
 
 - **Flagd Key:** `llmReviewsFallbackEnabled`
 - **Kiểu dữ liệu:** `Boolean` (Mặc định: `true`)
-- **Hành vi khi bật (`true`):** Tự động chuyển đổi sang Claude 3 Haiku và sau đó là Mock Summary khi Claude 3.5 Sonnet sập hoàn toàn. Đảm bảo độ sẵn sàng dịch vụ (SLO Availability > 99.9%).
-- **Hành vi khi tắt (`false`):** Nếu Claude 3.5 Sonnet bị lỗi sau số lần retry chỉ định, dịch vụ Product Reviews sẽ dừng ngay lập tức và trả về mã lỗi 500 trực tiếp cho storefront, không gọi Haiku hay Mock. Kịch bản này được dùng khi nhà phát triển muốn cô lập lỗi hoặc bảo vệ chất lượng dữ liệu tuyệt đối (không chấp nhận bản tóm tắt chất lượng thấp hơn của Haiku).
+- **Hành vi khi bật (`true`):** Tự động chuyển đổi sang Claude 3 Haiku và sau đó là Mock Summary khi Claude 3.0 Sonnet sập hoàn toàn. Đảm bảo độ sẵn sàng dịch vụ (SLO Availability > 99.9%).
+- **Hành vi khi tắt (`false`):** Nếu Claude 3.0 Sonnet bị lỗi sau số lần retry chỉ định, dịch vụ Product Reviews sẽ dừng ngay lập tức và trả về mã lỗi 500 trực tiếp cho storefront, không gọi Haiku hay Mock. Kịch bản này được dùng khi nhà phát triển muốn cô lập lỗi hoặc bảo vệ chất lượng dữ liệu tuyệt đối (không chấp nhận bản tóm tắt chất lượng thấp hơn của Haiku).
 

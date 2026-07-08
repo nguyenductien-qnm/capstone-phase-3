@@ -31,12 +31,12 @@
 - **Người ký:** Nhóm AI (AIO03) - Task Force 1
 - **Trụ:** Reliability
 - **Bối cảnh:** 
-  Các cuộc gọi API đến AWS Bedrock (sử dụng model chính `Claude 3.5 Sonnet`) có thể bị lỗi ngắt quãng, timeout mạng hoặc trả về lỗi Rate Limit (429) trong giờ cao điểm, gây mất tính năng tóm tắt review hoặc treo trang storefront.
+  Các cuộc gọi API đến AWS Bedrock (sử dụng model chính `Claude 3.0 Sonnet`) có thể bị lỗi ngắt quãng, timeout mạng hoặc trả về lỗi Rate Limit (429) trong giờ cao điểm, gây mất tính năng tóm tắt review hoặc treo trang storefront.
 - **Quyết định:** 
   Triển khai cơ chế Model Fallback Routing tự động trên Reviews Service:
   - **Model chính:** `anthropic.claude-3-sonnet-20240229-v1:0` (Claude 3 Sonnet).
   - **Model dự phòng (Fallback):** `anthropic.claude-3-haiku-20240307-v1:0` (Claude 3 Haiku).
-  - **Timeout:** Giới hạn 2.0 giây cho mỗi cuộc gọi Sonnet.
+  - **Timeout:** Giới hạn 5.0 giây cho mỗi cuộc gọi Sonnet.
   - **Retry limit:** Thử lại tối đa 2 lần. Nếu vẫn lỗi hoặc timeout, tự động chuyển hướng request sang gọi Claude 3 Haiku.
 - **Phương án khác đã cân:**
   - *Option A - Không sử dụng Fallback (Chỉ hiển thị thông báo lỗi):* Trải nghiệm người dùng kém, tính năng tóm tắt reviews trống trơn.
