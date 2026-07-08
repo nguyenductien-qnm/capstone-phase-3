@@ -8,22 +8,26 @@ Hệ thống hiện tại chạy trên K8s (EKS) với dịch vụ tóm tắt re
 
 ---
 
-## 2. Backlog xếp hạng (AI Team)
+## 2. Backlog xếp hạng (AI Team - 10 Tasks)
 
-| # | Việc | Trụ | Rủi ro (khả năng×nghiêm trọng) | Tác động business | Cost Δ/tuần | Effort | Vì sao ưu tiên bậc này |
-|---|---|---|---|---|---|---|---|
-| 1 | **Audit hệ thống reviews, telemetry & mocks** | Reliability / Observability | Cao × Cao (5×5 = 25) | Cần thiết để nắm được luồng dữ liệu trước khi cắm model thật | $0 | Thấp | Phải làm ngay ngày đầu để phát hiện nợ kỹ thuật và thiết lập trace span trên Jaeger. |
-| 2 | **Dựng bản chạy thử Shopping Copilot PoC (Streamlit)** | Functional Capability | Trung bình × Cao (3×4 = 12) | Demo khả thi luồng gọi tool (catalog, cart) & Confirmation Gate | ~$5 (Bedrock testing) | Trung bình | Chứng minh tính khả thi của chatbot agent trước buổi bảo vệ pitching thứ Sáu. |
-| 3 | **Thiết kế Spec Caching Valkey & Model Fallback Routing** | Cost / Reliability | Cao × Cao (4×4 = 16) | Giảm 90% chi phí token Bedrock; đảm bảo SLO trễ < 1s | $0 (Dùng chung Valkey-cart) | Thấp | Cần thiết để thống nhất kiến trúc và cấu hình biến ENV với nhóm CDO trước khi code ở Tuần 2. |
-| 4 | **Xây dựng bộ dữ liệu Golden Dataset & script run_evals.py** | Auditability / Quality | Trung bình × Cao (3×4 = 12) | Đảm bảo tính trung thực (fidelity) của AI, chống bịa đặt (hallucination) | ~$2 (API test) | Trung bình | Chuẩn bị công cụ đo lường tự động để đánh giá chất lượng AI trước khi đẩy lên production. |
-| 5 | **Thiết kế Spec gRPC cho Shopping Copilot & Anomaly Remediation** | Reliability / Performance | Trung bình × Trung bình (3×3 = 9) | Chốt interface API gRPC và luồng AIOps tự động xử lý sự cố | $0 | Trung bình | Định hình cổng kết nối và kịch bản vận hành tự động khắc phục lỗi (remediation loop) cho Tuần 3. |
-| 6 | **Soạn thảo Pitch Slides bảo vệ kế hoạch & Cost Model** | Communication | Thấp × Cao (2×4 = 8) | Bảo vệ thành công ngân sách $300/tuần và cam kết SLO | $0 | Thấp | Tài liệu bắt buộc để báo cáo nghiệm thu Tuần 1. |
+| # | Mã Task JIRA | Tên Công Việc | Trụ | Rủi ro (khả năng×nghiêm trọng) | Tác động business | Cost Δ/tuần | Effort | Vì sao ưu tiên bậc này |
+|---|---|---|---|---|---|---|---|---|
+| 1 | **TF1-44** | Thiết lập Backlog ưu tiên & phân tích rủi ro (`00_backlog.md`) | Reliability / Governance | Cao × Cao (5×5 = 25) | Định hình toàn bộ phạm vi công việc và quản lý rủi ro | $0 | Thấp | Bắt buộc phải hoàn thiện làm kim chỉ nam để phân rã công việc cho 10 thành viên ngày đầu tiên. |
+| 2 | **TF1-45** | Biên soạn Slide Pitching bảo vệ kế hoạch & Cost Model | Governance / Cost | Trung bình × Cao (3×4 = 12) | Bảo vệ ngân sách $300/tuần và cam kết SLO | $0 | Thấp | Cần thiết để chuẩn bị kịch bản phản biện, chứng minh ROI của giải pháp trước buổi bảo vệ thứ Sáu. |
+| 3 | **TF1-51** | Audit hạ tầng Telemetry & Phân tích trace context | Observability | Cao × Cao (5×5 = 25) | Phát hiện đứt gãy trace và nợ kỹ thuật (INC-3) | $0 | Thấp | Phải làm sớm để đảm bảo các metric và trace GenAI thông suốt từ UI tới Collector/Jaeger. |
+| 4 | **TF1-46** | Thiết kế Spec Valkey Caching & Model Fallback Routing | Cost / Reliability | Cao × Cao (4×4 = 16) | Giảm 90% chi phí token Bedrock; bảo vệ SLO trễ < 1s | $0 | Thấp | Bản thiết kế kiến trúc kỹ thuật cốt lõi (ADR-001/002) thống nhất biến ENV với nhóm CDO. |
+| 5 | **TF1-47** | Thiết kế Spec Shopping Copilot Agent & Hợp đồng CDO | Functional / Compliance | Trung bình × Cao (3×4 = 12) | Chốt hợp đồng tài nguyên K8s và đặc tả gRPC `:50051` | $0 | Trung bình | Ký phê duyệt hợp đồng tích hợp giúp CDO đóng gói hạ tầng EKS đồng bộ. |
+| 6 | **TF1-48** | Phát triển Shopping Copilot PoC (Streamlit) & Thiết lập Evals | Functional / Quality | Trung bình × Cao (3×4 = 12) | Demo chatbot với Confirmation Gate và script python tính accuracy | ~$5 | Trung bình | Xây dựng core logic chatbot an toàn (chống excessive agency) và tool evals golden dataset. |
+| 7 | **TF1-49** | Thiết kế Spec Golden Signal Anomaly Detection | Observability | Trung bình × Cao (3×4 = 12) | Thiết lập cơ chế phát hiện bất thường EWMA | $0 | Thấp | Cơ sở lý thuyết lọc nhiễu metrics trước khi tích hợp vào cảnh báo vận hành. |
+| 8 | **TF1-52** | Nghiên cứu & Xây dựng Log Clustering sử dụng Drain3 | Observability | Trung bình × Trung bình (3×3 = 9) | Tự động hóa gom cụm log lỗi GenAI (OOM, timeout) | $0 | Trung bình | Giải pháp AIOps để nhanh chóng gom các sự cố cascading từ hàng triệu dòng log thô. |
+| 9 | **TF1-50** | Thiết kế Spec Auto-Remediation closed-loop & Safety boundary | Reliability | Trung bình × Trung bình (3×3 = 9) | Thiết lập an toàn cho vòng tự khắc phục (Dry-run, Blast Radius, CB) | $0 | Trung bình | Định hình kịch bản tự động xử lý sự cố an toàn cấp công nghiệp trước khi code ở tuần sau. |
+| 10 | **TF1-53** | Xây dựng script/tool phát hiện lỗi và cảnh báo vận hành | Observability | Thấp × Cao (2×4 = 8) | Gửi alert cảnh báo sớm về lỗi pool DB, OOM, DNS | $0 | Trung bình | Tích hợp các script kiểm tra tự động phát hiện lỗi và gửi alert cứu hộ tức thời cho on-call. |
 
 ---
 
 ## 3. Cố ý bỏ (lúc này)
 1. **Tích hợp chính thức Copilot vào Next.js Frontend:** Chưa làm tuần này vì cần chốt file `.proto` và giao diện Envoy proxy với Platform Team trước để tránh xung đột code.
-2. **Triển khai tự động hóa xử lý sự cố (Auto-remediation script) chạy trên EKS:** Hoãn sang Tuần 3 vì cần kiểm chứng độ chính xác của metrics Prometheus và Jaeger trong Tuần 2 trước khi kích hoạt vòng lặp tự động sửa lỗi thật.
+2. **Triển khai tự động hóa xử lý sự cố (Auto-remediation engine) chạy trên EKS:** Hoãn sang Tuần 3 vì cần kiểm chứng độ chính xác của metrics Prometheus và Jaeger trong Tuần 2 trước khi kích hoạt vòng lặp tự động sửa lỗi thật.
 
 ---
 
