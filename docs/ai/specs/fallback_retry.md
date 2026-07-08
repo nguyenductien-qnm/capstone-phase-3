@@ -48,6 +48,14 @@ Dưới đây là các thông số chi tiết cấu hình cho cơ chế Fallback
 - Lần thử lại 2: Đợi ~300ms.
 - Nếu cả 2 lần thử lại đều thất bại hoặc timeout, tiến hành chuyển tiếp sang Model dự phòng (Claude 3 Haiku).
 
+### Cấu hình biến môi trường (Environment Variables)
+Để linh hoạt chuyển đổi và tinh chỉnh hệ thống mà không cần build lại mã nguồn, các tham số cấu hình được tiêm qua biến môi trường của pod `product-reviews`:
+- `LLM_MAIN_MODEL`: ID của model chính trên AWS Bedrock (Mặc định: `anthropic.claude-3-sonnet-20240229-v1:0`).
+- `LLM_FALLBACK_MODEL`: ID của model dự phòng trên AWS Bedrock (Mặc định: `anthropic.claude-3-haiku-20240307-v1:0`).
+- `LLM_TIMEOUT`: Giới hạn thời gian phản hồi (timeout) cho model chính tính bằng giây (Mặc định: `2.0`).
+- `LLM_MAX_RETRIES`: Số lần tự động thử lại tối đa trước khi thực hiện fallback (Mặc định: `2`).
+
+
 ## 3. Rollback & Feature Flags
 
 Cơ chế fallback được điều khiển động qua OpenFeature để quản trị rủi ro vận hành:

@@ -72,6 +72,12 @@ sequenceDiagram
 - **TTL (Time To Live):** **24 giờ** (86,400 giây). Sau 24 giờ, cache key tự động hết hạn, đảm bảo thông tin tóm tắt được làm mới hàng ngày khi có reviews mới của người dùng.
 - **Eviction Policy (Chính sách giải phóng bộ nhớ):** `allkeys-lru` (loại bỏ các key ít được truy cập nhất khi bộ nhớ của cụm `valkey-cart` chạm ngưỡng giới hạn). Quyết định này giúp bảo vệ bộ đệm của giỏ hàng (`valkey-cart`) không bị tràn do dữ liệu review summaries.
 
+### 3.3 Cấu hình biến môi trường (Environment Variables)
+Để đồng bộ hoàn toàn với **Hợp đồng tích hợp dịch vụ Product Reviews** với CDO, việc kết nối được cấu hình qua các biến môi trường sau:
+- `VALKEY_HOST`: Tên Host/Service K8s của Valkey (Mặc định: `valkey-cart` nhằm tận dụng hạ tầng sẵn có).
+- `VALKEY_PORT`: Cổng kết nối của Valkey (Mặc định: `6379`).
+
+
 ## 4. Kịch bản Xử lý Lỗi & Kế hoạch Dự phòng (Resilience & Rollback)
 
 ### 4.1 Cơ chế Tắt Cache Nhanh (Bypass Cache via Feature Flag)
