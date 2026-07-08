@@ -6,26 +6,26 @@ Sơ đồ dưới đây thể hiện quy trình xử lý lỗi khi dịch vụ `
 
 ```mermaid
 graph TD
-    Start[Bắt đầu: Yêu cầu tóm tắt review] --> InitCall[Khởi tạo cuộc gọi Claude 3.5 Sonnet]
-    InitCall --> CallSonnet{Gọi Claude 3.5 Sonnet<br>ID: anthropic.claude-3-sonnet-20240229-v1:0}
+    Start["Bắt đầu: Yêu cầu tóm tắt review"] --> InitCall["Khởi tạo cuộc gọi Claude 3.5 Sonnet"]
+    InitCall --> CallSonnet{"Gọi Claude 3.5 Sonnet<br>ID: anthropic.claude-3-sonnet-20240229-v1:0"}
     
-    CallSonnet -- Thành công (200 OK) --> ReturnResult[Trả về kết quả tóm tắt]
+    CallSonnet -- "Thành công (200 OK)" --> ReturnResult["Trả về kết quả tóm tắt"]
     
-    CallSonnet -- Lỗi 429 / 500 / Timeout > 2.0s --> CheckRetry{Đã thử lại đủ 2 lần chưa?}
-    CheckRetry -- Chưa đủ --> RetrySonnet[Thực hiện Thử lại (Retry) với Exponential Backoff]
+    CallSonnet -- "Lỗi 429 / 500 / Timeout > 2.0s" --> CheckRetry{"Đã thử lại đủ 2 lần chưa?"}
+    CheckRetry -- "Chưa đủ" --> RetrySonnet["Thực hiện Thử lại (Retry) với Exponential Backoff"]
     RetrySonnet --> CallSonnet
     
-    CheckRetry -- Đã đủ 2 lần (Tổng 3 lần lỗi) --> CheckFallbackFlag{Feature Flag llmReviewsFallbackEnabled == true?}
+    CheckRetry -- "Đã đủ 2 lần (Tổng 3 lần lỗi)" --> CheckFallbackFlag{"Feature Flag llmReviewsFallbackEnabled == true?"}
     
-    CheckFallbackFlag -- False (Tắt Fallback) --> FailResponse[Trả về mã lỗi 500 cho client]
+    CheckFallbackFlag -- "False (Tắt Fallback)" --> FailResponse["Trả về mã lỗi 500 cho client"]
     
-    CheckFallbackFlag -- True (Bật Fallback) --> CallHaiku{Gọi Claude 3 Haiku<br>ID: anthropic.claude-3-haiku-20240307-v1:0}
+    CheckFallbackFlag -- "True (Bật Fallback)" --> CallHaiku{"Gọi Claude 3 Haiku<br>ID: anthropic.claude-3-haiku-20240307-v1:0"}
     
-    CallHaiku -- Thành công (200 OK) --> ReturnResult
-    CallHaiku -- Thất bại (429 / 500 / Timeout) --> CallMock[Sử dụng Default Mock Summary làm Fallback cuối]
+    CallHaiku -- "Thành công (200 OK)" --> ReturnResult
+    CallHaiku -- "Thất bại (429 / 500 / Timeout)" --> CallMock["Sử dụng Default Mock Summary làm Fallback cuối"]
     
-    CallMock --> AlertAIOps[Gửi cảnh báo bất thường đến hệ thống AIOps]
-    ReturnResult --> End[Kết thúc]
+    CallMock --> AlertAIOps["Gửi cảnh báo bất thường đến hệ thống AIOps"]
+    ReturnResult --> End["Kết thúc"]
     CallMock --> End
     FailResponse --> End
 ```
