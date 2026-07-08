@@ -3,7 +3,7 @@
 ## 1. Đánh giá hệ thống hiện tại
 Hệ thống hiện tại chạy trên K8s (EKS) với dịch vụ tóm tắt review (`product-reviews`) gọi trực tiếp API `llm` (mặc định là mock). Khi tích hợp API LLM thật (AWS Bedrock) và chạy dưới tải thực tế, hệ thống đối mặt với 3 rủi ro lớn nhất:
 1. **Rủi ro vỡ trần chi phí Bedrock & Latency tăng cao (SLO p95 < 1s):** Việc gọi API LLM trực tiếp cho mỗi lượt duyệt sản phẩm mà không có bộ đệm (caching) sẽ làm phát sinh chi phí token khổng lồ và kéo dài thời gian phản hồi (p95 > 2s do độ trễ mạng API).
-2. **Rủi ro gián đoạn dịch vụ khi API chính gặp lỗi (Reliability):** Nếu model chính (Claude 3.5 Sonnet) bị lỗi hoặc chạm ngưỡng giới hạn băng thông (Rate Limit - 429), tính năng tóm tắt review sẽ sập hoàn toàn nếu không có cơ chế tự động chuyển đổi sang model dự phòng (Fallback Routing).
+2. **Rủi ro gián đoạn dịch vụ khi API chính gặp lỗi (Reliability):** Nếu model chính (Claude 3.0 Sonnet) bị lỗi hoặc chạm ngưỡng giới hạn băng thông (Rate Limit - 429), tính năng tóm tắt review sẽ sập hoàn toàn nếu không có cơ chế tự động chuyển đổi sang model dự phòng (Fallback Routing).
 3. **Rủi ro an toàn thông tin (Security & Excess Agency):** Trợ lý Shopping Copilot tự ý thực hiện các hành động ghi phá hoại giỏ hàng của khách (hoặc tự ý checkout) do bị Prompt Injection qua review sản phẩm, hoặc tự động hóa hành động không có sự xác nhận của người dùng.
 
 ---
