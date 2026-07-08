@@ -54,3 +54,9 @@ variable "vpc_cidr" {
     error_message = "VPC CIDR must be a valid CIDR block (e.g. 10.0.0.0/16)."
   }
 }
+
+variable "eks_admin_user_arns" {
+  description = "List of IAM User ARNs to grant admin access to the EKS cluster"
+  type        = list(string)
+  default     = []
+}
