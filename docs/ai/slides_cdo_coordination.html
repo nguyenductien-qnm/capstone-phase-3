@@ -156,9 +156,11 @@ body{font-family:-apple-system,'Segoe UI',system-ui,sans-serif;background:var(--
           <td class="td-state">
             <span class="has"><strong>Tái sử dụng cụm <code>valkey-cart:6379</code></strong> làm cache cho AI Review Summary.</span>
             <span class="gap">Cache key: <code>reviews:summary:{product_id}</code> — TTL động 4h→7d dựa trên lượng review (ADR-001).</span>
+            <span class="gap"><strong>Subnet:</strong> Phối hợp CDO đặt cụm Valkey cache hoàn toàn trong <strong>Private Subnet</strong> để cách ly và đảm bảo an toàn bảo mật.</span>
           </td>
           <td class="td-req">
-            <b>Xác nhận cho phép</b> AI ghi thêm key prefix <code>reviews:*</code> lên cụm Valkey hiện tại.<span class="who">CDO</span>
+            <b>Xác nhận cho phép</b> AI ghi thêm key prefix <code>reviews:*</code> lên cụm Valkey hiện tại.<br>
+            <b>Bảo mật cụm cache:</b> CDO xác nhận cấu hình cụm cache trong <b>Private Subnet</b>.<span class="who">CDO</span>
           </td>
         </tr>
         <tr>
