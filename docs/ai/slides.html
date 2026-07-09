@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shopping Copilot &amp; Auto-Remediation — Pitching Slides (TF1)</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0f172a;
+  --surface: #1e293b;
+  --border: #334155;
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --brand-accent: #f59e0b;
+  --brand-secondary: #3b82f6;
+  --brand-success: #10b981;
+  --brand-danger: #ef4444;
+  --gradient-warm: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  --gradient-cool: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  --gradient-dark: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+  --s5-bg: #d1fae5; --s5-ink: #065f46;
+  --s4-bg: #dbeafe; --s4-ink: #1e3a8a;
+  --s3-bg: #fef3c7; --s3-ink: #78350f;
+  --s2-bg: #fee2e2; --s2-ink: #991b1b;
+}
+
+html { scroll-snap-type: y mandatory; scroll-behavior: smooth; overflow-x: hidden; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text-primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.progress-bar { position: fixed; top: 0; left: 0; height: 4px; background: var(--gradient-warm); z-index: 1000; width: 0%; transition: width 0.3s; }
+
+.slide {
+  min-height: 100vh;
+  width: 100%;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 60px 80px;
+  position: relative;
+  overflow: hidden;
+  background: var(--gradient-dark);
+  border-bottom: 1px solid var(--border);
+}
+
+/* Background Gradients decoration */
+.slide::before {
+  content: '';
+  position: absolute;
+  top: -20%;
+  right: -10%;
+  width: 50%;
+  height: 60%;
+  background: radial-gradient(circle, rgba(245,158,11,0.05) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.slide-title h1 {
+  font-size: clamp(2.5rem, 5vw, 4rem);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  margin-bottom: 20px;
+  text-align: center;
+}
+.gradient-text { background: var(--gradient-warm); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.slide-title .lead {
+  font-size: clamp(1.1rem, 2.5vw, 1.4rem);
+  color: var(--text-secondary);
+  max-width: 800px;
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.slide-content { width: 100%; max-width: 1100px; }
+.slide-header { margin-bottom: 24px; }
+.slide-header h2 { font-size: clamp(1.8rem, 3vw, 2.4rem); font-weight: 800; letter-spacing: -0.02em; color: var(--brand-accent); }
+.slide-header .lead { font-size: 14px; color: var(--text-secondary); margin-top: 4px; }
+
+.slide-footer {
+  position: absolute;
+  bottom: 20px;
+  left: 40px;
+  right: 40px;
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+@media(max-width: 768px) {
+  .grid-2, .grid-3 { grid-template-columns: 1fr; }
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  position: relative;
+  transition: transform 0.3s ease;
+}
+.card:hover { transform: translateY(-4px); }
+.card h3 { font-size: 15px; font-weight: 700; margin-bottom: 10px; color: var(--brand-accent); }
+.card p, .card li { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+.card ul { margin-left: 18px; }
+
+.matrix-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 20px; }
+.matrix-card { background: var(--surface); border: 1px solid var(--border); padding: 12px 14px; border-radius: 8px; }
+.matrix-card .mk { font-family: monospace; font-size: 12px; font-weight: 800; color: var(--brand-secondary); margin-bottom: 2px; }
+.matrix-card .mn { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+.matrix-card .md { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+
+table { width: 100%; border-collapse: collapse; font-size: 12.5px; background: var(--surface); border-radius: 8px; overflow: hidden; }
+th { text-align: left; padding: 12px; background: rgba(255,255,255,0.05); color: var(--brand-accent); font-weight: 700; border-bottom: 2px solid var(--border); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; }
+td { padding: 12px; border-bottom: 1px solid var(--border); color: var(--text-secondary); vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+
+.td-badge { font-family: monospace; font-weight: 700; color: var(--brand-secondary); }
+.chip { display: inline-block; font-family: monospace; font-weight: 700; padding: 2px 8px; border-radius: 4px; font-size: 11.5px; }
+.chip.green { background: var(--s5-bg); color: var(--s5-ink); }
+.chip.blue { background: var(--s4-bg); color: var(--s4-ink); }
+.chip.yellow { background: var(--s3-bg); color: var(--s3-ink); }
+.chip.red { background: var(--s2-bg); color: var(--s2-ink); }
+
+.code-style { font-family: monospace; font-size: 12px; background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; color: var(--brand-accent); }
+
+.bullet-list { list-style: none; }
+.bullet-list li { position: relative; padding-left: 20px; margin-bottom: 8px; font-size: 13px; color: var(--text-secondary); }
+.bullet-list li::before { content: '▪'; position: absolute; left: 0; color: var(--brand-accent); }
+
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(20px, 3vw, 40px); align-items: start; }
+
+.nav-dots { position: fixed; right: 24px; top: 50%; transform: translateY(-50%); z-index: 1000; display: flex; flex-direction: column; gap: 10px; }
+.nav-dot { width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,0.2); border: none; cursor: pointer; transition: all 0.2s ease; }
+.nav-dot.active { background: var(--brand-accent); transform: scale(1.4); }
+
+</style>
+</head>
+<body>
+
+<div class="progress-bar" id="pbar"></div>
+
+<div class="nav-dots">
+  <button class="nav-dot active" onclick="gotoSlide(0)"></button>
+  <button class="nav-dot" onclick="gotoSlide(1)"></button>
+  <button class="nav-dot" onclick="gotoSlide(2)"></button>
+  <button class="nav-dot" onclick="gotoSlide(3)"></button>
+  <button class="nav-dot" onclick="gotoSlide(4)"></button>
+  <button class="nav-dot" onclick="gotoSlide(5)"></button>
+  <button class="nav-dot" onclick="gotoSlide(6)"></button>
+  <button class="nav-dot" onclick="gotoSlide(7)"></button>
+  <button class="nav-dot" onclick="gotoSlide(8)"></button>
+  <button class="nav-dot" onclick="gotoSlide(9)"></button>
+  <button class="nav-dot" onclick="gotoSlide(10)"></button>
+  <button class="nav-dot" onclick="gotoSlide(11)"></button>
+</div>
+
+<!-- SLIDE 1: TITLE -->
+<section class="slide" id="slide-0">
+  <div class="slide-title">
+    <span class="eyebrow" style="font-size: 14px; text-align: center; display: block;">Task Force 1 · Phase 3 Capstone</span>
+    <h1>Shopping Copilot &amp; <span class="gradient-text">Auto-Remediation</span></h1>
+    <p class="lead">Tối ưu hóa hiệu năng &amp; Tin cậy Vận hành storefront TechX Corp bằng AI (AIE &amp; AIOps)</p>
+    <div style="text-align: center; font-size: 13px; color: var(--text-muted); margin-top: 40px;">
+      Trình bày bởi: <strong>AI Team (AIO03)</strong> | Ngày bảo vệ: <strong>2026-07-10</strong>
+    </div>
+  </div>
+  <div class="slide-footer">
+    <span>TechX Corp</span>
+    <span>Slide 1 / 12</span>
+  </div>
+</section>
+
+<!-- SLIDE 2: CAM KẾT SLO & BUDGET -->
+<section class="slide" id="slide-1">
+  <div class="slide-content">
+    <div class="slide-header">
+      <span class="eyebrow">Trụ cột: Governance &amp; Cost</span>
+      <h2>Mục Tiêu Cam Kết Cam Đoan (SLO &amp; Ngân Sách)</h2>
+      <p class="lead">Mọi giải pháp thiết kế phải giữ vững các chỉ số baseline của CTO và CFO đặt ra.</p>
+    </div>
+
+    <div class="grid-3" style="margin-top: 30px;">
+      <div class="card">
+        <h3>Ngân sách AWS</h3>
+        <p style="font-size: 28px; font-weight: 800; color: #fff; margin: 10px 0;">&le; $300<span style="font-size: 16px; color: var(--text-secondary);"> / tuần</span></p>
+        <p>Hạn mức tối đa cho toàn bộ infra (Compute, managed Valkey/RDS, transfer, NAT). Tiêu vượt = Thất bại.</p>
+      </div>
+      <div class="card">
+        <h3>Độ trễ trang (SLO)</h3>
+        <p style="font-size: 28px; font-weight: 800; color: #fff; margin: 10px 0;">p95 &lt; 1.0s</p>
+        <p>Áp dụng đo lường tại storefront. p95 load trang phải nhỏ hơn 1.0s dưới tải thực tế.</p>
+      </div>
+      <div class="card">
+        <h3>Tỷ lệ Đặt hàng (SLO)</h3>
+        <p style="font-size: 28px; font-weight: 800; color: #fff; margin: 10px 0;">&ge; 99.0%</p>
+        <p>Áp dụng riêng cho luồng đặt hàng (checkout). Luồng Cart yêu cầu độ sẵn sàng &ge; 99.5%.</p>
+      </div>
+    </div>
+  </div>
+  <div class="slide-footer">
+    <span>TechX Corp</span>
+    <span>Slide 2 / 12</span>
+  </div>
+</section>
+
+<!-- SLIDE 3: BỐI CẢNH & RỦI RO -->
+<section class="slide" id="slide-2">
+  <div class="slide-content">
+    <div class="slide-header">
+      <span class="eyebrow">Bối cảnh hệ thống</span>
+      <h2>3 Hạn Mức &amp; Rủi Ro Cực Nghiêm Trọng</h2>
+      <p class="lead">Hiện trạng product-reviews đang gọi trực tiếp mock API llm. Tích hợp Bedrock thật đối mặt rủi ro lớn:</p>
+    </div>
+
+    <div class="grid-3" style="margin-top: 20px;">
+      <div class="card">
+        <div style="font-family: monospace; font-size: 24px; font-weight: 800; color: var(--brand-danger); margin-bottom: 8px;">01</div>
+        <h3>Vỡ trần chi phí &amp; Latency</h3>
+        <p>Gọi API Bedrock trực tiếp cho mỗi request xem sản phẩm làm vọt p95 &gt; 2.5s và tốn hàng nghìn USD hóa đơn token Bedrock.</p>
+      </div>
+      <div class="card">
+        <div style="font-family: monospace; font-size: 24px; font-weight: 800; color: var(--brand-danger); margin-bottom: 8px;">02</div>
+        <h3>Gián đoạn dịch vụ (429)</h3>
+        <p>Bedrock API bị Rate Limit (429) hoặc lỗi mạng làm sập tính năng reviews nếu không có cơ chế chuyển đổi dự phòng.</p>
+      </div>
+      <div class="card">
+        <div style="font-family: monospace; font-size: 24px; font-weight: 800; color: var(--brand-danger); margin-bottom: 8px;">03</div>
+        <h3>Rủi ro An toàn (INC-2)</h3>
+        <p>Tái sử dụng cụm valkey-cart cho caching reviews summary có thể gây sập giỏ hàng nếu set eviction policy là <code>allkeys-lru</code>.</p>
+      </div>
+    </div>
+  </div>
+  <div class="slide-footer">
+    <span>TechX Corp</span>
+    <span>Slide 3 / 12</span>
+  </div>
+</section>
+
+<!-- SLIDE 4: EVICTION CLASH & 4 ARCHITECTURAL OPTIONS -->
+<section class="slide" id="slide-3">
+  <div class="slide-content">
+    <div class="slide-header">
+      <span class="eyebrow">Trụ cột: Reliability &amp; SRE</span>
+      <h2>Xử lý Xung Đột Eviction Policy: 4 Phương Án Kiến Trúc</h2>
+      <p class="lead">Lựa chọn giải pháp tối ưu dựa trên Best Practices của AWS ElastiCache.</p>
+    </div>
+
+    <div class="grid-2" style="margin-top: 15px; font-size: 12.5px;">
+      <div class="card">
+        <h3 style="color: var(--brand-accent);">Option 1: volatile-lru + Bỏ Cart TTL (Đề xuất)</h3>
+        <p>Không đặt TTL cho Cart trong code để biến giỏ hàng thành key vĩnh viễn (non-volatile). Valkey chỉ trục xuất Review cache (có TTL động) khi đầy RAM. Dọn rác bằng Cron job offline.</p>
+        <span class="chip green" style="margin-top: 8px;">Mức độ khả thi: Cao nhất (Đúng luật đề)</span>
+      </div>
+      <div class="card">
+        <h3 style="color: var(--brand-secondary);">Option 2: Tách biệt cụm Valkey (AWS Standard)</h3>
+        <p>Chạy 2 cụm riêng biệt: Cụm Caching dùng <code>allkeys-lru</code>, Cụm Cart dùng <code>noeviction</code>. Con đường chuẩn nhất của SRE để loại bỏ ảnh hưởng chéo.</p>
+        <span class="chip blue" style="margin-top: 8px;">Mức độ khả thi: Tốn thêm infra cost ($)</span>
+      </div>
+      <div class="card">
+        <h3 style="color: var(--text-primary);">Option 3: Write-Through DB (Resiliency)</h3>
+        <p>Lưu giỏ hàng đồng thời xuống PostgreSQL/DynamoDB. Nếu Valkey bị eviction mất key giỏ hàng, ứng dụng tự động truy vấn DB để tái tạo lại trạng thái giỏ.</p>
+        <span class="chip yellow" style="margin-top: 8px;">Mức độ khả thi: Phức tạp hóa code Cart</span>
+      </div>
+      <div class="card">
+        <h3 style="color: var(--brand-success);">Option 4: Active Defrag &amp; RAM Alerts</h3>
+        <p>Cấu hình <code>activedefrag yes</code>. Cảnh báo vỡ RAM ở ngưỡng 75% để tự động scale-up cụm Valkey trước khi cơ chế eviction tự động kích hoạt.</p>
+        <span class="chip green" style="margin-top: 8px;">Mức độ khả thi: Giải pháp hỗ trợ thêm</span>
+      </div>
+    </div>
+  </div>
+  <div class="slide-footer">
+    <span>TechX Corp</span>
+    <span>Slide 4 / 12</span>
+  </div>
+</section>
+
+<!-- SLIDE 5: GIẢI PHÁP AIE - CACHE & FALLBACK -->
+<section class="slide" id="slide-4">
+  <div class="slide-content">
+    <div class="slide-header">
+      <span class="eyebrow">Tầng AI Engine (AIE)</span>
+      <h2>ADR-001: Valkey Cache &amp; ADR-002: Fallback Routing</h2>
+      <p class="lead">Hai quyết định kiến trúc cốt lõi giúp bảo vệ SLO và tối ưu chi phí vận hành.</p>
+    </div>
+
+    <div class="grid-2" style="margin-top: 20px;">
+      <div class="card">
+        <h3>ADR-001: Valkey Caching</h3>
+        <ul class="bullet-list" style="margin-top: 10px;">
+          <li>Tái sử dụng cụm cache <code class="code-style">valkey-cart:6379</code> sẵn có.</li>
+          <li>Cache key: <code class="code-style">reviews:summary:{product_id}</code> | TTL: <strong>Động (4h - 7d)</strong>.</li>
+          <li><strong>Eviction Policy:</strong> Bắt buộc dùng <code class="code-style">volatile-lru</code> để Valkey không xoá dữ liệu giỏ hàng (giữ an toàn).</li>
+          <li>Đặc tính bổ sung: Invalidation chủ động khi có review mới, feedback loop Thumbs Down.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>ADR-004: Định Tuyến Lai &amp; Fallback</h3>
+        <ul class="bullet-list" style="margin-top: 10px;">
+          <li>Tác vụ Reviews: **Nova Lite** -> Fallback: **Nova Micro** | Timeout: **2.0s**.</li>
+          <li>Tác vụ Copilot: **Claude 3.5 Sonnet** -> Fallback: **Claude 3.5 Haiku** | Timeout: **5.0s**.</li>
+          <li>Mã lỗi kích hoạt fallback: 429 (rate-limit), 500 (server error), timeout.</li>
+          <li>Bảo vệ độ trễ: Exponential Backoff + Jitter &amp; Dynamic Deadlines.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="slide-footer">
+    <span>TechX Corp</span>
+    <span>Slide 5 / 12</span>
+  </div>
+</section>
+
+<!-- SLIDE 6: COPILOT & CONFIRMATION GATE -->
+<section class="slide" id="slide-5">
+  <div class="slide-content">
+    <div class="slide-header">
+      <span class="eyebrow">Tầng AI Engine (AIE)</span>
+      <h2>Shopping Copilot &amp; Chốt chặn Confirmation Gate</h2>
+      <p class="lead">Trợ lý ảo thông minh tương tác gRPC bảo đảm an toàn dữ liệu giỏ hàng.</p>
+    </div>
+
+    <div class="grid-2" style="margin-top: 25px;">
+      <div class="card">
+        <h3>Kiến trúc Chatbot gRPC</h3>
+        <ul class="bullet-list" style="margin-top: 10px;">
+          <li>Chạy gRPC Server độc lập trên cổng <code class="code-style">50051</code>.</li>
+          <li>Hỗ trợ 2 tools: <code class="code-style">fetch_product_reviews</code> và <code class="code-style">fetch_product_info</code>.</li>
+          <li>Lưu trữ lịch sử chat in-memory Valkey theo <code class="code-style">session_id</code> (TTL 30p) để xử lý hội thoại nhiều lượt.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>Confirmation Gate (An toàn giỏ hàng)</h3>
+        <ul class="bullet-list" style="margin-top: 10px;">
+          <li><strong>Nguyên tắc:</strong> AI không tự ý gọi trực tiếp DB để sửa đổi dữ liệu giỏ hàng của người dùng.</li>
+          <li>AI trả về cờ <code class="code-style">requires_confirmation = true</code> cùng thông tin action.</li>
+          <li>Giao diện storefront sẽ hiển thị popup xác nhận. Chỉ khi khách bấm Đồng ý thì action mới được thực thi thật.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="slide-footer">
+    <span>TechX Corp</span>
+    <span>Slide 6 / 12</span>
+  </div>
+</section>
+
+<!-- SLIDE 7: MÔ HÌNH CHI PHÍ & ROI -->
+<section class="slide" id="slide-6">
+  <div class="slide-content">
+    <div class="slide-header">
+      <span class="eyebrow">Tài chính (CFO Focus)</span>
+      <h2>Mô Hình Chi Phí Bedrock &amp; ROI</h2>
+      <p class="lead">So sánh chi phí dựa trên lưu lượng storefront giả định: <strong>100,000 views/ngày</strong>.</p>
+    </div>
+
+    <table style="margin-top: 20px;">
+      <thead>
+        <tr>
+          <th>Kịch bản vận hành</th>
+          <th>Tỷ lệ Sonnet</th>
+          <th>Tỷ lệ Haiku</th>
+          <th>Tỷ lệ Trúng Cache</th>
+          <th>Chi phí/Tuần</th>
+          <th>Ngân sách $300/tuần</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Gọi trực tiếp Sonnet (Không cache)</strong></td>
+          <td>100%</td>
+          <td>0%</td>
+          <td>0%</td>
+          <td style="color: var(--brand-danger); font-weight: 700;">$5,250.00</td>
+          <td><span class="chip red">Vượt 17.5x</span></td>
+        </tr>
+        <tr>
+          <td><strong>Chỉ có Fallback (Không cache)</strong></td>
+          <td>80%</td>
+          <td>20%</td>
+          <td>0%</td>
+          <td style="color: var(--brand-danger); font-weight: 700;">$4,270.00</td>
+          <td><span class="chip red">Vượt 14.2x</span></td>
+        </tr>
+        <tr>
+          <td><strong>Có Valkey Cache (Hit rate 90%)</strong></td>
+          <td>10%</td>
+          <td>0%</td>
+          <td>90%</td>
+          <td style="color: var(--brand-accent); font-weight: 700;">$525.00</td>
+          <td><span class="chip yellow">Gần đạt</span></td>
+        </tr>
+        <tr>
+          <td><strong>Có Cache + Fallback + Prompt Caching</strong></td>
+          <td>10% (Cached input)</td>
+          <td>0%</td>
+          <td>90%</td>
+          <td style="color: var(--brand-success); font-weight: 700;">$262.50</td>
+          <td><span class="chip green">Đạt an toàn</span></td>
+        </tr>
+      </tbody>
+    </table>
+    <p style="font-size: 11.5px; color: var(--text-muted); margin-top: 15px; font-style: italic;">*Tiết kiệm gần $5,000/tuần (~95%) chi tiêu đám mây Bedrock nhờ Valkey Caching.</p>
+  </div>
+  <div class="slide-footer">
+    <span>TechX Corp</span>
+    <span>Slide 7 / 12</span>
+  </div>
+</section>
+
+<!-- SLIDE 8: AIOPS - PHÁT HIỆN BẤT THƯỜNG -->
+<section class="slide" id="slide-7">
+  <div class="slide-content">
+    <div class="slide-header">
+      <span class="eyebrow">Tầng Vận hành (AIOps)</span>
+      <h2>Phát Hiện Bất Thường EWMA &amp; Audit Telemetry</h2>
+      <p class="lead">Thuật toán giám sát giúp giảm 90% báo động giả cho kỹ sư trực on-call.</p>
+    </div>
+
+    <div class="grid-2" style="margin-top: 25px;">
+      <div class="card">
+        <h3>Giám sát Anomaly bằng EWMA &amp; STL</h3>
+        <ul class="bullet-list" style="margin-top: 10px;">
+          <li>Sử dụng **EWMA** ($\alpha = 0.2$, $3\sigma$) trên p95 latency để phát hiện drift tăng chậm (OOM, memory leak).</li>
+          <li>Sử dụng **STL Decomposition** tách trend và seasonal cho traffic storefront nhằm loại bỏ nhiễu lúc chuyển giao ngày/đêm.</li>
+          <li>Giám sát chỉ số tiền đề (**Precursor Metrics**) như `conn_pool_used` cảnh báo sớm trước khi sập hệ thống.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>Phân cụm Log bằng Drain3</h3>
+        <ul class="bullet-list" style="margin-top: 10px;">
+          <li>Tích hợp Drain3 parser: Chiều sâu cây parse $D = 4$, similarity threshold $sim\_th = 0.45$.</li>
+          <li>Gom cụm hàng nghìn log thô thành Template IDs tĩnh.</li>
+          <li>Tự động kích hoạt alert khi xuất hiện **New Template ID** chứa lỗi nguy hiểm (`ConnectionTimeout`, `OOM`).</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="slide-footer">
+    <span>TechX Corp</span>
+    <span>Slide 8 / 12</span>
+  </div>
+</section>
+
+<!-- SLIDE 9: CLOSED-LOOP AUTO-REMEDIATION -->
+<section class="slide" id="slide-8">
+  <div class="slide-content">
+    <div class="slide-header">
+      <span class="eyebrow">Tầng Vận hành (AIOps)</span>
+      <h2>Hệ Thống Tự Phục Hồi Closed-Loop &amp; Ranh Giới An Toàn</h2>
+      <p class="lead">Chu trình tự động hoá phát hiện, chẩn đoán, xử lý sự cố đi kèm chốt chặn an toàn.</p>
+    </div>
+
+    <div class="grid-2" style="margin-top: 20px;">
+      <div class="card">
+        <h3>Chu trình 5 bước Khép Kín</h3>
+        <div style="font-family: monospace; font-size: 12px; line-height: 1.6; margin-top: 8px;">
+          1. <strong>DETECT:</strong> Bắt alert từ Alertmanager.<br>
+          2. <strong>DECIDE:</strong> Gọi RCA Engine tìm thủ phạm (PageRank nghịch đảo + Granger Causality).<br>
+          3. <strong>ACT:</strong> Gọi API K8s áp dụng runbook.<br>
+          4. <strong>VERIFY:</strong> Chờ 120s, đối chiếu metrics với baseline.json.<br>
+          5. <strong>ROLLBACK:</strong> Revert cấu hình cũ nếu verify thất bại.
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>4 Chốt chặn an toàn (Safety Gates)</h3>
+        <ul class="bullet-list" style="margin-top: 10px;">
+          <li>**Dry-run Mode:** Cho phép chạy giả lập để kiểm tra phân quyền RBAC trước khi thực thi thật.</li>
+          <li>**Blast Radius Limit:** Giới hạn tối đa hành động (ví dụ: không restart &gt; 1 pod/giờ).</li>
+          <li>**Mutex Lock:** Chặn 2 hành động chạy chồng chéo trên 1 node.</li>
+          <li>**K8s Least Privilege:** ServiceAccount bị cấm tường minh khỏi kube-system namespace.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="slide-footer">
+    <span>TechX Corp</span>
+    <span>Slide 9 / 12</span>
+  </div>
+</section>
+
+<!-- SLIDE 10: KỊCH BẢN PHẢN BIỆN ROLEPLAY -->
+<section class="slide" id="slide-9">
+  <div class="slide-content">
+    <div class="slide-header">
+      <span class="eyebrow">Bảo vệ Kế hoạch</span>
+      <h2>Đối Phó Phản Biện 3 Stakeholders (Roleplay)</h2>
+      <p class="lead">Kịch bản trả lời các chất vấn khó từ các vai trò PM, CFO và SRE Lead.</p>
+    </div>
+
+    <div class="grid-3" style="margin-top: 20px;">
+      <div class="card">
+        <span class="chip yellow">👤 PM (Product)</span>
+        <h3 style="margin-top: 8px;">"Tại sao lo tối ưu infra?"</h3>
+        <p><i>Trả lời:</i> Tốc độ load trang ảnh hưởng trực tiếp đến doanh thu. Caching giảm latency từ 2.5s xuống &lt; 50ms (nhanh gấp 50 lần), giúp giữ chân khách hàng tốt hơn.</p>
+      </div>
+      <div class="card">
+        <span class="chip green">👤 CFO (Tài chính)</span>
+        <h3 style="margin-top: 8px;">"ROI của dự án là gì?"</h3>
+        <p><i>Trả lời:</i> Tiết kiệm gần $5,000/tuần tiền API Bedrock nhờ Valkey Caching và Prompt Caching. Đưa chi phí về $262.50/tuần, nằm dưới trần $300/tuần.</p>
+      </div>
+      <div class="card">
+        <span class="chip red">👤 SRE Lead (Vận hành)</span>
+        <h3 style="margin-top: 8px;">"Lỡ tự động làm sập prod?"</h3>
+        <p><i>Trả lời:</i> Có Fallback model sang Haiku khi Sonnet sập trong 500ms. Chu trình tự sửa lỗi có rào cản Mutex, Dry-run, và Auto-rollback tức thời nếu vỡ SLO.</p>
+      </div>
+    </div>
+  </div>
+  <div class="slide-footer">
+    <span>TechX Corp</span>
+    <span>Slide 10 / 12</span>
+  </div>
+</section>
+
+<!-- SLIDE 11: TẦM NHÌN ĐUA TOP MỞ RỘNG -->
+<section class="slide" id="slide-10">
+  <div class="slide-content">
+    <div class="slide-header">
+      <span class="eyebrow">Tầm nhìn &amp; Mở rộng (Bonus)</span>
+      <h2>Các Hạng Mục Nâng Cao (Đua Top)</h2>
+      <p class="lead">Lộ trình triển khai các tính năng nâng cao vượt qua giới hạn của đề bài (Dành cho Tuần 2-3).</p>
+    </div>
+
+    <div class="grid-3" style="margin-top: 20px;">
+      <div class="card">
+        <div style="font-family: monospace; font-size: 24px; font-weight: 800; color: var(--brand-accent); margin-bottom: 8px;">AIE</div>
+        <h3>Semantic Search &amp; Recommendations</h3>
+        <p>Tích hợp <code class="code-style">pgvector</code> cho tìm kiếm ngữ nghĩa tự nhiên ("tai nghe cho người chạy bộ") và hệ thống bán chéo bằng tín hiệu AI thay vì keyword tĩnh.</p>
+      </div>
+      <div class="card">
+        <div style="font-family: monospace; font-size: 24px; font-weight: 800; color: var(--brand-accent); margin-bottom: 8px;">AIE</div>
+        <h3>LLM Gateway &amp; Canary Release</h3>
+        <p>Thiết lập API Gateway chia traffic linh hoạt (ví dụ: 10% test model mới, 90% dùng model hiện tại) để A/B test hiệu năng và tỷ lệ chốt đơn (Conversion rate).</p>
+      </div>
+      <div class="card">
+        <div style="font-family: monospace; font-size: 24px; font-weight: 800; color: var(--brand-success); margin-bottom: 8px;">AIOps</div>
+        <h3>Capacity Forecasting (Dự báo AI)</h3>
+        <p>Áp dụng thuật toán ML trên dữ liệu Prometheus để dự báo trước 12h thời điểm cạn kiệt CPU/Disk hoặc chạm trần ngân sách để Auto-Scale sớm nhất.</p>
+      </div>
+    </div>
+  </div>
+  <div class="slide-footer">
+    <span>TechX Corp</span>
+    <span>Slide 11 / 12</span>
+  </div>
+</section>
+
+<!-- SLIDE 12: PHÂN RÃ JIRA & OUT OF SCOPE -->
+<section class="slide" id="slide-11">
+  <div class="slide-content">
+    <div class="slide-header">
+      <span class="eyebrow">Phân công công việc</span>
+      <h2>Phân Rã 10 Task JIRA &amp; Out of Scope</h2>
+      <p class="lead">Kế hoạch triển khai chia đều cho 10 thành viên nhóm trong Tuần 1.</p>
+    </div>
+
+    <div class="grid-2" style="margin-top: 15px;">
+      <div class="card">
+        <h3>10 Tasks JIRA Tuần 1</h3>
+        <div style="max-height: 180px; overflow-y: auto; font-size: 11px;">
+          <table>
+            <thead><tr><th>Mã JIRA</th><th>Phân hệ</th><th>Tên task</th></tr></thead>
+            <tbody>
+              <tr><td>TF1-44</td><td>AIE</td><td>Thiết lập Backlog &amp; Rủi ro (00_backlog.md)</td></tr>
+              <tr><td>TF1-45</td><td>AIE</td><td>Slide Pitching &amp; Cost Model (slides.html)</td></tr>
+              <tr><td>TF1-46</td><td>AIE</td><td>Valkey Caching &amp; Fallback Routing Spec</td></tr>
+              <tr><td>TF1-47</td><td>AIE</td><td>Shopping Copilot Spec &amp; CDO Contracts</td></tr>
+              <tr><td>TF1-48</td><td>AIE</td><td>Shopping Copilot PoC &amp; Evals Script</td></tr>
+              <tr><td>TF1-49</td><td>AIOps</td><td>Golden Signal Anomaly Detection Spec</td></tr>
+              <tr><td>TF1-50</td><td>AIOps</td><td>Auto-Remediation closed-loop Spec</td></tr>
+              <tr><td>TF1-51</td><td>AIOps</td><td>Audit Telemetry &amp; Trace Context</td></tr>
+              <tr><td>TF1-52</td><td>AIOps</td><td>Drain3 Log Clustering Research</td></tr>
+              <tr><td>TF1-53</td><td>AIOps</td><td>Script phát hiện lỗi và alert vận hành</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Cố ý bỏ (Out of Scope)</h3>
+        <ul class="bullet-list" style="margin-top: 10px;">
+          <li><strong>Tích hợp Front-end Copilot vào Next.js:</strong> Hoãn vì cần thống nhất giao diện gRPC-Web với Envoy Proxy trước.</li>
+          <li><strong>Triển khai Auto-remediation engine chạy live trên EKS:</strong> Hoãn sang Tuần 2 để kiểm chứng độ tin cậy của metrics Prometheus/Jaeger trước.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="slide-footer">
+    <span>TechX Corp</span>
+    <span>Slide 12 / 12</span>
+  </div>
+</section>
+
+<script>
+const totalSlides = 12;
+const pbar = document.getElementById('pbar');
+const dots = document.querySelectorAll('.nav-dot');
+
+function updateProgress(index) {
+  const percent = (index / (totalSlides - 1)) * 100;
+  pbar.style.width = `${percent}%`;
+  
+  dots.forEach(dot => dot.classList.remove('active'));
+  if(dots[index]) dots[index].classList.add('active');
+}
+
+function gotoSlide(index) {
+  const el = document.getElementById(`slide-${index}`);
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth' });
+    updateProgress(index);
+  }
+}
+
+// Track scrolling to update dots and progress
+window.addEventListener('scroll', () => {
+  const slideHeight = window.innerHeight;
+  const scrollTop = window.scrollY;
+  const currentIndex = Math.round(scrollTop / slideHeight);
+  updateProgress(currentIndex);
+});
+</script>
+
+</body>
+</html>

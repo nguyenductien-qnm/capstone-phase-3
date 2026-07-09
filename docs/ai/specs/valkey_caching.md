@@ -38,7 +38,7 @@ sequenceDiagram
             
             rect rgb(255, 235, 204)
                 note over Reviews, Valkey: Ghi lại kết quả vào Cache
-                Reviews->>Valkey: SET reviews:summary:{product_id} (TTL = 24h)
+                Reviews->>Valkey: SET reviews:summary:{product_id} (Dynamic TTL = 4h to 7d)
             end
         end
     end
@@ -69,7 +69,7 @@ sequenceDiagram
   ```
 
 ### 3.2 Cấu hình vòng đời và bộ nhớ (TTL & Eviction)
-- **TTL (Time To Live):** **24 giờ** (86,400 giây). Sau 24 giờ, cache key tự động hết hạn, đảm bảo thông tin tóm tắt được làm mới hàng ngày khi có reviews mới của người dùng.
+- **TTL (Time To Live):** **Động (Dynamic TTL)** tính toán tự động từ **4 giờ đến 7 ngày** dựa trên số lượng review ($N$) và độ biến động điểm số ($\sigma^2$) của sản phẩm. Xem chi tiết thuật toán tại Mục 5.
 - **Eviction Policy (Chính sách giải phóng bộ nhớ) & Giải pháp Bảo vệ Giỏ hàng (Option 1):**
   - Cấu hình eviction policy của cụm Valkey là `volatile-lru`.
   - Để tránh việc giỏ hàng (có TTL mặc định 60m trong code) vẫn bị xóa nhầm khi RAM đầy, ta tiến hành **loại bỏ hoàn toàn TTL của giỏ hàng trong code C# (`ValkeyCartStore.cs`)**. Khi không có TTL, key giỏ hàng trở thành key vĩnh viễn (non-volatile) và được Valkey bảo vệ an toàn 100% khỏi cơ chế tự động eviction.
