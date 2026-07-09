@@ -115,6 +115,39 @@ body{font-family:-apple-system,'Segoe UI',system-ui,sans-serif;background:var(--
       <span class="cpill a">Cần CDO phê duyệt</span>
       <span class="blocker-badge">⛔ Rủi ro mất giỏ hàng</span>
     </div>
+    
+    <div style="background:#fcf8e3; border:1px solid #faebcc; padding:10px 15px; margin-bottom:12px; font-size:12px; color:#8a6d3b;">
+      <strong>📊 Bằng chứng phân tích lựa chọn tối ưu (ADR-003 Comparison):</strong>
+      <table style="width:100%; border-collapse:collapse; margin-top:8px; font-size:11.5px; background:#fff;">
+        <thead>
+          <tr style="background:#f9f9f9; border-bottom:1px solid #ddd;"><th style="padding:4px 8px; text-align:left;">Giải pháp</th><th style="padding:4px 8px; text-align:left;">Chi phí hạ tầng</th><th style="padding:4px 8px; text-align:left;">Độ an toàn giỏ hàng</th><th style="padding:4px 8px; text-align:left;">Rủi ro Latency / Triển khai</th><th style="padding:4px 8px; text-align:left;">Đánh giá</th></tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom:1px solid #eee;">
+            <td style="padding:4px 8px; font-weight:bold; color:var(--s5-ink);">Option 1 (Chọn): volatile-lru + Cron GC</td>
+            <td style="padding:4px 8px; color:var(--s5-ink); font-weight:bold;">$0 / tuần</td>
+            <td style="padding:4px 8px; color:var(--s5-ink); font-weight:bold;">100% (An toàn tuyệt đối)</td>
+            <td style="padding:4px 8px;">Thấp (Chỉ chỉnh config Valkey và code C#)</td>
+            <td style="padding:4px 8px; background:var(--s5-bg); color:var(--s5-ink); font-weight:bold; text-align:center;">TỐI ƯU NHẤT</td>
+          </tr>
+          <tr style="border-bottom:1px solid #eee;">
+            <td style="padding:4px 8px;">Option 2: Tách biệt cụm Valkey</td>
+            <td style="padding:4px 8px; color:var(--s2-ink); font-weight:bold;">+$30 / tuần</td>
+            <td style="padding:4px 8px;">100% (An toàn tuyệt đối)</td>
+            <td style="padding:4px 8px;">Thấp</td>
+            <td style="padding:4px 8px; color:var(--s2-ink);">Vi phạm budget $300</td>
+          </tr>
+          <tr style="border-bottom:1px solid #eee;">
+            <td style="padding:4px 8px;">Option 3: Sync Write-Through PostgreSQL</td>
+            <td style="padding:4px 8px;">$0 / tuần</td>
+            <td style="padding:4px 8px;">95% (Có thể mất khi DB trễ)</td>
+            <td style="padding:4px 8px; color:var(--s2-ink);">Cao (Tăng tải DB, tăng latency checkout)</td>
+            <td style="padding:4px 8px; color:var(--s2-ink);">Rủi ro hiệu năng</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
     <table class="dtbl">
       <thead><tr><th style="width:54px">#</th><th>Nội dung đề xuất</th><th style="width:40%">Yêu cầu CDO thực hiện</th></tr></thead>
       <tbody>
@@ -263,6 +296,32 @@ body{font-family:-apple-system,'Segoe UI',system-ui,sans-serif;background:var(--
       <span class="cpill a">Cần CDO phê duyệt</span>
       <span class="priority-badge">⚡ Tuần 2 cần sẵn</span>
     </div>
+
+    <div style="background:#d9edf7; border:1px solid #bce8f1; padding:10px 15px; margin-bottom:12px; font-size:12px; color:#31708f;">
+      <strong>📊 Bằng chứng lựa chọn tối ưu dòng Model Amazon Nova (ADR-004 Evidence):</strong>
+      <table style="width:100%; border-collapse:collapse; margin-top:8px; font-size:11.5px; background:#fff; color:var(--ink);">
+        <thead>
+          <tr style="background:#f9f9f9; border-bottom:1px solid #ddd;"><th style="padding:4px 8px; text-align:left;">Model</th><th style="padding:4px 8px; text-align:left;">Khả năng thanh toán qua AWS Credit</th><th style="padding:4px 8px; text-align:left;">Chi phí thật (CFO Cash)</th><th style="padding:4px 8px; text-align:left;">TTFT (Độ trễ phản hồi đầu)</th><th style="padding:4px 8px; text-align:left;">Đánh giá tối ưu</th></tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom:1px solid #eee;">
+            <td style="padding:4px 8px; font-weight:bold; color:var(--s5-ink);">Amazon Nova (Lite/Pro)</td>
+            <td style="padding:4px 8px; color:var(--s5-ink); font-weight:bold;">Có (Hỗ trợ 100% qua AWS Credits)</td>
+            <td style="padding:4px 8px; color:var(--s5-ink); font-weight:bold;">$0 tiền mặt</td>
+            <td style="padding:4px 8px;">Cực nhanh (~0.4s với Nova Lite)</td>
+            <td style="padding:4px 8px; background:var(--s5-bg); color:var(--s5-ink); font-weight:bold; text-align:center;">ĐẠT BUDGET &amp; SLO</td>
+          </tr>
+          <tr style="border-bottom:1px solid #eee;">
+            <td style="padding:4px 8px;">Claude 3.5 Sonnet (AWS Marketplace)</td>
+            <td style="padding:4px 8px; color:var(--s2-ink);">Không (Bắt buộc trả bằng tiền mặt)</td>
+            <td style="padding:4px 8px; color:var(--s2-ink); font-weight:bold;">Tối thiểu $260+/tuần</td>
+            <td style="padding:4px 8px;">~1.5s</td>
+            <td style="padding:4px 8px; color:var(--s2-ink);">Nguy cơ vượt trần cash budget</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
     <table class="dtbl">
       <thead><tr><th style="width:54px">#</th><th>Nội dung đề xuất</th><th style="width:40%">Yêu cầu CDO thực hiện</th></tr></thead>
       <tbody>
