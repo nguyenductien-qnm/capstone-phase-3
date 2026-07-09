@@ -508,15 +508,9 @@ def run_agent_turn(bedrock_client, model_id: str, messages: list) -> str:
 # 7. Khởi tạo Bedrock client + Session State
 # ─────────────────────────────────────────────
 @st.cache_resource(show_spinner=False)
-def get_bedrock_client(region: str, access_key: str = "", secret_key: str = "", session_token: str = ""):
-    """Tạo Bedrock client. Nếu truyền key trực tiếp thì dùng, không thì lấy từ env/file."""
-    kwargs = {"service_name": "bedrock-runtime", "region_name": region}
-    if access_key and secret_key:
-        kwargs["aws_access_key_id"] = access_key
-        kwargs["aws_secret_access_key"] = secret_key
-        if session_token:
-            kwargs["aws_session_token"] = session_token
-    return boto3.client(**kwargs)
+def get_bedrock_client(region: str):
+    """Tạo Bedrock client (lấy credentials tự động từ môi trường local)."""
+    return boto3.client(service_name="bedrock-runtime", region_name=region)
 
 
 def check_bedrock_connection(region: str) -> tuple[bool, object]:
@@ -567,62 +561,25 @@ def render_sidebar():
     model_id = st.sidebar.selectbox(
         "Model Bedrock",
         options=[
-            "anthropic.claude-3-haiku-20240307-v1:0",
-            "anthropic.claude-3-sonnet-20240229-v1:0",
-            "anthropic.claude-sonnet-4-20250514-v1:0",
+            "amazon.nova-pro-v1:0",
+            "amazon.nova-lite-v1:0",
+            "amazon.nova-micro-v1:0",
         ],
         index=0,
-        help="Haiku: nhanh & rẻ nhất. Sonnet: chất lượng cao hơn.",
+        help="Nova Pro: Chất lượng cao cho Agent. Nova Lite/Micro: Nhanh, nhẹ, rẻ cho fallback.",
     )
 
     region = st.sidebar.selectbox(
         "AWS Region",
-        options=["us-west-2", "us-east-1", "ap-southeast-1"],
+        options=["us-east-1", "us-west-2", "ap-southeast-1"],
         index=0,
     )
 
-    # ─── Credentials Input ────────────────────────────
-    with st.sidebar.expander("🔑 Dán AWS Credentials", expanded=not st.session_state.bedrock_ok):
-        st.caption(
-            "Lấy từ AWS Console \u2192 chọn Account \u2192 "
-            "**Command line or programmatic access** \u2192 copy Option 2."
-        )
-        access_key = st.text_input(
-            "AWS_ACCESS_KEY_ID",
-            type="password",
-            placeholder="ASIA...",
-            key="inp_access_key",
-        )
-        secret_key = st.text_input(
-            "AWS_SECRET_ACCESS_KEY",
-            type="password",
-            placeholder="wJalr...",
-            key="inp_secret_key",
-        )
-        session_token = st.text_input(
-            "AWS_SESSION_TOKEN (nếu có)",
-            type="password",
-            placeholder="IQoJb...",
-            key="inp_session_token",
-        )
-        st.caption("⚠️ Credentials tạm thời hết hạn sau 1\u201312 giờ. Dán lại nếu bị lỗi auth.")
-
-    # Kết nối Bedrock với credentials vừa nhập (hoặc từ env/file nếu trống)
+    # Kết nối Bedrock bằng cấu hình máy tính local
     try:
-        client = get_bedrock_client(
-            region,
-            access_key=access_key.strip(),
-            secret_key=secret_key.strip(),
-            session_token=session_token.strip(),
-        )
+        client = get_bedrock_client(region)
         # Ping nhẹ bằng STS để xác nhận credentials có hợp lệ không
-        sts_kwargs = {"region_name": region}
-        if access_key.strip() and secret_key.strip():
-            sts_kwargs["aws_access_key_id"] = access_key.strip()
-            sts_kwargs["aws_secret_access_key"] = secret_key.strip()
-            if session_token.strip():
-                sts_kwargs["aws_session_token"] = session_token.strip()
-        sts = boto3.client("sts", **sts_kwargs)
+        sts = boto3.client("sts", region_name=region)
         identity = sts.get_caller_identity()
         st.sidebar.success(
             f"🔌 Bedrock: Kết nối OK\n"
@@ -634,14 +591,14 @@ def render_sidebar():
         if code in ("InvalidClientTokenId", "ExpiredTokenException", "AuthFailure"):
             st.sidebar.error(
                 "❌ Credentials không hợp lệ hoặc đã hết hạn.\n"
-                "Vui lòng lấy lại từ AWS Console."
+                "Vui lòng chạy `aws configure` để cập nhật."
             )
         else:
             st.sidebar.warning(f"⚠️ {code}: {e.response['Error']['Message']}")
         st.session_state.bedrock_ok = False
         client = None
     except NoCredentialsError:
-        st.sidebar.warning("⚠️ Chưa có credentials. Dán key vào ô phía trên hoặc chạy `aws configure`.")
+        st.sidebar.warning("⚠️ Chưa có credentials trên máy. Vui lòng chạy `aws configure`.")
         st.session_state.bedrock_ok = False
         client = None
     except Exception as e:
@@ -772,6 +729,17 @@ def main():
 
     # Confirmation Gate (luôn hiện khi có pending action)
     render_confirmation_gate()
+
+    # Yêu cầu cài đặt credentials nếu chưa kết nối
+    if not st.session_state.bedrock_ok:
+        st.error("⛔ Chưa kết nối được AWS Bedrock. Cấu hình credentials trên máy (Local) trước.")
+        st.code(
+            "# Cách 1: Sử dụng AWS CLI (Khuyên dùng)\naws configure\n\n"
+            "# Cách 2: Biến môi trường\nexport AWS_ACCESS_KEY_ID=...\n"
+            "export AWS_SECRET_ACCESS_KEY=...\nexport AWS_SESSION_TOKEN=...",
+            language="bash"
+        )
+        return
 
     # Input chat
     user_input = st.chat_input("Hỏi về sản phẩm, review, hoặc thêm vào giỏ hàng...")
