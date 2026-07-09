@@ -605,14 +605,14 @@ components:
     env:
       - name: OPENAI_API_KEY
         value: dummy
-      - name: LLM_MODEL
-        value: techx-llm
+      - name: AWS_REGION
+        value: us-east-1
+      - name: AWS_BEDROCK_MODEL
+        value: amazon.nova-lite-v1:0
       - name: LLM_HOST
         value: llm
       - name: LLM_PORT
         value: "8000"
-      - name: LLM_BASE_URL
-        value: http://$(LLM_HOST):$(LLM_PORT)/v1
       - name: PRODUCT_REVIEWS_PORT
         value: "3551"
       - name: PRODUCT_CATALOG_ADDR

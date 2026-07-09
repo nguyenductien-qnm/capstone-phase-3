@@ -78,6 +78,7 @@ enum HealthCheckResponse_ServingStatus : int {
   HealthCheckResponse_ServingStatus_UNKNOWN = 0,
   HealthCheckResponse_ServingStatus_SERVING = 1,
   HealthCheckResponse_ServingStatus_NOT_SERVING = 2,
+  HealthCheckResponse_ServingStatus_SERVICE_UNKNOWN = 3,
   HealthCheckResponse_ServingStatus_HealthCheckResponse_ServingStatus_INT_MIN_SENTINEL_DO_NOT_USE_ =
       std::numeric_limits<::int32_t>::min(),
   HealthCheckResponse_ServingStatus_HealthCheckResponse_ServingStatus_INT_MAX_SENTINEL_DO_NOT_USE_ =
@@ -86,8 +87,8 @@ enum HealthCheckResponse_ServingStatus : int {
 
 bool HealthCheckResponse_ServingStatus_IsValid(int value);
 constexpr HealthCheckResponse_ServingStatus HealthCheckResponse_ServingStatus_ServingStatus_MIN = static_cast<HealthCheckResponse_ServingStatus>(0);
-constexpr HealthCheckResponse_ServingStatus HealthCheckResponse_ServingStatus_ServingStatus_MAX = static_cast<HealthCheckResponse_ServingStatus>(2);
-constexpr int HealthCheckResponse_ServingStatus_ServingStatus_ARRAYSIZE = 2 + 1;
+constexpr HealthCheckResponse_ServingStatus HealthCheckResponse_ServingStatus_ServingStatus_MAX = static_cast<HealthCheckResponse_ServingStatus>(3);
+constexpr int HealthCheckResponse_ServingStatus_ServingStatus_ARRAYSIZE = 3 + 1;
 const ::google::protobuf::EnumDescriptor*
 HealthCheckResponse_ServingStatus_descriptor();
 template <typename T>
@@ -100,7 +101,7 @@ const std::string& HealthCheckResponse_ServingStatus_Name(T value) {
 template <>
 inline const std::string& HealthCheckResponse_ServingStatus_Name(HealthCheckResponse_ServingStatus value) {
   return ::google::protobuf::internal::NameOfDenseEnum<HealthCheckResponse_ServingStatus_descriptor,
-                                                 0, 2>(
+                                                 0, 3>(
       static_cast<int>(value));
 }
 inline bool HealthCheckResponse_ServingStatus_Parse(absl::string_view name, HealthCheckResponse_ServingStatus* value) {
@@ -406,6 +407,7 @@ class HealthCheckResponse final :
   static constexpr ServingStatus UNKNOWN = HealthCheckResponse_ServingStatus_UNKNOWN;
   static constexpr ServingStatus SERVING = HealthCheckResponse_ServingStatus_SERVING;
   static constexpr ServingStatus NOT_SERVING = HealthCheckResponse_ServingStatus_NOT_SERVING;
+  static constexpr ServingStatus SERVICE_UNKNOWN = HealthCheckResponse_ServingStatus_SERVICE_UNKNOWN;
   static inline bool ServingStatus_IsValid(int value) {
     return HealthCheckResponse_ServingStatus_IsValid(value);
   }

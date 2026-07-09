@@ -33,14 +33,14 @@ sequenceDiagram
         Copilot->>LLM: Send tool result
         LLM-->>Copilot: tool_call: get_product_reviews(product_id)
 
-        Copilot->>Cache: GET review_summary:L9ECAV7KIM
+        Copilot->>Cache: GET reviews:summary:L9ECAV7KIM:{model_ver}:{prompt_ver}
         alt Cache Hit
-            Cache-->>Copilot: Cached Review Data (TTL 1h)
+            Cache-->>Copilot: Cached Review Data (Dynamic TTL 4h–7d)
         else Cache Miss
             Copilot->>Reviews: gRPC GetProductReviews (Timeout: 2s)
             alt Reviews OK
                 Reviews-->>Copilot: Review Summary (avg 4.8)
-                Copilot->>Cache: SET review_summary:L9ECAV7KIM (TTL 1h)
+                Copilot->>Cache: SET reviews:summary:L9ECAV7KIM:{model_ver}:{prompt_ver} (Dynamic TTL 4h–7d)
             else Reviews Error (429 / 503)
                 Copilot->>Copilot: Fallback to Static Review Data
                 Note over Copilot: Increment Circuit Breaker Failure Count
@@ -153,7 +153,13 @@ message ChatWithCopilotResponse {
 
 Agent tích hợp mô hình OpenAI-compatible API hỗ trợ định nghĩa Function Calling. Các tool bao gồm:
 
-### 3.1. Tra cứu sản phẩm (`search_products`)
+> **Phân loại Core vs Extend** (khớp với 3 Tier của ADR-006):
+> - **[Core]** — bốn tool dưới đây phục vụ trực tiếp 3 intent cốt lõi (tìm sản phẩm / hỏi-đáp grounded / giỏ hàng có kiểm soát). Bắt buộc có ở tuần 1.
+> - **[Extend]** — `list_recommendations`, `convert_currency`, `get_shipping_quote` được ADR-006 allowlist nhưng **chưa đặc tả ở tài liệu này** và không thuộc phạm vi tuần 1.
+>
+> Toàn bộ Shopping Copilot Agent là hạng mục [Extend] ở cấp sản phẩm (BTC không cung cấp sẵn mã nguồn Agent). Nhãn [Core]/[Extend] ở đây phân loại **bên trong** phạm vi Agent đó.
+
+### 3.1. **[Core]** Tra cứu sản phẩm (`search_products`)
 * **Mục đích**: Tìm kiếm thông tin sản phẩm trong catalog dựa trên từ khóa.
 * **Đầu vào (Arguments)**:
   ```json
@@ -163,7 +169,7 @@ Agent tích hợp mô hình OpenAI-compatible API hỗ trợ định nghĩa Func
   ```
 * **Dịch vụ hạ nguồn**: Gọi gRPC `ProductCatalogService.SearchProducts`.
 
-### 3.2. Lấy đánh giá sản phẩm (`get_product_reviews`)
+### 3.2. **[Core]** Lấy đánh giá sản phẩm (`get_product_reviews`)
 * **Mục đích**: Lấy danh sách bình luận và điểm đánh giá của sản phẩm để tư vấn.
 * **Đầu vào (Arguments)**:
   ```json
@@ -173,7 +179,7 @@ Agent tích hợp mô hình OpenAI-compatible API hỗ trợ định nghĩa Func
   ```
 * **Dịch vụ hạ nguồn**: Gọi gRPC `ProductReviewService.GetProductReviews`.
 
-### 3.3. Thêm sản phẩm vào giỏ hàng (`add_item_to_cart`)
+### 3.3. **[Core]** Thêm sản phẩm vào giỏ hàng (`add_item_to_cart`)
 * **Mục đích**: Thêm sản phẩm được chọn trực tiếp vào giỏ hàng của khách hàng.
 * **Đầu vào (Arguments)**:
   ```json
@@ -184,7 +190,7 @@ Agent tích hợp mô hình OpenAI-compatible API hỗ trợ định nghĩa Func
   ```
 * **Dịch vụ hạ nguồn**: Gọi gRPC `CartService.AddItem` (sử dụng kèm `user_id` từ request gốc).
 
-### 3.4. Xem giỏ hàng hiện tại (`get_cart`)
+### 3.4. **[Core]** Xem giỏ hàng hiện tại (`get_cart`)
 * **Mục đích**: Lấy danh sách các sản phẩm đang có trong giỏ hàng.
 * **Đầu vào (Arguments)**: Rỗng.
 * **Dịch vụ hạ nguồn**: Gọi gRPC `CartService.GetCart`.
@@ -199,7 +205,7 @@ Agent tích hợp mô hình OpenAI-compatible API hỗ trợ định nghĩa Func
 
 ## 5. Tầng Bảo mật & Giám sát (Input/Output Guardrails)
 
-Để đáp ứng đầy đủ yêu cầu an toàn của **AI_FEATURE.md §2 Phần B** và chống lại các rủi ro từ **OWASP LLM09:2025 (Excessive Agency)**, trợ lý Shopping Copilot tích hợp cấu trúc bảo mật 3 lớp:
+Để đáp ứng đầy đủ yêu cầu an toàn của **AI_FEATURE.md §2 Phần B** và chống lại các rủi ro từ **OWASP LLM06:2025 (Excessive Agency)**, trợ lý Shopping Copilot tích hợp cấu trúc bảo mật 3 lớp:
 
 1. **Input Guardrail (Chặn Prompt Injection & Jailbreak):**
    - Áp dụng bộ lọc Regex để loại bỏ các từ khóa độc hại, chỉ thị ghi đè prompt hệ thống (system overrides).

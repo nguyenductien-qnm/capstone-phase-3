@@ -263,8 +263,8 @@ def _tool_search_products(query: str, category: str | None = None) -> str:
                         if isinstance(p.get("price"), (int, float)):
                             p["price"] = f"${p['price']:.2f}"
                     return json.dumps({"status": "ok", "count": len(products), "products": products})
-        except Exception:
-            pass  # Fallthrough to mock
+        except Exception as e:
+            print(f"[gRPC Fallback Log] _tool_search_products failed, falling back to mock: {e}")
     return _mock_search_products(query, category)
 
 
@@ -281,9 +281,10 @@ def _tool_get_product_reviews(product_id: str) -> str:
                     "product_name": data.get("product_name", product_id),
                     "review_summary": data.get("summary", ""),
                 })
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[gRPC Fallback Log] _tool_get_product_reviews failed, falling back to mock: {e}")
     return _mock_get_product_reviews(product_id)
+
 
 
 def _tool_add_to_cart(product_id: str, quantity: int = 1) -> str:

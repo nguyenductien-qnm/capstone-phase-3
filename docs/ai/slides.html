@@ -306,7 +306,7 @@ tr:last-child td { border-bottom: none; }
           <li>Tái sử dụng cụm cache <code class="code-style">valkey-cart:6379</code> sẵn có.</li>
           <li>Cache key: <code class="code-style">reviews:summary:{product_id}</code> | TTL: <strong>Động (4h - 7d)</strong>.</li>
           <li><strong>Eviction Policy:</strong> Bắt buộc dùng <code class="code-style">volatile-lru</code> để Valkey không xoá dữ liệu giỏ hàng (giữ an toàn).</li>
-          <li>Đặc tính bổ sung: Invalidation chủ động khi có review mới, feedback loop Thumbs Down.</li>
+          <li>Đặc tính bổ sung: versioned cache key (<code>{model_ver}:{prompt_ver}</code>) — đổi model hoặc prompt là cache miss tự nhiên, không cần lệnh xóa.</li>
         </ul>
       </div>
 

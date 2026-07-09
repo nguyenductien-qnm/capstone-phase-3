@@ -40,7 +40,13 @@ from metrics import (
 # OpenAI
 from openai import OpenAI
 
+import boto3
+from botocore.exceptions import ClientError
+import redis
+from datetime import datetime, timezone
+
 from google.protobuf.json_format import MessageToJson, MessageToDict
+
 
 llm_host = None
 llm_port = None
@@ -50,42 +56,50 @@ llm_api_key = None
 llm_model = None
 
 # --- Define the tool for the OpenAI API ---
+valkey_client = None
+model_ver = "nova-lite-v1"
+prompt_ver = "p3"
+
+# --- Define the tool for the Bedrock Converse API ---
 tools = [
     {
-        "type": "function",
-        "function": {
+        "toolSpec": {
             "name": "fetch_product_reviews",
             "description": "Executes a SQL query to retrieve reviews for a particular product.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "product_id": {
-                        "type": "string",
-                        "description": "The product ID to fetch product reviews for.",
-                    }
-                },
-                "required": ["product_id"],
-            },
+            "inputSchema": {
+                "json": {
+                    "type": "object",
+                    "properties": {
+                        "product_id": {
+                            "type": "string",
+                            "description": "The product ID to fetch product reviews for.",
+                        }
+                    },
+                    "required": ["product_id"],
+                }
+            }
         }
     },
-      {
-          "type": "function",
-          "function": {
-              "name": "fetch_product_info",
-              "description": "Retrieves information for a particular product.",
-              "parameters": {
-                  "type": "object",
-                  "properties": {
-                      "product_id": {
-                          "type": "string",
-                          "description": "The product ID to fetch information for.",
-                      }
-                  },
-                  "required": ["product_id"],
-              },
-          }
-      }
+    {
+        "toolSpec": {
+            "name": "fetch_product_info",
+            "description": "Retrieves information for a particular product.",
+            "inputSchema": {
+                "json": {
+                    "type": "object",
+                    "properties": {
+                        "product_id": {
+                            "type": "string",
+                            "description": "The product ID to fetch information for.",
+                        }
+                    },
+                    "required": ["product_id"],
+                }
+            }
+        }
+    }
 ]
+
 
 class ProductReviewService(demo_pb2_grpc.ProductReviewServiceServicer):
     def GetProductReviews(self, request, context):
@@ -152,6 +166,43 @@ def get_average_product_review_score(request_product_id):
 
         return product_review_score
 
+openai_tools = [
+    {
+        "type": "function",
+        "function": {
+            "name": "fetch_product_reviews",
+            "description": "Executes a SQL query to retrieve reviews for a particular product.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "product_id": {
+                        "type": "string",
+                        "description": "The product ID to fetch product reviews for.",
+                    }
+                },
+                "required": ["product_id"],
+            },
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "fetch_product_info",
+            "description": "Retrieves information for a particular product.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "product_id": {
+                        "type": "string",
+                        "description": "The product ID to fetch information for.",
+                    }
+                },
+                "required": ["product_id"],
+            },
+        }
+    }
+]
+
 def get_ai_assistant_response(request_product_id, question):
 
     with tracer.start_as_current_span("get_ai_assistant_response") as span:
@@ -161,13 +212,34 @@ def get_ai_assistant_response(request_product_id, question):
         span.set_attribute("app.product.id", request_product_id)
         span.set_attribute("app.product.question", question)
 
+        cache_key = f"reviews:summary:{request_product_id}:{model_ver}:{prompt_ver}"
+        llm_reviews_cache_enabled = check_feature_flag("llmReviewsCacheEnabled")
+        logger.info(f"llmReviewsCacheEnabled feature flag: {llm_reviews_cache_enabled}")
+
+        # Check Valkey Cache
+        if llm_reviews_cache_enabled and valkey_client is not None:
+            try:
+                cached_val = valkey_client.get(cache_key)
+                if cached_val:
+                    logger.info(f"Valkey cache hit for key: {cache_key}")
+                    cache_data = json.loads(cached_val)
+                    ai_assistant_response.response = cache_data.get("summary", "")
+                    product_review_svc_metrics["app_ai_assistant_counter"].add(1, {'product.id': request_product_id, 'cache_status': 'hit'})
+                    return ai_assistant_response
+            except Exception as e:
+                logger.error(f"Valkey cache read error: {e}")
+
+        result = None
+        is_mock_rate_limit = False
+
         llm_rate_limit_error = check_feature_flag("llmRateLimitError")
         logger.info(f"llmRateLimitError feature flag: {llm_rate_limit_error}")
-        if llm_rate_limit_error:
+        if llm_rate_limit_error and os.environ.get("LLM_MOCK_ENABLED", "true").lower() == "true":
             random_number = random.random()
             logger.info(f"Generated a random number: {str(random_number)}")
             # return a rate limit error 50% of the time
             if random_number < 0.5:
+                is_mock_rate_limit = True
 
                 # ensure the mock LLM is always used, since we want to generate a 429 error
                 client = OpenAI(
@@ -188,7 +260,7 @@ def get_ai_assistant_response(request_product_id, question):
                     initial_response = client.chat.completions.create(
                         model="techx-llm-rate-limit",
                         messages=messages,
-                        tools=tools,
+                        tools=openai_tools,
                         tool_choice="auto"
                     )
                 except Exception as e:
@@ -197,117 +269,157 @@ def get_ai_assistant_response(request_product_id, question):
                     span.record_exception(e)
                     # Set the span status to ERROR
                     span.set_status(Status(StatusCode.ERROR, description=str(e)))
+                    # Rule AIOps llm-rate-limit-429 check log phrase:
+                    logger.error("Rate limit reached. rate_limit_exceeded from mock LLM.")
                     ai_assistant_response.response = "The system is unable to process your response. Please try again later."
                     return ai_assistant_response
 
-        # otherwise, continue processing the request as normal
-        client = OpenAI(
-            base_url=f"{llm_base_url}",
-            # The OpenAI API requires an api_key to be present, but
-            # our LLM doesn't use it
-            api_key=f"{llm_api_key}"
-        )
+        if not is_mock_rate_limit:
+            # AWS Bedrock Converse API flow
+            logger.info("Invoking AWS Bedrock Nova Lite Converse API")
 
-        user_prompt = f"Answer the following question about product ID:{request_product_id}: {question}"
-        messages = [
-           {"role": "system", "content": "You are a helpful assistant that answers related to a specific product. Use tools as needed to fetch the product reviews and product information. Keep the response brief with no more than 1-2 sentences. If you don't know the answer, just say you don't know."},
-           {"role": "user", "content": user_prompt}
-        ]
+            system_prompt = "You are a helpful assistant that answers related to a specific product. Use tools as needed to fetch the product reviews and product information. Keep the response brief with no more than 1-2 sentences. If you don't know the answer, just say you don't know."
+            user_prompt = f"Answer the following question about product ID:{request_product_id}: {question}"
+            messages = [
+                {"role": "user", "content": [{"text": user_prompt}]}
+            ]
 
-        # use the LLM to summarize the product reviews
-        initial_response = client.chat.completions.create(
-            model=llm_model,
-            messages=messages,
-            tools=tools,
-            tool_choice="auto"
-        )
+            try:
+                response = bedrock_client.converse(
+                    modelId=os.environ.get('AWS_BEDROCK_MODEL', 'amazon.nova-lite-v1:0'),
+                    system=[{"text": system_prompt}],
+                    messages=messages,
+                    toolConfig={"tools": tools},
+                    inferenceConfig={
+                        "maxTokens": 1024,
+                        "temperature": 0.1,
+                        "topP": 0.9,
+                    },
+                )
+            except ClientError as e:
+                err = e.response["Error"]
+                logger.error(f"Bedrock ClientError: {err['Code']} - {err['Message']}")
+                span.record_exception(e)
+                span.set_status(Status(StatusCode.ERROR, description=str(e)))
+                if err["Code"] == "ThrottlingException":
+                    logger.error("Rate limit reached. Bedrock ThrottlingException.")
+                ai_assistant_response.response = "The system is unable to process your response. Please try again later."
+                return ai_assistant_response
+            except Exception as e:
+                logger.error(f"Bedrock unexpected error: {str(e)}")
+                span.record_exception(e)
+                span.set_status(Status(StatusCode.ERROR, description=str(e)))
+                ai_assistant_response.response = "The system is unable to process your response. Please try again later."
+                return ai_assistant_response
 
-        response_message = initial_response.choices[0].message
-        tool_calls = response_message.tool_calls
+            stop_reason = response.get("stopReason", "end_turn")
+            output_msg = response["output"]["message"]
+            content_blocks = output_msg.get("content", [])
 
-        logger.info(f"Response message: {response_message}")
+            if stop_reason == "tool_use":
+                logger.info(f"Bedrock wants to call tool(s)")
+                messages.append({"role": "assistant", "content": content_blocks})
 
-        # Check if the model wants to call a tool
-        if tool_calls:
-            logger.info(f"Model wants to call {len(tool_calls)} tool(s)")
+                tool_results = []
+                for block in content_blocks:
+                    if "toolUse" not in block:
+                        continue
+                    tool_use = block["toolUse"]
+                    tool_name = tool_use["name"]
+                    tool_input = tool_use.get("input", {})
+                    tool_use_id = tool_use["toolUseId"]
 
-            # Append the assistant's message with tool calls
-            messages.append(response_message)
+                    logger.info(f"Processing tool call: '{tool_name}' with arguments: {tool_input}")
 
-            # Process all tool calls
-            for tool_call in tool_calls:
-                function_name = tool_call.function.name
-                function_args = json.loads(tool_call.function.arguments)
+                    if tool_name == "fetch_product_reviews":
+                        function_response = fetch_product_reviews(
+                            product_id=tool_input.get("product_id")
+                        )
+                        logger.info(f"Function response for fetch_product_reviews: '{function_response}'")
+                    elif tool_name == "fetch_product_info":
+                        function_response = fetch_product_info(
+                            product_id=tool_input.get("product_id")
+                        )
+                        logger.info(f"Function response for fetch_product_info: '{function_response}'")
+                    else:
+                        raise Exception(f'Received unexpected tool call request: {tool_name}')
 
-                logger.info(f"Processing tool call: '{function_name}' with arguments: {function_args}")
+                    tool_results.append({
+                        "toolUseId": tool_use_id,
+                        "content": [{"json": json.loads(function_response)}],
+                    })
 
-                if function_name == "fetch_product_reviews":
-                    function_response = fetch_product_reviews(
-                        product_id=function_args.get("product_id")
-                    )
-                    logger.info(f"Function response for fetch_product_reviews: '{function_response}'")
+                llm_inaccurate_response = check_feature_flag("llmInaccurateResponse")
+                logger.info(f"llmInaccurateResponse feature flag: {llm_inaccurate_response}")
 
-                elif function_name == "fetch_product_info":
-                    function_response = fetch_product_info(
-                        product_id=function_args.get("product_id")
-                    )
-                    logger.info(f"Function response for fetch_product_info: '{function_response}'")
-
+                if llm_inaccurate_response and request_product_id == "L9ECAV7KIM":
+                    logger.info(f"Returning an inaccurate response for product_id: {request_product_id}")
+                    instruction_text = f"Based on the tool results, answer the original question about product ID, but make the answer inaccurate:{request_product_id}. Keep the response brief with no more than 1-2 sentences."
                 else:
-                    raise Exception(f'Received unexpected tool call request: {function_name}')
+                    instruction_text = f"Based on the tool results, answer the original question about product ID:{request_product_id}. Keep the response brief with no more than 1-2 sentences."
 
-                # Append the tool response
-                messages.append(
-                    {
-                        "tool_call_id": tool_call.id,
-                        "role": "tool",
-                        "name": function_name,
-                        "content": function_response,
-                    }
-                )
+                user_content = [{"toolResult": tr} for tr in tool_results]
+                user_content.append({"text": instruction_text})
 
-            llm_inaccurate_response = check_feature_flag("llmInaccurateResponse")
-            logger.info(f"llmInaccurateResponse feature flag: {llm_inaccurate_response}")
+                messages.append({
+                    "role": "user",
+                    "content": user_content
+                })
 
-            if llm_inaccurate_response and request_product_id == "L9ECAV7KIM":
-                logger.info(f"Returning an inaccurate response for product_id: {request_product_id}")
-                # Add a final user message to ask the LLM to return an inaccurate response
-                messages.append(
-                    {
-                        "role": "user",
-                        "content": f"Based on the tool results, answer the original question about product ID, but make the answer inaccurate:{request_product_id}. Keep the response brief with no more than 1-2 sentences."
-                    }
-                )
+                logger.info(f"Invoking Bedrock for final completion")
+                try:
+                    final_response = bedrock_client.converse(
+                        modelId=os.environ.get('AWS_BEDROCK_MODEL', 'amazon.nova-lite-v1:0'),
+                        system=[{"text": system_prompt}],
+                        messages=messages
+                    )
+                    result = final_response["output"]["message"]["content"][0]["text"]
+                except Exception as e:
+                    logger.error(f"Bedrock final completion error: {str(e)}")
+                    span.record_exception(e)
+                    span.set_status(Status(StatusCode.ERROR, description=str(e)))
+                    ai_assistant_response.response = "The system is unable to process your response. Please try again later."
+                    return ai_assistant_response
             else:
-                # Add a final user message to guide the LLM to synthesize the response
-                messages.append(
-                    {
-                        "role": "user",
-                        "content": f"Based on the tool results, answer the original question about product ID:{request_product_id}. Keep the response brief with no more than 1-2 sentences."
-                    }
-                )
-
-            logger.info(f"Invoking the LLM with the following messages: '{messages}'")
-
-            final_response = client.chat.completions.create(
-                model=llm_model,
-                messages=messages
-            )
-
-            result = final_response.choices[0].message.content
+                text_parts = [b["text"] for b in content_blocks if "text" in b]
+                result = "\n".join(text_parts) if text_parts else ""
 
             ai_assistant_response.response = result
+            logger.info(f"Returning Bedrock AI assistant response: '{result}'")
 
-            logger.info(f"Returning an AI assistant response: '{result}'")
+            # Update cache if enabled
+            if llm_reviews_cache_enabled and valkey_client is not None and result:
+                try:
+                    # Calculate dynamic TTL
+                    reviews = fetch_product_reviews_from_db(request_product_id)
+                    N = len(reviews)
+                    if N > 0:
+                        scores = [float(r[2]) for r in reviews if r[2] is not None]
+                        avg_score = sum(scores) / len(scores) if scores else 0.0
+                        variance = sum((s - avg_score) ** 2 for s in scores) / len(scores) if scores else 0.0
+                    else:
+                        N = 0
+                        variance = 0.0
 
-        else:
-            logger.info(f"Returning an AI assistant response: '{response_message}'")
-            ai_assistant_response.response = response_message.content
+                    ttl = 14400 + int(N * 3600 / (1.0 + variance))
+                    ttl = max(14400, min(ttl, 604800)) # bounds [4h, 7d]
+
+                    cache_val = {
+                        "summary": result,
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                        "model_ver": model_ver,
+                        "prompt_ver": prompt_ver
+                    }
+                    valkey_client.setex(cache_key, ttl, json.dumps(cache_val))
+                    logger.info(f"Stored summary in Valkey cache under key {cache_key} with TTL {ttl}s")
+                except Exception as e:
+                    logger.error(f"Valkey cache write error: {e}")
 
         # Collect metrics for this service
-        product_review_svc_metrics["app_ai_assistant_counter"].add(1, {'product.id': request_product_id})
+        product_review_svc_metrics["app_ai_assistant_counter"].add(1, {'product.id': request_product_id, 'cache_status': 'miss'})
 
         return ai_assistant_response
+
 
 def fetch_product_info(product_id):
     try:
@@ -365,12 +477,27 @@ if __name__ == "__main__":
     demo_pb2_grpc.add_ProductReviewServiceServicer_to_server(service, server)
     health_pb2_grpc.add_HealthServicer_to_server(service, server)
 
+    global bedrock_client, valkey_client
+
+    aws_region = os.environ.get('AWS_REGION', 'us-east-1')
+    bedrock_client = boto3.client(service_name="bedrock-runtime", region_name=aws_region)
+
+    valkey_addr = os.environ.get('VALKEY_ADDR', 'valkey-cart:6379')
+    try:
+        valkey_host, valkey_port = valkey_addr.split(':')
+        valkey_port = int(valkey_port)
+    except Exception:
+        valkey_host = 'valkey-cart'
+        valkey_port = 6379
+    valkey_client = redis.Redis(host=valkey_host, port=valkey_port, decode_responses=True)
+
     llm_host = must_map_env('LLM_HOST')
     llm_port = must_map_env('LLM_PORT')
     llm_mock_url = f"http://{llm_host}:{llm_port}/v1"
-    llm_base_url = must_map_env('LLM_BASE_URL')
-    llm_api_key = must_map_env('OPENAI_API_KEY')
-    llm_model = must_map_env('LLM_MODEL')
+    llm_base_url = os.environ.get('LLM_BASE_URL', '')
+    llm_api_key = os.environ.get('OPENAI_API_KEY', 'dummy')
+    llm_model = os.environ.get('LLM_MODEL', 'techx-llm')
+
 
     catalog_addr = must_map_env('PRODUCT_CATALOG_ADDR')
     pc_channel = grpc.insecure_channel(catalog_addr)

@@ -47,7 +47,8 @@ Dịch vụ `product-reviews` nhận các biến môi trường cấu hình kế
 ### 3.1. Bộ nhớ Cache Valkey (Redis-compatible)
 * **Chiến lược Caching**: Khi có yêu cầu tóm tắt đánh giá sản phẩm (`AskProductAIAssistant`), hệ thống sẽ kiểm tra trong Valkey cache trước:
   - Nếu tồn tại dữ liệu (`Cache Hit`): Trả ngay phản hồi mà không cần gọi sang Mock LLM.
-  - Nếu không tồn tại dữ liệu (`Cache Miss`): Gọi Mock LLM để sinh phản hồi, sau đó ghi kết quả vào Valkey cache với TTL là 1 giờ (3600 giây).
+  - Nếu không tồn tại dữ liệu (`Cache Miss`): Gọi LLM để sinh phản hồi, sau đó ghi kết quả vào Valkey cache với **Dynamic TTL (4 giờ – 7 ngày)**, key `reviews:summary:{product_id}:{model_ver}:{prompt_ver}`. Xem `specs/valkey_caching.md` §5, §6.
+  - ⚠️ **Trạng thái LLM backend:** hiện `product-reviews` gọi **mock LLM in-cluster** (`http://llm:8000/v1`, OpenAI SDK), *không phải* Bedrock. Việc chuyển sang Amazon Bedrock Nova Lite (theo ADR-004) được theo dõi ở **TF1-58 Bước 1**. Cho tới khi đó, cost model ở `pitch.md` chỉ áp dụng cho Shopping Copilot.
 * **Key format**: `reviews:summary:{product_id}`.
 
 ### 3.2. Cơ chế Fallback và Isolation (Circuit Breaker)

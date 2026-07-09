@@ -228,7 +228,7 @@ def build_drain3_miner(state_file: Optional[str] = None) -> TemplateMiner:
 
     # ── Drain parameters ──────────────────────────────────────────────────────
     # sim_th: ngưỡng tương đồng (0.0 – 1.0). Cao = gom chặt, thấp = nhóm rộng.
-    config.drain_sim_th = 0.4
+    config.drain_sim_th = 0.5
     # max_children: số nhánh tối đa của cây prefix.
     config.drain_max_children = 100
     # max_clusters: giới hạn số template sinh ra.
@@ -434,6 +434,47 @@ def save_results(cluster_stats: dict, alerts: list[dict], output_path: str) -> N
         json.dump(output, f, indent=2, ensure_ascii=False)
 
     logger.info(f"Results saved to: {output_path}")
+
+    # Export to CSV files (top_templates.csv and template_counts.csv)
+    import csv
+    results_dir = os.path.dirname(output_path) or "."
+    sorted_clusters = sorted(cluster_stats.items(), key=lambda x: x[1]["count"], reverse=True)
+
+    # 1. template_counts.csv
+    template_counts_path = os.path.join(results_dir, "template_counts.csv")
+    try:
+        with open(template_counts_path, "w", encoding="utf-8", newline="") as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(["cluster_id", "template", "count", "services", "severities"])
+            for cid, stat in sorted_clusters:
+                writer.writerow([
+                    cid,
+                    stat["template"],
+                    stat["count"],
+                    ",".join(stat["services"]),
+                    ",".join(stat["severities"])
+                ])
+        logger.info(f"Exported template counts to {template_counts_path}")
+    except Exception as e:
+        logger.error(f"Error exporting template_counts.csv: {e}")
+
+    # 2. top_templates.csv
+    top_templates_path = os.path.join(results_dir, "top_templates.csv")
+    try:
+        with open(top_templates_path, "w", encoding="utf-8", newline="") as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(["rank", "cluster_id", "count", "template"])
+            for rank, (cid, stat) in enumerate(sorted_clusters[:10], 1):
+                writer.writerow([
+                    rank,
+                    cid,
+                    stat["count"],
+                    stat["template"]
+                ])
+        logger.info(f"Exported top templates to {top_templates_path}")
+    except Exception as e:
+        logger.error(f"Error exporting top_templates.csv: {e}")
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────

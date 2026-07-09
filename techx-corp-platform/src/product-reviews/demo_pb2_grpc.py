@@ -457,16 +457,6 @@ class ProductReviewServiceStub:
                 request_serializer=demo__pb2.AskProductAIAssistantRequest.SerializeToString,
                 response_deserializer=demo__pb2.AskProductAIAssistantResponse.FromString,
                 _registered_method=True)
-        self.AddReview = channel.unary_unary(
-                '/oteldemo.ProductReviewService/AddReview',
-                request_serializer=demo__pb2.AddReviewRequest.SerializeToString,
-                response_deserializer=demo__pb2.Empty.FromString,
-                _registered_method=True)
-        self.SubmitSummaryFeedback = channel.unary_unary(
-                '/oteldemo.ProductReviewService/SubmitSummaryFeedback',
-                request_serializer=demo__pb2.SummaryFeedbackRequest.SerializeToString,
-                response_deserializer=demo__pb2.Empty.FromString,
-                _registered_method=True)
 
 
 class ProductReviewServiceServicer:
@@ -492,18 +482,6 @@ class ProductReviewServiceServicer:
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def AddReview(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def SubmitSummaryFeedback(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
 
 def add_ProductReviewServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -521,16 +499,6 @@ def add_ProductReviewServiceServicer_to_server(servicer, server):
                     servicer.AskProductAIAssistant,
                     request_deserializer=demo__pb2.AskProductAIAssistantRequest.FromString,
                     response_serializer=demo__pb2.AskProductAIAssistantResponse.SerializeToString,
-            ),
-            'AddReview': grpc.unary_unary_rpc_method_handler(
-                    servicer.AddReview,
-                    request_deserializer=demo__pb2.AddReviewRequest.FromString,
-                    response_serializer=demo__pb2.Empty.SerializeToString,
-            ),
-            'SubmitSummaryFeedback': grpc.unary_unary_rpc_method_handler(
-                    servicer.SubmitSummaryFeedback,
-                    request_deserializer=demo__pb2.SummaryFeedbackRequest.FromString,
-                    response_serializer=demo__pb2.Empty.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -616,60 +584,6 @@ class ProductReviewService:
             '/oteldemo.ProductReviewService/AskProductAIAssistant',
             demo__pb2.AskProductAIAssistantRequest.SerializeToString,
             demo__pb2.AskProductAIAssistantResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def AddReview(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/oteldemo.ProductReviewService/AddReview',
-            demo__pb2.AddReviewRequest.SerializeToString,
-            demo__pb2.Empty.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def SubmitSummaryFeedback(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/oteldemo.ProductReviewService/SubmitSummaryFeedback',
-            demo__pb2.SummaryFeedbackRequest.SerializeToString,
-            demo__pb2.Empty.FromString,
             options,
             channel_credentials,
             insecure,

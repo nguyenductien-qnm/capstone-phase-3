@@ -11,13 +11,13 @@
   Hệ thống Storefront hiển thị review tóm tắt bằng AI cho khách hàng trên trang chi tiết sản phẩm. Nếu không sử dụng cache, mỗi lượt tải trang chi tiết sẽ gọi trực tiếp AWS Bedrock API, phát sinh chi phí token khổng lồ (bất lợi cho CFO) và làm tăng độ trễ p95 phản hồi lên > 2 giây (vi phạm SLO latency < 1s).
 - **Quyết định:** 
   Tận dụng cụm cache Valkey sẵn có (`valkey-cart` chạy trên cổng `6379`) để lưu trữ các bản tóm tắt review dưới dạng JSON.
-  - **Cache Key Format:** `reviews:summary:{product_id}`
+  - **Điểm gắn cache:** `AskProductAIAssistant` — đây là rpc duy nhất gọi LLM. `GetProductReviews` chỉ đọc thẳng PostgreSQL nên cache ở đó không tiết kiệm token nào.
+  - **Cache Key Format:** `reviews:summary:{product_id}:{model_ver}:{prompt_ver}`
   - **Bypass Flag:** Sử dụng OpenFeature flag `llmReviewsCacheEnabled` (kiểm soát qua flagd) để tắt cache nhanh khi cần kiểm thử hoặc cập nhật.
-  - **Cập nhật bổ sung (Dynamic TTL & Active Invalidation):**
+  - **Chiến lược làm mới cache (Dynamic TTL + Version Key):**
     1. **TTL động (Dynamic TTL):** Thay vì TTL 24h cố định, TTL được tính động từ **4 giờ đến 7 ngày** dựa trên số lượng review ($N$) và độ biến động điểm số ($\sigma^2$) của sản phẩm nhằm tối ưu hóa chi phí token tối đa.
-    2. **Hủy cache khi có review mới (Write-Around Invalidation):** Xóa cache ngay khi API nhận review mới để khách tiếp theo thấy tóm tắt thời gian thực.
-    3. **Phản hồi chất lượng kém (Feedback Loop):** Tích hợp nút Thumbs Down. Nếu $\ge 3$ lượt vote kém, tự xóa cache cũ và ép định tuyến cuộc gọi tiếp theo qua **Amazon Nova Pro** (thay vì Nova Lite) để nâng cấp chất lượng. *(Nhất quán với ADR-004: không dùng Claude vì tính phí tiền mặt thật.)*
-  - **Phụ thuộc chưa có sẵn (⚠️):** Cả (2) Write-Around Invalidation lẫn (3) Feedback Loop đều cần **rpc mới chưa tồn tại** trong `pb/demo.proto` — `ProductReviewService` hiện chỉ có `GetProductReviews`, `GetAverageProductReviewScore`, `AskProductAIAssistant`. Việc bổ sung `AddReview` + `SubmitSummaryFeedback` được theo dõi ở task **TF1-55**. Cho tới khi có rpc, việc làm mới cache dựa hoàn toàn vào Dynamic TTL (mục 1).
+    2. **Versioned Cache Key:** Nhúng `model_ver` và `prompt_ver` vào key. Đổi model (Nova Lite ↔ Nova Pro) hoặc đổi system prompt ⇒ key đổi ⇒ **cache miss tự động**, không cần lệnh xóa thủ công. Đây mới là nguyên nhân thật sự khiến một bản tóm tắt trở nên lỗi thời.
+  - **Vì sao không dùng Write-Around Invalidation / Thumbs Down:** Review trong hệ này là **dữ liệu tĩnh** được seed sẵn qua `src/postgresql/init.sql`; `ProductReviewService` không có đường ghi (`AddReview`) và Storefront không có nút feedback. Hai cơ chế đó sẽ invalidate cho những sự kiện không bao giờ xảy ra. Nút Thumbs Down và routing động sang Nova Pro chuyển xuống hạng mục **Mở rộng [Extend]**, không thuộc phạm vi tuần 1.
 - **Phương án khác đã cân:**
   - *Option A - Sử dụng Amazon ElastiCache (Redis managed):* Độ bền cao và bảo mật hơn, tuy nhiên tăng chi phí cố định tối thiểu ~$30/tuần -> Vi phạm trần ngân sách AWS $300/tuần. Quyết định: Bỏ qua và dùng Valkey in-cluster.
   - *Option B - Sử dụng thuật toán Eviction LFU thay vì LRU:* Bị loại bỏ vì LFU dễ bị Cache Pollution bởi các sản phẩm cũ từng rất hot, không linh hoạt bằng LRU đối với trend mua sắm thay đổi liên tục.
@@ -62,13 +62,15 @@
 - **Người ký:** Nhóm AI (AIO03) - Task Force 1
 - **Trụ:** Reliability / Cost Optimization
 - **Bối cảnh:** 
-  CTO yêu cầu dùng chung cụm Valkey `valkey-cart` cho cả Shopping Cart và Reviews Cache để tiết kiệm chi phí (ngân sách AWS < $300/tuần). Tuy nhiên, nếu cấu hình eviction policy là `allkeys-lru`, Valkey sẽ xóa nhầm giỏ hàng của người dùng khi bộ nhớ đầy do cache review phình to. Dù chuyển sang `volatile-lru`, do Cart trong code C# cũng có TTL 60m, giỏ hàng vẫn có nguy cơ bị trục xuất dưới áp lực RAM cao.
+  CTO yêu cầu dùng chung cụm Valkey `valkey-cart` cho cả Shopping Cart và Reviews Cache để tiết kiệm chi phí (ngân sách AWS < $300/tuần). Tuy nhiên, nếu cấu hình eviction policy là `allkeys-lru`, Valkey sẽ xóa nhầm giỏ hàng của người dùng khi bộ nhớ đầy do cache review phình to. Dù chuyển sang `volatile-lru`, do Cart trong code C# **khi đó** còn đặt TTL 60m (`KeyExpireAsync`), giỏ hàng vẫn có nguy cơ bị trục xuất dưới áp lực RAM cao.
 - **Quyết định (Option 1):** 
   - **Valkey Configuration:** Thiết lập eviction policy của cụm Valkey thành `volatile-lru`.
   - **Mã nguồn Cart (C#):** Loại bỏ hoàn toàn dòng lệnh `KeyExpireAsync(userId, ...)` cho giỏ hàng trong `ValkeyCartStore.cs` để biến key giỏ hàng thành vĩnh viễn (non-volatile), giúp giỏ hàng miễn nhiễm 100% trước cơ chế tự động eviction của Valkey.
   - **Quản lý bộ nhớ:** Viết một script CronJob chạy ngầm vào 2h sáng hằng ngày để quét (`SCAN`) và xóa chủ động các giỏ hàng không hoạt động trên 30 ngày.
+  - ⚠️ **Cần CDO đồng ký (co-sign):** `ValkeyCartStore.cs` thuộc quyền sở hữu của nhóm CDO, và đúng vùng code từng gây sự cố **INC-2**. Quyết định này đã được triển khai (TF1-54, `ValkeyCartStore.cs:174,199`) **trước khi có chữ ký CDO** — cần bổ sung phê duyệt hồi tố.
+- **Trạng thái triển khai:** ✅ Đã áp dụng. `ValkeyCartStore.cs:174` và `:199` đã comment out `KeyExpireAsync`. Cart hiện **không còn TTL**.
 - **Phương án khác đã cân:**
-  - *Option 2 - Tách biệt cụm Valkey:* Cụm Cache dùng `allkeys-lru`, cụm Cart dùng `noeviction`. Đây là AWS Best Practice nhưng bị loại vì tốn thêm chi phí hạ tầng cố định (~$30/tuần), vi phạm ngân sách $300/tuần.
+  - *Option 2 - Tách biệt cụm Valkey (pod thứ hai in-cluster):* Cụm Cache dùng `allkeys-lru`, cụm Cart dùng `noeviction`. Đây là AWS Best Practice và **chi phí thực tế ≈ $0** — Valkey đang chạy là một pod in-cluster (`values.yaml:939-967`, `replicas: 1`, `resources.limits.memory: 20Mi`), không phải ElastiCache; pod thứ hai chỉ tốn thêm 20Mi trên node group sẵn có (3× t3.medium) và Terraform không hề khai báo ElastiCache. **Đính chính:** con số "~$30/tuần" từng ghi ở đây là chi phí của **ElastiCache managed** (xem ADR-001 Option A) và đã bị áp nhầm sang một phương án in-cluster. Lý do loại thật sự: Option 1 đã được triển khai và merge; revert để tách cụm đồng nghĩa chạm code Cart của CDO lần thứ hai vào đúng vùng INC-2, chi phí rủi ro lớn hơn lợi ích cách ly. **Giữ Option 2 làm phương án dự phòng nếu áp lực RAM tái diễn.**
   - *Option 3 - Write-Through sang PostgreSQL:* Đồng bộ giỏ hàng xuống PostgreSQL để khôi phục khi Valkey bị xóa. Bị loại vì thời gian triển khai 1 tuần quá ngắn, rủi ro làm chậm luồng Checkout.
   - *Option 4 - Chỉ giám sát và nâng RAM:* Chỉ dựa vào Prometheus cảnh báo RAM và auto-scale. Bị loại vì mang tính thụ động, giỏ hàng vẫn bị xóa trước khi hạ tầng kịp scale-up.
 - **Cost Δ:** $0 phát sinh cố định. Giữ nguyên chi phí cũ của cụm Valkey dùng chung.
@@ -151,8 +153,8 @@
   2. **Output Guardrail:** Lọc và che giấu (redact) thông tin nhạy cảm (PII như email, phone, credit card) cùng với bộ lọc phát hiện rò rỉ system prompt (system prompt leakage detector).
   3. **Tool Execution Authorization (Confirmation Gate UI Protocol):**
      - Phân loại tools thành 3 Tier:
-       - *Tier 1 (Read-only):* Tự động thực thi (`search_products`, `get_product_reviews`, `get_cart`, `list_recommendations` [Extend], `convert_currency`, `get_shipping_quote`).
-       - *Tier 2 (Write/Modify):* Cần xác nhận từ người dùng qua cấu trúc JSON payload (`add_to_cart`). Agent không được tự thực thi mà phải trả về JSON request confirmation. Frontend Streamlit/Storefront sẽ render nút bấm UI xác nhận.
+       - *Tier 1 (Read-only):* Tự động thực thi. **[Core]** `search_products`, `get_product_reviews`, `get_cart` — ba tool này phục vụ trực tiếp 3 intent cốt lõi và được đặc tả ở `specs/shopping_copilot.md` §3. **[Extend]** `list_recommendations`, `convert_currency`, `get_shipping_quote` — chưa đặc tả, chỉ ghi nhận ý định.
+       - *Tier 2 (Write/Modify):* Cần xác nhận từ người dùng qua cấu trúc JSON payload (**[Core]** `add_item_to_cart`). Agent không được tự thực thi mà phải trả về JSON request confirmation. Frontend Streamlit/Storefront sẽ render nút bấm UI xác nhận.
        - *Tier 3 (Critical/Blocked):* Chặn tuyệt đối (`empty_cart`, `place_order`, `ship_order`). AI Agent không bao giờ được phép gọi các rpc này để triệt tiêu hoàn toàn Excessive Agency.
      - Tích hợp Idempotency Key và Expiry Epoch cho mỗi request xác nhận để ngăn chặn việc gửi trùng lặp lệnh ghi.
 - **Phương án khác đã cân:**
@@ -161,7 +163,7 @@
 - **Cost Δ:** $0 phát sinh cố định. Tiết kiệm chi phí vận hành do tránh được các đơn hàng rác hoặc hành động ghi không mong muốn.
 - **Ảnh hưởng SLO:** Bảo vệ tỷ lệ thanh toán thành công và độ chính xác của giỏ hàng luôn ở mức 100%. Triệt tiêu hoàn toàn rủi ro rò rỉ PII của khách hàng.
 - **Hệ quả:**
-  - ✅ *Lợi ích:* Đạt tiêu chuẩn an toàn cao nhất của OWASP LLM09:2025 (Excessive Agency). Loại bỏ 100% rủi ro agent tự ý thanh toán hoặc xóa sạch giỏ hàng.
+  - ✅ *Lợi ích:* Đạt tiêu chuẩn an toàn cao nhất của OWASP LLM06:2025 (Excessive Agency). Loại bỏ 100% rủi ro agent tự ý thanh toán hoặc xóa sạch giỏ hàng.
   - ⚠️ *Đánh đổi:* Frontend và Backend phải tích hợp chung giao thức JSON Confirmation, tăng thời gian làm việc nhóm CDO & AIO.
 
 ---

@@ -28,7 +28,7 @@
 ## Slide 3: Giải Pháp Kỹ Thuật AIE (AI Engineering)
 * **ADR-001 (Valkey Caching):**
   * Lưu trữ bản tóm tắt vào Valkey cache key `reviews:summary:{product_id}`.
-  * **TTL Động:** 4 giờ đến 7 ngày tính theo reviews. Active invalidation khi có review mới & Thumbs Down feedback loop.
+  * **TTL Động:** 4 giờ đến 7 ngày tính theo reviews. Làm mới bằng **versioned cache key** (`{model_ver}:{prompt_ver}`) — đổi model/prompt là miss tự nhiên.
   * *ROI:* Giảm **90% chi phí token** và phản hồi cache cực nhanh (< 50ms).
 * **ADR-004 (Hybrid Task-Specific Routing & Fallback):**
   * Tác vụ Reviews (Cao tải/Rẻ): Amazon Nova Lite -> Fallback: Nova Micro -> Mock. Timeout: 3.0s.
@@ -70,7 +70,7 @@
 | **TF1-52** | AIOps | [Extend] Drain3 Log Clustering | Gom cụm log lỗi thực tế |
 | **TF1-53** | AIOps | [Extend] Script cảnh báo vận hành | Alerting script báo lỗi DB, OOM, DNS |
 | **TF1-54** | AIE | Eviction Policy Valkey (Option 1) | `volatile-lru` + bỏ Cart TTL + Cron GC |
-| **TF1-55** | AIE | rpc `AddReview` + `SubmitSummaryFeedback` | Mở khoá Active Invalidation của ADR-001 |
+| **TF1-58** | AIE | Nối `product-reviews` vào Bedrock Nova; cache theo versioned key | Đóng khoảng cách docs ↔ code sau review mentor |
 
 ---
 
