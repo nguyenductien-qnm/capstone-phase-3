@@ -1,18 +1,57 @@
 [
   {
-    "product_id": "prod-001",
+    "product_id": "L9ECAV7KIM",
+    "product_name": "Celestron Lens Cleaning Kit",
     "reviews": [
-      {"rating": 5, "comment": "Sản phẩm dùng rất tốt, giao hàng nhanh, đóng gói cẩn thận."},
-      {"rating": 4, "comment": "Chất lượng sản phẩm ok, nhưng giá hơi đắt."}
+      {"rating": 5, "comment": "Great cleaning kit, works perfectly on telescope lenses and binoculars."},
+      {"rating": 5, "comment": "Removes fingerprints without leaving residue. Perfect for my camera too."},
+      {"rating": 4, "comment": "Good quality but a bit pricey for what you get."},
+      {"rating": 5, "comment": "Essential accessory for any telescope owner. Keeps optics crystal clear."}
     ],
-    "expected_summary_keywords": ["tốt", "giao hàng nhanh", "đắt"]
+    "expected_summary_keywords": ["cleaning", "lens", "telescope", "quality", "fingerprint"]
   },
   {
-    "product_id": "prod-002",
+    "product_id": "OLJCESPC7Z",
+    "product_name": "Celestron AstroMaster 70",
     "reviews": [
-      {"rating": 1, "comment": "Hàng giả, mua về không dùng được, shop phục vụ kém."},
-      {"rating": 2, "comment": "Giao sai mẫu, nhắn tin shop không thấy trả lời."}
+      {"rating": 4, "comment": "Perfect for beginners, really easy to set up and use."},
+      {"rating": 4, "comment": "Clear views of the moon and brighter planets. Great value."},
+      {"rating": 3, "comment": "Manual controls are a bit tricky to master at first."},
+      {"rating": 5, "comment": "My 10-year-old loves it. Simple enough for kids, good enough for adults."}
     ],
-    "expected_summary_keywords": ["hàng giả", "kém", "sai mẫu"]
+    "expected_summary_keywords": ["beginner", "easy", "moon", "setup", "value"]
+  },
+  {
+    "product_id": "66VCHSJNUP",
+    "product_name": "StarSense Explorer Refractor",
+    "reviews": [
+      {"rating": 5, "comment": "The StarSense app is revolutionary! Finds objects automatically."},
+      {"rating": 5, "comment": "Excellent optical quality, very sharp images."},
+      {"rating": 4, "comment": "Perfect smartphone integration but drains the phone battery fast."},
+      {"rating": 5, "comment": "Best telescope purchase I've ever made. The app tutorials are amazing."}
+    ],
+    "expected_summary_keywords": ["StarSense", "app", "smartphone", "optical", "battery"]
+  },
+  {
+    "product_id": "2ZYFJ3GM2N",
+    "product_name": "Celestron Outland X 10x42 Binoculars",
+    "reviews": [
+      {"rating": 5, "comment": "Incredibly clear and bright. ED glass makes a huge difference."},
+      {"rating": 4, "comment": "Perfect for bird watching and hiking. Lightweight and durable."},
+      {"rating": 5, "comment": "Waterproof design held up during a rainy birding trip. Excellent."},
+      {"rating": 4, "comment": "Great close focus capability. Images are sharp to the edge."}
+    ],
+    "expected_summary_keywords": ["clear", "ED glass", "waterproof", "birding", "lightweight"]
+  },
+  {
+    "product_id": "6E92ZMYYFZ",
+    "product_name": "EclipSmart Solar Filter 8-inch",
+    "reviews": [
+      {"rating": 5, "comment": "Essential for safe solar viewing. ISO compliant and very sturdy."},
+      {"rating": 5, "comment": "Crystal clear solar views. Velcro straps hold it firmly in place."},
+      {"rating": 4, "comment": "Well built, attaches easily, gives peace of mind for solar events."},
+      {"rating": 5, "comment": "Used it during the last eclipse — absolutely perfect. No glare at all."}
+    ],
+    "expected_summary_keywords": ["solar", "ISO", "safe", "Velcro", "eclipse"]
   }
 ]

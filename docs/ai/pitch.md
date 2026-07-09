@@ -62,13 +62,13 @@
 | **TF1-44** | AIE | Backlog & Risk Assessment | Hoàn thiện file `00_backlog.md` |
 | **TF1-45** | AIE | Slide Pitching & Cost Model | Slide & Kịch bản bảo vệ ngân sách |
 | **TF1-46** | AIE | Valkey & Fallback Spec | Đặc tả spec caching & fallback routing |
-| **TF1-47** | AIE | Copilot Spec & CDO Contracts | Đặc tả gRPC `:50051` và ký hợp đồng CDO |
-| **TF1-48** | AIE | Copilot PoC & Evals Script | Mã nguồn Streamlit và `run_evals.py` |
+| **TF1-47** | AIE | [Extend] Copilot Spec & CDO Contracts | Đặc tả gRPC `:50051` và ký hợp đồng CDO |
+| **TF1-48** | AIE | [Extend] Copilot PoC & Evals Script | Mã nguồn Streamlit và `run_evals.py` |
 | **TF1-49** | AIOps | Golden Signal Spec | Đặc tả thuật toán EWMA phát hiện lỗi |
-| **TF1-50** | AIOps | Remediation Spec | Đặc tả an toàn vòng tự phục hồi |
+| **TF1-50** | AIOps | [Extend] Remediation Spec | Đặc tả an toàn vòng tự phục hồi |
 | **TF1-51** | AIOps | Telemetry Audit | Audit luồng trace GenAI không đứt đoạn |
-| **TF1-52** | AIOps | Drain3 Log Clustering | Gom cụm log lỗi thực tế |
-| **TF1-53** | AIOps | Script cảnh báo vận hành | Alerting script báo lỗi DB, OOM, DNS |
+| **TF1-52** | AIOps | [Extend] Drain3 Log Clustering | Gom cụm log lỗi thực tế |
+| **TF1-53** | AIOps | [Extend] Script cảnh báo vận hành | Alerting script báo lỗi DB, OOM, DNS |
 | **TF1-54** | AIE | Eviction Policy Valkey (Option 1) | `volatile-lru` + bỏ Cart TTL + Cron GC |
 | **TF1-55** | AIE | rpc `AddReview` + `SubmitSummaryFeedback` | Mở khoá Active Invalidation của ADR-001 |
 
