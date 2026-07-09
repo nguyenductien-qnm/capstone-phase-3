@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Team → CDO Coordination — Phase 3 (TechX Corp)</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f7f9fc;
+  --surface:#fff;
+  --border:#dde3ed;
+  --ink:#0f1723;
+  --ink2:#3d4f63;
+  --muted:#7a8fa8;
+  --accent:#1a56db;
+  --s5-bg:#d1fae5;--s5-ink:#065f46;
+  --s4-bg:#dbeafe;--s4-ink:#1e3a8a;
+  --s3-bg:#fef3c7;--s3-ink:#78350f;
+  --s2-bg:#fee2e2;--s2-ink:#991b1b;
+  --fix-bg:#fffbf0;--fix-border:#d97706;
+  --req-bg:#eff6ff;--req-border:#1a56db;
+  --ext-bg:#faf5ff;--ext-border:#7c3aed;
+}
+html{font-size:15px}
+body{font-family:-apple-system,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--ink);line-height:1.6}
+
+.wrap{max-width:1080px;margin:0 auto;padding:0 32px}
+
+.hdr{background:var(--surface);border-bottom:1px solid var(--border);padding:32px 0 24px}
+.eyebrow{font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:8px}
+.hdr h1{font-size:21px;font-weight:800;color:var(--ink);margin-bottom:6px}
+.hdr p{font-size:13.5px;color:var(--ink2);max-width:640px}
+
+.legend-wrap{padding:18px 0 16px;border-bottom:1px solid var(--border);background:var(--surface)}
+.dim-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-width:960px}
+@media(max-width:640px){.dim-grid{grid-template-columns:1fr}}
+.dim-card{background:var(--surface);border:1px solid var(--border);padding:9px 11px}
+.dim-card .dk{font-family:'Courier New',Courier,monospace;font-size:11px;font-weight:800;color:var(--accent);margin-bottom:2px}
+.dim-card .dn{font-size:11.5px;font-weight:700;color:var(--ink);margin-bottom:1px}
+.dim-card .dd{font-size:10.5px;color:var(--muted);line-height:1.4}
+
+.panel{padding:24px 0 48px;display:block}
+
+.cblock{margin-bottom:28px}
+.chead{display:flex;align-items:center;gap:12px;padding-bottom:9px;border-bottom:2px solid var(--border);margin-bottom:2px;flex-wrap:wrap}
+.cname{font-size:14px;font-weight:800;color:var(--ink)}
+.cpill{font-family:'Courier New',Courier,monospace;font-size:13px;font-weight:700;padding:3px 10px}
+.cpill.g{background:var(--s5-bg);color:var(--s5-ink)}
+.cpill.b{background:var(--s4-bg);color:var(--s4-ink)}
+.cpill.a{background:var(--s3-bg);color:var(--s3-ink)}
+.cpill.ext{background:var(--ext-bg);color:#7c3aed}
+.cnote{margin-left:auto;font-size:11.5px;color:var(--muted);font-style:italic}
+.blocker-badge{font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;padding:2px 7px;background:var(--s2-bg);color:var(--s2-ink)}
+.priority-badge{font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;padding:2px 7px;background:var(--s3-bg);color:var(--s3-ink)}
+
+.dtbl{width:100%;border-collapse:collapse;font-size:12.5px;background:var(--surface)}
+.dtbl thead th{font-size:9.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:5px 10px;border-bottom:1px solid var(--border);text-align:left}
+.dtbl td{padding:9px 10px;border-bottom:1px solid var(--border);vertical-align:top}
+.dtbl tbody tr:last-child td{border-bottom:none}
+.td-d{font-family:'Courier New',Courier,monospace;font-weight:800;font-size:12px;color:var(--accent);width:64px}
+.td-topic{font-weight:700;color:var(--ink);width:20%}
+.td-state{color:var(--ink2);line-height:1.55}
+.td-state .has{display:block}
+.td-state .gap{display:block;margin-top:4px;color:var(--s3-ink);font-size:12px;font-weight:600}
+.td-state .gap::before{content:'↳ ';color:var(--muted);font-weight:400}
+.td-req{border-left:3px solid var(--req-border);background:var(--req-bg);color:#0c1b3a;line-height:1.55}
+.td-req code{font-size:11px;background:#c7d7f0;padding:1px 4px;font-family:'Courier New',Courier,monospace}
+.td-req b{font-weight:700}
+.td-req .who{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:1px 5px;background:var(--s4-bg);color:var(--s4-ink);margin-left:4px}
+.td-req .ext-tag{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:1px 5px;background:var(--ext-bg);color:#7c3aed;margin-left:4px}
+
+.summary-box{background:var(--surface);border:1px solid var(--border);padding:16px 20px;margin-top:20px}
+.summary-box h3{font-size:13px;font-weight:800;color:var(--ink);margin-bottom:8px}
+.summary-box ul{padding-left:18px;font-size:12.5px;color:var(--ink2);line-height:1.7}
+.summary-box li{margin-bottom:4px}
+.summary-box li code{font-size:11px;background:#eef2f7;padding:1px 4px;font-family:'Courier New',Courier,monospace}
+
+.note-box{padding:10px 16px;margin-bottom:20px;font-size:13px;border-left:4px solid}
+.note-box.info{background:var(--s4-bg);border-color:var(--s4-ink);color:var(--s4-ink)}
+.note-box.warn{background:var(--s3-bg);border-color:var(--s3-ink);color:var(--s3-ink)}
+.note-box.critical{background:var(--s2-bg);border-color:var(--s2-ink);color:var(--s2-ink)}
+.note-box.success{background:var(--s5-bg);border-color:var(--s5-ink);color:var(--s5-ink)}
+</style>
+</head>
+<body>
+
+<div class="hdr"><div class="wrap">
+  <span class="eyebrow">AIE Phase 3 · Phiên Phối Hợp AI ↔ CDO · 2026-07-09</span>
+  <h1>Yêu Cầu Phối Hợp Kỹ Thuật: AI Team → CDO</h1>
+  <p>Tổng hợp 6 hạng mục cần CDO hỗ trợ / phê duyệt để nhóm AI triển khai Tuần 2. Tham chiếu: <code>docs/ai/contracts/</code> & <code>docs/ai/ADR-log.md</code></p>
+</div></div>
+
+<!-- Tổng quan 3 mục tiêu -->
+<div class="legend-wrap"><div class="wrap">
+  <div style="font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:12px">3 Mục Tiêu Cốt Lõi Của Phiên Phối Hợp</div>
+  <div class="dim-grid">
+    <div class="dim-card"><div class="dk">①</div><div class="dn">Hạ tầng & Chi phí</div><div class="dd">Chốt cấu hình Valkey dùng chung, eviction policy, bảo vệ giỏ hàng — giữ $0 phát sinh</div></div>
+    <div class="dim-card"><div class="dk">②</div><div class="dn">Tích hợp dịch vụ</div><div class="dd">Chốt biến ENV, cổng gRPC, Envoy routing, IAM Bedrock cho 2 service AI mới</div></div>
+    <div class="dim-card"><div class="dk">③</div><div class="dn">Vận hành & Quan sát</div><div class="dd">Feature flags, Telemetry contract, luồng log/trace không đứt đoạn</div></div>
+  </div>
+</div></div>
+
+<!-- Nội dung chính -->
+<div class="panel"><div class="wrap">
+
+  <div class="note-box info">
+    <strong>📋 Nguyên tắc:</strong> Mọi đề xuất bên dưới đều có <b>Cost Δ = $0</b> (không phát sinh thêm chi phí hạ tầng). Các hạng mục gắn nhãn <code>[Extend]</code> là thành phần AI tự xây thêm, không có sẵn trong base repo.
+  </div>
+
+  <!-- ═══════════════════ BLOCK 1: VALKEY ═══════════════════ -->
+  <div class="cblock">
+    <div class="chead">
+      <span class="cname">① Cấu hình Valkey dùng chung (ADR-001 & ADR-003)</span>
+      <span class="cpill a">Cần CDO phê duyệt</span>
+      <span class="blocker-badge">⛔ Rủi ro mất giỏ hàng</span>
+    </div>
+    <table class="dtbl">
+      <thead><tr><th style="width:54px">#</th><th>Nội dung đề xuất</th><th style="width:40%">Yêu cầu CDO thực hiện</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="td-d">1.1</td>
+          <td class="td-state">
+            <span class="has"><strong>Tái sử dụng cụm <code>valkey-cart:6379</code></strong> làm cache cho AI Review Summary.</span>
+            <span class="gap">Cache key: <code>reviews:summary:{product_id}</code> — TTL động 4h→7d dựa trên lượng review (ADR-001).</span>
+          </td>
+          <td class="td-req">
+            <b>Xác nhận cho phép</b> AI ghi thêm key prefix <code>reviews:*</code> lên cụm Valkey hiện tại.<span class="who">CDO</span>
+          </td>
+        </tr>
+        <tr>
+          <td class="td-d">1.2</td>
+          <td class="td-state">
+            <span class="has"><strong>Eviction Policy: <code>volatile-lru</code></strong> (ADR-003 Option 1)</span>
+            <span class="gap">Chỉ key có TTL (AI cache) mới bị evict. Key giỏ hàng (không TTL) được bảo vệ tuyệt đối.</span>
+          </td>
+          <td class="td-req">
+            <b>CDO sửa config</b> Valkey thành <code>volatile-lru</code>.<br>
+            <b>CDO sửa code</b> <code>ValkeyCartStore.cs</code>: bỏ dòng <code>KeyExpireAsync</code> cho giỏ hàng.<span class="who">CDO</span>
+          </td>
+        </tr>
+        <tr>
+          <td class="td-d">1.3</td>
+          <td class="td-state">
+            <span class="has"><strong>CronJob dọn giỏ hàng cũ</strong> (chạy 2h sáng hằng ngày).</span>
+            <span class="gap">AI tự viết script <code>SCAN</code> + xóa giỏ hàng idle > 30 ngày — CDO chỉ cần cho phép.</span>
+          </td>
+          <td class="td-req">
+            <b>Phê duyệt</b> CronJob K8s chạy trên namespace chung.<span class="who">CDO</span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ═══════════════════ BLOCK 2: PRODUCT REVIEWS ═══════════════════ -->
+  <div class="cblock">
+    <div class="chead">
+      <span class="cname">② Tích hợp dịch vụ Product Reviews (Contract)</span>
+      <span class="cpill b">Chốt biến ENV</span>
+      <span class="cnote">Ref: contracts/product-reviews-integration.md</span>
+    </div>
+    <table class="dtbl">
+      <thead><tr><th style="width:54px">#</th><th>Nội dung đề xuất</th><th style="width:40%">Yêu cầu CDO thực hiện</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="td-d">2.1</td>
+          <td class="td-state">
+            <span class="has"><strong>Biến môi trường</strong> cho pod <code>product-reviews</code>:</span>
+            <span class="gap"><code>VALKEY_HOST</code>, <code>VALKEY_PORT</code>, <code>FLAGD_HOST</code>, <code>FLAGD_PORT</code>, <code>LLM_BASE_URL</code>, <code>LLM_MODEL</code></span>
+          </td>
+          <td class="td-req">
+            <b>Cập nhật Helm values</b> / K8s ConfigMap để inject các biến ENV trên vào pod <code>product-reviews</code>.<span class="who">CDO</span>
+          </td>
+        </tr>
+        <tr>
+          <td class="td-d">2.2</td>
+          <td class="td-state">
+            <span class="has"><strong>Resource Limits</strong>: CPU 100m→500m, Mem 128Mi→512Mi</span>
+            <span class="gap">Đảm bảo pod không chiếm quá nhiều tài nguyên trên EKS.</span>
+          </td>
+          <td class="td-req">
+            <b>Xác nhận</b> resource quota đủ cho giới hạn trên.<span class="who">CDO</span>
+          </td>
+        </tr>
+        <tr>
+          <td class="td-d">2.3</td>
+          <td class="td-state">
+            <span class="has"><strong>Feature Flags trên flagd</strong>:</span>
+            <span class="gap"><code>llmReviewsCacheEnabled</code> (bật/tắt cache) và <code>llmRateLimitError</code> (ép lỗi test).</span>
+          </td>
+          <td class="td-req">
+            <b>Thêm 2 flag</b> vào cấu hình flagd hiện tại.<span class="who">CDO</span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ═══════════════════ BLOCK 3: COPILOT ═══════════════════ -->
+  <div class="cblock">
+    <div class="chead">
+      <span class="cname">③ Tích hợp dịch vụ Shopping Copilot [Extend]</span>
+      <span class="cpill ext">Extend</span>
+      <span class="cpill a">Cần CDO phê duyệt</span>
+      <span class="cnote">Ref: contracts/shopping-copilot-integration.md</span>
+    </div>
+    <table class="dtbl">
+      <thead><tr><th style="width:54px">#</th><th>Nội dung đề xuất</th><th style="width:40%">Yêu cầu CDO thực hiện</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="td-d">3.1</td>
+          <td class="td-state">
+            <span class="has"><strong>Pod mới: <code>shopping-copilot</code></strong> — Python gRPC trên cổng <code>:50051</code></span>
+            <span class="gap">Resource: CPU 200m→1000m, Mem 256Mi→1024Mi. Dịch vụ Extend — AI tự build Docker image.</span>
+          </td>
+          <td class="td-req">
+            <b>Cấp namespace slot</b> để deploy pod mới.<br>
+            <b>Cập nhật Helm chart</b> thêm Deployment <code>shopping-copilot</code>.<span class="who">CDO</span>
+          </td>
+        </tr>
+        <tr>
+          <td class="td-d">3.2</td>
+          <td class="td-state">
+            <span class="has"><strong>Envoy Proxy routing</strong>: thêm cluster + route cho gRPC-Web</span>
+            <span class="gap">Prefix: <code>/oteldemo.ShoppingCopilotService/</code> → cluster <code>shopping-copilot:50051</code>.</span>
+          </td>
+          <td class="td-req">
+            <b>Cập nhật cấu hình Envoy</b> (<code>frontend-proxy</code>):<br>
+            — Thêm cluster <code>shopping-copilot</code><br>
+            — Bật gRPC-Web filter<br>
+            — Route prefix matching<span class="who">CDO</span>
+          </td>
+        </tr>
+        <tr>
+          <td class="td-d">3.3</td>
+          <td class="td-state">
+            <span class="has"><strong>Biến ENV</strong> để Copilot kết nối các dịch vụ hạ nguồn:</span>
+            <span class="gap"><code>PRODUCT_CATALOG_ADDR</code>, <code>CART_ADDR</code>, <code>PRODUCT_REVIEWS_ADDR</code>, <code>LLM_BASE_URL</code>, <code>FLAGD_HOST</code></span>
+          </td>
+          <td class="td-req">
+            <b>Inject biến ENV</b> vào pod <code>shopping-copilot</code> qua Helm values.<span class="who">CDO</span>
+          </td>
+        </tr>
+        <tr>
+          <td class="td-d">3.4</td>
+          <td class="td-state">
+            <span class="has"><strong>File Protobuf mới</strong>: <code>shopping_copilot.proto</code></span>
+            <span class="gap">AI đã tạo sẵn file proto trong <code>pb/shopping_copilot.proto</code>. CDO cần đồng bộ vào build pipeline của Frontend.</span>
+          </td>
+          <td class="td-req">
+            <b>Đồng bộ file proto</b> vào các service consumer (Next.js Frontend) để generate client stubs.<span class="who">CDO</span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ═══════════════════ BLOCK 4: BEDROCK IAM ═══════════════════ -->
+  <div class="cblock">
+    <div class="chead">
+      <span class="cname">④ IAM Role cho AWS Bedrock (ADR-004)</span>
+      <span class="cpill a">Cần CDO phê duyệt</span>
+      <span class="priority-badge">⚡ Tuần 2 cần sẵn</span>
+    </div>
+    <table class="dtbl">
+      <thead><tr><th style="width:54px">#</th><th>Nội dung đề xuất</th><th style="width:40%">Yêu cầu CDO thực hiện</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="td-d">4.1</td>
+          <td class="td-state">
+            <span class="has"><strong>IRSA (IAM Roles for Service Accounts)</strong> cho 2 pod AI:</span>
+            <span class="gap"><code>product-reviews</code> và <code>shopping-copilot</code> cần quyền <code>bedrock:InvokeModel</code> trong vùng <code>us-east-1</code>.</span>
+          </td>
+          <td class="td-req">
+            <b>Tạo IAM Role</b> với policy <code>bedrock:InvokeModel</code> trên các model:<br>
+            — <code>amazon.nova-lite-v1:0</code><br>
+            — <code>amazon.nova-micro-v1:0</code><br>
+            — <code>amazon.nova-pro-v1:0</code><br>
+            <b>Gắn IRSA</b> vào ServiceAccount K8s tương ứng.<span class="who">CDO</span>
+          </td>
+        </tr>
+        <tr>
+          <td class="td-d">4.2</td>
+          <td class="td-state">
+            <span class="has"><strong>Không hard-code credentials</strong> — chỉ dùng IRSA/SDK default chain.</span>
+            <span class="gap">Tuân thủ security checklist: không lưu Access Key trong ENV hoặc ConfigMap.</span>
+          </td>
+          <td class="td-req">
+            <b>Xác nhận</b> IRSA flow hoạt động trên EKS cluster hiện tại.<span class="who">CDO</span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ═══════════════════ BLOCK 5: TELEMETRY ═══════════════════ -->
+  <div class="cblock">
+    <div class="chead">
+      <span class="cname">⑤ Telemetry & Observability Contract</span>
+      <span class="cpill b">Chốt spec</span>
+      <span class="cnote">Ref: contracts/*-integration.md §4</span>
+    </div>
+    <table class="dtbl">
+      <thead><tr><th style="width:54px">#</th><th>Nội dung đề xuất</th><th style="width:40%">Yêu cầu CDO thực hiện</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="td-d">5.1</td>
+          <td class="td-state">
+            <span class="has"><strong>Prometheus Metrics</strong> — AI cam kết export 7 custom metrics:</span>
+            <span class="gap"><code>llm_request_latency_seconds</code>, <code>llm_token_consumption_total</code>, <code>llm_error_rate_total</code>, <code>reviews_cache_hit_ratio</code>, <code>copilot_chat_requests_total</code>, <code>copilot_tool_calls_total</code>, <code>copilot_chat_latency_seconds</code></span>
+          </td>
+          <td class="td-req">
+            <b>Đảm bảo scrape target</b> trong Prometheus config bao gồm 2 pod AI mới.<br>
+            <b>Cấp Dashboard panel</b> trên Grafana cho AI team.<span class="who">CDO</span>
+          </td>
+        </tr>
+        <tr>
+          <td class="td-d">5.2</td>
+          <td class="td-state">
+            <span class="has"><strong>Trace Context (Jaeger)</strong>: W3C Trace Propagation không đứt đoạn.</span>
+            <span class="gap">AI cam kết gắn <code>gen_ai.system</code>, <code>gen_ai.model_id</code>, <code>gen_ai.usage.*</code> lên mọi span gọi LLM.</span>
+          </td>
+          <td class="td-req">
+            <b>Xác nhận</b> OTel Collector đang forward trace từ namespace chạy AI pods về Jaeger.<span class="who">CDO</span>
+          </td>
+        </tr>
+        <tr>
+          <td class="td-d">5.3</td>
+          <td class="td-state">
+            <span class="has"><strong>Log Pipeline</strong>: stdout container → OpenSearch.</span>
+            <span class="gap">AI cần log thô để chạy Drain3 Log Clustering (ADR-007 [Extend]).</span>
+          </td>
+          <td class="td-req">
+            <b>Xác nhận</b> Fluentd/FluentBit đang ship log từ AI pods về OpenSearch index.<span class="who">CDO</span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ═══════════════════ BLOCK 6: CONFIRMATION GATE ═══════════════════ -->
+  <div class="cblock">
+    <div class="chead">
+      <span class="cname">⑥ Confirmation Gate — Phối hợp Frontend (ADR-006)</span>
+      <span class="cpill ext">Extend</span>
+      <span class="cpill g">Tuần 3+</span>
+      <span class="cnote">Không khẩn cấp — PoC đã hoạt động trên Streamlit</span>
+    </div>
+    <table class="dtbl">
+      <thead><tr><th style="width:54px">#</th><th>Nội dung đề xuất</th><th style="width:40%">Yêu cầu CDO thực hiện</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="td-d">6.1</td>
+          <td class="td-state">
+            <span class="has"><strong>Giao thức JSON Confirmation</strong>: Khi Copilot muốn ghi giỏ hàng, nó trả về JSON payload chờ xác nhận thay vì tự gọi API.</span>
+            <span class="gap">Frontend cần render nút "✅ Xác nhận thêm vào giỏ" để user bấm. Chống Excessive Agency (OWASP LLM09).</span>
+          </td>
+          <td class="td-req">
+            <b>Lên kế hoạch sprint</b> để Frontend team thêm component Confirmation UI vào trang Chat trên Next.js.<span class="ext-tag">Extend</span><span class="who">CDO Frontend</span>
+          </td>
+        </tr>
+        <tr>
+          <td class="td-d">6.2</td>
+          <td class="td-state">
+            <span class="has"><strong>Tool Tier phân loại</strong>:</span>
+            <span class="gap">Tier 1 (Read-only): tự động. Tier 2 (Write): chờ xác nhận. Tier 3 (Critical): chặn tuyệt đối.</span>
+          </td>
+          <td class="td-req">
+            <b>Review & xác nhận</b> bảng phân loại Tool Tier trong ADR-006 — đặc biệt là danh sách tool bị chặn (<code>empty_cart</code>, <code>place_order</code>, <code>ship_order</code>).<span class="who">CDO</span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ═══════════════════ TÓM TẮT ═══════════════════ -->
+  <div class="note-box success">
+    <strong>✅ Cam kết của AI Team:</strong> Mọi thay đổi đều có <b>Rollback Plan</b> (tắt feature flag hoặc xóa pod). Không yêu cầu phát sinh thêm chi phí hạ tầng ($0). Code AI hoạt động độc lập — nếu AI pod sập, hệ thống gốc không bị ảnh hưởng.
+  </div>
+
+  <div class="summary-box">
+    <h3>📝 Checklist Phê Duyệt — CDO ký nhận</h3>
+    <ul>
+      <li>☐ <b>①</b> Cho phép AI ghi key <code>reviews:*</code> lên Valkey. Sửa eviction → <code>volatile-lru</code>. Bỏ TTL giỏ hàng.</li>
+      <li>☐ <b>②</b> Inject biến ENV cho pod <code>product-reviews</code>. Thêm 2 feature flags trên flagd.</li>
+      <li>☐ <b>③</b> Cấp slot deploy pod <code>shopping-copilot</code>. Cập nhật Envoy routing. Đồng bộ file proto.</li>
+      <li>☐ <b>④</b> Tạo IRSA cho 2 pod AI với quyền <code>bedrock:InvokeModel</code> (3 model Amazon Nova).</li>
+      <li>☐ <b>⑤</b> Xác nhận Prometheus scrape, Jaeger trace, log pipeline bao gồm 2 pod AI mới.</li>
+      <li>☐ <b>⑥</b> Lên kế hoạch Confirmation Gate UI trên Next.js (Tuần 3+).</li>
+    </ul>
+  </div>
+
+  <div style="margin-top:24px;padding:12px 16px;background:var(--surface);border:1px solid var(--border);font-size:12px;color:var(--muted)">
+    <strong>Tài liệu tham chiếu:</strong>
+    <code>docs/ai/ADR-log.md</code> (ADR-001→007) ·
+    <code>docs/ai/contracts/product-reviews-integration.md</code> ·
+    <code>docs/ai/contracts/shopping-copilot-integration.md</code> ·
+    <code>docs/ai/specs/valkey_caching.md</code> ·
+    <code>docs/ai/specs/shopping_copilot.md</code>
+  </div>
+
+</div></div>
+</body>
+</html>
