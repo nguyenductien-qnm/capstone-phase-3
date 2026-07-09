@@ -1,0 +1,136 @@
+# TF1-53 [AIOps-W1-T5] - Cau hinh phat hien loi & canh bao van hanh
+# ----------------------------------------------------------------------------
+# Rule config-driven: KHONG hardcode nguong trong code. Them/sua tin hieu tai day.
+# 2 loai rule:
+#   - type: metric  -> query Prometheus (PromQL tra ve vector, so sanh op/threshold trong code)
+#   - type: log     -> dem so log khop match_phrase tren OpenSearch trong cua so window_minutes
+#
+# Nguong bam SLO trong onboarding/SLO.md:
+#   - storefront p95 < 1s ; non-5xx >= 99.5% (err < 0.5%) ; checkout >= 99% (err < 1%)
+
+poll_interval_seconds: 30
+
+sources:
+  # URL doc tu bien moi truong (xem .env.example). KHONG commit URL that.
+  prometheus_url_env: PROM_URL
+  opensearch_url_env: OPENSEARCH_URL
+  opensearch_index: "otel-logs-*"
+  # Ten field trong index otel-logs-* (lay tu grafana/provisioning/datasources/opensearch.yaml)
+  opensearch_message_field: "body"
+  opensearch_time_field: "observedTimestamp"
+  http_timeout_seconds: 5
+
+alert:
+  # provider: slack | discord | stdout | auto (tu doan tu URL webhook)
+  provider: auto
+  webhook_env: ALERT_WEBHOOK_URL
+  # Cung 1 rule + cung 1 service chi ban toi da 1 lan / cooldown_seconds (chong spam on-call)
+  cooldown_seconds: 600
+
+rules:
+  # ---- GOLDEN SIGNALS (metric) ----
+  - id: latency-p95-high
+    type: metric
+    severity: warning
+    summary: "p95 latency > 1s - vi pham SLO storefront (< 1s)"
+    query: >-
+      histogram_quantile(0.95,
+        sum by (service_name, le) (
+          rate(http_server_request_duration_seconds_bucket{service_namespace="techx-corp"}[5m])
+        )
+      )
+    op: gt
+    threshold: 1.0
+
+  - id: error-rate-high
+    type: metric
+    severity: critical
+    summary: "5xx error rate > 0.5% - vi pham SLO non-5xx (>= 99.5%)"
+    query: >-
+      sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", http_response_status_code=~"5.."}[5m]))
+      /
+      clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp"}[5m])), 0.001)
+    op: gt
+    threshold: 0.005
+
+  - id: checkout-failure-high
+    type: metric
+    severity: critical
+    summary: "Checkout error rate > 1% - luong RA TIEN (SLO >= 99%)"
+    query: >-
+      sum (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout", http_response_status_code=~"5.."}[5m]))
+      /
+      clamp_min(sum (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout"}[5m])), 0.001)
+    op: gt
+    threshold: 0.01
+
+  # ---- TIN HIEU LOI GenAI (trong tam task) ----
+  - id: llm-rate-limit-429
+    type: log
+    severity: critical
+    summary: "LLM 429 rate-limit - nguy co mat tinh nang tom tat review (su co BTC bom qua flagd)"
+    match_phrases:
+      - "Rate limit reached"
+      - "rate_limit_exceeded"
+      - "429"
+    window_minutes: 5
+    min_count: 1
+
+  - id: genai-assistant-failure
+    type: log
+    severity: critical
+    summary: "GenAI assistant loi - product-reviews khong sinh duoc tom tat/tra loi (fallback error)"
+    match_phrases:
+      - "unable to process your response"
+      - "Caught Exception"
+    window_minutes: 5
+    min_count: 1
+
+  - id: genai-latency-high
+    type: metric
+    severity: warning
+    summary: "p95 latency product-reviews > 2s - cuoc goi LLM cham, de bao gio SLO storefront"
+    query: >-
+      histogram_quantile(0.95,
+        sum by (le) (
+          rate(http_server_request_duration_seconds_bucket{service_namespace="techx-corp", service_name="product-reviews"}[5m])
+        )
+      )
+    op: gt
+    threshold: 2.0
+
+  # ---- SU CO HA TANG KINH DIEN (log) ----
+  - id: db-pool-exhaustion
+    type: log
+    severity: critical
+    summary: "DB connection pool can (INC-1/S01 tai dien) - checkout co the timeout"
+    match_phrases:
+      - "too many clients"
+      - "connection pool"
+      - "pool timeout"
+      - "remaining connection slots"
+    window_minutes: 5
+    min_count: 3
+
+  - id: oom-detected
+    type: log
+    severity: critical
+    summary: "OutOfMemory / OOMKilled - pod bi giet vi het RAM (INC-2/S07)"
+    match_phrases:
+      - "OutOfMemory"
+      - "OOMKilled"
+      - "Cannot allocate memory"
+    window_minutes: 5
+    min_count: 1
+
+  - id: dns-resolution-error
+    type: log
+    severity: warning
+    summary: "Loi phan giai DNS / NXDOMAIN (S02) - service khong goi duoc dependency"
+    match_phrases:
+      - "NXDOMAIN"
+      - "no such host"
+      - "name resolution"
+      - "Temporary failure in name resolution"
+    window_minutes: 5
+    min_count: 3

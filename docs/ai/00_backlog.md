@@ -22,6 +22,8 @@ Hệ thống hiện tại chạy trên K8s (EKS) với dịch vụ tóm tắt re
 | 8 | **TF1-52** | Nghiên cứu & Xây dựng Log Clustering sử dụng Drain3 | Observability | Trung bình × Trung bình (3×3 = 9) | Tự động hóa gom cụm log lỗi GenAI (OOM, timeout) | $0 | Trung bình | Giải pháp AIOps để nhanh chóng gom các sự cố cascading từ hàng triệu dòng log thô. |
 | 9 | **TF1-50** | Thiết kế Spec Auto-Remediation closed-loop & Safety boundary | Reliability | Trung bình × Trung bình (3×3 = 9) | Thiết lập an toàn cho vòng tự khắc phục (Dry-run, Blast Radius, CB) | $0 | Trung bình | Định hình kịch bản tự động xử lý sự cố an toàn cấp công nghiệp trước khi code ở tuần sau. |
 | 10 | **TF1-53** | Xây dựng script/tool phát hiện lỗi và cảnh báo vận hành | Observability | Thấp × Cao (2×4 = 8) | Gửi alert cảnh báo sớm về lỗi pool DB, OOM, DNS | $0 | Trung bình | Tích hợp các script kiểm tra tự động phát hiện lỗi và gửi alert cứu hộ tức thời cho on-call. |
+| 11 | **TF1-54** | Triển khai Option 1 giải quyết xung đột Eviction Policy Valkey | Reliability / Cost | Cao × Cao (4×4 = 16) | Đảm bảo an toàn giỏ hàng dưới ngân sách $300 | $0 | Trung bình | Chốt kiến trúc Option 1: volatile-lru + Bỏ Cart TTL + Cron GC dọn dẹp hàng đêm. |
+
 
 ---
 

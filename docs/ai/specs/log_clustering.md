@@ -258,4 +258,4 @@ spec:
 - **Paper gốc:** He et al., *Drain: An Online Log Parsing Approach with Fixed Depth Tree*, ICWS 2017
 - **Thư viện:** [Drain3 GitHub](https://github.com/logpai/Drain3)
 - **Spec liên quan:** [anomaly_remediation.md](./anomaly_remediation.md) (Closed-loop Safety Pattern)
-- **ADR liên quan:** [ADR-log.md](../ADR-log.md) → ADR-003
+- **ADR liên quan:** [ADR-log.md](../ADR-log.md) → ADR-007

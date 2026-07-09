@@ -1,0 +1,41 @@
+# TF1-53 [AIOps-W1-T5] - deploy detector chay lien tuc in-cluster (Tuan 2).
+# Tuan 1: chay local bang `python detector.py`. Manifest nay de san cho buoc dong goi.
+#
+# Truoc khi apply:
+#   kubectl -n <ns> create secret generic aiops-alert \
+#     --from-literal=webhook=<slack-or-discord-webhook-url>
+#
+#   kubectl -n <ns> apply -f deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aiops-detector
+  labels:
+    app: aiops-detector
+    team: aio03
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aiops-detector
+  template:
+    metadata:
+      labels:
+        app: aiops-detector
+    spec:
+      containers:
+        - name: aiops-detector
+          image: <ECR>/techx-corp:1.0-aiops-detector   # build tu Dockerfile roi push ECR cua TF
+          env:
+            - name: PROM_URL
+              value: "http://prometheus:9090"
+            - name: OPENSEARCH_URL
+              value: "http://opensearch:9200"
+            - name: ALERT_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: aiops-alert
+                  key: webhook
+          resources:
+            requests: { cpu: "50m", memory: "64Mi" }
+            limits: { cpu: "200m", memory: "128Mi" }
