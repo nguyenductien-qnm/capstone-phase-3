@@ -166,7 +166,7 @@
 
 ---
 
-## ADR-007 - Sử dụng Drain3 cho Log Clustering & Anomaly Detection
+## ADR-007 - [Extend] Sử dụng Drain3 cho Log Clustering & Anomaly Detection
 - **Trạng thái:** Chấp nhận (Accepted)
 - **Ngày:** 2026-07-09
 - **Người ký:** Nhóm AI (AIO03) - Task Force 1
@@ -174,6 +174,7 @@
 - **Task:** TF1-52 / AIOps-W1-T4
 - **Bối cảnh:**
   Khi hệ thống gặp sự cố (OOM, DB connection timeout, LLM 429 rate limit), log thô từ các container `product-reviews` và `llm` đổ vào OpenSearch có thể lên tới hàng nghìn dòng/phút. On-call mất 10-15 phút đọc log thủ công để xác định root cause. Alert dựa trên keyword đơn (`grep ERROR`) sinh quá nhiều false-positive, gây alert fatigue.
+  *(Ghi chú: Drain3 là một thành phần Mở rộng / Extend được tự xây mới ngoài phạm vi repo mã nguồn tĩnh ban đầu).*
 - **Quyết định:**
   Sử dụng thuật toán **Drain3** (online log parsing, fixed-depth tree) để tự động phân cụm log thô thành các log template. Phát hiện anomaly qua 2 tiêu chí:
   - **NEW_ERROR_TEMPLATE:** Template lỗi chưa từng xuất hiện → dấu hiệu sự cố mới.
