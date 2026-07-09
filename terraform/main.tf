@@ -9,7 +9,7 @@ terraform {
   }
 
   backend "s3" {
-    bucket       = "terraform-state-phase-3-bucket"
+    bucket       = "terraform-state-phase-3"
     key          = "dev/terraform.tfstate"
     region       = "us-east-1"
     encrypt      = true
@@ -52,9 +52,9 @@ module "eks" {
   subnet_ids   = module.vpc.private_subnets
   environment  = var.environment
 
-  instance_types   = var.instance_types
-  desired_size     = var.node_desired_size
-  min_size         = var.node_min_size
-  max_size         = var.node_max_size
-  admin_user_arns  = var.eks_admin_user_arns
+  instance_types  = var.instance_types
+  desired_size    = var.node_desired_size
+  min_size        = var.node_min_size
+  max_size        = var.node_max_size
+  admin_user_arns = var.eks_admin_user_arns
 }
