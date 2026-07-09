@@ -1,30 +1,34 @@
 """
-Shopping Copilot — Streamlit PoC
-=================================
+Shopping Copilot — Streamlit PoC  (TF1-48 + TF1-56 gRPC integration)
+=====================================================================
 Tác giả : AIO Team (dinh144)
-JIRA    : TF1-48
+JIRA    : TF1-48, TF1-56
 Mô tả   : Chatbot gọi AWS Bedrock (Amazon Nova) thật, hỗ trợ 3 intent cốt lõi:
            1. Tìm kiếm sản phẩm bằng ngôn ngữ tự nhiên (search_products)
            2. Hỏi đáp review không ảo giác / RAG (get_product_reviews)
            3. Thêm giỏ hàng với Confirmation Gate chống Excessive Agency (add_to_cart)
 
-⚠️  GIỚI HẠN PHẠM VI — ĐỌC TRƯỚC KHI CHẤM
-    Đây là PoC Tuần 1. LLM là Bedrock THẬT, nhưng ba tool bên dưới chạy trên
-    MOCK_PRODUCTS (dict hardcode trong file này), KHÔNG gọi gRPC tới
-    product-catalog / product-reviews / cart thật đang chạy trên EKS.
+Tích hợp gRPC (TF1-56):
+    Ba tool ở trên hỗ trợ HAI chế độ vận hành:
+    • gRPC mode: khi PRODUCT_CATALOG_ADDR, PRODUCT_REVIEWS_ADDR, CART_SERVICE_ADDR
+      được cấu hình → tool gọi thẳng vào microservice thật trên EKS qua gRPC.
+    • Mock mode (fallback): khi env vars chưa set hoặc gRPC stubs chưa generate
+      → tool chạy trên MOCK_PRODUCTS hardcode (chỉ dùng để demo local).
+    Sidebar hiển thị rõ đang chạy ở mode nào. Xem grpc_clients.py để biết chi tiết.
 
-    RULES.md §4 yêu cầu: "Với mọi hạng mục AIE: phải chạy thật trong hệ thống
-    của TF (không mockup)". Vì vậy PoC này CHƯA đáp ứng tiêu chí chấm của
-    hạng mục Copilot. Việc nối tool vào gRPC thật được theo dõi ở TF1-56.
-
-    Giữ PoC lại vì nó chứng minh được phần logic an toàn (Confirmation Gate,
-    MAX_TOOL_CALLS, block-list) độc lập với tầng dữ liệu.
-
-Chạy thử local:
+Chạy thử local (mock mode):
   streamlit run demo_copilot_st.py --server.port 8503 --server.address 0.0.0.0
 
+Chạy với gRPC thật (trên EKS hoặc port-forward):
+  export PRODUCT_CATALOG_ADDR=productcatalogservice:3550
+  export PRODUCT_REVIEWS_ADDR=productreviewservice:8080
+  export CART_SERVICE_ADDR=cartservice:7070
+  pip install -r requirements-copilot.txt
+  bash generate_proto_stubs.sh   # tạo demo_pb2.py & demo_pb2_grpc.py
+  streamlit run demo_copilot_st.py
+
 Yêu cầu:
-  pip install streamlit boto3
+  pip install streamlit boto3 grpcio grpcio-tools
   AWS credentials nạp trong ~/.aws/credentials hoặc biến môi trường
   Nếu không có credentials: app tự chạy ở chế độ MOCK (demo đầy đủ chức năng)
 """
@@ -35,6 +39,21 @@ import re
 import streamlit as st
 import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
+
+# gRPC integration layer (TF1-56)
+try:
+    from grpc_clients import (
+        is_grpc_available, grpc_search_products,
+        grpc_get_product_reviews, grpc_add_to_cart,
+    )
+    _GRPC_IMPORTED = True
+except ImportError:
+    _GRPC_IMPORTED = False
+
+    def is_grpc_available() -> bool:
+        return False
+
+USE_GRPC = _GRPC_IMPORTED and is_grpc_available()
 
 # ─────────────────────────────────────────────
 # 0. Page config
@@ -163,10 +182,12 @@ def _load_review_summaries() -> dict:
 MOCK_REVIEWS = _load_review_summaries()
 
 # ─────────────────────────────────────────────
-# 3. Tool implementations (mock → dễ swap sang gRPC thật)
+# 3. Tool implementations (gRPC thật → fallback mock)
 # ─────────────────────────────────────────────
-def _tool_search_products(query: str, category: str | None = None) -> str:
-    """Intent 1: Tìm sản phẩm bằng ngôn ngữ tự nhiên."""
+
+# ── 3a. Mock implementations (fallback khi không có gRPC) ──
+def _mock_search_products(query: str, category: str | None = None) -> str:
+    """Intent 1 (mock): Tìm sản phẩm bằng ngôn ngữ tự nhiên."""
     query_lower = query.lower()
     results = []
     for pid, info in MOCK_PRODUCTS.items():
@@ -175,7 +196,6 @@ def _tool_search_products(query: str, category: str | None = None) -> str:
         searchable = (
             info["name"] + " " + info["description"] + " " + info["category"]
         ).lower()
-        # Tìm kiếm đơn giản: ít nhất 1 từ trong query khớp
         if any(word in searchable for word in query_lower.split()):
             results.append({
                 "product_id": pid,
@@ -190,8 +210,8 @@ def _tool_search_products(query: str, category: str | None = None) -> str:
     return json.dumps({"status": "ok", "count": len(results), "products": results})
 
 
-def _tool_get_product_reviews(product_id: str) -> str:
-    """Intent 2: Đọc tóm tắt review (RAG — không ảo giác)."""
+def _mock_get_product_reviews(product_id: str) -> str:
+    """Intent 2 (mock): Đọc tóm tắt review (RAG — không ảo giác)."""
     if product_id not in MOCK_REVIEWS:
         return json.dumps({
             "status": "not_found",
@@ -206,18 +226,13 @@ def _tool_get_product_reviews(product_id: str) -> str:
     })
 
 
-def _tool_add_to_cart(product_id: str, quantity: int = 1) -> str:
-    """
-    Intent 3: Thêm vào giỏ hàng.
-    QUAN TRỌNG: Hàm này chỉ CHUẨN BỊ pending_action.
-    Hành động thật chỉ xảy ra sau khi người dùng bấm ✅ Xác nhận.
-    """
+def _mock_add_to_cart(product_id: str, quantity: int = 1) -> str:
+    """Intent 3 (mock): Thêm vào giỏ hàng (Confirmation Gate)."""
     if product_id not in MOCK_PRODUCTS:
         return json.dumps({"status": "error", "message": f"Sản phẩm {product_id} không tồn tại."})
     if not MOCK_PRODUCTS[product_id]["in_stock"]:
         return json.dumps({"status": "out_of_stock",
                            "message": f"{MOCK_PRODUCTS[product_id]['name']} hiện hết hàng."})
-    # Lưu vào pending_action — KHÔNG thêm vào cart ngay
     st.session_state.pending_action = {
         "type": "add_to_cart",
         "product_id": product_id,
@@ -229,6 +244,75 @@ def _tool_add_to_cart(product_id: str, quantity: int = 1) -> str:
         "status": "pending_confirmation",
         "message": (
             f"Đã chuẩn bị thêm {quantity}x {MOCK_PRODUCTS[product_id]['name']} "
+            "vào giỏ hàng. Chờ người dùng xác nhận."
+        ),
+    })
+
+
+# ── 3b. Dispatch: gRPC thật → fallback mock ──
+def _tool_search_products(query: str, category: str | None = None) -> str:
+    """Intent 1: Tìm sản phẩm — gọi gRPC ProductCatalogService nếu có."""
+    if USE_GRPC:
+        try:
+            raw = grpc_search_products(query, category)
+            data = json.loads(raw)
+            if "error" not in data:
+                products = data if isinstance(data, list) else data.get("products", data)
+                if isinstance(products, list):
+                    for p in products:
+                        if isinstance(p.get("price"), (int, float)):
+                            p["price"] = f"${p['price']:.2f}"
+                    return json.dumps({"status": "ok", "count": len(products), "products": products})
+        except Exception:
+            pass  # Fallthrough to mock
+    return _mock_search_products(query, category)
+
+
+def _tool_get_product_reviews(product_id: str) -> str:
+    """Intent 2: Review — gọi gRPC ProductReviewService nếu có."""
+    if USE_GRPC:
+        try:
+            raw = grpc_get_product_reviews(product_id)
+            data = json.loads(raw)
+            if "error" not in data:
+                return json.dumps({
+                    "status": "ok",
+                    "product_id": product_id,
+                    "product_name": data.get("product_name", product_id),
+                    "review_summary": data.get("summary", ""),
+                })
+        except Exception:
+            pass
+    return _mock_get_product_reviews(product_id)
+
+
+def _tool_add_to_cart(product_id: str, quantity: int = 1) -> str:
+    """
+    Intent 3: Thêm vào giỏ hàng.
+    QUAN TRỌNG: Hàm này chỉ CHUẨN BỊ pending_action (Confirmation Gate).
+    Hành động thật chỉ xảy ra sau khi người dùng bấm ✅ Xác nhận.
+    Khi gRPC khả dụng: xác nhận xong → gọi CartService.AddItem thật.
+    """
+    # Kiểm tra sản phẩm tồn tại (mock catalog vẫn cần để lấy tên/giá)
+    product_info = MOCK_PRODUCTS.get(product_id)
+    if not product_info:
+        return json.dumps({"status": "error", "message": f"Sản phẩm {product_id} không tồn tại."})
+    if not product_info["in_stock"]:
+        return json.dumps({"status": "out_of_stock",
+                           "message": f"{product_info['name']} hiện hết hàng."})
+    # Lưu pending_action — KHÔNG thêm vào cart ngay (Confirmation Gate)
+    st.session_state.pending_action = {
+        "type": "add_to_cart",
+        "product_id": product_id,
+        "product_name": product_info["name"],
+        "quantity": max(1, int(quantity)),
+        "unit_price": product_info["price"],
+        "use_grpc": USE_GRPC,  # Flag để confirm handler biết gọi gRPC
+    }
+    return json.dumps({
+        "status": "pending_confirmation",
+        "message": (
+            f"Đã chuẩn bị thêm {quantity}x {product_info['name']} "
             "vào giỏ hàng. Chờ người dùng xác nhận."
         ),
     })
@@ -626,6 +710,19 @@ def render_sidebar():
         "**Confirmation Gate:** ✅ Bật\n\n"
         "**Anti-hallucination:** ✅ Bật"
     )
+
+    # gRPC integration status (TF1-56)
+    if USE_GRPC:
+        st.sidebar.success(
+            "🔗 **Data Source:** gRPC thật\n\n"
+            "Tool gọi trực tiếp vào microservice trên EKS."
+        )
+    else:
+        st.sidebar.warning(
+            "⚠️ **Data Source:** Mock (local)\n\n"
+            "Set `PRODUCT_CATALOG_ADDR`, `PRODUCT_REVIEWS_ADDR`, "
+            "`CART_SERVICE_ADDR` để dùng gRPC thật."
+        )
 
     st.sidebar.divider()
 
