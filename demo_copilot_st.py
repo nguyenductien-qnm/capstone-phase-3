@@ -345,67 +345,66 @@ def run_mock_agent(user_input: str) -> str:
     """
     txt = user_input.lower()
 
-    # Intent 1: Tìm kiếm sản phẩm
-    search_keywords = ["tìm", "có", "bán", "nào", "telescope", "kính", "ống nhòm",
-                       "binoculars", "solar", "filter", "cleaning", "book", "sách",
-                       "accessories", "camera", "imager"]
-    if any(k in txt for k in search_keywords):
-        # Chạy search tool thật
-        result = json.loads(_tool_search_products(user_input))
-        if result["status"] == "not_found":
-            return "Xin lỗi, tôi không tìm thấy sản phẩm phù hợp với yêu cầu của bạn."
-        products = result["products"]
-        lines = [f"Tôi tìm được **{len(products)} sản phẩm** phù hợp:\n"]
-        for i, p in enumerate(products[:4], 1):
-            stock = "Còn hàng" if p["in_stock"] else "Hết hàng"
-            lines.append(f"**{i}. {p['name']}** — {p['price']} [{stock}]")
-            lines.append(f"   _{p['description']}_")
-        lines.append("\nBạn muốn biết thêm về sản phẩm nào?")
-        return "\n".join(lines)
+    # Intent 3: Thêm giỏ hàng (Ưu tiên kiểm tra trước vì thường chứa từ khóa của SP)
+    cart_keywords = ["thêm", "mua", "add", "giỏ", "cart", "order", "đặt"]
+    if any(k in txt for k in cart_keywords):
+        # Map từ tiếng Việt sang product ID
+        if "star" in txt or "sense" in txt:
+            _tool_add_to_cart("66VCHSJNUP", quantity=1)
+            return "Tôi đã chuẩn bị lệnh thêm **1x StarSense Explorer** vào giỏ hàng.\nVui lòng xác nhận nút bấm bên dưới."
+        elif "outland" in txt or "nhòm" in txt:
+            _tool_add_to_cart("2ZYFJ3GM2N", quantity=1)
+            return "Tôi đã chuẩn bị lệnh thêm **1x Celestron Outland Binoculars** vào giỏ hàng.\nVui lòng xác nhận nút bấm bên dưới."
+        elif "cleaning" in txt or "lau" in txt or "vệ sinh" in txt:
+            _tool_add_to_cart("L9ECAV7KIM", quantity=1)
+            return "Tôi đã chuẩn bị lệnh thêm **1x Lens Cleaning Kit** vào giỏ hàng.\nVui lòng xác nhận nút bấm bên dưới."
+        else:
+            # Default fallback for cart
+            _tool_add_to_cart("OLJCESPC7Z", quantity=1)
+            return "Tôi đã chuẩn bị lệnh thêm **1x Celestron AstroMaster 70** (kính thiên văn phổ biến nhất) vào giỏ hàng.\nVui lòng xác nhận nút bấm bên dưới."
 
     # Intent 2: Hỏi review
     review_keywords = ["review", "đánh giá", "tốt không", "chất lượng", "nhận xét",
                        "pin", "bền", "dùng", "người ta nói"]
     if any(k in txt for k in review_keywords):
-        # Tìm product_id được đề cập
-        for pid in MOCK_PRODUCTS:
-            name = MOCK_PRODUCTS[pid]["name"].lower()
-            if any(word in txt for word in name.split()):
-                result = json.loads(_tool_get_product_reviews(pid))
-                if result["status"] == "ok":
-                    return (
-                        f"📋 **Tóm tắt đánh giá — {result['product_name']}:**\n\n"
-                        f"{result['review_summary']}\n\n"
-                        "_Nguồn: tổng hợp từ đánh giá thật của khách hàng._"
-                    )
-        return (
-            "Bạn muốn xem đánh giá cho sản phẩm cụ thể nào? "
-            "Vui lòng nêu tên hoặc mã sản phẩm."
-        )
+        pid_to_check = "OLJCESPC7Z" # Default
+        if "star" in txt or "sense" in txt: pid_to_check = "66VCHSJNUP"
+        elif "nhòm" in txt or "outland" in txt: pid_to_check = "2ZYFJ3GM2N"
+        
+        result = json.loads(_tool_get_product_reviews(pid_to_check))
+        if result["status"] == "ok":
+            return (
+                f"📋 **Tóm tắt đánh giá — {result['product_name']}:**\n\n"
+                f"{result['review_summary']}\n\n"
+                "_Nguồn: tổng hợp từ đánh giá thật của khách hàng._"
+            )
 
-    # Intent 3: Thêm giỏ hàng
-    cart_keywords = ["thêm", "mua", "add", "giỏ", "cart", "order", "đặt"]
-    if any(k in txt for k in cart_keywords):
-        # Tìm sản phẩm được đề cập
-        for pid, info in MOCK_PRODUCTS.items():
-            if any(word in txt for word in info["name"].lower().split()):
-                _tool_add_to_cart(pid, quantity=1)
-                return (
-                    f"Tôi đã chuẩn bị lệnh thêm **1x {info['name']}** vào giỏ hàng.\n"
-                    "Vui lòng xác nhận nút bấm bên dưới."
-                )
-        return (
-            "Bạn muốn thêm sản phẩm nào vào giỏ? "
-            "Hãy nêu tên sản phẩm cụ thể."
-        )
+    # Intent 1: Tìm kiếm sản phẩm
+    search_keywords = ["tìm", "có", "bán", "nào", "telescope", "kính", "ống nhòm",
+                       "binoculars", "solar", "filter", "cleaning", "book", "sách",
+                       "accessories", "camera", "imager", "sản phẩm"]
+    if any(k in txt for k in search_keywords) or True: # Mặc định rơi vào đây
+        # Override query để match với danh mục tiếng Anh
+        query_for_tool = "telescope" 
+        if "nhòm" in txt: query_for_tool = "binoculars"
+        elif "lau" in txt or "vệ sinh" in txt or "cleaning" in txt: query_for_tool = "cleaning"
+        elif "mặt trời" in txt or "solar" in txt: query_for_tool = "solar"
+        elif "sách" in txt or "book" in txt: query_for_tool = "book"
 
-    # Fallback
-    return (
-        "Xin chào! Tôi có thể giúp bạn:\n"
-        "- 🔍 **Tìm sản phẩm**: 'Tìm kính thiên văn cho trẻ em'\n"
-        "- 💬 **Xem đánh giá**: 'Review Lens Cleaning Kit thế nào?'\n"
-        "- 🛒 **Thêm giỏ hàng**: 'Thêm StarSense vào giỏ'\n"
-    )
+        result = json.loads(_tool_search_products(query_for_tool))
+        if result["status"] == "not_found":
+            return "Xin lỗi, hiện tại cửa hàng không có sản phẩm này."
+        
+        products = result["products"]
+        lines = [f"Tôi tìm được **{len(products)} sản phẩm** gợi ý cho bạn:\n"]
+        for i, p in enumerate(products[:4], 1):
+            stock = "Còn hàng" if p["in_stock"] else "Hết hàng"
+            lines.append(f"**{i}. {p['name']}** — {p['price']} [{stock}]")
+            lines.append(f"   _{p['description']}_")
+        lines.append("\nBạn muốn xem review hay thêm sản phẩm nào vào giỏ?")
+        return "\n".join(lines)
+
+
 
 
 # ─────────────────────────────────────────────
