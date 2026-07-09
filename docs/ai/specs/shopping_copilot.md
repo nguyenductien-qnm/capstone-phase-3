@@ -77,6 +77,9 @@ sequenceDiagram
 Định nghĩa protobuf được lưu trữ tại `techx-corp-platform/pb/shopping_copilot.proto`.
 
 ```protobuf
+// Copyright The OpenTelemetry Authors
+// SPDX-License-Identifier: Apache-2.0
+
 syntax = "proto3";
 
 package oteldemo;
@@ -93,12 +96,54 @@ service ShoppingCopilotService {
 message ChatWithCopilotRequest {
   string user_id = 1;         // ID của người dùng đang đăng nhập (để quản lý giỏ hàng)
   string question = 2;        // Câu hỏi hoặc câu lệnh của khách hàng
-  repeated string chat_history = 3; // Lịch sử hội thoại gần nhất (tùy chọn)
+
+  // DEPRECATED: lịch sử do client gửi lên nghĩa là client kiểm soát context của
+  // LLM -- đường thẳng tới prompt injection. Dùng session_id, server tự nạp lịch
+  // sử. Giữ field number 3 để không tái sử dụng nhầm.
+  repeated string chat_history = 3 [deprecated = true];
+
+  // Server tra lịch sử hội thoại theo session_id. Client không gửi context.
+  string session_id = 4;
+
+  // Khi user bấm "Đồng ý" trên Confirmation Gate, client gửi lại token này
+  // (lấy từ PendingConfirmation.confirmation_token của lượt trước) để agent
+  // thực thi đúng hành động ghi đã được duyệt.
+  string confirmation_token = 5;
+}
+
+// Hành động ghi (Tier 2 - ADR-006) đang chờ user xác nhận.
+// Agent KHÔNG được tự thực thi; nó trả về đây và dừng lại.
+message PendingConfirmation {
+  string tool_name = 1;              // vd "add_to_cart"
+  string arguments_json = 2;         // tham số đã chuẩn hoá, dạng JSON
+  string human_prompt = 3;           // câu hỏi hiển thị cho user
+  string confirmation_token = 4;     // idempotency key, chống double-submit
+  int64  expires_at_unix = 5;        // epoch giây; hết hạn thì phải hỏi lại
+}
+
+// Một lời gọi tool đã thực thi -- phục vụ audit log (ADR-006).
+message ToolCallRecord {
+  string tool_name = 1;
+  string arguments_json = 2;
+  bool   succeeded = 3;
+  int64  started_at_unix = 4;
+  int64  duration_ms = 5;
 }
 
 // Phản hồi từ Agent
 message ChatWithCopilotResponse {
   string response = 1;        // Câu trả lời tổng hợp dạng text từ Agent
+
+  // Có giá trị <=> agent muốn thực thi một hành động ghi và đang chờ xác nhận.
+  // Khi field này set, `response` chỉ là văn bản giải thích, KHÔNG có hành động
+  // nào đã xảy ra.
+  PendingConfirmation pending_confirmation = 2;
+
+  // Mọi tool đã gọi trong lượt này. Frontend không cần dùng; tồn tại để truy vết.
+  repeated ToolCallRecord actions_taken = 3;
+
+  // Agent trả lời từ fallback (LLM lỗi/timeout) thay vì model chính.
+  bool degraded = 4;
 }
 ```
 
@@ -154,7 +199,7 @@ Agent tích hợp mô hình OpenAI-compatible API hỗ trợ định nghĩa Func
 
 ## 5. Tầng Bảo mật & Giám sát (Input/Output Guardrails)
 
-Để đáp ứng đầy đủ yêu cầu an toàn của **AI_FEATURE.md §2.A** và chống lại các rủi ro từ **OWASP LLM09:2025 (Excessive Agency)**, trợ lý Shopping Copilot tích hợp cấu trúc bảo mật 3 lớp:
+Để đáp ứng đầy đủ yêu cầu an toàn của **AI_FEATURE.md §2 Phần B** và chống lại các rủi ro từ **OWASP LLM09:2025 (Excessive Agency)**, trợ lý Shopping Copilot tích hợp cấu trúc bảo mật 3 lớp:
 
 1. **Input Guardrail (Chặn Prompt Injection & Jailbreak):**
    - Áp dụng bộ lọc Regex để loại bỏ các từ khóa độc hại, chỉ thị ghi đè prompt hệ thống (system overrides).
