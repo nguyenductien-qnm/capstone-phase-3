@@ -18,7 +18,7 @@ default:
   image:
     # SEED registry (image mẫu BTC cấp). Mỗi TF ĐỔI sang ECR của account mình:
     #   helm ... --set default.image.repository=<ACCOUNT>.dkr.ecr.<REGION>.amazonaws.com/techx-corp
-    repository: 265808836805.dkr.ecr.us-east-1.amazonaws.com/techx-corp
+    repository: 804372444787.dkr.ecr.us-east-1.amazonaws.com/techx-corp
     # Overrides the image tag whose default is the chart appVersion.
     # The service's name will be applied to the end of this value.
     tag: "1.0"

@@ -2,7 +2,7 @@
 # Script tự động login và đẩy 18 images seed của BTC lên ECR của TF.
 set -euo pipefail
 
-REG="265808836805.dkr.ecr.us-east-1.amazonaws.com/techx-corp"
+REG="804372444787.dkr.ecr.us-east-1.amazonaws.com/techx-corp"
 REGION="us-east-1"
 
 echo "1. Đăng nhập Docker vào ECR..."

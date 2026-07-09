@@ -51,6 +51,28 @@ Các tính năng nâng cao để cạnh tranh top, triển khai Tuần 2-3 (sau 
 
 ---
 
-## 5. Ký tên
+## 5. Ký tên & Phân công Nhân sự
 *Trình bày bởi:* **Nhóm AI (AIO03)** - Task Force 1  
 *Ngày trình:* **2026-07-08**
+
+### 👥 Danh sách Phân công Tiểu ban (Sub-teams):
+
+#### 🤖 Tiểu ban AIE (AI Engineering)
+1. **Nguyễn Hữu Định (AI Lead):** Phụ trách Quản trị rủi ro, Backlog (`00_backlog.md`) và Slide Pitching (`pitch.md`).
+2. **Nguyễn Công Thịnh:** Thiết kế Spec Valkey Cache & Fallback Routing.
+3. **Phan Đức Tài:** Thiết kế Spec gRPC Shopping Copilot & Hợp đồng tích hợp CDO.
+4. **Lê Kim Dũng:** Phát triển Shopping Copilot PoC (Streamlit) & Script chạy Evals.
+
+#### 📈 Tiểu ban AIOps (AI Operations)
+5. **Thịnh Nguyễn Hưng (Hưng Thịnh):** Thiết kế Spec Golden Signal Anomaly Detection (EWMA).
+6. **Nguyễn Ngọc Giao:** Thiết kế Spec Auto-Remediation closed-loop & Safety boundary.
+7. **Trần Mạnh Trường (Mạnh Trường):** Audit hạ tầng Telemetry & Phân tích trace context Jaeger.
+8. **Vinh Bui:** Nghiên cứu & Xây dựng Log Clustering sử dụng thuật toán Drain3.
+9. **Thanh Pham Huu Tien:** Xây dựng script/tool phát hiện lỗi và cảnh báo vận hành.
+10. **Thanh Hoang (Jax):** Đồng hành và hỗ trợ phát triển script cảnh báo vận hành.
+
+---
+
+## 5. Ghi chú Phối hợp Hạ tầng (CDO Team Co-working)
+* **Quyền hạn cụm (EKS IAM Access):** Nhóm AI ghi nhận và xác nhận cấu hình EKS Access Entries được CDO merge qua PR #7. Cấu hình này đã giải quyết triệt để lỗi 409 bằng cách lọc ID cluster creator, đồng thời cấp quyền ClusterAdmin đầy đủ cho danh sách admin của Task Force thông qua biến `eks_admin_user_arns`.
+* **Tích hợp Caching:** Nhóm AI thống nhất tận dụng service `valkey-cart` cổng `6379` hiện có trên cụm EKS của CDO thay vì tự deploy cụm Valkey riêng lẻ, giúp tiết kiệm 100% chi phí tài nguyên phát sinh.
