@@ -32,8 +32,8 @@
   * *ROI:* Giảm **90% chi phí token** và phản hồi cache cực nhanh (< 50ms).
 * **ADR-004 (Hybrid Task-Specific Routing & Fallback):**
   * Tác vụ Reviews (Cao tải/Rẻ): Amazon Nova Lite -> Fallback: Nova Micro -> Mock. Timeout: 2.0s.
-  * Tác vụ Chatbot (Phức tạp): Claude 3.5 Sonnet -> Fallback: Claude 3.5 Haiku -> Mock. Timeout: 5.0s.
-  * Thử lại (Retry) tối đa 2 lần với Exponential Backoff + Jitter trước khi fallback.
+  * Tác vụ Chatbot (Phức tạp): Amazon Nova Pro -> Fallback: Amazon Nova Lite -> Mock. Timeout: 5.0s.
+  * Thử lại (Retry) tối đa 2 lần với Exponential Backoff + Jitter trước khi fallback. Toàn bộ chi phí cấn trừ qua Credit AWS (tiền mặt thật = $0).
 
 <!-- slide -->
 ## Slide 4: Trợ Lý Shopping Copilot An Toàn (PoC)

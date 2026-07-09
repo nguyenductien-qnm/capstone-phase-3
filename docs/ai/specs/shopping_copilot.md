@@ -35,7 +35,7 @@ message ChatResponse {
 ```
 
 ## 3. Prompts & Tools Configuration
-- **Model ID:** `anthropic.claude-3-5-sonnet-v2`
+- **Model ID:** `amazon.nova-pro-v1:0`
 - **System Prompt:** [Role: Trợ lý mua sắm thông minh của TechX Corp. Chỉ dùng tools để tra cứu...]
 - **Tools List:**
   1. `search_products(query)`: Tra cứu sản phẩm trong Catalog.
@@ -52,7 +52,7 @@ message ChatResponse {
 
 1. **Input Guardrail (Chặn Prompt Injection & Jailbreak):**
    - Áp dụng bộ lọc Regex để loại bỏ các từ khóa độc hại, chỉ thị ghi đè prompt hệ thống (system overrides).
-   - Sử dụng mô hình classifier nhẹ (Nova Micro) để đánh giá độ tin cậy của câu hỏi người dùng trước khi đưa vào context của mô hình chính Claude 3.5 Sonnet.
+   - Sử dụng mô hình classifier nhẹ (Nova Micro) để đánh giá độ tin cậy của câu hỏi người dùng trước khi đưa vào context của mô hình chính Amazon Nova Pro.
 
 2. **Output Guardrail (Lọc PII & System Prompt Leak):**
    - **PII Redaction:** Tự động lọc và che giấu các thông tin nhạy cảm của khách hàng như Email, Số điện thoại, Số thẻ tín dụng trước khi hiển thị câu trả lời ra Storefront.

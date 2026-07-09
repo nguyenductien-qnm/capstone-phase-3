@@ -314,9 +314,9 @@ tr:last-child td { border-bottom: none; }
         <h3>ADR-004: Định Tuyến Lai &amp; Fallback</h3>
         <ul class="bullet-list" style="margin-top: 10px;">
           <li>Tác vụ Reviews: **Nova Lite** -> Fallback: **Nova Micro** | Timeout: **2.0s**.</li>
-          <li>Tác vụ Copilot: **Claude 3.5 Sonnet** -> Fallback: **Claude 3.5 Haiku** | Timeout: **5.0s**.</li>
+          <li>Tác vụ Copilot: **Amazon Nova Pro** -> Fallback: **Amazon Nova Lite** | Timeout: **5.0s**.</li>
           <li>Mã lỗi kích hoạt fallback: 429 (rate-limit), 500 (server error), timeout.</li>
-          <li>Bảo vệ độ trễ: Exponential Backoff + Jitter &amp; Dynamic Deadlines.</li>
+          <li>Đặc tính: Tiền mặt thật = $0 (Cấn trừ hoàn toàn qua Credit AWS).</li>
         </ul>
       </div>
     </div>

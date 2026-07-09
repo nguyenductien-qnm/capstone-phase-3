@@ -86,7 +86,7 @@
 - **Người ký:** Nhóm AI (AIO03) - Task Force 1
 - **Trụ:** Cost Optimization / Performance Efficiency / Reliability
 - **Bối cảnh:** 
-  Việc sử dụng đơn độc một model Claude 3.5 Sonnet cho tất cả các tác vụ AI (tóm tắt review và trợ lý chat) gây quá tải chi phí token ([$3.00/$15.00 per 1M tokens](https://aws.amazon.com/bedrock/pricing/)), dễ vỡ quỹ ngân sách $300/tuần khi chịu tải test. Ngược lại, nếu chỉ dùng các model giá rẻ như Amazon Nova Lite cho cả hai tác vụ, chất lượng hội thoại phức tạp và độ chính xác gọi tool (Function Calling) của Shopping Copilot sẽ bị sụt giảm nặng, dễ gây ra hành vi không mong muốn (excessive agency).
+  Việc sử dụng các model của Anthropic như Claude 3.5 Sonnet cho các tác vụ AI gây phát sinh chi phí tiền mặt thật trên AWS Marketplace, không cấn trừ được bằng Credit khuyến mại của AWS (có thể làm vỡ trần ngân sách tiền mặt của Task Force). Ngược lại, nếu chỉ dùng các model giá rẻ như Amazon Nova Lite cho cả hai tác vụ, chất lượng hội thoại phức tạp và độ chính xác gọi tool (Function Calling) của Shopping Copilot sẽ bị sụt giảm nặng, dễ gây ra hành vi không mong muốn (excessive agency).
   - **Benchmarks:** Dữ liệu TTFT và throughput lấy từ [Artificial Analysis Leaderboard](https://artificialanalysis.ai/leaderboards/models) cho Bedrock On-Demand. Chi phí từ [AWS Bedrock Pricing](https://aws.amazon.com/bedrock/pricing/).
   - **Case Study tham khảo:** [Mercari — Model Routing Phân Tầng](https://engineering.mercari.com/) | [Shopify — Cross-Region Failover](https://shopify.engineering/)
   - **Vùng triển khai:** Đơn vùng `us-east-1` (xác nhận từ ECR Registry `265808836805.dkr.ecr.us-east-1.amazonaws.com`)
@@ -97,16 +97,16 @@
     - Dự phòng (Fallback): Amazon Nova Micro (`amazon.nova-micro-v1:0`) và cuối cùng là Mock Summary.
     - Timeout: Giảm xuống **2.0 giây (2000ms)** để bảo vệ SLO của trang storefront.
   - **Tác vụ Shopping Copilot (Tải thấp, độ phức tạp cao, cần độ chính xác gọi tool tuyệt đối):**
-    - Định tuyến chính (Primary): Claude 3.5 Sonnet v2 (`anthropic.claude-3-5-sonnet-20241022-v2:0`).
-    - Dự phòng (Fallback): Claude 3.5 Haiku (`anthropic.claude-3-5-haiku-20241022-v1:0`).
+    - Định tuyến chính (Primary): Amazon Nova Pro (`amazon.nova-pro-v1:0`). Đảm bảo độ chính xác gọi tool xuất sắc và chi phí được cấn trừ hoàn toàn 100% bằng AWS Credits (tiền mặt thật = $0).
+    - Dự phòng (Fallback): Amazon Nova Lite (`amazon.nova-lite-v1:0`).
     - Timeout: Giới hạn **5.0 giây (5000ms)**.
 - **Phương án khác đã cân:**
-  - *Option A - Sử dụng thuần Claude (A1):* Chất lượng tốt nhất nhưng bị loại bỏ vì chi phí token vượt ngân sách $300/tuần khi Locust test.
-  - *Option B - Sử dụng thuần Amazon Nova (A2):* Tiết kiệm nhất nhưng bị loại do khả năng gọi tool tiếng Việt của Nova chưa đủ tin cậy cho Copilot Agent.
-- **Cost Δ:** Tiết kiệm khoảng **95% chi phí token** của luồng Reviews Summary, giúp duy trì tổng chi tiêu LLM toàn hệ thống ở mức cực thấp (~$5 - $10/tuần) ngay cả khi bị test tải nặng. Nguồn so sánh giá: [AWS Bedrock Pricing](https://aws.amazon.com/bedrock/pricing/).
+  - *Option A - Sử dụng Claude (A1):* Bị loại bỏ hoàn toàn vì Claude thuộc AWS Marketplace, bắt buộc trả bằng tiền mặt thật, không được trừ vào credit. Quyết định: Loại bỏ Claude để đưa chi phí tiền mặt về $0.
+  - *Option B - Sử dụng thuần Amazon Nova Lite (A2):* Tiết kiệm nhất nhưng bị loại do khả năng gọi tool tiếng Việt của Nova Lite chưa đủ tin cậy cho Copilot Agent so với Nova Pro.
+- **Cost Δ:** Tiết kiệm khoảng **100% chi phí tiền mặt thật** cho toàn bộ hệ thống LLM nhờ việc chuyển dịch hoàn toàn sang các mô hình First-party của Amazon (Nova Lite, Nova Micro, Nova Pro) được cấn trừ hoàn toàn qua AWS Credits.
 - **Ảnh hưởng SLO:**
-  - Giữ vững p95 latency storefront < 1.0s — nhờ thời gian xử lý của Nova Lite cực kỳ ngắn (~0.4s theo [Artificial Analysis](https://artificialanalysis.ai/leaderboards/models)).
-  - Bảo vệ tỷ lệ Checkout thành công ≥ 99% nhờ độ chính xác cao của Claude Sonnet 3.5.
+  - Giữ vững p95 latency storefront < 1.0s — nhờ thời gian xử lý của Nova Lite cực kỳ ngắn (~0.4s).
+  - Bảo vệ tỷ lệ Checkout thành công ≥ 99% nhờ độ chính xác cao của Amazon Nova Pro.
 - **Hệ quả:**
   - ✅ *Lợi ích:* Cân bản hoàn hảo giữa chi phí, tốc độ và độ chính xác của AI.
   - ⚠️ *Đánh đổi:* Phải duy trì cấu hình và quản lý biến môi trường của 4 model Bedrock khác nhau trong code.
@@ -119,7 +119,7 @@
 - **Người ký:** Nhóm AI (AIO03) - Task Force 1
 - **Trụ:** Reliability / Performance Efficiency
 - **Bối cảnh:** 
-  Các cuộc gọi API AWS Bedrock (đặc biệt là Claude 3.5 Sonnet và Amazon Nova Lite) có thể gặp lỗi ngắt quãng (429 Rate Limit, 500 Internal Error, timeout mạng). Nếu chỉ retry đơn thuần không có backoff hoặc không có dynamic deadline protection, hệ thống sẽ gặp hiện tượng cascading timeout kéo dài thời gian phản hồi trang chi tiết sản phẩm, vi phạm SLO p95 < 1.0s. Hơn nữa, sự cố do BTC bơm qua flagd (như `llmRateLimitError`) cần được xử lý tự động để hệ thống tự hồi phục.
+  Các cuộc gọi API AWS Bedrock (đặc biệt là Amazon Nova Pro và Amazon Nova Lite) có thể gặp lỗi ngắt quãng (429 Rate Limit, 500 Internal Error, timeout mạng). Nếu chỉ retry đơn thuần không có backoff hoặc không có dynamic deadline protection, hệ thống sẽ gặp hiện tượng cascading timeout kéo dài thời gian phản hồi trang chi tiết sản phẩm, vi phạm SLO p95 < 1.0s. Hơn nữa, sự cố do BTC bơm qua flagd (như `llmRateLimitError`) cần được xử lý tự động để hệ thống tự hồi phục.
 - **Quyết định:** 
   Triển khai 5-layer resilience stack:
   1. **SDK Client Adaptive Retry Mode:** Sử dụng cấu hình retry thích ứng mặc định của AWS SDK.

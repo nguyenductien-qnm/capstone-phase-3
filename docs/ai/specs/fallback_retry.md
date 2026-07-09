@@ -44,19 +44,19 @@ graph TD
 ### B. Luồng Trợ lý Chatbot (Shopping Copilot Agent) - Tải thấp, Độ phức tạp cao:
 ```mermaid
 graph TD
-    StartChat["Bắt đầu: Yêu cầu chat Copilot"] --> InitCallClaude["Khởi tạo cuộc gọi Claude 3.5 Sonnet"]
-    InitCallClaude --> CallSonnet{"Gọi Claude 3.5 Sonnet<br>ID: anthropic.claude-3-5-sonnet-20241022-v2:0"}
+    StartChat["Bắt đầu: Yêu cầu chat Copilot"] --> InitCallNovaPro["Khởi tạo cuộc gọi Amazon Nova Pro"]
+    InitCallNovaPro --> CallNovaPro{"Gọi Amazon Nova Pro<br>ID: amazon.nova-pro-v1:0"}
     
-    CallSonnet -- "Thành công (200 OK)" --> ReturnChat["Trả về câu trả lời + Tool output"]
+    CallNovaPro -- "Thành công (200 OK)" --> ReturnChat["Trả về câu trả lời + Tool output"]
     
-    CallSonnet -- "Lỗi 429 / 500 / Timeout > 5.0s" --> CheckRetryChat{"Đã thử lại đủ 2 lần chưa?"}
-    CheckRetryChat -- "Chưa đủ" --> RetrySonnet["Thực hiện Thử lại (Retry) với Exponential Backoff"]
-    RetrySonnet --> CallSonnet
+    CallNovaPro -- "Lỗi 429 / 500 / Timeout > 5.0s" --> CheckRetryChat{"Đã thử lại đủ 2 lần chưa?"}
+    CheckRetryChat -- "Chưa đủ" --> RetryNovaPro["Thực hiện Thử lại (Retry) với Exponential Backoff"]
+    RetryNovaPro --> CallNovaPro
     
-    CheckRetryChat -- "Đã đủ 2 lần" --> CallHaiku{"Gọi Claude 3.5 Haiku<br>ID: anthropic.claude-3-5-haiku-20241022-v1:0"}
+    CheckRetryChat -- "Đã đủ 2 lần" --> CallNovaLite{"Gọi Amazon Nova Lite<br>ID: amazon.nova-lite-v1:0"}
     
-    CallHaiku -- "Thành công (200 OK)" --> ReturnChat
-    CallHaiku -- "Thất bại (429 / 500 / Timeout)" --> CallMockChat["Trả về câu trả lời mặc định lỗi hệ thống"]
+    CallNovaLite -- "Thành công (200 OK)" --> ReturnChat
+    CallNovaLite -- "Thất bại (429 / 500 / Timeout)" --> CallMockChat["Trả về câu trả lời mặc định lỗi hệ thống"]
     
     CallMockChat --> EndChat["Kết thúc"]
     ReturnChat --> EndChat
@@ -81,8 +81,8 @@ Dưới đây là các thông số chi tiết cấu hình cho cơ chế định 
 ### B. Luồng Trợ lý Chatbot (Shopping Copilot)
 | Tham số | Model chính (Primary Model) | Model dự phòng (Fallback Model) |
 |---|---|---|
-| **Tên Model** | Claude 3.5 Sonnet | Claude 3.5 Haiku |
-| **Model ID AWS Bedrock** | `anthropic.claude-3-5-sonnet-20241022-v2:0` | `anthropic.claude-3-5-haiku-20241022-v1:0` |
+| **Tên Model** | Amazon Nova Pro | Amazon Nova Lite |
+| **Model ID AWS Bedrock** | `amazon.nova-pro-v1:0` | `amazon.nova-lite-v1:0` |
 | **Timeout tối đa** | **5.0 giây (5000ms)** | **2.0 giây (2000ms)** |
 | **Số lần tự động thử lại** | **Tối đa 2 lần** (Tổng cộng tối đa 3 cuộc gọi) | **Tối đa 1 lần** (Tổng cộng tối đa 2 cuộc gọi) |
 | **Cơ chế Retry Backoff** | Exponential backoff (Base: 200ms, Factor: 1.5, Jitter: True) | Exponential backoff (Base: 100ms, Factor: 1.5, Jitter: True) |
@@ -100,9 +100,9 @@ Các biến môi trường được cấu hình linh động cho Pod `product-re
     *   `LLM_REVIEWS_TIMEOUT`: Timeout cho Nova Lite (Mặc định: `2.0`).
     *   `LLM_REVIEWS_MAX_RETRIES`: Số lần thử lại tối đa (Mặc định: `2`).
 *   **Cho Shopping Copilot:**
-    *   `LLM_COPILOT_MAIN_MODEL`: ID model chatbot chính (Mặc định: `anthropic.claude-3-5-sonnet-20241022-v2:0`).
-    *   `LLM_COPILOT_FALLBACK_MODEL`: ID model chatbot dự phòng (Mặc định: `anthropic.claude-3-5-haiku-20241022-v1:0`).
-    *   `LLM_COPILOT_TIMEOUT`: Timeout cho Sonnet (Mặc định: `5.0`).
+    *   `LLM_COPILOT_MAIN_MODEL`: ID model chatbot chính (Mặc định: `amazon.nova-pro-v1:0`).
+    *   `LLM_COPILOT_FALLBACK_MODEL`: ID model chatbot dự phòng (Mặc định: `amazon.nova-lite-v1:0`).
+    *   `LLM_COPILOT_TIMEOUT`: Timeout cho Nova Pro (Mặc định: `5.0`).
     *   `LLM_COPILOT_MAX_RETRIES`: Số lần thử lại tối đa (Mặc định: `2`).
 
 ---
