@@ -265,22 +265,38 @@ tr:last-child td { border-bottom: none; }
       <div class="card">
         <h3 style="color: var(--brand-accent);">Option 1: volatile-lru + Bỏ Cart TTL (Đề xuất)</h3>
         <p>Không đặt TTL cho Cart trong code để biến giỏ hàng thành key vĩnh viễn (non-volatile). Valkey chỉ trục xuất Review cache (có TTL động) khi đầy RAM. Dọn rác bằng Cron job offline.</p>
-        <span class="chip green" style="margin-top: 8px;">Mức độ khả thi: Cao nhất (Đúng luật đề)</span>
+        <div style="margin-top: 8px; display: flex; gap: 4px; flex-wrap: wrap;">
+          <span class="chip green">Chi phí: $0/tuần</span>
+          <span class="chip green">Độ an toàn: 100%</span>
+          <span class="chip blue">Rủi ro: Thấp</span>
+        </div>
       </div>
       <div class="card">
         <h3 style="color: var(--brand-secondary);">Option 2: Tách biệt cụm Valkey (AWS Standard)</h3>
-        <p>Chạy 2 cụm riêng biệt: Cụm Caching dùng <code>allkeys-lru</code>, Cụm Cart dùng <code>noeviction</code>. Con đường chuẩn nhất của SRE để loại bỏ ảnh hưởng chéo.</p>
-        <span class="chip blue" style="margin-top: 8px;">Mức độ khả thi: Tốn thêm infra cost ($)</span>
+        <p>Chạy 2 cụm riêng biệt: Cụm Caching dùng <code>allkeys-lru</code>, Cụm Cart dùng <code>noeviction</code>. Con đường chuẩn nhất của SRE để loại bỏ hoàn toàn ảnh hưởng chéo.</p>
+        <div style="margin-top: 8px; display: flex; gap: 4px; flex-wrap: wrap;">
+          <span class="chip red">Chi phí: +$30/tuần</span>
+          <span class="chip green">Độ an toàn: 100% (An toàn tuyệt đối)</span>
+          <span class="chip blue">Rủi ro: Thấp</span>
+        </div>
       </div>
       <div class="card">
         <h3 style="color: var(--text-primary);">Option 3: Write-Through DB (Resiliency)</h3>
         <p>Lưu giỏ hàng đồng thời xuống PostgreSQL/DynamoDB. Nếu Valkey bị eviction mất key giỏ hàng, ứng dụng tự động truy vấn DB để tái tạo lại trạng thái giỏ.</p>
-        <span class="chip yellow" style="margin-top: 8px;">Mức độ khả thi: Phức tạp hóa code Cart</span>
+        <div style="margin-top: 8px; display: flex; gap: 4px; flex-wrap: wrap;">
+          <span class="chip green">Chi phí: $0/tuần</span>
+          <span class="chip yellow">Độ an toàn: 95% (Mất khi DB trễ)</span>
+          <span class="chip red">Rủi ro: Cao (Tải DB)</span>
+        </div>
       </div>
       <div class="card">
         <h3 style="color: var(--brand-success);">Option 4: Active Defrag &amp; RAM Alerts</h3>
         <p>Cấu hình <code>activedefrag yes</code>. Cảnh báo vỡ RAM ở ngưỡng 75% để tự động scale-up cụm Valkey trước khi cơ chế eviction tự động kích hoạt.</p>
-        <span class="chip green" style="margin-top: 8px;">Mức độ khả thi: Giải pháp hỗ trợ thêm</span>
+        <div style="margin-top: 8px; display: flex; gap: 4px; flex-wrap: wrap;">
+          <span class="chip green">Chi phí: $0/tuần</span>
+          <span class="chip green">Bảo vệ bổ trợ</span>
+          <span class="chip blue">Rủi ro: Thấp</span>
+        </div>
       </div>
     </div>
   </div>
