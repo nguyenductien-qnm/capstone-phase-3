@@ -101,3 +101,37 @@ sequenceDiagram
     2. Tự động chuyển trạng thái xử lý sang **Cache Miss**, thực hiện gọi trực tiếp AWS Bedrock API để lấy summary.
     3. Không cố gắng thực hiện lệnh ghi (`SET`) vào Valkey ở bước sau để tránh lặp lại lỗi timeout.
 
+---
+
+## 5. Cơ chế Đặt TTL Động (Score-Based Dynamic TTL)
+
+Để tối ưu hóa chi phí token (AWS Bedrock) và đảm bảo tính cập nhật của bản tóm tắt, hệ thống không sử dụng TTL 24 giờ cố định mà tính toán TTL động dựa trên thông số review của sản phẩm:
+
+$$\text{TTL}_{\text{seconds}} = \max\left(14400, \frac{604800}{1 + 0.05 \cdot N + 0.5 \cdot \sigma^2}\right)$$
+
+*   **Ý nghĩa các tham số:**
+    *   $N$: Tổng số lượng reviews của sản phẩm.
+    *   $\sigma^2$: Phương sai điểm số (Score Variance) của các reviews gần nhất.
+    *   Giới hạn dưới: **4 giờ** (14,400 giây) để tránh việc gọi Bedrock quá liên tục đối với các sản phẩm cực kỳ hot.
+    *   Giới hạn trên: **7 ngày** (604,800 giây) đối với sản phẩm ít reviews và điểm số ổn định, giúp giảm thiểu tối đa chi phí token trùng lặp.
+
+---
+
+## 6. Chiến Lược Hủy & Làm Mới Cache (Cache Invalidation & Refresh Strategy)
+
+Hệ thống xử lý bài toán cập nhật review mới và xử lý tóm tắt chất lượng kém qua cơ chế **Active Invalidation** (Hủy cache chủ động):
+
+### 6.1 Xử lý khi có Review mới (Write-Around Invalidation)
+- Khi người dùng gửi một review mới thành công thông qua `ProductReviewService.AddReview`:
+  - Ứng dụng lập tức thực thi lệnh xóa cache: `DEL reviews:summary:{product_id}`.
+  - Lượt xem sản phẩm của khách hàng tiếp theo sẽ gặp **Cache Miss**, kích hoạt gọi Bedrock để sinh lại bản tóm tắt mới nhất (chứa cả review vừa viết).
+
+### 6.2 Xử lý khi Tóm tắt cũ kém chất lượng (User Feedback Loop)
+- Trên giao diện Storefront, tích hợp nút đánh giá Thích (Thumbs Up) / Ghét (Thumbs Down) cạnh phần tóm tắt review.
+- Khi người dùng bấm **Thumbs Down (Ghét)**:
+  - Tăng biến đếm lỗi trong Valkey: `HINCRBY reviews:summary:{product_id}:meta thumbs_down 1`.
+  - Nếu số lượt ghét vượt quá ngưỡng quy định (ví dụ $\ge 3$ lượt):
+    1. Xóa bản tóm tắt hiện tại ngay lập tức.
+    2. Đặt cờ chỉ định mô hình chất lượng cao: `HSET reviews:summary:{product_id}:meta model_override "sonnet"`.
+    3. Lần sinh tóm tắt tiếp theo sẽ bắt buộc định tuyến qua **Claude 3.5 Sonnet** thay vì model rẻ Nova Lite để đảm bảo chất lượng tóm tắt tốt nhất cho sản phẩm bị đánh giá kém.
+

@@ -12,16 +12,20 @@
 - **Quyết định:** 
   Tận dụng cụm cache Valkey sẵn có (`valkey-cart` chạy trên cổng `6379`) để lưu trữ các bản tóm tắt review dưới dạng JSON.
   - **Cache Key Format:** `reviews:summary:{product_id}`
-  - **TTL (Time To Live):** 24 giờ (86400 giây).
   - **Bypass Flag:** Sử dụng OpenFeature flag `llmReviewsCacheEnabled` (kiểm soát qua flagd) để tắt cache nhanh khi cần kiểm thử hoặc cập nhật.
+  - **Cập nhật bổ sung (Dynamic TTL & Active Invalidation):**
+    1. **TTL động (Dynamic TTL):** Thay vì TTL 24h cố định, TTL được tính động từ **4 giờ đến 7 ngày** dựa trên số lượng review ($N$) và độ biến động điểm số ($\sigma^2$) của sản phẩm nhằm tối ưu hóa chi phí token tối đa.
+    2. **Hủy cache khi có review mới (Write-Around Invalidation):** Xóa cache ngay khi API nhận review mới để khách tiếp theo thấy tóm tắt thời gian thực.
+    3. **Phản hồi chất lượng kém (Feedback Loop):** Tích hợp nút Thumbs Down. Nếu $\ge 3$ lượt vote kém, tự xóa cache cũ và ép định tuyến cuộc gọi tiếp theo qua **Claude 3.5 Sonnet** (thay vì Nova Lite) để nâng cấp chất lượng.
 - **Phương án khác đã cân:**
   - *Option A - Sử dụng Amazon ElastiCache (Redis managed):* Độ bền cao và bảo mật hơn, tuy nhiên tăng chi phí cố định tối thiểu ~$30/tuần -> Vi phạm trần ngân sách AWS $300/tuần. Quyết định: Bỏ qua và dùng Valkey in-cluster.
-- **Cost Δ:** Tiết kiệm khoảng **85% - 90%** chi phí gọi Bedrock API (giảm từ ~$80/tuần xuống còn ~$8/tuần cho các sản phẩm hot).
+  - *Option B - Sử dụng thuật toán Eviction LFU thay vì LRU:* Bị loại bỏ vì LFU dễ bị Cache Pollution bởi các sản phẩm cũ từng rất hot, không linh hoạt bằng LRU đối với trend mua sắm thay đổi liên tục.
+- **Cost Δ:** Tiết kiệm khoảng **85% - 90%** chi phí gọi Bedrock API (giảm từ ~$80/tuần xuống còn ~$8/tuần cho các sản phẩm hot). Cơ chế Dynamic TTL giúp tiết kiệm thêm **~40% chi phí token** cho các sản phẩm ít reviews.
 - **Ảnh hưởng SLO:** Giảm p95 latency của trang chi tiết sản phẩm từ **2.5s xuống < 100ms** khi cache hit, giữ vững cam kết SLO (< 1s).
 - **Rollback:** Chuyển đổi flag `llmReviewsCacheEnabled` sang `false` để bypass cache và gọi trực tiếp Bedrock. Nếu Valkey bị sập, Reviews service tự động bỏ qua cache và log error.
 - **Hệ quả:**
-  - ✅ *Lợi ích:* Tiết kiệm chi phí vượt trội, cải thiện trải nghiệm khách hàng cực lớn.
-  - ⚠️ *Đánh đổi:* Dữ liệu tóm tắt review bị trễ tối đa 24h so với các review mới cập nhật (chấp nhận được đối với hành vi người dùng).
+  - ✅ *Lợi ích:* Tiết kiệm chi phí vượt trội, cải thiện độ chính xác và tính cập nhật thời gian thực của AI, xử lý được phản hồi chất lượng của khách.
+  - ⚠️ *Đánh đổi:* Phải lập trình thêm logic tính TTL động và API tiếp nhận feedback từ UI.
 
 ---
 
