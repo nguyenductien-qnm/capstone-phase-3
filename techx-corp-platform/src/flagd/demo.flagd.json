@@ -19,6 +19,15 @@
         "on": true
       }
     },
+    "llmReviewsCacheEnabled": {
+      "defaultVariant": "on",
+      "description": "Enable or disable LLM reviews cache bypass",
+      "state": "ENABLED",
+      "variants": {
+        "off": false,
+        "on": true
+      }
+    },
     "productCatalogFailure": {
       "description": "Fail product catalog service on a specific product",
       "state": "ENABLED",

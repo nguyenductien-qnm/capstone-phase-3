@@ -48,7 +48,7 @@ Dịch vụ `product-reviews` nhận các biến môi trường cấu hình kế
 * **Chiến lược Caching**: Khi có yêu cầu tóm tắt đánh giá sản phẩm (`AskProductAIAssistant`), hệ thống sẽ kiểm tra trong Valkey cache trước:
   - Nếu tồn tại dữ liệu (`Cache Hit`): Trả ngay phản hồi mà không cần gọi sang Mock LLM.
   - Nếu không tồn tại dữ liệu (`Cache Miss`): Gọi Mock LLM để sinh phản hồi, sau đó ghi kết quả vào Valkey cache với TTL là 1 giờ (3600 giây).
-* **Key format**: `review_summary:{product_id}`.
+* **Key format**: `reviews:summary:{product_id}`.
 
 ### 3.2. Cơ chế Fallback và Isolation (Circuit Breaker)
 * **Fallback**: Khi Mock LLM trả về mã lỗi HTTP `429` (Rate limit exceeded) hoặc không khả dụng:
