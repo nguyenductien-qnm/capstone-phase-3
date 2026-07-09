@@ -730,18 +730,18 @@ def main():
     # Confirmation Gate (luôn hiện khi có pending action)
     render_confirmation_gate()
 
-    # Yêu cầu cài đặt credentials nếu chưa kết nối
+    # Yêu cầu cài đặt credentials nếu chưa kết nối nhưng VẪN CHO PHÉP TEST LOCAL (Mock)
     if not st.session_state.bedrock_ok:
-        st.error("⛔ Chưa kết nối được AWS Bedrock. Cấu hình credentials trên máy (Local) trước.")
-        st.code(
-            "# Cách 1: Sử dụng AWS CLI (Khuyên dùng)\naws configure\n\n"
-            "# Cách 2: Biến môi trường\nexport AWS_ACCESS_KEY_ID=...\n"
-            "export AWS_SECRET_ACCESS_KEY=...\nexport AWS_SESSION_TOKEN=...",
-            language="bash"
-        )
-        return
+        st.warning("⚠️ Chưa kết nối được AWS Bedrock. Ứng dụng đang chạy ở **Chế độ Mock (Local)**.")
+        with st.expander("Hướng dẫn cấu hình AWS Credentials để dùng Bedrock thật"):
+            st.code(
+                "# Cách 1: Sử dụng AWS CLI (Khuyên dùng)\naws configure\n\n"
+                "# Cách 2: Biến môi trường\nexport AWS_ACCESS_KEY_ID=...\n"
+                "export AWS_SECRET_ACCESS_KEY=...\nexport AWS_SESSION_TOKEN=...",
+                language="bash"
+            )
 
-    # Input chat
+    # Input chat (Luôn hiện để test local)
     user_input = st.chat_input("Hỏi về sản phẩm, review, hoặc thêm vào giỏ hàng...")
     if not user_input:
         return
