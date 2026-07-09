@@ -464,6 +464,10 @@ components:
         value: "4317"
       - name: OTEL_COLLECTOR_PORT_HTTP
         value: "4318"
+      - name: SHOPPING_COPILOT_HOST
+        value: shopping-copilot
+      - name: SHOPPING_COPILOT_PORT
+        value: "50051"
     resources:
       limits:
         memory: 65Mi
@@ -627,9 +631,17 @@ components:
         value: "true"
       - name: OTEL_EXPORTER_OTLP_ENDPOINT
         value: http://$(OTEL_COLLECTOR_NAME):4317
+      - name: VALKEY_HOST
+        value: valkey-cart
+      - name: VALKEY_PORT
+        value: "6379"
     resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
       limits:
-        memory: 100Mi
+        cpu: 500m
+        memory: 512Mi
 
   quote:
     enabled: true
@@ -684,6 +696,51 @@ components:
     resources:
       limits:
         memory: 500Mi            # This is high to enable supporting the recommendationCache feature flag use case
+
+  shopping-copilot:
+    enabled: true
+    useDefault:
+      env: true
+    service:
+      port: 50051
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: techx-corp
+    env:
+      - name: SHOPPING_COPILOT_PORT
+        value: "50051"
+      - name: LLM_HOST
+        value: llm
+      - name: LLM_PORT
+        value: "8000"
+      - name: LLM_BASE_URL
+        value: http://$(LLM_HOST):$(LLM_PORT)/v1
+      - name: LLM_MODEL
+        value: techx-llm
+      - name: OPENAI_API_KEY
+        value: dummy
+      - name: PRODUCT_CATALOG_ADDR
+        value: product-catalog:8080
+      - name: CART_ADDR
+        value: cart:8080
+      - name: PRODUCT_REVIEWS_ADDR
+        value: product-reviews:3551
+      - name: FLAGD_HOST
+        value: flagd
+      - name: FLAGD_PORT
+        value: "8013"
+      - name: PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION
+        value: python
+      - name: OTEL_PYTHON_LOG_CORRELATION
+        value: "true"
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://$(OTEL_COLLECTOR_NAME):4317
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1024Mi
 
   shipping:
     enabled: true

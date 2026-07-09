@@ -1,0 +1,26 @@
+// Copyright The OpenTelemetry Authors
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package oteldemo;
+
+option go_package = "genproto/oteldemo";
+
+// Dịch vụ Shopping Copilot Agent
+service ShoppingCopilotService {
+  // Thực hiện hội thoại với AI Agent
+  rpc ChatWithCopilot(ChatWithCopilotRequest) returns (ChatWithCopilotResponse) {}
+}
+
+// Yêu cầu hội thoại
+message ChatWithCopilotRequest {
+  string user_id = 1;         // ID của người dùng đang đăng nhập (để quản lý giỏ hàng)
+  string question = 2;        // Câu hỏi hoặc câu lệnh của khách hàng
+  repeated string chat_history = 3; // Lịch sử hội thoại gần nhất (tùy chọn)
+}
+
+// Phản hồi từ Agent
+message ChatWithCopilotResponse {
+  string response = 1;        // Câu trả lời tổng hợp dạng text từ Agent
+}
