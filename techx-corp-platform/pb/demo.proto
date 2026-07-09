@@ -108,6 +108,8 @@ service ProductReviewService {
   rpc GetProductReviews(GetProductReviewsRequest) returns (GetProductReviewsResponse){}
   rpc GetAverageProductReviewScore(GetAverageProductReviewScoreRequest) returns (GetAverageProductReviewScoreResponse){}
   rpc AskProductAIAssistant(AskProductAIAssistantRequest) returns (AskProductAIAssistantResponse){}
+  rpc AddReview(AddReviewRequest) returns (Empty){}
+  rpc SubmitSummaryFeedback(SummaryFeedbackRequest) returns (Empty){}
 }
 
 message ProductReview {
@@ -140,6 +142,18 @@ message AskProductAIAssistantRequest {
 message AskProductAIAssistantResponse {
     string response = 1;
 }
+
+message AddReviewRequest {
+    string product_id = 1;
+    ProductReview review = 2;
+}
+
+message SummaryFeedbackRequest {
+    string product_id = 1;
+    bool thumbs_up = 2;
+    bool thumbs_down = 3;
+}
+
 
 // ---------------Shipping Service----------
 

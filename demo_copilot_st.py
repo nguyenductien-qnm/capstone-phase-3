@@ -441,22 +441,31 @@ def run_mock_agent(user_input: str) -> str:
     """
     txt = user_input.lower()
 
+    # Guardrail offline: Chan hanh dong cam (empty_cart, checkout) va Prompt Injection
+    block_keywords = ["xóa", "thanh toán", "checkout", "clear", "empty", "delete", "remove", "system prompt", "ignore all"]
+    if any(k in txt for k in block_keywords):
+        return "Xin lỗi, tôi không thể thực hiện hành động này để bảo vệ an toàn hệ thống và giỏ hàng của bạn."
+
     # Intent 3: Thêm giỏ hàng (Ưu tiên kiểm tra trước vì thường chứa từ khóa của SP)
     cart_keywords = ["thêm", "mua", "add", "giỏ", "cart", "order", "đặt"]
     if any(k in txt for k in cart_keywords):
         # Map từ tiếng Việt sang product ID
         if "star" in txt or "sense" in txt:
-            _tool_add_to_cart("66VCHSJNUP", quantity=1)
+            TOOL_HANDLERS["add_to_cart"]({"product_id": "66VCHSJNUP", "quantity": 1})
             return "Tôi đã chuẩn bị lệnh thêm **1x StarSense Explorer** vào giỏ hàng.\nVui lòng xác nhận nút bấm bên dưới."
         elif "outland" in txt or "nhòm" in txt:
-            _tool_add_to_cart("2ZYFJ3GM2N", quantity=1)
+            TOOL_HANDLERS["add_to_cart"]({"product_id": "2ZYFJ3GM2N", "quantity": 1})
             return "Tôi đã chuẩn bị lệnh thêm **1x Celestron Outland Binoculars** vào giỏ hàng.\nVui lòng xác nhận nút bấm bên dưới."
         elif "cleaning" in txt or "lau" in txt or "vệ sinh" in txt:
-            _tool_add_to_cart("L9ECAV7KIM", quantity=1)
-            return "Tôi đã chuẩn bị lệnh thêm **1x Lens Cleaning Kit** vào giỏ hàng.\nVui lòng xác nhận nút bấm bên dưới."
+            # Check quantity
+            qty = 1
+            if "2" in txt: qty = 2
+            elif "3" in txt: qty = 3
+            TOOL_HANDLERS["add_to_cart"]({"product_id": "L9ECAV7KIM", "quantity": qty})
+            return f"Tôi đã chuẩn bị lệnh thêm **{qty}x Lens Cleaning Kit** vào giỏ hàng.\nVui lòng xác nhận nút bấm bên dưới."
         else:
             # Default fallback for cart
-            _tool_add_to_cart("OLJCESPC7Z", quantity=1)
+            TOOL_HANDLERS["add_to_cart"]({"product_id": "OLJCESPC7Z", "quantity": 1})
             return "Tôi đã chuẩn bị lệnh thêm **1x Celestron AstroMaster 70** (kính thiên văn phổ biến nhất) vào giỏ hàng.\nVui lòng xác nhận nút bấm bên dưới."
 
     # Intent 2: Hỏi review
@@ -467,7 +476,7 @@ def run_mock_agent(user_input: str) -> str:
         if "star" in txt or "sense" in txt: pid_to_check = "66VCHSJNUP"
         elif "nhòm" in txt or "outland" in txt: pid_to_check = "2ZYFJ3GM2N"
         
-        result = json.loads(_tool_get_product_reviews(pid_to_check))
+        result = json.loads(TOOL_HANDLERS["get_product_reviews"]({"product_id": pid_to_check}))
         if result["status"] == "ok":
             return (
                 f"📋 **Tóm tắt đánh giá — {result['product_name']}:**\n\n"
@@ -487,7 +496,7 @@ def run_mock_agent(user_input: str) -> str:
         elif "mặt trời" in txt or "solar" in txt: query_for_tool = "solar"
         elif "sách" in txt or "book" in txt: query_for_tool = "book"
 
-        result = json.loads(_tool_search_products(query_for_tool))
+        result = json.loads(TOOL_HANDLERS["search_products"]({"query": query_for_tool}))
         if result["status"] == "not_found":
             return "Xin lỗi, hiện tại cửa hàng không có sản phẩm này."
         

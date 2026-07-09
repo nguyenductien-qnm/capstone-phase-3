@@ -31,6 +31,8 @@ Hệ thống hiện tại chạy trên K8s (EKS) với dịch vụ tóm tắt re
 ## 3. Cố ý bỏ (lúc này) & Ghi chú Extend
 1. **Tích hợp chính thức Copilot vào Next.js Frontend:** Chưa làm tuần này vì cần chốt file `.proto` và giao diện Envoy proxy với Platform Team trước để tránh xung đột code.
 2. **Triển khai tự động hóa xử lý sự cố (Auto-remediation engine) chạy trên EKS:** Hoãn sang Tuần 3 vì cần kiểm chứng độ chính xác của metrics Prometheus và Jaeger trong Tuần 2 trước khi kích hoạt vòng lặp tự động sửa lỗi thật.
+3. **Nối tool của Shopping Copilot vào gRPC thật (TF1-56):** Hoãn sang Tuần 2 để đợi CDO ổn định hạ tầng và gRPC endpoint trước khi tích hợp code Agent gọi API thật (hiện tại Copilot PoC đang chạy mock dữ liệu).
+
 
 ---
 
