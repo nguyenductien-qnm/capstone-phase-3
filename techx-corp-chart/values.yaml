@@ -1070,6 +1070,11 @@ jaeger:
         metrics:
           level: detailed
           readers:
+            - pull:
+                exporter:
+                  prometheus:
+                    host: 0.0.0.0
+                    port: 8888
             - periodic:
                 interval: 10000
                 timeout: 5000
@@ -1128,6 +1133,46 @@ prometheus:
     enabled: false
   prometheus-pushgateway:
     enabled: false
+  serverFiles:
+    alerts:
+      groups:
+        - name: SLOs
+          rules:
+            - alert: CheckoutHighErrorRate
+              expr: |
+                (
+                  sum(rate(rpc_server_duration_milliseconds_count{service_namespace="techx-corp",service_name="checkout",rpc_grpc_status_code!="0"}[5m]))
+                  /
+                  sum(rate(rpc_server_duration_milliseconds_count{service_namespace="techx-corp",service_name="checkout"}[5m]))
+                ) > 0.01
+              for: 2m
+              labels:
+                severity: critical
+              annotations:
+                summary: Checkout error rate above 1%
+                runbook_url: docs/observability/runbooks.md#p0---checkouthigherrorrate-critical
+            - alert: BrowseHighLatency
+              expr: |
+                histogram_quantile(
+                  0.95,
+                  sum by (le) (
+                    rate(http_server_request_duration_seconds_bucket{service_namespace="techx-corp",service_name="frontend"}[5m])
+                  )
+                ) > 1
+              for: 5m
+              labels:
+                severity: warning
+              annotations:
+                summary: Frontend p95 latency above 1s
+                runbook_url: docs/observability/runbooks.md#p1---browsehighlatency-warning
+            - alert: KafkaConsumerLag
+              expr: kafka_consumer_group_lag > 1000
+              for: 10m
+              labels:
+                severity: warning
+              annotations:
+                summary: Kafka consumer lag above 1000 messages
+                runbook_url: docs/observability/runbooks.md#p2---kafkaconsumerlag-cost-anomaly--performance
   server:
     fullnameOverride: prometheus
     extraFlags:
