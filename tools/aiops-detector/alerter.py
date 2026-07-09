@@ -3,6 +3,7 @@
 # stdout dung khi test/demo khong co webhook (giong tinh than dry-run cua TF1-50).
 import time
 import logging
+from urllib.parse import urlparse
 import requests
 
 log = logging.getLogger("aiops.alerter")
@@ -24,9 +25,18 @@ class Alerter:
             return provider
         if not url:
             return "stdout"
-        if "discord.com" in url or "discordapp.com" in url:
+        parsed_url = urlparse(url)
+        hostname = (parsed_url.hostname or "").lower()
+        if not hostname:
+            return "stdout"
+        if (
+            hostname == "discord.com"
+            or hostname.endswith(".discord.com")
+            or hostname == "discordapp.com"
+            or hostname.endswith(".discordapp.com")
+        ):
             return "discord"
-        if "slack.com" in url or "hooks.slack" in url:
+        if hostname == "slack.com" or hostname.endswith(".slack.com"):
             return "slack"
         return "stdout"
 
