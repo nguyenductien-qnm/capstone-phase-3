@@ -48,3 +48,29 @@
   - ✅ *Lợi ích:* Hệ thống cực kỳ bền bỉ (resilient), bảo vệ luồng xem sản phẩm của người dùng.
   - ⚠️ *Đánh đổi:* Chất lượng tóm tắt của Haiku kém hơn một chút so với Sonnet (tỷ lệ tóm tắt đầy đủ giảm khoảng 10%), nhưng vẫn đảm bảo đúng sự thật.
 
+---
+
+## ADR-003 - Sử dụng Drain3 cho Log Clustering & Anomaly Detection
+- **Trạng thái:** Chấp nhận (Accepted)
+- **Ngày:** 2026-07-09
+- **Người ký:** Nhóm AI (AIO03) - Task Force 1
+- **Trụ:** Observability / AIOps
+- **Task:** TF1-52 / AIOps-W1-T4
+- **Bối cảnh:**
+  Khi hệ thống gặp sự cố (OOM, DB connection timeout, LLM 429 rate limit), log thô từ các container `product-reviews` và `llm` đổ vào OpenSearch có thể lên tới hàng nghìn dòng/phút. On-call mất 10-15 phút đọc log thủ công để xác định root cause. Alert dựa trên keyword đơn (`grep ERROR`) sinh quá nhiều false-positive, gây alert fatigue.
+- **Quyết định:**
+  Sử dụng thuật toán **Drain3** (online log parsing, fixed-depth tree) để tự động phân cụm log thô thành các log template. Phát hiện anomaly qua 2 tiêu chí:
+  - **NEW_ERROR_TEMPLATE:** Template lỗi chưa từng xuất hiện → dấu hiệu sự cố mới.
+  - **ERROR_SPIKE:** Template lỗi cũ nhưng tần suất vượt ngưỡng → sự cố đang leo thang.
+  - Persist Drain3 state giữa các lần chạy để phân biệt template mới vs cũ (incremental clustering).
+  - Parameters: `sim_th=0.4`, `depth=4`, `max_clusters=1000`.
+- **Phương án khác đã cân:**
+  - *Option A - Regex pattern matching thủ công:* Nhanh nhưng phải viết/update regex mỗi khi log format thay đổi. Không scale khi thêm service mới. Bỏ qua.
+  - *Option B - LLM-based log classification:* Chính xác cao nhưng tốn chi phí API ($5-20/ngày) và chậm. Vi phạm tinh thần tiết kiệm ngân sách. Bỏ qua.
+  - *Option C - LogReduce / clustering dựa trên cosine similarity:* Tốt nhưng chậm hơn Drain3 khi log volume lớn và không có cơ chế incremental state tốt bằng. Bỏ qua.
+- **Cost Δ:** $0 (Drain3 là thư viện Python mã nguồn mở, chạy in-cluster).
+- **Ảnh hưởng SLO:** Không ảnh hưởng trực tiếp đến SLO. Gián tiếp cải thiện MTTD (Mean Time To Detect) từ 10-15 phút xuống < 1 phút nhờ tự động phát hiện log lỗi mới.
+- **Rollback:** Module hoạt động độc lập (read-only với OpenSearch), không ghi/sửa bất kỳ service nào. Để tắt: xóa CronJob hoặc ngừng chạy script.
+- **Hệ quả:**
+  - ✅ *Lợi ích:* Tự động phát hiện sự cố mới, giảm alert fatigue, tích hợp được vào vòng AIOps auto-remediation.
+  - ⚠️ *Đánh đổi:* Lần chạy đầu tiên (cold start) sẽ alert tất cả template lỗi vì chưa có baseline. Giảm thiểu bằng cách chạy 1 lần warm-up trên log lịch sử trước khi bật cảnh báo.
