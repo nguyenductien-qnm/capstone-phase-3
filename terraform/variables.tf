@@ -55,8 +55,20 @@ variable "vpc_cidr" {
   }
 }
 
+variable "eks_admin_principal_arns" {
+  description = "List of IAM principal ARNs, including IAM Identity Center/SSO role ARNs, to grant admin access to the EKS cluster"
+  type        = list(string)
+  default     = []
+}
+
 variable "eks_admin_user_arns" {
-  description = "List of IAM User ARNs to grant admin access to the EKS cluster"
+  description = "Deprecated. Use eks_admin_principal_arns instead."
+  type        = list(string)
+  default     = []
+}
+
+variable "eks_view_principal_arns" {
+  description = "List of IAM principal ARNs, including IAM Identity Center/SSO role ARNs, to grant view-only access to the EKS cluster"
   type        = list(string)
   default     = []
 }

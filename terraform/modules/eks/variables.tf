@@ -42,8 +42,20 @@ variable "environment" {
   }
 }
 
+variable "admin_principal_arns" {
+  description = "List of IAM principal ARNs, including IAM Identity Center/SSO role ARNs, to grant admin access to the EKS cluster"
+  type        = list(string)
+  default     = []
+}
+
 variable "admin_user_arns" {
-  description = "List of IAM User ARNs to grant admin access to the EKS cluster"
+  description = "Deprecated. Use admin_principal_arns instead."
+  type        = list(string)
+  default     = []
+}
+
+variable "view_principal_arns" {
+  description = "List of IAM principal ARNs, including IAM Identity Center/SSO role ARNs, to grant view-only access to the EKS cluster"
   type        = list(string)
   default     = []
 }

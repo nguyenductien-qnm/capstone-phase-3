@@ -2,9 +2,45 @@ data "aws_caller_identity" "current" {}
 
 locals {
   # Lọc bỏ AWS User hiện tại đang chạy Terraform để tránh lỗi 409 (đã được tự động gán quyền Admin qua enable_cluster_creator_admin_permissions)
-  filtered_admin_user_arns = [
-    for arn in var.admin_user_arns : arn if arn != data.aws_caller_identity.current.arn
+  admin_principal_arns = distinct(concat(var.admin_principal_arns, var.admin_user_arns))
+  view_principal_arns  = distinct(var.view_principal_arns)
+
+  filtered_admin_principal_arns = [
+    for arn in local.admin_principal_arns : arn if arn != data.aws_caller_identity.current.arn
   ]
+
+  filtered_view_principal_arns = [
+    for arn in local.view_principal_arns : arn
+    if arn != data.aws_caller_identity.current.arn && !contains(local.admin_principal_arns, arn)
+  ]
+
+  admin_access_entries = {
+    for index, arn in local.filtered_admin_principal_arns : "admin-${index}" => {
+      principal_arn = arn
+      policy_associations = {
+        admin = {
+          policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+          access_scope = {
+            type = "cluster"
+          }
+        }
+      }
+    }
+  }
+
+  view_access_entries = {
+    for index, arn in local.filtered_view_principal_arns : "view-${index}" => {
+      principal_arn = arn
+      policy_associations = {
+        view = {
+          policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSViewPolicy"
+          access_scope = {
+            type = "cluster"
+          }
+        }
+      }
+    }
+  }
 }
 
 module "eks" {
@@ -21,17 +57,7 @@ module "eks" {
 
   enable_cluster_creator_admin_permissions = true
 
-  access_entries = { for arn in local.filtered_admin_user_arns : basename(arn) => {
-    principal_arn = arn
-    policy_associations = {
-      admin = {
-        policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
-        access_scope = {
-          type = "cluster"
-        }
-      }
-    }
-  }}
+  access_entries = merge(local.admin_access_entries, local.view_access_entries)
 
   eks_managed_node_groups = {
     techx_nodes = {
