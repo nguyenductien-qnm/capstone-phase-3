@@ -28,12 +28,12 @@
 ## Slide 3: Giải Pháp Kỹ Thuật AIE (AI Engineering)
 * **ADR-001 (Valkey Caching):**
   * Lưu trữ bản tóm tắt vào Valkey cache key `reviews:summary:{product_id}`.
-  * TTL: **24 giờ** (bỏ qua cache qua flag `llmReviewsCacheEnabled`).
+  * **TTL Động:** 4 giờ đến 7 ngày tính theo reviews. Active invalidation khi có review mới & Thumbs Down feedback loop.
   * *ROI:* Giảm **90% chi phí token** và phản hồi cache cực nhanh (< 50ms).
-* **ADR-002 (Model Fallback Routing):**
-  * Model chính: Claude 3.0 Sonnet.
-  * Model phụ: Claude 3 Haiku (rẻ hơn 10x, nhanh hơn 3x).
-  * Quy tắc: Lỗi/Timeout > 5.0s tự động retry 2 lần. Nếu vẫn lỗi, tự chuyển sang Haiku; nếu Haiku sập mới trả về mock.
+* **ADR-004 (Hybrid Task-Specific Routing & Fallback):**
+  * Tác vụ Reviews (Cao tải/Rẻ): Amazon Nova Lite -> Fallback: Nova Micro -> Mock. Timeout: 2.0s.
+  * Tác vụ Chatbot (Phức tạp): Amazon Nova Pro -> Fallback: Amazon Nova Lite -> Mock. Timeout: 5.0s.
+  * Thử lại (Retry) tối đa 2 lần với Exponential Backoff + Jitter trước khi fallback. Toàn bộ chi phí cấn trừ qua Credit AWS (tiền mặt thật = $0).
 
 <!-- slide -->
 ## Slide 4: Trợ Lý Shopping Copilot An Toàn (PoC)

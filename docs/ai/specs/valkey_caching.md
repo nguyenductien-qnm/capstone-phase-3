@@ -38,7 +38,7 @@ sequenceDiagram
             
             rect rgb(255, 235, 204)
                 note over Reviews, Valkey: Ghi lại kết quả vào Cache
-                Reviews->>Valkey: SET reviews:summary:{product_id} (TTL = 24h)
+                Reviews->>Valkey: SET reviews:summary:{product_id} (Dynamic TTL = 4h to 7d)
             end
         end
     end
@@ -69,8 +69,12 @@ sequenceDiagram
   ```
 
 ### 3.2 Cấu hình vòng đời và bộ nhớ (TTL & Eviction)
-- **TTL (Time To Live):** **24 giờ** (86,400 giây). Sau 24 giờ, cache key tự động hết hạn, đảm bảo thông tin tóm tắt được làm mới hàng ngày khi có reviews mới của người dùng.
-- **Eviction Policy (Chính sách giải phóng bộ nhớ):** `volatile-lru` (loại bỏ các key có thiết lập TTL ít được truy cập nhất khi bộ nhớ của cụm `valkey-cart` chạm ngưỡng giới hạn). Quyết định này giúp bảo vệ tuyệt đối dữ liệu giỏ hàng (`valkey-cart`) không bị xóa nhầm khi bộ đệm đầy.
+- **TTL (Time To Live):** **Động (Dynamic TTL)** tính toán tự động từ **4 giờ đến 7 ngày** dựa trên số lượng review ($N$) và độ biến động điểm số ($\sigma^2$) của sản phẩm. Xem chi tiết thuật toán tại Mục 5.
+- **Eviction Policy (Chính sách giải phóng bộ nhớ) & Giải pháp Bảo vệ Giỏ hàng (Option 1):**
+  - Cấu hình eviction policy của cụm Valkey là `volatile-lru`.
+  - Để tránh việc giỏ hàng (có TTL mặc định 60m trong code) vẫn bị xóa nhầm khi RAM đầy, ta tiến hành **loại bỏ hoàn toàn TTL của giỏ hàng trong code C# (`ValkeyCartStore.cs`)**. Khi không có TTL, key giỏ hàng trở thành key vĩnh viễn (non-volatile) và được Valkey bảo vệ an toàn 100% khỏi cơ chế tự động eviction.
+  - Thiết lập một **background CronJob** chạy lúc 2h sáng hàng ngày để chủ động quét dọn (`SCAN`) các giỏ hàng rác đã quá 30 ngày không có hoạt động, tránh làm rò rỉ và nghẽn bộ nhớ.
+
 
 ### 3.3 Cấu hình biến môi trường (Environment Variables)
 Để đồng bộ hoàn toàn với **Hợp đồng tích hợp dịch vụ Product Reviews** với CDO, việc kết nối được cấu hình qua các biến môi trường sau:
@@ -96,4 +100,38 @@ sequenceDiagram
     1. Ghi nhận log lỗi mức độ `ERROR` kèm chi tiết trace context sang Collector/Jaeger.
     2. Tự động chuyển trạng thái xử lý sang **Cache Miss**, thực hiện gọi trực tiếp AWS Bedrock API để lấy summary.
     3. Không cố gắng thực hiện lệnh ghi (`SET`) vào Valkey ở bước sau để tránh lặp lại lỗi timeout.
+
+---
+
+## 5. Cơ chế Đặt TTL Động (Score-Based Dynamic TTL)
+
+Để tối ưu hóa chi phí token (AWS Bedrock) và đảm bảo tính cập nhật của bản tóm tắt, hệ thống không sử dụng TTL 24 giờ cố định mà tính toán TTL động dựa trên thông số review của sản phẩm:
+
+$$\text{TTL}_{\text{seconds}} = \max\left(14400, \frac{604800}{1 + 0.05 \cdot N + 0.5 \cdot \sigma^2}\right)$$
+
+*   **Ý nghĩa các tham số:**
+    *   $N$: Tổng số lượng reviews của sản phẩm.
+    *   $\sigma^2$: Phương sai điểm số (Score Variance) của các reviews gần nhất.
+    *   Giới hạn dưới: **4 giờ** (14,400 giây) để tránh việc gọi Bedrock quá liên tục đối với các sản phẩm cực kỳ hot.
+    *   Giới hạn trên: **7 ngày** (604,800 giây) đối với sản phẩm ít reviews và điểm số ổn định, giúp giảm thiểu tối đa chi phí token trùng lặp.
+
+---
+
+## 6. Chiến Lược Hủy & Làm Mới Cache (Cache Invalidation & Refresh Strategy)
+
+Hệ thống xử lý bài toán cập nhật review mới và xử lý tóm tắt chất lượng kém qua cơ chế **Active Invalidation** (Hủy cache chủ động):
+
+### 6.1 Xử lý khi có Review mới (Write-Around Invalidation)
+- Khi người dùng gửi một review mới thành công thông qua `ProductReviewService.AddReview`:
+  - Ứng dụng lập tức thực thi lệnh xóa cache: `DEL reviews:summary:{product_id}`.
+  - Lượt xem sản phẩm của khách hàng tiếp theo sẽ gặp **Cache Miss**, kích hoạt gọi Bedrock để sinh lại bản tóm tắt mới nhất (chứa cả review vừa viết).
+
+### 6.2 Xử lý khi Tóm tắt cũ kém chất lượng (User Feedback Loop)
+- Trên giao diện Storefront, tích hợp nút đánh giá Thích (Thumbs Up) / Ghét (Thumbs Down) cạnh phần tóm tắt review.
+- Khi người dùng bấm **Thumbs Down (Ghét)**:
+  - Tăng biến đếm lỗi trong Valkey: `HINCRBY reviews:summary:{product_id}:meta thumbs_down 1`.
+  - Nếu số lượt ghét vượt quá ngưỡng quy định (ví dụ $\ge 3$ lượt):
+    1. Xóa bản tóm tắt hiện tại ngay lập tức.
+    2. Đặt cờ chỉ định mô hình chất lượng cao: `HSET reviews:summary:{product_id}:meta model_override "nova-pro"`.
+    3. Lần sinh tóm tắt tiếp theo sẽ bắt buộc định tuyến qua **Amazon Nova Pro** thay vì model rẻ Nova Lite để đảm bảo chất lượng tóm tắt tốt nhất cho sản phẩm bị đánh giá kém.
 
