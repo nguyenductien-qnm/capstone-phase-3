@@ -125,6 +125,9 @@
         },
         "valkey-cart": {
           "$ref": "#/definitions/Component"
+        },
+        "shopping-copilot": {
+          "$ref": "#/definitions/Component"
         }
       },
       "title": "Components"
