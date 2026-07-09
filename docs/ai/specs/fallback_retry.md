@@ -112,3 +112,21 @@ Các biến môi trường được cấu hình linh động cho Pod `product-re
 *   **Flagd Key:** `llmReviewsFallbackEnabled` (Boolean - Mặc định: `true`)
     *   *True:* Tự động kích hoạt chuyển đổi sang model dự phòng (Nova Micro) và Mock Summary khi Nova Lite bị lỗi hàng loạt. Đảm bảo SLO Availability > 99.9%.
     *   *False:* Tắt cơ chế dự phòng. Khi Nova Lite gặp lỗi sau số lần retry, ứng dụng trả thẳng lỗi 500 về storefront để bảo đảm tính nhất quán chất lượng bản dịch.
+
+---
+
+## 5. Kiến trúc Tự phục hồi 5 lớp (5-Layer Resilience Stack)
+
+Đáp ứng yêu cầu vận hành bền bỉ trước sự cố mạng hoặc lỗi rate limit do BTC giả lập (như cờ `llmRateLimitError`), Reviews Service triển khai ngăn xếp tự phục hồi 5 lớp sau:
+
+1. **Lớp 1: Adaptive Client Retry (AWS SDK):** Cấu hình client sử dụng chế độ adaptive retry tự động đo lường và xếp hàng cuộc gọi khi AWS Bedrock API trả về lỗi nghẽn.
+2. **Lớp 2: Exponential Backoff & Jitter:** 
+   - Thử lại tối đa 2 lần với thời gian chờ trễ: $t = \text{Base} \times 1.5^{\text{attempt}} \pm \text{random\_jitter}$.
+   - Chỉ kích hoạt retry cho nhóm lỗi: HTTP 429, 500, 503, và Connection Timeout.
+3. **Lớp 3: Bulkhead Isolation (Asyncio Semaphore):**
+   - Giới hạn tối đa **10 luồng gọi Bedrock đồng thời** bằng `asyncio.Semaphore(10)`.
+   - Nếu luồng xử lý bị nghẽn (Bedrock phản hồi chậm), các request sau sẽ xếp hàng chờ thay vì spam API hoặc làm cạn kiệt CPU/RAM của container.
+4. **Lớp 4: Context-Aware Dynamic Deadlines:**
+   - Đọc thời gian xử lý còn lại của request (trace context). Nếu request gần chạm ngưỡng trễ hạn SLO (ví dụ: chỉ còn 500ms trước khi hết 1.0s), hệ thống tự động co ngắn timeout của cuộc gọi Bedrock xuống còn 400ms để kịp thời trả về kết quả mock thay vì để storefront bị timeout cascading.
+5. **Lớp 5: Flag-Aware Circuit Breaker:**
+   - Tự động chuyển Circuit Breaker sang trạng thái **OPEN** ngay khi phát hiện flag `llmRateLimitError` từ flagd ở trạng thái ON. Chuyển thẳng request sang Mock Summary hoặc model dự phòng mà không cần thực hiện cuộc gọi thật tới Bedrock, bảo vệ trần chi phí và tránh nghẽn luồng.
