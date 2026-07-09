@@ -61,9 +61,17 @@ static_resources:
                             prefix_rewrite: "/"
                             upgrade_configs:
                               - upgrade_type: websocket
+                        # 30s: worst case = 5 tool-call loops (ADR-006) x Nova Pro 5.0s
+                        # timeout (ADR-004) + tool RTT. Not 0s -- a hung Bedrock call must
+                        # not hold the connection open forever.
+                        - match: { prefix: "/oteldemo.ShoppingCopilotService/" }
+                          route: { cluster: shopping-copilot, timeout: 30s }
                         - match: { prefix: "/" }  # Default/catch-all route - keep last since prefix:"/" matches everything
                           route: { cluster: frontend }
                 http_filters:
+                  - name: envoy.filters.http.grpc_web
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.grpc_web.v3.GrpcWeb
                   - name: envoy.filters.http.fault
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.fault.v3.HTTPFault
@@ -242,6 +250,23 @@ static_resources:
                     socket_address:
                       address: ${JAEGER_HOST}
                       port_value: ${JAEGER_UI_PORT}
+    - name: shopping-copilot
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+      typed_extension_protocol_options:
+        envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+          "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+          explicit_http_config:
+            http2_protocol_options: {}
+      load_assignment:
+        cluster_name: shopping-copilot
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: ${SHOPPING_COPILOT_HOST}
+                      port_value: ${SHOPPING_COPILOT_PORT}
 admin:
   address:
     socket_address:

@@ -27,7 +27,7 @@ gen_proto_python() {
   echo "Generating Python protobuf files for $1"
   docker build -f "src/$1/genproto/Dockerfile" -t "$1-genproto" .
   docker run --rm -v $(pwd):/build "$1-genproto" \
-    python -m grpc_tools.protoc -I /build/pb/ --python_out="./src/$1/" --grpc_python_out="./src/$1/" /build/pb/demo.proto
+    python -m grpc_tools.protoc -I /build/pb/ --python_out="./src/$1/" --grpc_python_out="./src/$1/" /build/pb/demo.proto /build/pb/shopping_copilot.proto
 }
 
 gen_proto_ts() {
@@ -40,7 +40,7 @@ gen_proto_ts() {
     --ts_proto_opt=esModuleInterop=true \
     --ts_proto_out="/build/src/$SERVICE/protos" \
     --ts_proto_opt=outputServices=grpc-js \
-    /build/pb/demo.proto'
+    /build/pb/demo.proto /build/pb/shopping_copilot.proto'
 }
 
 if [ -z "$1" ]; then

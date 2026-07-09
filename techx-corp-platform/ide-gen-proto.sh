@@ -43,7 +43,7 @@ gen_proto_js() {
 gen_proto_python() {
   echo "Generating Python protobuf files for $1"
   cd "$base_dir"/src/"$1" || return
-  python3 -m grpc_tools.protoc -I=../../pb --python_out=./ --grpc_python_out=./ ./../../pb/demo.proto
+  python3 -m grpc_tools.protoc -I=../../pb --python_out=./ --grpc_python_out=./ ./../../pb/demo.proto ./../../pb/shopping_copilot.proto
   cd "$base_dir" || return
 }
 
@@ -61,7 +61,7 @@ gen_proto_ts() {
   cd "$base_dir"/src/"$1" || return
   cp -r "$base_dir"/pb .
   mkdir -p ./protos
-  protoc -I ./pb  --plugin=./node_modules/.bin/protoc-gen-ts_proto --ts_proto_opt=esModuleInterop=true --ts_proto_out=./protos --ts_proto_opt=outputServices=grpc-js demo.proto
+  protoc -I ./pb  --plugin=./node_modules/.bin/protoc-gen-ts_proto --ts_proto_opt=esModuleInterop=true --ts_proto_out=./protos --ts_proto_opt=outputServices=grpc-js demo.proto shopping_copilot.proto
   cd "$base_dir" || return
 }
 
@@ -75,7 +75,7 @@ gen_proto_ts frontend
 gen_proto_ts react-native-app
 gen_proto_js payment
 gen_proto_go product-catalog
-gen_proto_go product-reviews
+gen_proto_python product-reviews
 # gen_proto_php quote
 gen_proto_python recommendation
 gen_proto_rust shipping
