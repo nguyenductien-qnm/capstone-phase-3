@@ -1,0 +1,26 @@
+﻿{
+    "data":  [
+                 "currency",
+                 "shipping",
+                 "frontend",
+                 "load-generator",
+                 "product-catalog",
+                 "checkout",
+                 "recommendation",
+                 "quote",
+                 "payment",
+                 "product-reviews",
+                 "cart",
+                 "image-provider",
+                 "email",
+                 "flagd",
+                 "accounting",
+                 "fraud-detection",
+                 "ad",
+                 "frontend-proxy"
+             ],
+    "total":  18,
+    "limit":  0,
+    "offset":  0,
+    "errors":  null
+}
