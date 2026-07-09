@@ -22,7 +22,7 @@ graph TD
     
     CallNova -- "Thành công (200 OK)" --> ReturnResult["Trả về kết quả tóm tắt"]
     
-    CallNova -- "Lỗi 429 / 500 / Timeout > 2.0s" --> CheckRetry{"Đã thử lại đủ 2 lần chưa?"}
+    CallNova -- "Lỗi 429 / 500 / Timeout > 3.0s" --> CheckRetry{"Đã thử lại đủ 2 lần chưa?"}
     CheckRetry -- "Chưa đủ" --> RetryNova["Thực hiện Thử lại (Retry) với Exponential Backoff"]
     RetryNova --> CallNova
     
@@ -73,37 +73,58 @@ Dưới đây là các thông số chi tiết cấu hình cho cơ chế định 
 |---|---|---|
 | **Tên Model** | Amazon Nova Lite | Amazon Nova Micro |
 | **Model ID AWS Bedrock** | `amazon.nova-lite-v1:0` | `amazon.nova-micro-v1:0` |
-| **Timeout tối đa** | **2.0 giây (2000ms)** | **1.0 giây (1000ms)** |
+| **Timeout tối đa** | **3.0 giây (3000ms)** | **2.0 giây (2000ms)** |
 | **Số lần tự động thử lại** | **Tối đa 2 lần** (Tổng cộng tối đa 3 cuộc gọi) | **Tối đa 1 lần** (Tổng cộng tối đa 2 cuộc gọi) |
 | **Cơ chế Retry Backoff** | Exponential backoff (Base: 100ms, Factor: 1.5, Jitter: True) | Exponential backoff (Base: 50ms, Factor: 1.5, Jitter: True) |
-| **Lỗi kích hoạt** | HTTP 429, HTTP 500/503, ClientTimeout (> 2.0s) | HTTP 429, HTTP 500/503, ClientTimeout (> 1.0s) |
+| **Lỗi kích hoạt** | HTTP 429, HTTP 500/503, ClientTimeout (> 3.0s) | HTTP 429, HTTP 500/503, ClientTimeout (> 2.0s) |
+
+> **Vì sao 3.0s chứ không phải 2.0s (sàn cứng, không hạ):**
+>
+> 1. **Timeout ngắn hơn thời gian phản hồi thực tế thì retry là vô ích.** Tóm tắt review có input ~1,500 token và output ~200 token. TTFT của Nova Lite ~0.4s, nhưng *sinh xong* 200 token output mới là lúc request hoàn tất. Đặt 2.0s cắt ngang phần đuôi phân phối latency: request bị huỷ **đúng lúc sắp thành công**, rồi retry lại từ đầu — trả tiền token 3 lần cho 0 kết quả, và đẩy tải ngược lên Bedrock đúng lúc nó đang chậm.
+> 2. **Không đánh đổi gì để lấy 2.0s.** Tóm tắt AI là **best-effort, không SLA cứng** (`SLO.md`), và chỉ chạy khi khách **bấm nút** — nó không nằm trên đường render trang, nên không tính vào SLO p95 < 1s của storefront. Rút timeout xuống 2.0s không cứu được SLO nào cả, chỉ tạo thêm retry storm.
+> 3. **Trần 5.0s** cho Copilot: đủ cho Nova Pro chạy vòng tool-calling, vẫn dưới ngưỡng khách bỏ cuộc.
 
 ### B. Luồng Trợ lý Chatbot (Shopping Copilot)
 | Tham số | Model chính (Primary Model) | Model dự phòng (Fallback Model) |
 |---|---|---|
 | **Tên Model** | Amazon Nova Pro | Amazon Nova Lite |
 | **Model ID AWS Bedrock** | `amazon.nova-pro-v1:0` | `amazon.nova-lite-v1:0` |
-| **Timeout tối đa** | **5.0 giây (5000ms)** | **2.0 giây (2000ms)** |
+| **Timeout tối đa** | **5.0 giây (5000ms)** | **3.0 giây (3000ms)** |
 | **Số lần tự động thử lại** | **Tối đa 2 lần** (Tổng cộng tối đa 3 cuộc gọi) | **Tối đa 1 lần** (Tổng cộng tối đa 2 cuộc gọi) |
 | **Cơ chế Retry Backoff** | Exponential backoff (Base: 200ms, Factor: 1.5, Jitter: True) | Exponential backoff (Base: 100ms, Factor: 1.5, Jitter: True) |
-| **Lỗi kích hoạt** | HTTP 429, HTTP 500/503, ClientTimeout (> 5.0s) | HTTP 429, HTTP 500/503, ClientTimeout (> 2.0s) |
+| **Lỗi kích hoạt** | HTTP 429, HTTP 500/503, ClientTimeout (> 5.0s) | HTTP 429, HTTP 500/503, ClientTimeout (> 3.0s) |
 
 ---
 
 ## 3. Cấu hình biến môi trường (Environment Variables)
 
-Các biến môi trường được cấu hình linh động cho Pod `product-reviews` trong cụm K8s:
+Các biến môi trường được cấu hình linh động cho Pod `product-reviews` trong cụm K8s.
+
+### 3.1 Biến BẮT BUỘC giữ lại (code hiện tại phụ thuộc)
+
+> ⚠️ `src/product-reviews/product_reviews_server.py` gọi `must_map_env()` cho các biến dưới đây — **thiếu bất kỳ biến nào là pod raise exception ngay lúc boot** (`CrashLoopBackOff`). Việc thêm biến mới ở §3.2 **không được phép xoá** nhóm này.
+
+| Biến | Dùng ở đâu | Ghi chú |
+|---|---|---|
+| `LLM_MODEL` | `must_map_env('LLM_MODEL')` | Model mặc định. Giữ làm **alias** trỏ tới `LLM_REVIEWS_MAIN_MODEL`. |
+| `LLM_BASE_URL` | `must_map_env('LLM_BASE_URL')` | Endpoint Bedrock-compatible. Giữ model-agnostic: đổi endpoint/model không cần sửa code. |
+| `OPENAI_API_KEY` | `must_map_env('OPENAI_API_KEY')` | Lấy từ secret `llm-api-key`. |
+| `LLM_HOST` / `LLM_PORT` | `must_map_env(...)` | Dựng `llm_mock_url` cho luồng mock/rate-limit. |
+
+### 3.2 Biến mới bổ sung cho Hybrid Routing
 
 *   **Cho Reviews Summary:**
     *   `LLM_REVIEWS_MAIN_MODEL`: ID model tóm tắt chính (Mặc định: `amazon.nova-lite-v1:0`).
     *   `LLM_REVIEWS_FALLBACK_MODEL`: ID model tóm tắt dự phòng (Mặc định: `amazon.nova-micro-v1:0`).
-    *   `LLM_REVIEWS_TIMEOUT`: Timeout cho Nova Lite (Mặc định: `2.0`).
+    *   `LLM_REVIEWS_TIMEOUT`: Timeout cho Nova Lite (Mặc định: `3.0`).
     *   `LLM_REVIEWS_MAX_RETRIES`: Số lần thử lại tối đa (Mặc định: `2`).
 *   **Cho Shopping Copilot:**
     *   `LLM_COPILOT_MAIN_MODEL`: ID model chatbot chính (Mặc định: `amazon.nova-pro-v1:0`).
     *   `LLM_COPILOT_FALLBACK_MODEL`: ID model chatbot dự phòng (Mặc định: `amazon.nova-lite-v1:0`).
     *   `LLM_COPILOT_TIMEOUT`: Timeout cho Nova Pro (Mặc định: `5.0`).
     *   `LLM_COPILOT_MAX_RETRIES`: Số lần thử lại tối đa (Mặc định: `2`).
+
+**Quy tắc di trú:** khi đọc model, code resolve theo thứ tự `LLM_REVIEWS_MAIN_MODEL` → fallback về `LLM_MODEL`. Nhờ vậy `deploy/values-aio-llm.yaml` hiện có (chỉ set `LLM_MODEL`, `LLM_BASE_URL`, `OPENAI_API_KEY`) vẫn boot được mà không cần sửa cùng lúc với code.
 
 ---
 
@@ -126,7 +147,9 @@ Các biến môi trường được cấu hình linh động cho Pod `product-re
 3. **Lớp 3: Bulkhead Isolation (Asyncio Semaphore):**
    - Giới hạn tối đa **10 luồng gọi Bedrock đồng thời** bằng `asyncio.Semaphore(10)`.
    - Nếu luồng xử lý bị nghẽn (Bedrock phản hồi chậm), các request sau sẽ xếp hàng chờ thay vì spam API hoặc làm cạn kiệt CPU/RAM của container.
-4. **Lớp 4: Context-Aware Dynamic Deadlines:**
-   - Đọc thời gian xử lý còn lại của request (trace context). Nếu request gần chạm ngưỡng trễ hạn SLO (ví dụ: chỉ còn 500ms trước khi hết 1.0s), hệ thống tự động co ngắn timeout của cuộc gọi Bedrock xuống còn 400ms để kịp thời trả về kết quả mock thay vì để storefront bị timeout cascading.
+4. **Lớp 4: Context-Aware Dynamic Deadlines (fail-fast, không co timeout):**
+   - Đọc thời gian xử lý còn lại của request (trace context) và so với deadline của caller.
+   - **Sàn cứng 3.0s:** không bao giờ co timeout Bedrock xuống dưới 3.0s — timeout ngắn hơn latency thực tế chỉ sinh ra retry storm và đốt token, không cứu được request nào (xem §2.A).
+   - Thay vì co timeout, hệ thống **fail-fast**: nếu thời gian còn lại của request **< 3.0s**, bỏ qua Bedrock hoàn toàn và trả **Mock Summary ngay lập tức**. Vừa giữ được sàn timeout, vừa tránh cascading timeout cho storefront.
 5. **Lớp 5: Flag-Aware Circuit Breaker:**
    - Tự động chuyển Circuit Breaker sang trạng thái **OPEN** ngay khi phát hiện flag `llmRateLimitError` từ flagd ở trạng thái ON. Chuyển thẳng request sang Mock Summary hoặc model dự phòng mà không cần thực hiện cuộc gọi thật tới Bedrock, bảo vệ trần chi phí và tránh nghẽn luồng.
