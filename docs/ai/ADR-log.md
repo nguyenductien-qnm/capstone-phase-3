@@ -145,13 +145,14 @@
 - **Trụ:** Security / Reliability
 - **Bối cảnh:** 
   AI_FEATURE.md §2.A và §2.B yêu cầu hệ thống phải an toàn trước các cuộc tấn công Prompt Injection nhúng trong reviews sản phẩm, ngăn lộ thông tin nhạy cảm (PII), chặn lộ system prompt, và đặc biệt là ngăn chặn hành vi excessive agency (tự ý xóa giỏ hàng hoặc tự ý thanh toán đặt hàng của trợ lý Shopping Copilot).
+  *(Ghi chú: Toàn bộ bộ công cụ / tools mà Agent sử dụng (như search, cart, recommendations) đều là các thành phần Mở rộng [Extend] được nhóm tự định nghĩa và tích hợp riêng cho Copilot, vì BTC không cung cấp sẵn mã nguồn Agent trong base repo).*
 - **Quyết định:** 
   Triển khai hệ thống bảo mật 3 lớp (AI Guardrails):
   1. **Input Guardrail:** Lọc sạch (sanitization) và phân tích nội dung reviews/user prompt qua regex filter và LLM-based classifier trước khi đưa vào context để chặn Prompt Injection.
   2. **Output Guardrail:** Lọc và che giấu (redact) thông tin nhạy cảm (PII như email, phone, credit card) cùng với bộ lọc phát hiện rò rỉ system prompt (system prompt leakage detector).
   3. **Tool Execution Authorization (Confirmation Gate UI Protocol):**
      - Phân loại tools thành 3 Tier:
-       - *Tier 1 (Read-only):* Tự động thực thi (`search_products`, `get_product_reviews`, `get_cart`, `list_recommendations`, `convert_currency`, `get_shipping_quote`).
+       - *Tier 1 (Read-only):* Tự động thực thi (`search_products`, `get_product_reviews`, `get_cart`, `list_recommendations` [Extend], `convert_currency`, `get_shipping_quote`).
        - *Tier 2 (Write/Modify):* Cần xác nhận từ người dùng qua cấu trúc JSON payload (`add_to_cart`). Agent không được tự thực thi mà phải trả về JSON request confirmation. Frontend Streamlit/Storefront sẽ render nút bấm UI xác nhận.
        - *Tier 3 (Critical/Blocked):* Chặn tuyệt đối (`empty_cart`, `place_order`, `ship_order`). AI Agent không bao giờ được phép gọi các rpc này để triệt tiêu hoàn toàn Excessive Agency.
      - Tích hợp Idempotency Key và Expiry Epoch cho mỗi request xác nhận để ngăn chặn việc gửi trùng lặp lệnh ghi.
