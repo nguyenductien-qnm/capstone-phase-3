@@ -171,7 +171,7 @@ public class ValkeyCartStore : ICartStore
             }
 
             await db.HashSetAsync(userId, new[]{ new HashEntry(CartFieldName, cart.ToByteArray()) });
-            await db.KeyExpireAsync(userId, TimeSpan.FromMinutes(60));
+            // await db.KeyExpireAsync(userId, TimeSpan.FromMinutes(60)); // Removed to prevent cart eviction under volatile-lru (ADR-003)
         }
         catch (Exception ex)
         {
@@ -196,7 +196,7 @@ public class ValkeyCartStore : ICartStore
 
             // Update the cache with empty cart for given user
             await db.HashSetAsync(userId, new[] { new HashEntry(CartFieldName, _emptyCartBytes) });
-            await db.KeyExpireAsync(userId, TimeSpan.FromMinutes(60));
+            // await db.KeyExpireAsync(userId, TimeSpan.FromMinutes(60)); // Removed to prevent cart eviction under volatile-lru (ADR-003)
         }
         catch (Exception ex)
         {

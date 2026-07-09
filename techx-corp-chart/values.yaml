@@ -944,6 +944,10 @@ components:
       repository: "valkey/valkey"
       tag: "9.0.1-alpine3.23"
     replicas: 1
+    command:
+      - valkey-server
+      - --maxmemory-policy
+      - volatile-lru
     ports:
       - name: valkey-cart
         value: 6379
