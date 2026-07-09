@@ -2,11 +2,23 @@
 Shopping Copilot — Streamlit PoC
 =================================
 Tác giả : AIO Team (dinh144)
-JIRA    : TF1-19, TF1-20, TF1-21
-Mô tả   : Chatbot gọi AWS Bedrock (Claude) thật, hỗ trợ 3 intent cốt lõi:
+JIRA    : TF1-48
+Mô tả   : Chatbot gọi AWS Bedrock (Amazon Nova) thật, hỗ trợ 3 intent cốt lõi:
            1. Tìm kiếm sản phẩm bằng ngôn ngữ tự nhiên (search_products)
            2. Hỏi đáp review không ảo giác / RAG (get_product_reviews)
            3. Thêm giỏ hàng với Confirmation Gate chống Excessive Agency (add_to_cart)
+
+⚠️  GIỚI HẠN PHẠM VI — ĐỌC TRƯỚC KHI CHẤM
+    Đây là PoC Tuần 1. LLM là Bedrock THẬT, nhưng ba tool bên dưới chạy trên
+    MOCK_PRODUCTS (dict hardcode trong file này), KHÔNG gọi gRPC tới
+    product-catalog / product-reviews / cart thật đang chạy trên EKS.
+
+    RULES.md §4 yêu cầu: "Với mọi hạng mục AIE: phải chạy thật trong hệ thống
+    của TF (không mockup)". Vì vậy PoC này CHƯA đáp ứng tiêu chí chấm của
+    hạng mục Copilot. Việc nối tool vào gRPC thật được theo dõi ở TF1-56.
+
+    Giữ PoC lại vì nó chứng minh được phần logic an toàn (Confirmation Gate,
+    MAX_TOOL_CALLS, block-list) độc lập với tầng dữ liệu.
 
 Chạy thử local:
   streamlit run demo_copilot_st.py --server.port 8503 --server.address 0.0.0.0
@@ -571,7 +583,7 @@ def render_sidebar():
 
     region = st.sidebar.selectbox(
         "AWS Region",
-        options=["us-east-1", "us-west-2", "ap-southeast-1"],
+        options=["us-east-1"],  # ADR-004: đơn vùng. Nova model availability khác nhau theo region.
         index=0,
     )
 
@@ -706,6 +718,15 @@ def main():
         "**PoC Demo** · Gọi **AWS Bedrock** thật · "
         "3 intent: tìm sản phẩm · hỏi review · thêm giỏ hàng\n\n"
         "_Dùng cho Pitching nghiệm thu Tuần 1 — TF AIO Team_"
+    )
+    st.warning(
+        "**Dữ liệu là MOCK.** LLM gọi Bedrock thật, nhưng `search_products`, "
+        "`get_product_reviews`, `add_to_cart` chạy trên dict hardcode trong file "
+        "này — chưa nối gRPC tới product-catalog / product-reviews / cart trên "
+        "EKS. RULES.md §4 đòi hạng mục AIE phải chạy thật, nên PoC này chứng "
+        "minh được lớp an toàn (Confirmation Gate, giới hạn vòng lặp, block-list) "
+        "chứ chưa chứng minh được tích hợp. Theo dõi ở TF1-56.",
+        icon="⚠️",
     )
 
     # Sidebar
