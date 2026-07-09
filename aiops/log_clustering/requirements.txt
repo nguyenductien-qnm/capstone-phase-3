@@ -1,0 +1,4 @@
+drain3==0.9.11
+opensearch-py==2.7.1
+python-dateutil==2.9.0
+requests==2.32.3
