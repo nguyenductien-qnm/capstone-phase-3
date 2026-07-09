@@ -16,7 +16,8 @@
   - **Cập nhật bổ sung (Dynamic TTL & Active Invalidation):**
     1. **TTL động (Dynamic TTL):** Thay vì TTL 24h cố định, TTL được tính động từ **4 giờ đến 7 ngày** dựa trên số lượng review ($N$) và độ biến động điểm số ($\sigma^2$) của sản phẩm nhằm tối ưu hóa chi phí token tối đa.
     2. **Hủy cache khi có review mới (Write-Around Invalidation):** Xóa cache ngay khi API nhận review mới để khách tiếp theo thấy tóm tắt thời gian thực.
-    3. **Phản hồi chất lượng kém (Feedback Loop):** Tích hợp nút Thumbs Down. Nếu $\ge 3$ lượt vote kém, tự xóa cache cũ và ép định tuyến cuộc gọi tiếp theo qua **Claude 3.5 Sonnet** (thay vì Nova Lite) để nâng cấp chất lượng.
+    3. **Phản hồi chất lượng kém (Feedback Loop):** Tích hợp nút Thumbs Down. Nếu $\ge 3$ lượt vote kém, tự xóa cache cũ và ép định tuyến cuộc gọi tiếp theo qua **Amazon Nova Pro** (thay vì Nova Lite) để nâng cấp chất lượng. *(Nhất quán với ADR-004: không dùng Claude vì tính phí tiền mặt thật.)*
+  - **Phụ thuộc chưa có sẵn (⚠️):** Cả (2) Write-Around Invalidation lẫn (3) Feedback Loop đều cần **rpc mới chưa tồn tại** trong `pb/demo.proto` — `ProductReviewService` hiện chỉ có `GetProductReviews`, `GetAverageProductReviewScore`, `AskProductAIAssistant`. Việc bổ sung `AddReview` + `SubmitSummaryFeedback` được theo dõi ở task **TF1-55**. Cho tới khi có rpc, việc làm mới cache dựa hoàn toàn vào Dynamic TTL (mục 1).
 - **Phương án khác đã cân:**
   - *Option A - Sử dụng Amazon ElastiCache (Redis managed):* Độ bền cao và bảo mật hơn, tuy nhiên tăng chi phí cố định tối thiểu ~$30/tuần -> Vi phạm trần ngân sách AWS $300/tuần. Quyết định: Bỏ qua và dùng Valkey in-cluster.
   - *Option B - Sử dụng thuật toán Eviction LFU thay vì LRU:* Bị loại bỏ vì LFU dễ bị Cache Pollution bởi các sản phẩm cũ từng rất hot, không linh hoạt bằng LRU đối với trend mua sắm thay đổi liên tục.
@@ -34,9 +35,7 @@
 - **Ngày:** 2026-07-08 (thay thế: 2026-07-09)
 - **Người ký:** Nhóm AI (AIO03) - Task Force 1
 - **Trụ:** Reliability
-- **Lưu ý:** ⚠️ ADR này đã bị **thay thế bởi ADR-004** (Hybrid Task-Specific Routing). Các model ID Claude 3.0 (`anthropic.claude-3-sonnet-20240229-v1:0`, `anthropic.claude-3-haiku-20240307-v1:0`) đã bị AWS đánh dấu Legacy và từ chối truy cập. Xem ADR-004 để biết model routing mới.
-- **Người ký:** Nhóm AI (AIO03) - Task Force 1
-- **Trụ:** Reliability
+- **Lưu ý:** ⚠️ ADR này đã bị **thay thế bởi ADR-004** (Hybrid Task-Specific Routing). Các model ID Claude 3.0 (`anthropic.claude-3-sonnet-20240229-v1:0`, `anthropic.claude-3-haiku-20240307-v1:0`) đã bị AWS đánh dấu Legacy và từ chối truy cập. Xem ADR-004 để biết model routing mới. Nội dung bên dưới **giữ nguyên làm bản ghi lịch sử**, không phản ánh thiết kế hiện hành.
 - **Bối cảnh:** 
   Các cuộc gọi API đến AWS Bedrock (sử dụng model chính `Claude 3.0 Sonnet`) có thể bị lỗi ngắt quãng, timeout mạng hoặc trả về lỗi Rate Limit (429) trong giờ cao điểm, gây mất tính năng tóm tắt review hoặc treo trang storefront.
 - **Quyết định:** 
@@ -95,7 +94,7 @@
   - **Tác vụ Reviews Summary (Tải cực cao, độ phức tạp thấp):**
     - Định tuyến chính (Primary): Amazon Nova Lite (`amazon.nova-lite-v1:0`). TTFT cực nhanh (~0.4s theo [Artificial Analysis](https://artificialanalysis.ai/leaderboards/models)), chi phí cực rẻ ([$0.06/$0.24 per 1M tokens](https://aws.amazon.com/bedrock/pricing/)).
     - Dự phòng (Fallback): Amazon Nova Micro (`amazon.nova-micro-v1:0`) và cuối cùng là Mock Summary.
-    - Timeout: Giảm xuống **2.0 giây (2000ms)** để bảo vệ SLO của trang storefront.
+    - Timeout: **3.0 giây (3000ms)** — sàn cứng. Đặt thấp hơn (vd 2.0s) sẽ cắt ngang đuôi phân phối latency của request sinh 200 token output, huỷ đúng lúc sắp thành công rồi retry lại từ đầu: trả tiền token nhiều lần cho 0 kết quả và dội tải ngược lên Bedrock đúng lúc nó đang chậm. Đổi lại **không được gì**, vì tóm tắt AI là **best-effort, không SLA cứng** (`SLO.md`) và chỉ chạy khi khách bấm nút, không chặn render trang → không tính vào SLO storefront p95 < 1s.
   - **Tác vụ Shopping Copilot (Tải thấp, độ phức tạp cao, cần độ chính xác gọi tool tuyệt đối):**
     - Định tuyến chính (Primary): Amazon Nova Pro (`amazon.nova-pro-v1:0`). Đảm bảo độ chính xác gọi tool xuất sắc và chi phí được cấn trừ hoàn toàn 100% bằng AWS Credits (tiền mặt thật = $0).
     - Dự phòng (Fallback): Amazon Nova Lite (`amazon.nova-lite-v1:0`).
@@ -192,3 +191,83 @@
 - **Hệ quả:**
   - ✅ *Lợi ích:* Tự động phát hiện sự cố mới, giảm alert fatigue, tích hợp được vào vòng AIOps auto-remediation.
   - ⚠️ *Đánh đổi:* Lần chạy đầu tiên (cold start) sẽ alert tất cả template lỗi vì chưa có baseline. Giảm thiểu bằng cách chạy 1 lần warm-up trên log lịch sử trước khi bật cảnh báo.
+
+---
+
+## ADR-008 - Semantic Search nâng cao bằng Amazon Titan Embeddings + pgvector (Hạng mục Đua Top)
+- **Trạng thái:** Chấp nhận (Accepted)
+- **Ngày:** 2026-07-09
+- **Người ký:** Nhóm AI (AIO03) - Task Force 1
+- **Trụ:** Performance Efficiency / Cost Optimization
+- **Bối cảnh:** 
+  Hàm `SearchProducts` trong Product Catalog service hiện chỉ dùng keyword matching (`WHERE LOWER(p.name) LIKE $1`), không hiểu ngữ nghĩa truy vấn tự nhiên. Ví dụ: "tai nghe chống ồn dưới $50" trả về 0 kết quả vì không có từ khóa chính xác. RULES.md line 66 yêu cầu "semantic search nâng cao" cho hạng mục đua top. AI_FEATURE.md Intent #1 yêu cầu "query tự nhiên ra đúng sản phẩm, không phải keyword cứng".
+- **Quyết định:** 
+  Sử dụng **Amazon Titan Text Embeddings V2** (`amazon.titan-embed-text-v2:0`) để tạo vector embeddings 1024 chiều cho tất cả sản phẩm, lưu trữ trên **pgvector** (PostgreSQL extension). Khi tìm kiếm: embed query → tìm sản phẩm gần nhất bằng cosine similarity (`<=>`) với HNSW index.
+  - **Embedding model:** `amazon.titan-embed-text-v2:0` (1024 dimensions, Amazon first-party → credit-eligible). *Trước khi code, xác nhận model khả dụng ở `us-east-1`: `aws bedrock list-foundation-models --region us-east-1 --query "modelSummaries[?contains(modelId,'embed')].modelId"`.*
+  - **Vector store:** pgvector trên PostgreSQL hiện có (zero infra mới)
+  - **Index:** HNSW (m=16, ef_construction=64)
+  - **Fallback:** Nếu embedding chưa sẵn sàng hoặc Bedrock timeout, fallback về keyword search hiện tại
+  - **Feature flag:** `semanticSearchEnabled` qua flagd
+- **Phương án khác đã cân:**
+  - *Option B - Titan Embeddings + OpenSearch:* Tối ưu cho search scale lớn nhưng OpenSearch Serverless yêu cầu tối thiểu ~$350/tháng → vượt ngân sách. Loại bỏ.
+  - *Option C - AWS Bedrock Knowledge Bases:* Managed RAG nhưng tự tạo OpenSearch backend → cùng vấn đề chi phí. Loại bỏ.
+  - *Option D - Hybrid Search (BM25 + Semantic + RRF):* Tối ưu nhất về chất lượng nhưng phức tạp hơn. Giữ lại cho Phase 2 nếu còn thời gian.
+- **Cost Δ:** Chi phí gần như $0. Titan Text Embeddings V2 ~$0.00002/1K tokens. Embed toàn bộ catalog (~200 products) tốn ~$0.001. Per-search: ~$0.000004. 100% credit-eligible.
+- **Ảnh hưởng SLO:** Latency p95 dự kiến ~88ms (embed query 80ms + pgvector HNSW 8ms), nằm trong SLO < 1s.
+- **Hệ quả:**
+  - ✅ *Lợi ích:* Cho phép tìm kiếm bằng ngôn ngữ tự nhiên, giảm "no results" pages, tăng conversion rate. Zero chi phí infra mới.
+  - ⚠️ *Đánh đổi:* Phải cài pgvector extension trên PostgreSQL (cần phối hợp CDO), phải viết batch embedding script.
+- **Spec chi tiết:** [docs/ai/specs/semantic_search.md](specs/semantic_search.md)
+
+---
+
+## ADR-009 - AI-Powered Product Recommendations bằng Embedding Similarity (Hạng mục Đua Top)
+- **Trạng thái:** Chấp nhận (Accepted)
+- **Ngày:** 2026-07-09
+- **Người ký:** Nhóm AI (AIO03) - Task Force 1
+- **Trụ:** Performance Efficiency / Cost Optimization
+- **Bối cảnh:** 
+  Service `recommendation` hiện trả về sản phẩm **hoàn toàn ngẫu nhiên** (`random.sample`), không có bất kỳ tín hiệu AI nào. RULES.md line 66 yêu cầu "recommendation bằng tín hiệu AI" cho hạng mục đua top. AI_FEATURE.md Intent #5 yêu cầu "Gợi ý kèm / cross-sell". Hệ thống không có clickstream data thật nên collaborative filtering không khả thi.
+- **Quyết định:** 
+  Sử dụng **Item-to-Item Embedding Similarity** trên cùng vector store pgvector đã có từ ADR-008. Khi user xem product A, lấy embedding của A từ DB → tìm K products gần nhất bằng cosine similarity → trả về làm recommendations.
+  - **Phase 1:** Embedding similarity (zero-cost, sub-50ms latency)
+  - **Phase 2 (optional):** LLM Re-ranking bằng Nova Lite để chọn complementary items
+  - **Feature flag:** `aiRecommendationsEnabled` qua flagd
+  - **Fallback:** Nếu embedding chưa sẵn sàng, fallback về random hiện tại
+- **Phương án khác đã cân:**
+  - *Option B - LLM Re-ranking (Nova Lite):* Chất lượng cao hơn (hiểu "complementary") nhưng latency 1-3s và tốn token. Giữ cho Phase 2.
+  - *Option C - Amazon Personalize:* State-of-the-art nhưng cần tối thiểu 1000 interaction events (không có) và chi phí cao. Loại bỏ.
+  - *Option D - Collaborative Filtering:* Cần user profiles và purchase history thật. Demo app không có. Loại bỏ.
+  - *Option E - TF-IDF Content-based:* Kém hơn embeddings vì không hiểu ngữ nghĩa. Loại bỏ.
+- **Cost Δ:** $0 phát sinh. Reuse embeddings đã tính cho Semantic Search (ADR-008). Chỉ 1 SQL query trên pgvector.
+- **Ảnh hưởng SLO:** Latency p95 < 50ms (chỉ 1 DB query). Không ảnh hưởng SLO hiện tại.
+- **Hệ quả:**
+  - ✅ *Lợi ích:* Chuyển từ random → AI-driven recommendations. Zero cold-start. Zero extra cost. Tái sử dụng infra embedding.
+  - ⚠️ *Đánh đổi:* Chỉ gợi ý sản phẩm "tương tự", chưa gợi ý sản phẩm "bổ sung" (cần Phase 2 LLM Re-ranking).
+- **Spec chi tiết:** [docs/ai/specs/ai_recommendations.md](specs/ai_recommendations.md)
+
+---
+
+## ADR-010 - Model Gateway & A/B Testing cho LLM bằng OpenFeature/flagd (Hạng mục Đua Top)
+- **Trạng thái:** Chấp nhận (Accepted)
+- **Ngày:** 2026-07-09
+- **Người ký:** Nhóm AI (AIO03) - Task Force 1
+- **Trụ:** Performance Efficiency / Cost Optimization / Reliability
+- **Bối cảnh:** 
+  Hệ thống LLM hiện gọi cứng một model duy nhất qua biến ENV. Muốn so sánh chất lượng/latency/cost giữa các model (vd: Nova Lite vs Nova Pro cho reviews summary) phải thay ENV và redeploy pod → không thể A/B test an toàn. RULES.md line 66 yêu cầu "model gateway + A/B khi đổi model" cho hạng mục đua top.
+- **Quyết định:** 
+  Xây dựng **Model Router** trực tiếp trong Python code của LLM service, sử dụng **OpenFeature/flagd** (đã có sẵn trên EKS) để điều khiển traffic split:
+  - **Flag name:** `llmModelRouting` với `fractional` targeting để phân luồng traffic theo tỷ lệ phần trăm.
+  - **Metrics per-model:** Emit OTel metrics (`llm.gateway.requests`, `llm.gateway.latency_ms`, `llm.gateway.tokens`, `llm.gateway.estimated_cost_usd`) tagged bằng `model_id` và `task_type`.
+  - **Rollout strategy:** Shadow mode → Canary 5% → Gradual 25%→50%→100%.
+  - **Fallback:** Nếu flagd unavailable, default về Nova Lite cho reviews, Nova Pro cho copilot (giống ADR-004).
+- **Phương án khác đã cân:**
+  - *Option B - LiteLLM Proxy:* Feature-rich nhưng thêm 1 microservice phải deploy/monitor trên EKS. Overkill cho 2-3 models cùng provider. Loại bỏ.
+  - *Option C - AWS API Gateway + Lambda:* Unnecessary network hop cho internal service. Cold start Lambda thêm ~200ms. Loại bỏ.
+  - *Option D - Envoy Proxy Sidecar:* Cần custom filter C++/WASM. Effort quá lớn cho 3-week capstone. Loại bỏ.
+- **Cost Δ:** $0 phát sinh cố định. A/B testing giúp phát hiện model rẻ hơn mà chất lượng tương đương → tiềm năng tiết kiệm thêm chi phí LLM.
+- **Ảnh hưởng SLO:** Overhead routing < 5ms. Flag change → effect < 30 giây. Không ảnh hưởng SLO hiện tại.
+- **Hệ quả:**
+  - ✅ *Lợi ích:* Cho phép A/B test model an toàn, so sánh cost/latency/quality per-model trực quan trên Grafana, gradual rollout khi đổi model.
+  - ⚠️ *Đánh đổi:* Phải viết và maintain Model Router code, phải thiết lập Grafana dashboard cho metrics per-model.
+- **Spec chi tiết:** [docs/ai/specs/model_gateway_ab_testing.md](specs/model_gateway_ab_testing.md)

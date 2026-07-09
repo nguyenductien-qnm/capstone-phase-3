@@ -9,7 +9,7 @@ sequenceDiagram
     participant Reviews as Product Reviews Service
     participant Flagd as OpenFeature/Flagd
     participant Valkey as Valkey (valkey-cart:6379)
-    participant Bedrock as AWS Bedrock (Claude 3.0 Sonnet)
+    participant Bedrock as AWS Bedrock (Amazon Nova Lite)
 
     Client->>Reviews: GetProductReviews(product_id)
     
@@ -119,14 +119,25 @@ $$\text{TTL}_{\text{seconds}} = \max\left(14400, \frac{604800}{1 + 0.05 \cdot N 
 
 ## 6. Chiến Lược Hủy & Làm Mới Cache (Cache Invalidation & Refresh Strategy)
 
-Hệ thống xử lý bài toán cập nhật review mới và xử lý tóm tắt chất lượng kém qua cơ chế **Active Invalidation** (Hủy cache chủ động):
+Hệ thống xử lý bài toán cập nhật review mới và xử lý tóm tắt chất lượng kém qua cơ chế **Active Invalidation** (Hủy cache chủ động).
 
-### 6.1 Xử lý khi có Review mới (Write-Around Invalidation)
+> ### ⚠️ Điều kiện tiên quyết: cả §6.1 và §6.2 đều cần rpc CHƯA TỒN TẠI
+>
+> `pb/demo.proto` hiện định nghĩa `ProductReviewService` chỉ với 3 rpc:
+> `GetProductReviews`, `GetAverageProductReviewScore`, `AskProductAIAssistant`.
+>
+> **Không có đường ghi review, cũng không có đường nhận feedback.** Review được seed sẵn qua `src/postgresql/init.sql`. Muốn triển khai §6.1 và §6.2 phải bổ sung trước:
+> - `rpc AddReview(AddReviewRequest) returns (Empty)` — trigger cho Write-Around Invalidation.
+> - `rpc SubmitSummaryFeedback(SummaryFeedbackRequest) returns (Empty)` — trigger cho Feedback Loop.
+>
+> Việc này được theo dõi ở task **TF1-55**. **Cho tới khi rpc tồn tại, làm mới cache dựa hoàn toàn vào Dynamic TTL (§5)** — đó là trạng thái đang có hiệu lực, không phải hai mục dưới đây.
+
+### 6.1 Xử lý khi có Review mới (Write-Around Invalidation) — *chờ rpc `AddReview`*
 - Khi người dùng gửi một review mới thành công thông qua `ProductReviewService.AddReview`:
   - Ứng dụng lập tức thực thi lệnh xóa cache: `DEL reviews:summary:{product_id}`.
   - Lượt xem sản phẩm của khách hàng tiếp theo sẽ gặp **Cache Miss**, kích hoạt gọi Bedrock để sinh lại bản tóm tắt mới nhất (chứa cả review vừa viết).
 
-### 6.2 Xử lý khi Tóm tắt cũ kém chất lượng (User Feedback Loop)
+### 6.2 Xử lý khi Tóm tắt cũ kém chất lượng (User Feedback Loop) — *chờ rpc `SubmitSummaryFeedback`*
 - Trên giao diện Storefront, tích hợp nút đánh giá Thích (Thumbs Up) / Ghét (Thumbs Down) cạnh phần tóm tắt review.
 - Khi người dùng bấm **Thumbs Down (Ghét)**:
   - Tăng biến đếm lỗi trong Valkey: `HINCRBY reviews:summary:{product_id}:meta thumbs_down 1`.
