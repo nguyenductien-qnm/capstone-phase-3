@@ -23,7 +23,7 @@ Hệ thống hiện tại chạy trên K8s (EKS) với dịch vụ tóm tắt re
 | 9 | **TF1-50** | [Extend] Thiết kế Spec Auto-Remediation closed-loop & Safety | Reliability | Trung bình × Trung bình (3×3 = 9) | Thiết lập an toàn cho vòng tự khắc phục (Dry-run, Blast Radius) | $0 | Trung bình | Kịch bản tự động xử lý sự cố cấp công nghiệp (xây mới) trước khi code thực tế. |
 | 10 | **TF1-53** | [Extend] Xây dựng script/tool cảnh báo vận hành | Observability | Thấp × Cao (2×4 = 8) | Gửi alert cảnh báo sớm về lỗi pool DB, OOM, DNS | $0 | Trung bình | Tích hợp script phát hiện lỗi và alert cứu hộ (công cụ xây thêm bên ngoài repo gốc). |
 | 11 | **TF1-54** | Triển khai Option 1 giải quyết xung đột Eviction Policy Valkey | Reliability / Cost | Cao × Cao (4×4 = 16) | Đảm bảo an toàn giỏ hàng dưới ngân sách $300 | $0 | Trung bình | Chốt kiến trúc Option 1: volatile-lru + Bỏ Cart TTL + Cron GC dọn dẹp hàng đêm. |
-| 12 | **TF1-55** | Bổ sung rpc `AddReview` + `SubmitSummaryFeedback` vào `pb/demo.proto` | Functional / Cost | Trung bình × Trung bình (3×3 = 9) | Mở khoá Active Invalidation & Feedback Loop của ADR-001 | $0 | Trung bình | `ProductReviewService` hiện **không có đường ghi review lẫn đường nhận feedback** (chỉ 3 rpc đọc). Thiếu 2 rpc này thì cache chỉ làm mới được bằng TTL, và nút Thumbs Down của ADR-001 không có backend. |
+| 12 | ~~**TF1-55**~~ → **TF1-58** | ~~Bổ sung rpc `AddReview` + `SubmitSummaryFeedback`~~ → Versioned cache key + nối Bedrock | Functional / Cost | Trung bình × Trung bình (3×3 = 9) | Làm mới cache đúng nguyên nhân (đổi model/prompt) | $0 | Trung bình | **TF1-55 đã huỷ.** Review là dữ liệu tĩnh seed qua `src/postgresql/init.sql`; không có UI viết review, không có nút feedback. Write-Around Invalidation và Thumbs Down sẽ invalidate cho sự kiện không bao giờ xảy ra. Thay bằng `reviews:summary:{product_id}:{model_ver}:{prompt_ver}` — xem ADR-001 và `specs/valkey_caching.md` §6. |
 
 
 ---
@@ -31,6 +31,8 @@ Hệ thống hiện tại chạy trên K8s (EKS) với dịch vụ tóm tắt re
 ## 3. Cố ý bỏ (lúc này) & Ghi chú Extend
 1. **Tích hợp chính thức Copilot vào Next.js Frontend:** Chưa làm tuần này vì cần chốt file `.proto` và giao diện Envoy proxy với Platform Team trước để tránh xung đột code.
 2. **Triển khai tự động hóa xử lý sự cố (Auto-remediation engine) chạy trên EKS:** Hoãn sang Tuần 3 vì cần kiểm chứng độ chính xác của metrics Prometheus và Jaeger trong Tuần 2 trước khi kích hoạt vòng lặp tự động sửa lỗi thật.
+3. **Nối tool của Shopping Copilot vào gRPC thật (TF1-56):** Hoãn sang Tuần 2 để đợi CDO ổn định hạ tầng và gRPC endpoint trước khi tích hợp code Agent gọi API thật (hiện tại Copilot PoC đang chạy mock dữ liệu).
+
 
 ---
 

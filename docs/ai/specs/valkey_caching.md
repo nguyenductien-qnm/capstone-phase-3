@@ -11,7 +11,7 @@ sequenceDiagram
     participant Valkey as Valkey (valkey-cart:6379)
     participant Bedrock as AWS Bedrock (Amazon Nova Lite)
 
-    Client->>Reviews: GetProductReviews(product_id)
+    Client->>Reviews: AskProductAIAssistant(product_id, question)
     
     rect rgb(220, 240, 255)
         note over Reviews, Flagd: Bước 1: Kiểm tra Feature Flag bypass cache
@@ -26,7 +26,7 @@ sequenceDiagram
     else llmReviewsCacheEnabled == true
         rect rgb(230, 255, 230)
             note over Reviews, Valkey: Bước 2: Kiểm tra dữ liệu trong Cache
-            Reviews->>Valkey: GET reviews:summary:{product_id}
+            Reviews->>Valkey: GET reviews:summary:{product_id}:{model_ver}:{prompt_ver}
         end
         
         alt Cache Hit (Có dữ liệu trong Valkey)
@@ -38,7 +38,7 @@ sequenceDiagram
             
             rect rgb(255, 235, 204)
                 note over Reviews, Valkey: Ghi lại kết quả vào Cache
-                Reviews->>Valkey: SET reviews:summary:{product_id} (Dynamic TTL = 4h to 7d)
+                Reviews->>Valkey: SET reviews:summary:{product_id}:{model_ver}:{prompt_ver} (Dynamic TTL = 4h to 7d)
             end
         end
     end
@@ -50,29 +50,36 @@ sequenceDiagram
 
 | Thành phần | Vai trò & Trách nhiệm | Lựa chọn Công nghệ | Lý do lựa chọn & Tối ưu hóa |
 |---|---|---|---|
-| **Caching Store** | Lưu trữ tạm thời các bản tóm tắt review dưới định dạng JSON để tránh gọi LLM nhiều lần | **Valkey (Redis-compatible)** | - Tương thích giao thức Redis, tốc độ đọc/ghi in-memory cực nhanh (< 2ms).<br>- **Tối ưu hóa chi phí:** Tận dụng cụm `valkey-cart:6379` sẵn có chạy trong cluster EKS của nhóm CDO, không phát sinh chi phí duy trì cụm cache độc lập (tiết kiệm ít nhất ~$30/tuần chi phí hạ tầng AWS). |
+| **Caching Store** | Lưu trữ tạm thời các bản tóm tắt review dưới định dạng JSON để tránh gọi LLM nhiều lần | **Valkey (Redis-compatible)** | - Tương thích giao thức Redis, tốc độ đọc/ghi in-memory cực nhanh (< 2ms).<br>- **Tối ưu hóa chi phí:** Tận dụng cụm `valkey-cart:6379` sẵn có chạy trong cluster EKS của nhóm CDO, không phát sinh chi phí duy trì cụm cache độc lập. *(Lưu ý: con số "~$30/tuần" chỉ áp dụng cho phương án **ElastiCache managed** — xem ADR-001 Option A. Một pod Valkey thứ hai in-cluster gần như không tốn thêm chi phí; xem đính chính ở ADR-003 Option 2.)* |
 | **Reviews Service** | Tiếp nhận yêu cầu, kiểm tra feature flag, thực hiện kiểm tra cache, gọi LLM khi cache miss và cập nhật cache | **Python (gRPC Service)** | Service `product-reviews` hiện tại viết bằng Python, dễ dàng tích hợp thư viện `redis-py` hoặc `valkey` client. |
 | **Feature Flag Server** | Cung cấp cờ tắt/bật bypass cache động thời gian thực | **OpenFeature / Flagd** | Có sẵn trong kiến trúc hạ tầng, cho phép tắt cache ngay lập tức khi phát hiện lỗi dữ liệu mà không cần restart/redeploy service. |
 
 ## 3. Chính sách & Cấu trúc Cache (Cache Policy & Schema)
 
 ### 3.1 Cấu trúc Cache Key & Value
-- **Cache Key Format:** `reviews:summary:{product_id}`
-  - *Ví dụ:* `reviews:summary:L9ECAV7KIM`
+- **Cache Key Format:** `reviews:summary:{product_id}:{model_ver}:{prompt_ver}`
+  - *Ví dụ:* `reviews:summary:L9ECAV7KIM:nova-lite-v1:p3`
+  - `model_ver` — định danh model đang phục vụ (ví dụ `nova-lite-v1`, `nova-pro-v1`).
+  - `prompt_ver` — phiên bản system prompt, tăng thủ công mỗi lần sửa prompt.
+  - **Vì sao nhúng version vào key:** đổi model hoặc đổi prompt làm bản tóm tắt cũ trở nên lỗi thời. Nhúng vào key thì lần đọc tiếp theo **miss tự nhiên**, không cần lệnh `DEL` nào. Nếu chỉ dùng `reviews:summary:{product_id}`, việc đổi Nova Lite ↔ Nova Pro vẫn trả về bản tóm tắt sinh bởi model cũ.
 - **Cache Value Format (JSON):**
   Dữ liệu được serialize dưới dạng chuỗi JSON để đảm bảo khả năng mở rộng thông tin sau này.
   ```json
   {
     "summary": "Bản tóm tắt review sản phẩm bằng tiếng Việt được tạo bởi AI...",
-    "created_at": "2026-07-08T12:00:00Z"
+    "created_at": "2026-07-08T12:00:00Z",
+    "model_ver": "nova-lite-v1",
+    "prompt_ver": "p3"
   }
   ```
+  *(`model_ver`/`prompt_ver` lặp lại trong value để phục vụ audit và debug; key mới là thứ quyết định hit/miss.)*
 
 ### 3.2 Cấu hình vòng đời và bộ nhớ (TTL & Eviction)
 - **TTL (Time To Live):** **Động (Dynamic TTL)** tính toán tự động từ **4 giờ đến 7 ngày** dựa trên số lượng review ($N$) và độ biến động điểm số ($\sigma^2$) của sản phẩm. Xem chi tiết thuật toán tại Mục 5.
 - **Eviction Policy (Chính sách giải phóng bộ nhớ) & Giải pháp Bảo vệ Giỏ hàng (Option 1):**
   - Cấu hình eviction policy của cụm Valkey là `volatile-lru`.
-  - Để tránh việc giỏ hàng (có TTL mặc định 60m trong code) vẫn bị xóa nhầm khi RAM đầy, ta tiến hành **loại bỏ hoàn toàn TTL của giỏ hàng trong code C# (`ValkeyCartStore.cs`)**. Khi không có TTL, key giỏ hàng trở thành key vĩnh viễn (non-volatile) và được Valkey bảo vệ an toàn 100% khỏi cơ chế tự động eviction.
+  - Để tránh việc giỏ hàng (khi đó còn TTL mặc định 60m trong code) bị xóa nhầm khi RAM đầy, nhóm đã **loại bỏ hoàn toàn TTL của giỏ hàng trong code C# (`ValkeyCartStore.cs`)**. Khi không có TTL, key giỏ hàng trở thành key vĩnh viễn (non-volatile) và được Valkey bảo vệ an toàn 100% khỏi cơ chế tự động eviction.
+  - **Trạng thái:** ✅ đã triển khai (TF1-54) — `ValkeyCartStore.cs:174` và `:199` đã comment out `KeyExpireAsync`. Xem ADR-003 về yêu cầu CDO co-sign.
   - Thiết lập một **background CronJob** chạy lúc 2h sáng hàng ngày để chủ động quét dọn (`SCAN`) các giỏ hàng rác đã quá 30 ngày không có hoạt động, tránh làm rò rỉ và nghẽn bộ nhớ.
 
 
@@ -117,32 +124,23 @@ $$\text{TTL}_{\text{seconds}} = \max\left(14400, \frac{604800}{1 + 0.05 \cdot N 
 
 ---
 
-## 6. Chiến Lược Hủy & Làm Mới Cache (Cache Invalidation & Refresh Strategy)
+## 6. Chiến Lược Làm Mới Cache (Cache Refresh Strategy)
 
-Hệ thống xử lý bài toán cập nhật review mới và xử lý tóm tắt chất lượng kém qua cơ chế **Active Invalidation** (Hủy cache chủ động).
+Cache được làm mới bằng đúng **hai cơ chế thụ động**, không có lệnh `DEL` chủ động nào:
 
-> ### ⚠️ Điều kiện tiên quyết: cả §6.1 và §6.2 đều cần rpc CHƯA TỒN TẠI
->
-> `pb/demo.proto` hiện định nghĩa `ProductReviewService` chỉ với 3 rpc:
-> `GetProductReviews`, `GetAverageProductReviewScore`, `AskProductAIAssistant`.
->
-> **Không có đường ghi review, cũng không có đường nhận feedback.** Review được seed sẵn qua `src/postgresql/init.sql`. Muốn triển khai §6.1 và §6.2 phải bổ sung trước:
-> - `rpc AddReview(AddReviewRequest) returns (Empty)` — trigger cho Write-Around Invalidation.
-> - `rpc SubmitSummaryFeedback(SummaryFeedbackRequest) returns (Empty)` — trigger cho Feedback Loop.
->
-> Việc này được theo dõi ở task **TF1-55**. **Cho tới khi rpc tồn tại, làm mới cache dựa hoàn toàn vào Dynamic TTL (§5)** — đó là trạng thái đang có hiệu lực, không phải hai mục dưới đây.
+### 6.1 Dynamic TTL — làm mới theo thời gian
+Mọi key hết hạn sau 4 giờ đến 7 ngày, tính theo số lượng review ($N$) và độ biến động điểm ($\sigma^2$). Xem công thức tại §5. Sản phẩm nhiều review, điểm ổn định ⇒ TTL dài (nội dung ít đổi). Sản phẩm ít review, điểm dao động ⇒ TTL ngắn.
 
-### 6.1 Xử lý khi có Review mới (Write-Around Invalidation) — *chờ rpc `AddReview`*
-- Khi người dùng gửi một review mới thành công thông qua `ProductReviewService.AddReview`:
-  - Ứng dụng lập tức thực thi lệnh xóa cache: `DEL reviews:summary:{product_id}`.
-  - Lượt xem sản phẩm của khách hàng tiếp theo sẽ gặp **Cache Miss**, kích hoạt gọi Bedrock để sinh lại bản tóm tắt mới nhất (chứa cả review vừa viết).
+### 6.2 Versioned Cache Key — làm mới khi đổi model hoặc prompt
+Key chứa `{model_ver}:{prompt_ver}` (§3.1). Đổi model hoặc sửa system prompt ⇒ key mới ⇒ lần đọc kế tiếp **miss tự nhiên** và sinh lại bằng cấu hình mới. Bản tóm tắt cũ nằm lại cho tới khi TTL hết hạn rồi tự bị dọn, không cần thao tác vận hành.
 
-### 6.2 Xử lý khi Tóm tắt cũ kém chất lượng (User Feedback Loop) — *chờ rpc `SubmitSummaryFeedback`*
-- Trên giao diện Storefront, tích hợp nút đánh giá Thích (Thumbs Up) / Ghét (Thumbs Down) cạnh phần tóm tắt review.
-- Khi người dùng bấm **Thumbs Down (Ghét)**:
-  - Tăng biến đếm lỗi trong Valkey: `HINCRBY reviews:summary:{product_id}:meta thumbs_down 1`.
-  - Nếu số lượt ghét vượt quá ngưỡng quy định (ví dụ $\ge 3$ lượt):
-    1. Xóa bản tóm tắt hiện tại ngay lập tức.
-    2. Đặt cờ chỉ định mô hình chất lượng cao: `HSET reviews:summary:{product_id}:meta model_override "nova-pro"`.
-    3. Lần sinh tóm tắt tiếp theo sẽ bắt buộc định tuyến qua **Amazon Nova Pro** thay vì model rẻ Nova Lite để đảm bảo chất lượng tóm tắt tốt nhất cho sản phẩm bị đánh giá kém.
+### 6.3 Vì sao KHÔNG dùng Write-Around Invalidation và Thumbs Down
+
+Hai cơ chế này từng được đặc tả ở đây và **đã bị loại bỏ** sau khi đối chiếu với hệ thống thật:
+
+- **Không có đường ghi review.** `ProductReviewService` trong `pb/demo.proto` chỉ có 3 rpc đọc: `GetProductReviews`, `GetAverageProductReviewScore`, `AskProductAIAssistant`. Review là **dữ liệu tĩnh** seed sẵn qua `src/postgresql/init.sql`. Write-Around Invalidation sẽ là invalidation cho một sự kiện không bao giờ xảy ra.
+- **Không có nút feedback.** Storefront không có Thumbs Up/Down, và không có rpc nhận feedback.
+- **Nguyên nhân lỗi thời thật sự là đổi model/prompt**, không phải review mới — và §6.2 xử lý đúng nguyên nhân đó với chi phí bằng không.
+
+Nút Thumbs Down cùng cơ chế routing động sang Nova Pro chuyển xuống hạng mục **Mở rộng [Extend]**, ngoài phạm vi tuần 1. Nếu về sau có đường ghi review thật, cân nhắc thêm Write-Around Invalidation khi đó.
 

@@ -141,6 +141,8 @@ message AskProductAIAssistantResponse {
     string response = 1;
 }
 
+
+
 // ---------------Shipping Service----------
 
 service ShippingService {

@@ -20,6 +20,9 @@ class MockHealthStub : public Health::StubInterface {
   MOCK_METHOD3(Check, ::grpc::Status(::grpc::ClientContext* context, const ::grpc::health::v1::HealthCheckRequest& request, ::grpc::health::v1::HealthCheckResponse* response));
   MOCK_METHOD3(AsyncCheckRaw, ::grpc::ClientAsyncResponseReaderInterface< ::grpc::health::v1::HealthCheckResponse>*(::grpc::ClientContext* context, const ::grpc::health::v1::HealthCheckRequest& request, ::grpc::CompletionQueue* cq));
   MOCK_METHOD3(PrepareAsyncCheckRaw, ::grpc::ClientAsyncResponseReaderInterface< ::grpc::health::v1::HealthCheckResponse>*(::grpc::ClientContext* context, const ::grpc::health::v1::HealthCheckRequest& request, ::grpc::CompletionQueue* cq));
+  MOCK_METHOD2(WatchRaw, ::grpc::ClientReaderInterface< ::grpc::health::v1::HealthCheckResponse>*(::grpc::ClientContext* context, const ::grpc::health::v1::HealthCheckRequest& request));
+  MOCK_METHOD4(AsyncWatchRaw, ::grpc::ClientAsyncReaderInterface< ::grpc::health::v1::HealthCheckResponse>*(::grpc::ClientContext* context, const ::grpc::health::v1::HealthCheckRequest& request, ::grpc::CompletionQueue* cq, void* tag));
+  MOCK_METHOD3(PrepareAsyncWatchRaw, ::grpc::ClientAsyncReaderInterface< ::grpc::health::v1::HealthCheckResponse>*(::grpc::ClientContext* context, const ::grpc::health::v1::HealthCheckRequest& request, ::grpc::CompletionQueue* cq));
 };
 
 }  // namespace v1

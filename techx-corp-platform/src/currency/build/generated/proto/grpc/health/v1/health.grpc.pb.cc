@@ -25,6 +25,7 @@ namespace v1 {
 
 static const char* Health_method_names[] = {
   "/grpc.health.v1.Health/Check",
+  "/grpc.health.v1.Health/Watch",
 };
 
 std::unique_ptr< Health::Stub> Health::NewStub(const std::shared_ptr< ::grpc::ChannelInterface>& channel, const ::grpc::StubOptions& options) {
@@ -35,6 +36,7 @@ std::unique_ptr< Health::Stub> Health::NewStub(const std::shared_ptr< ::grpc::Ch
 
 Health::Stub::Stub(const std::shared_ptr< ::grpc::ChannelInterface>& channel, const ::grpc::StubOptions& options)
   : channel_(channel), rpcmethod_Check_(Health_method_names[0], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_Watch_(Health_method_names[1], options.suffix_for_stats(),::grpc::internal::RpcMethod::SERVER_STREAMING, channel)
   {}
 
 ::grpc::Status Health::Stub::Check(::grpc::ClientContext* context, const ::grpc::health::v1::HealthCheckRequest& request, ::grpc::health::v1::HealthCheckResponse* response) {
@@ -60,6 +62,22 @@ void Health::Stub::async::Check(::grpc::ClientContext* context, const ::grpc::he
   return result;
 }
 
+::grpc::ClientReader< ::grpc::health::v1::HealthCheckResponse>* Health::Stub::WatchRaw(::grpc::ClientContext* context, const ::grpc::health::v1::HealthCheckRequest& request) {
+  return ::grpc::internal::ClientReaderFactory< ::grpc::health::v1::HealthCheckResponse>::Create(channel_.get(), rpcmethod_Watch_, context, request);
+}
+
+void Health::Stub::async::Watch(::grpc::ClientContext* context, const ::grpc::health::v1::HealthCheckRequest* request, ::grpc::ClientReadReactor< ::grpc::health::v1::HealthCheckResponse>* reactor) {
+  ::grpc::internal::ClientCallbackReaderFactory< ::grpc::health::v1::HealthCheckResponse>::Create(stub_->channel_.get(), stub_->rpcmethod_Watch_, context, request, reactor);
+}
+
+::grpc::ClientAsyncReader< ::grpc::health::v1::HealthCheckResponse>* Health::Stub::AsyncWatchRaw(::grpc::ClientContext* context, const ::grpc::health::v1::HealthCheckRequest& request, ::grpc::CompletionQueue* cq, void* tag) {
+  return ::grpc::internal::ClientAsyncReaderFactory< ::grpc::health::v1::HealthCheckResponse>::Create(channel_.get(), cq, rpcmethod_Watch_, context, request, true, tag);
+}
+
+::grpc::ClientAsyncReader< ::grpc::health::v1::HealthCheckResponse>* Health::Stub::PrepareAsyncWatchRaw(::grpc::ClientContext* context, const ::grpc::health::v1::HealthCheckRequest& request, ::grpc::CompletionQueue* cq) {
+  return ::grpc::internal::ClientAsyncReaderFactory< ::grpc::health::v1::HealthCheckResponse>::Create(channel_.get(), cq, rpcmethod_Watch_, context, request, false, nullptr);
+}
+
 Health::Service::Service() {
   AddMethod(new ::grpc::internal::RpcServiceMethod(
       Health_method_names[0],
@@ -71,6 +89,16 @@ Health::Service::Service() {
              ::grpc::health::v1::HealthCheckResponse* resp) {
                return service->Check(ctx, req, resp);
              }, this)));
+  AddMethod(new ::grpc::internal::RpcServiceMethod(
+      Health_method_names[1],
+      ::grpc::internal::RpcMethod::SERVER_STREAMING,
+      new ::grpc::internal::ServerStreamingHandler< Health::Service, ::grpc::health::v1::HealthCheckRequest, ::grpc::health::v1::HealthCheckResponse>(
+          [](Health::Service* service,
+             ::grpc::ServerContext* ctx,
+             const ::grpc::health::v1::HealthCheckRequest* req,
+             ::grpc::ServerWriter<::grpc::health::v1::HealthCheckResponse>* writer) {
+               return service->Watch(ctx, req, writer);
+             }, this)));
 }
 
 Health::Service::~Service() {
@@ -80,6 +108,13 @@ Health::Service::~Service() {
   (void) context;
   (void) request;
   (void) response;
+  return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+}
+
+::grpc::Status Health::Service::Watch(::grpc::ServerContext* context, const ::grpc::health::v1::HealthCheckRequest* request, ::grpc::ServerWriter< ::grpc::health::v1::HealthCheckResponse>* writer) {
+  (void) context;
+  (void) request;
+  (void) writer;
   return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
 }
 
