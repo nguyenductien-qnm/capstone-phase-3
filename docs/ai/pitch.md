@@ -20,16 +20,16 @@
 * **Hiện trạng kiến trúc:**
   * Dịch vụ `product-reviews` đang gọi trực tiếp mock API `llm` trên cụm K8s (EKS).
 * **3 Rủi ro nghiêm trọng nhất (SPOF & Bottlenecks):**
-  1. *Độ trễ và Chi phí:* API Bedrock trực tiếp tốn ~1.5s - 2.5s và chi phí token khổng lồ cho mỗi lượt xem sản phẩm.
+  1. *Độ trễ và Chi phí:* Mỗi lần khách bấm *Ask AI*, một cuộc gọi Bedrock không cache tốn ~1.5s - 2.5s và trả tiền token lặp lại cho cùng một sản phẩm.
   2. *Độ tin cậy:* Gọi model chính (Amazon Nova Lite) dễ bị nghẽn (429 Rate Limit) hoặc sập (500) khiến tính năng tóm tắt sập hoàn toàn.
   3. *Excessive Agency:* Trợ lý ảo Shopping Copilot tự ý gọi API giỏ hàng (`add_to_cart`) mà không có sự đồng ý của khách nếu bị Prompt Injection.
 
 <!-- slide -->
 ## Slide 3: Giải Pháp Kỹ Thuật AIE (AI Engineering)
 * **ADR-001 (Valkey Caching):**
-  * Lưu trữ bản tóm tắt vào Valkey cache key `reviews:summary:{product_id}`.
+  * Lưu trữ bản tóm tắt vào Valkey cache key `reviews:summary:{product_id}:{model_ver}:{prompt_ver}`.
   * **TTL Động:** 4 giờ đến 7 ngày tính theo reviews. Làm mới bằng **versioned cache key** (`{model_ver}:{prompt_ver}`) — đổi model/prompt là miss tự nhiên.
-  * *ROI:* Giảm **90% chi phí token** và phản hồi cache cực nhanh (< 50ms).
+  * *ROI:* Chủ yếu là **độ trễ trợ lý AI: 2.5s → < 50ms**. Phần token giảm 90% là credit, không phải tiền mặt (xem Phần 2).
 * **ADR-004 (Hybrid Task-Specific Routing & Fallback):**
   * Tác vụ Reviews (Cao tải/Rẻ): Amazon Nova Lite -> Fallback: Nova Micro -> Mock. Timeout: 3.0s.
   * Tác vụ Chatbot (Phức tạp): Amazon Nova Pro -> Fallback: Amazon Nova Lite -> Mock. Timeout: 5.0s.
@@ -76,7 +76,12 @@
 
 # PHẦN 2: BẢN ƯỚC LƯỢNG CHI PHÍ & ROI (AWS BEDROCK COST MODEL)
 
-Để chứng minh tính khả thi về mặt tài chính trước CFO, dưới đây là bảng so sánh chi phí ước lượng dựa trên **100,000 lượt xem sản phẩm/ngày** (Tần suất trung bình của storefront):
+Để chứng minh tính khả thi về mặt tài chính trước CFO, dưới đây là bảng so sánh chi phí ước lượng dựa trên **100,000 lượt xem sản phẩm/ngày** (tần suất trung bình của storefront).
+
+> [!IMPORTANT]
+> **Mẫu số là số lời gọi LLM, không phải số lượt xem trang.** Tóm tắt review **không** chạy khi tải trang: `ProductReviews.tsx` chỉ gọi `AskProductAIAssistant` khi khách bấm nút *Ask AI* / quick prompt, còn lúc render trang chỉ có `GetProductReviews` đọc thẳng PostgreSQL. Theo mô hình tải của chính hệ thống (`src/load-generator/locustfile.py`: `browse_product` trọng số 10 so với `ask_product_ai_assistant` trọng số 1), tỉ lệ là **10 lượt xem : 1 lời gọi LLM**.
+>
+> ⇒ Tải LLM cơ sở = **10,000 request/ngày**. Mọi con số dưới đây tính trên mẫu số này.
 
 ### 1. Bảng giá đầu vào AWS Bedrock (Vùng `us-east-1` — xem ADR-004):
 
@@ -88,26 +93,26 @@
 **Model đã loại bỏ (AWS Marketplace — buộc trả tiền mặt thật, không cấn trừ credit):**
 * **Claude 3.5 Sonnet:** $3.00 / 1M Input | $15.00 / 1M Output → **$0.0075 / request**
 
-* *Giả định:* Mỗi request tóm tắt có Input = 1,500 tokens (dữ liệu reviews gộp), Output = 200 tokens (bản tóm tắt). Tải cơ sở 100,000 lượt xem sản phẩm/ngày.
+* *Giả định:* Mỗi request tóm tắt có Input = 1,500 tokens (dữ liệu reviews gộp), Output = 200 tokens (bản tóm tắt). Tải cơ sở 100,000 lượt xem sản phẩm/ngày → **10,000 lời gọi LLM/ngày** (tỉ lệ 1:10, xem ghi chú mẫu số ở trên).
 
 ### 2. So sánh chi phí chi tiết/ngày:
 
 | Kịch bản | Model | Cache hit | Chi phí/ngày | Chi phí/tuần | Loại chi phí | Kết luận |
 |---|---|---|---|---|---|---|
-| **(Đã loại) Claude, không Cache** | Claude 3.5 Sonnet | 0% | **$750.00** | **$5,250.00** | 💵 Tiền mặt thật | ❌ **Vượt trần 17.5 lần** |
-| **(Đã loại) Claude + Cache 90%** | Claude 3.5 Sonnet | 90% | **$75.00** | **$525.00** | 💵 Tiền mặt thật | ❌ **Vẫn vượt trần 1.75 lần** |
-| **Nova Lite, không Cache** | Nova Lite | 0% | $13.80 | $96.60 | 🎟️ Credit ($0 cash) | ⚠️ Trong trần, nhưng lãng phí token |
-| **Nova Lite + Valkey Cache** | Nova Lite | 90% | $1.38 | **$9.66** | 🎟️ Credit ($0 cash) | ✅ **Đạt** |
-| **Nova Lite + Cache + Fallback Micro** | Lite 9% / Micro 1% | 90% | $1.32 | **$9.25** | 🎟️ Credit ($0 cash) | ✅ **Đạt** |
-| **Nova Lite + Cache + Prompt Caching** | Nova Lite | 90% | $0.83 | **$5.80** | 🎟️ Credit ($0 cash) | ✅ **Tối ưu nhất** |
+| **(Đã loại) Claude, không Cache** | Claude 3.5 Sonnet | 0% | **$75.00** | **$525.00** | 💵 Tiền mặt thật | ❌ **Vượt trần 1.75 lần** |
+| **(Đã loại) Claude + Cache 90%** | Claude 3.5 Sonnet | 90% | **$7.50** | **$52.50** | 💵 Tiền mặt thật | ⚠️ Trong trần, nhưng **ăn thật vào $300** của CDO |
+| **Nova Lite, không Cache** | Nova Lite | 0% | $1.38 | $9.66 | 🎟️ Credit ($0 cash) | ⚠️ Không tốn tiền mặt, nhưng lãng phí token |
+| **Nova Lite + Valkey Cache** | Nova Lite | 90% | $0.14 | **$0.97** | 🎟️ Credit ($0 cash) | ✅ **Đạt** |
+| **Nova Lite + Cache + Fallback Micro** | Lite 9% / Micro 1% | 90% | $0.13 | **$0.93** | 🎟️ Credit ($0 cash) | ✅ **Đạt** |
+| **Nova Lite + Cache + Prompt Caching** | Nova Lite | 90% | $0.08 | **$0.58** | 🎟️ Credit ($0 cash) | ✅ **Tối ưu nhất** |
 
 > [!TIP]
 > **Kết luận cho CFO — hai quyết định độc lập, mỗi cái giải một bài toán khác nhau:**
 >
-> 1. **Chọn Nova thay Claude (ADR-004) → cắt chi phí *tiền mặt* về $0.** Claude nằm trên AWS Marketplace nên **không cấn trừ được credit**: dù đã cache 90%, nó vẫn ngốn $525/tuần tiền mặt thật, tức **vượt trần $300 tới 1.75 lần**. Đây là quyết định cứu ngân sách, không phải quyết định tối ưu hoá.
-> 2. **Valkey Caching (ADR-001) → cắt 90% credit burn và cắt latency.** Với Nova, chi phí token đã nằm sâu trong trần ngay cả khi không cache ($96.60/tuần). Vì vậy **ROI thật của cache không nằm ở tiền, mà ở p95 latency: 2.5s → < 50ms.** Đây là lập luận dành cho PM, không phải CFO.
+> 1. **Chọn Nova thay Claude (ADR-004) → cắt chi phí *tiền mặt* về $0.** Đây là trục chính, và nó **không phụ thuộc vào lưu lượng**. Claude nằm trên AWS Marketplace nên **không cấn trừ được credit**: mỗi đô-la Claude tiêu là một đô-la tiền mặt rút thẳng khỏi trần $300 vốn dành cho EKS node, NAT, LB của nhóm CDO. Không cache thì Claude tốn $525/tuần — vượt trần 1.75 lần; có cache 90% thì còn $52.50/tuần — *nằm trong trần*, nhưng vẫn là **tiền mặt thật** chiếm 17.5% ngân sách hạ tầng để đổi lấy đúng thứ mà Nova cho không. Nova là first-party, cấn trừ 100% bằng AWS Credits: **tiền mặt = $0 ở mọi mức tải.**
+> 2. **Valkey Caching (ADR-001) → cắt 90% credit burn và cắt latency.** Với Nova, chi phí token đã nhỏ không đáng kể ngay cả khi không cache ($9.66/tuần credit). Vì vậy **ROI thật của cache không nằm ở tiền, mà ở độ trễ của trợ lý AI: 2.5s → < 50ms.** Đây là lập luận dành cho PM, không phải CFO.
 >
-> Lưu ý phạm vi trần: $300/tuần trong `onboarding/BUDGET.md` là ngân sách **hạ tầng AWS** (EKS node, EBS, NAT, LB). Token Bedrock của Nova được cấn trừ hoàn toàn bằng credit nên **không tiêu vào trần này**; trần còn nguyên cho nhóm CDO dùng vào compute.
+> Lưu ý phạm vi trần: $300/tuần trong `onboarding/BUDGET.md` là ngân sách **hạ tầng AWS** (EKS node, EBS, NAT, LB). Chi phí Bedrock của Nova được cấn trừ hoàn toàn bằng credit nên **không tiêu vào trần này**; còn chi phí Claude qua Marketplace thì có — đó chính là lý do nó bị loại.
 
 ---
 
@@ -115,16 +120,24 @@
 
 ### 👤 1. PM: "Khách hàng được lợi gì? Tại sao lo hạ tầng mà không ưu tiên cải thiện UI trước?"
 * **Lập luận bảo vệ:**
-  > *"Thưa PM, trải nghiệm của khách hàng không chỉ là giao diện đẹp mà cốt lõi là tốc độ và độ chính xác. Nếu không tối ưu hạ tầng, mỗi lần khách click vào trang sản phẩm sẽ phải chờ 2.5 giây để gọi LLM sinh tóm tắt review. Theo nghiên cứu Amazon, cứ mỗi 100ms trễ sẽ làm giảm 1% doanh thu. Việc làm Valkey Cache giúp giảm thời gian phản hồi từ 2.5s xuống dưới 50ms (nhanh gấp 50 lần), trực tiếp bảo vệ trải nghiệm mua sắm và tỷ lệ chuyển đổi. Đồng thời, chúng tôi xây dựng Confirmation Gate cho Shopping Copilot để đảm bảo giỏ hàng của khách hàng không bị thay đổi ngoài ý muốn khi có lỗi hoặc prompt injection, bảo vệ uy tín thương hiệu."*
+  > *"Thưa PM, trải nghiệm của khách hàng không chỉ là giao diện đẹp mà cốt lõi là tốc độ và độ chính xác. Xin nói chính xác phạm vi: tóm tắt review **không** chặn việc render trang sản phẩm — trang vẫn tải bình thường từ PostgreSQL. Nó chạy khi khách chủ động bấm nút **Ask AI**. Nhưng đúng ở khoảnh khắc đó, khách đang chờ và đang nhìn màn hình: không cache thì họ chờ 2.5 giây, có cache thì dưới 50ms — nhanh gấp 50 lần. Đây là tính năng AI mà khách chủ động yêu cầu, nên một trợ lý trả lời tức thì hay ì ạch chính là thứ quyết định họ có dùng lại lần thứ hai không.*
+  >
+  > *Đồng thời, chúng tôi xây dựng Confirmation Gate cho Shopping Copilot để đảm bảo giỏ hàng của khách hàng không bị thay đổi ngoài ý muốn khi có lỗi hoặc prompt injection, bảo vệ uy tín thương hiệu."*
 
 ### 👤 2. CFO: "Tốn bao nhiêu tiền? Chứng minh ROI của việc này đáng tiền?"
 * **Lập luận bảo vệ:**
-  > *"Thưa CFO, trần chi phí hạ tầng của chúng ta là $300/tuần. Rủi ro lớn nhất không phải là lưu lượng, mà là **chọn sai model**: Claude 3.5 Sonnet nằm trên AWS Marketplace nên phải trả bằng **tiền mặt thật, không cấn trừ được credit khuyến mại**. Với 100k views/ngày, Claude tốn $5,250/tuần khi không cache — và kể cả khi đã cache 90% thì vẫn còn $525/tuần, tức vẫn vượt trần 1.75 lần. Vì vậy quyết định đầu tiên của chúng tôi (ADR-004) là chuyển toàn bộ sang Amazon Nova, vốn được cấn trừ 100% bằng AWS Credits: **chi phí tiền mặt về đúng $0**.*
+  > *"Thưa CFO, trần chi phí hạ tầng của chúng ta là $300/tuần. Rủi ro lớn nhất không phải là lưu lượng, mà là **chọn sai model**: Claude 3.5 Sonnet nằm trên AWS Marketplace nên phải trả bằng **tiền mặt thật, không cấn trừ được credit khuyến mại**. Tôi xin nói rõ mẫu số trước khi nói con số: tóm tắt review chỉ chạy khi khách bấm nút, không phải mỗi lượt xem trang — theo mô hình tải của chính hệ thống thì tỉ lệ là 1:10, tức 10,000 lời gọi/ngày trên 100k lượt xem. Với mẫu số đó, Claude tốn $525/tuần tiền mặt khi không cache, **vượt trần 1.75 lần**. Có cache 90% thì còn $52.50/tuần — nằm trong trần, nhưng vẫn là tiền mặt thật, và nó ăn 17.5% ngân sách lẽ ra dành cho EKS node và NAT của nhóm CDO.*
   >
-  > *Quyết định thứ hai — Valkey Caching (ADR-001) — tái sử dụng cụm `valkey-cart` sẵn có của CDO nên chi phí hạ tầng phát sinh cũng bằng $0. Tôi xin nói thẳng để không thổi phồng con số: sau khi đã chuyển sang Nova, token chỉ còn ~$96.60/tuần credit ngay cả khi không cache. Cache kéo nó xuống $9.66/tuần, **nhưng đó không phải lý do chính đáng để làm cache**. Lý do chính đáng là latency — 2.5s xuống dưới 50ms — và đó là câu chuyện của PM chứ không phải của CFO. Với ngài, cam kết của chúng tôi gọn thế này: **$0 tiền mặt cho toàn bộ tầng AI, và trần $300 giữ nguyên vẹn cho nhóm CDO dùng vào compute.**"*
+  > *Vì vậy quyết định đầu tiên của chúng tôi (ADR-004) là chuyển toàn bộ sang Amazon Nova, được cấn trừ 100% bằng AWS Credits: **chi phí tiền mặt về đúng $0, ở mọi mức tải.** Xin nhấn mạnh — lập luận này không phụ thuộc vào việc lưu lượng có tăng gấp mười hay không; nó là câu chuyện credit đối lại tiền mặt.*
+  >
+  > *Quyết định thứ hai — Valkey Caching (ADR-001) — tái sử dụng cụm `valkey-cart` sẵn có của CDO nên chi phí hạ tầng phát sinh cũng bằng $0. Tôi xin nói thẳng để không thổi phồng con số: sau khi đã chuyển sang Nova, token chỉ còn ~$9.66/tuần credit ngay cả khi không cache. Cache kéo nó xuống dưới $1/tuần, **nhưng đó không phải lý do chính đáng để làm cache**. Lý do chính đáng là latency — 2.5s xuống dưới 50ms — và đó là câu chuyện của PM chứ không phải của CFO. Với ngài, cam kết của chúng tôi gọn thế này: **$0 tiền mặt cho toàn bộ tầng AI, và trần $300 giữ nguyên vẹn cho nhóm CDO dùng vào compute.**"*
 
 ### 👤 3. SRE Lead: "Rủi ro kỹ thuật là gì? Nhỡ code của các bạn làm sập hệ thống hoặc gây lỗi dây chuyền thì sao?"
 * **Lập luận bảo vệ:**
-  > *"Thưa SRE Lead, chúng tôi đã đặt an toàn hệ thống lên hàng đầu với 2 chốt chặn kỹ thuật:*
-  > *1. **Hybrid Task-Specific Routing (ADR-004) + Resilience Stack (ADR-005):** Khi AWS Bedrock lỗi (429/500) hoặc quá timeout, hệ thống retry tối đa 2 lần với exponential backoff + full jitter, rồi tự động fallback: luồng Reviews đi Nova Lite (timeout 3.0s) → Nova Micro (2.0s) → Mock Summary; luồng Copilot đi Nova Pro (5.0s) → Nova Lite (3.0s). Bulkhead `asyncio.Semaphore(10)` chặn cạn kiệt thread pool của product-reviews, và Circuit Breaker mở ngay khi flagd bật `llmRateLimitError` nên ta không đốt token vào các cuộc gọi chắc chắn hỏng.*
-  > *2. **AIOps Closed-Loop Safety Boundary:** Kịch bản tự khắc phục lỗi của chúng tôi được thiết kế theo chuẩn SRE nghiêm ngặt: luôn chạy Dry-run trước để kiểm tra quyền; giới hạn Blast Radius (không restart quá 1 pod/giờ để tránh cascade loop); đo đạc metrics 120s sau sửa lỗi, nếu latency storefront không giảm về ngưỡng bình thường thì tự động kích hoạt Rollback cấu hình cũ; cuối cùng, nếu fail 3 lần liên tiếp, Circuit Breaker sẽ đóng băng tự động và báo động cho kỹ sư trực on-call."*
+  > *"Thưa SRE Lead, tôi xin phân định rõ **cái gì đã chạy** và **cái gì mới là thiết kế của tuần này** — vì tuần 1 là tuần lập kế hoạch:*
+  >
+  > ***Đã có trong code hôm nay:*** *`product-reviews` gọi Amazon Bedrock Nova Lite qua Converse API, có Valkey cache với versioned key và TTL động 4h–7d, và detector cảnh báo vận hành (`tools/aiops-detector`) đã chạy với 9 rule bám đúng ngưỡng SLO thật (error rate 0.5%, checkout 1%, p95 1.0s).*
+  >
+  > ***Đã đặc tả, chưa cắm vào code — sẽ làm ở Tuần 2:***
+  > *1. **Resilience Stack (ADR-005) + Hybrid Routing (ADR-004):** khi Bedrock lỗi (429/500) hoặc quá timeout, hệ thống sẽ retry tối đa 2 lần với exponential backoff + full jitter, rồi fallback: Reviews đi Nova Lite (timeout 3.0s) → Nova Micro (2.0s) → Mock Summary; Copilot đi Nova Pro (5.0s) → Nova Lite (3.0s). Bulkhead `asyncio.Semaphore(10)` sẽ chặn các cuộc gọi Bedrock chậm làm cạn thread pool của pod `product-reviews` — quan trọng vì **cùng pod đó cũng phục vụ `GetProductReviews` nằm trên đường render trang**, nên đây mới là đường mà lỗi LLM có thể lan sang SLO p95 < 1s của storefront. Circuit Breaker sẽ mở ngay khi flagd bật `llmRateLimitError`, để không đốt token vào các cuộc gọi chắc chắn hỏng. Tôi xin nói thẳng: hiện code chưa có bulkhead lẫn circuit breaker, và đường flagd hiện tại đang trả lỗi thẳng cho khách thay vì fallback — đó chính là khoảng cách mà ADR-005 sinh ra để đóng.*
+  > *2. **AIOps Closed-Loop Safety Boundary (TF1-50, `specs/anomaly_remediation.md`):** vòng tự khắc phục được thiết kế theo chuẩn SRE nghiêm ngặt: luôn Dry-run trước để kiểm tra quyền; giới hạn Blast Radius (tối đa 1 pod/namespace/giờ để tránh cascade loop); đo metrics 120s sau khi vá, nếu không về ngưỡng bình thường thì tự Rollback; fail 3 lần liên tiếp thì Circuit Breaker đóng băng và gọi on-call. Vòng này **cố ý chưa bật auto-remediation trong tuần 1** — chúng tôi chỉ detect và alert (`tools/aiops-detector` không hề gọi API ghi vào Kubernetes)."*
