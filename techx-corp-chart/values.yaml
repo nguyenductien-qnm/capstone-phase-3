@@ -1,4 +1,16 @@
 # yaml-language-server: $schema=./values.schema.json
+global:
+  finops:
+    labels:
+      techx.io/project: "techx-corp"
+      techx.io/taskforce: "tf1"
+      techx.io/group: "cdo09"
+      techx.io/environment: "phase3"
+      techx.io/owner: "finops-iac"
+      techx.io/cost-center: "techx-phase3"
+      techx.io/pillar: "cost-optimization"
+      techx.io/managed-by: "helm"
+
 default:
   # List of environment variables applied to all components
   env:
@@ -18,11 +30,11 @@ default:
   image:
     # SEED registry (image mẫu BTC cấp). Mỗi TF ĐỔI sang ECR của account mình:
     #   helm ... --set default.image.repository=<ACCOUNT>.dkr.ecr.<REGION>.amazonaws.com/techx-corp
-    repository: 804372444787.dkr.ecr.us-east-1.amazonaws.com/techx-corp
+    repository: nghiadaulau/techx-corp
     # Overrides the image tag whose default is the chart appVersion.
     # The service's name will be applied to the end of this value.
     tag: "1.0"
-    pullPolicy: Always
+    pullPolicy: IfNotPresent
     pullSecrets: []
   # Default # of replicas for all components
   replicas: 1
@@ -415,7 +427,6 @@ components:
       env: true
     service:
       port: 8080
-      type: LoadBalancer
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
       io.opentelemetry.discovery.metrics/enabled: 'true'
@@ -464,10 +475,6 @@ components:
         value: "4317"
       - name: OTEL_COLLECTOR_PORT_HTTP
         value: "4318"
-      - name: SHOPPING_COPILOT_HOST
-        value: shopping-copilot
-      - name: SHOPPING_COPILOT_PORT
-        value: "50051"
     resources:
       limits:
         memory: 65Mi
@@ -631,17 +638,9 @@ components:
         value: "true"
       - name: OTEL_EXPORTER_OTLP_ENDPOINT
         value: http://$(OTEL_COLLECTOR_NAME):4317
-      - name: VALKEY_HOST
-        value: valkey-cart
-      - name: VALKEY_PORT
-        value: "6379"
     resources:
-      requests:
-        cpu: 100m
-        memory: 128Mi
       limits:
-        cpu: 500m
-        memory: 512Mi
+        memory: 100Mi
 
   quote:
     enabled: true
@@ -696,51 +695,6 @@ components:
     resources:
       limits:
         memory: 500Mi            # This is high to enable supporting the recommendationCache feature flag use case
-
-  shopping-copilot:
-    enabled: true
-    useDefault:
-      env: true
-    service:
-      port: 50051
-    podAnnotations:
-      resource.opentelemetry.io/service.namespace: techx-corp
-    env:
-      - name: SHOPPING_COPILOT_PORT
-        value: "50051"
-      - name: LLM_HOST
-        value: llm
-      - name: LLM_PORT
-        value: "8000"
-      - name: LLM_BASE_URL
-        value: http://$(LLM_HOST):$(LLM_PORT)/v1
-      - name: LLM_MODEL
-        value: techx-llm
-      - name: OPENAI_API_KEY
-        value: dummy
-      - name: PRODUCT_CATALOG_ADDR
-        value: product-catalog:8080
-      - name: CART_ADDR
-        value: cart:8080
-      - name: PRODUCT_REVIEWS_ADDR
-        value: product-reviews:3551
-      - name: FLAGD_HOST
-        value: flagd
-      - name: FLAGD_PORT
-        value: "8013"
-      - name: PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION
-        value: python
-      - name: OTEL_PYTHON_LOG_CORRELATION
-        value: "true"
-      - name: OTEL_EXPORTER_OTLP_ENDPOINT
-        value: http://$(OTEL_COLLECTOR_NAME):4317
-    resources:
-      requests:
-        cpu: 200m
-        memory: 256Mi
-      limits:
-        cpu: 1000m
-        memory: 1024Mi
 
   shipping:
     enabled: true

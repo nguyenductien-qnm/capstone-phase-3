@@ -19,8 +19,22 @@ Common labels
 helm.sh/chart: {{ include "techx-corp.chart" . }}
 {{ include "techx-corp.selectorLabels" . }}
 {{ include "techx-corp.workloadLabels" . }}
+{{ include "techx-corp.finopsLabels" . }}
 app.kubernetes.io/part-of: techx-corp
 app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end }}
+
+{{/*
+FinOps labels for ownership, traceability, and cost allocation.
+*/}}
+{{- define "techx-corp.finopsLabels" -}}
+{{- $global := .Values.global | default dict }}
+{{- $finops := $global.finops | default dict }}
+{{- $labels := $finops.labels | default dict }}
+{{- range $key, $value := $labels }}
+{{ $key }}: {{ $value | quote }}
+{{- end }}
+techx.io/service: {{ default "platform" .name | quote }}
 {{- end }}
 
 

@@ -20,6 +20,7 @@ spec:
       labels:
         {{- include "techx-corp.selectorLabels" . | nindent 8 }}
         {{- include "techx-corp.workloadLabels" . | nindent 8 }}
+        {{- include "techx-corp.finopsLabels" . | nindent 8 }}
         {{- if .podLabels }}
         {{- toYaml .podLabels | nindent 8 }}
         {{- end }}
