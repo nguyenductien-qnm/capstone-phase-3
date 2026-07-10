@@ -174,16 +174,15 @@ def extract_tool_calls_from_mock(user_input: str) -> list[dict]:
             copilot.TOOL_HANDLERS[tool_name] = make_recording_handler(tool_name, handler)
 
         # Run mock agent
-        try:
-            copilot.run_mock_agent(user_input)
-        except Exception:
-            pass  # Mock agent may raise in test context
+        # Run the mock agent; allow exceptions to propagate so tests fail loudly
+        copilot.run_mock_agent(user_input)
 
         # Restore original handlers
         copilot.TOOL_HANDLERS = original_handlers
 
     except ImportError:
-        pass  # If copilot module not importable, return empty
+        # if the copilot module cannot be imported, propagate the error, instead of silencing
+        raise
 
     return tool_calls
 
