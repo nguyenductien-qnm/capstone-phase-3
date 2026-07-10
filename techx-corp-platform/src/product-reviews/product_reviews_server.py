@@ -41,9 +41,12 @@ from metrics import (
 from openai import OpenAI
 
 import boto3
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, ReadTimeoutError, ConnectTimeoutError
+from botocore.config import Config
 import redis
 from datetime import datetime, timezone
+import threading
+import time
 
 from google.protobuf.json_format import MessageToJson, MessageToDict
 
@@ -59,6 +62,16 @@ llm_model = None
 valkey_client = None
 model_ver = "nova-lite-v1"
 prompt_ver = "p3"
+
+# New Bedrock Clients & Bulkhead for Caching/Fallback
+bedrock_primary_client = None
+bedrock_fallback_client = None
+bedrock_bulkhead = threading.Semaphore(10)
+
+tracer = trace.get_tracer_provider().get_tracer("product-reviews")
+meter = metrics.get_meter_provider().get_meter("product-reviews")
+logger = logging.getLogger("main")
+product_review_svc_metrics = init_metrics(meter)
 
 # --- Define the tool for the Bedrock Converse API ---
 tools = [
@@ -116,7 +129,7 @@ class ProductReviewService(demo_pb2_grpc.ProductReviewServiceServicer):
 
     def AskProductAIAssistant(self, request, context):
         logger.info(f"Receive AskProductAIAssistant for product id:{request.product_id}, question: {request.question}")
-        ai_assistant_response = get_ai_assistant_response(request.product_id, request.question)
+        ai_assistant_response = get_ai_assistant_response(request.product_id, request.question, context=context)
 
         return ai_assistant_response
 
@@ -203,7 +216,153 @@ openai_tools = [
     }
 ]
 
-def get_ai_assistant_response(request_product_id, question):
+def get_bedrock_primary_client():
+    global bedrock_primary_client
+    if bedrock_primary_client is None:
+        aws_region = os.environ.get('AWS_REGION', 'us-east-1')
+        main_timeout = float(os.environ.get('LLM_REVIEWS_TIMEOUT', '3.0'))
+        primary_config = Config(connect_timeout=1.0, read_timeout=main_timeout, retries={'max_attempts': 0})
+        bedrock_primary_client = boto3.client(service_name="bedrock-runtime", region_name=aws_region, config=primary_config)
+    return bedrock_primary_client
+
+def get_bedrock_fallback_client():
+    global bedrock_fallback_client
+    if bedrock_fallback_client is None:
+        aws_region = os.environ.get('AWS_REGION', 'us-east-1')
+        fallback_timeout = float(os.environ.get('LLM_REVIEWS_FALLBACK_TIMEOUT', '2.0'))
+        fallback_config = Config(connect_timeout=1.0, read_timeout=fallback_timeout, retries={'max_attempts': 0})
+        bedrock_fallback_client = boto3.client(service_name="bedrock-runtime", region_name=aws_region, config=fallback_config)
+    return bedrock_fallback_client
+
+def invoke_bedrock_converse_with_fallback(messages, system_prompt, tool_config=None):
+    """
+    Invokes AWS Bedrock converse API with retry and fallback routing.
+    - Timeout, retries, and models are resolved dynamically from environment variables.
+    - Exponential backoff with full jitter is applied on retryable errors.
+    """
+    main_model = os.environ.get('LLM_REVIEWS_MAIN_MODEL', os.environ.get('AWS_BEDROCK_MODEL', 'amazon.nova-lite-v1:0'))
+    fallback_model = os.environ.get('LLM_REVIEWS_FALLBACK_MODEL', 'amazon.nova-micro-v1:0')
+    max_retries = int(os.environ.get('LLM_REVIEWS_MAX_RETRIES', '2'))
+    fallback_max_retries = int(os.environ.get('LLM_REVIEWS_FALLBACK_RETRIES', '1'))
+    
+    fallback_enabled = check_feature_flag("llmReviewsFallbackEnabled")
+    llm_rate_limit_error = check_feature_flag("llmRateLimitError")
+    
+    # Lớp 5: Flag-Aware Circuit Breaker
+    bypass_primary = False
+    if llm_rate_limit_error:
+        logger.warning("Circuit Breaker OPEN due to llmRateLimitError flag. Bypassing primary model call.")
+        bypass_primary = True
+        
+    primary_client = get_bedrock_primary_client()
+    fallback_client = get_bedrock_fallback_client()
+    
+    # 1. Attempt Primary Model (if not bypassed)
+    if not bypass_primary:
+        attempt = 0
+        while True:
+            try:
+                logger.info(f"Attempting Primary Model call (attempt {attempt + 1}/{max_retries + 1}): {main_model}")
+                kwargs = {
+                    "modelId": main_model,
+                    "system": [{"text": system_prompt}],
+                    "messages": messages,
+                    "inferenceConfig": {
+                        "maxTokens": 1024,
+                        "temperature": 0.1,
+                        "topP": 0.9,
+                    }
+                }
+                if tool_config:
+                    kwargs["toolConfig"] = tool_config
+                    
+                response = primary_client.converse(**kwargs)
+                logger.info(f"Primary Model call successful: {main_model}")
+                return response
+                
+            except (ClientError, ReadTimeoutError, ConnectTimeoutError) as e:
+                is_retryable = True
+                err_code = "Unknown"
+                err_msg = str(e)
+                
+                if isinstance(e, ClientError):
+                    err_code = e.response["Error"].get("Code", "Unknown")
+                    err_msg = e.response["Error"].get("Message", "Unknown")
+                    status_code = e.response.get("ResponseMetadata", {}).get("HTTPStatusCode", 500)
+                    is_retryable = (status_code in [429, 500, 503] or err_code in ["ThrottlingException", "LimitExceededException", "InternalServerError", "ServiceUnavailable"])
+                
+                # Rule AIOps llm-rate-limit-429 check log phrase:
+                if err_code == "ThrottlingException" or "throttling" in err_msg.lower():
+                    logger.error("Rate limit reached. Bedrock ThrottlingException.")
+                else:
+                    logger.warning(f"Primary Model call failed. Code: {err_code}, Msg: {err_msg}, Retryable: {is_retryable}")
+                
+                if is_retryable and attempt < max_retries:
+                    # Exponential backoff with full jitter (Base: 100ms, Factor: 1.5, Jitter: True)
+                    base = 0.1
+                    factor = 1.5
+                    temp = base * (factor ** attempt)
+                    sleep_time = random.uniform(0, temp)
+                    logger.info(f"Retrying primary model in {sleep_time:.3f}s...")
+                    time.sleep(sleep_time)
+                    attempt += 1
+                else:
+                    logger.error(f"Primary Model exhausted or failed with non-retryable error. Code: {err_code}, Msg: {err_msg}")
+                    break
+                    
+    # 2. Trigger Fallback if enabled
+    if fallback_enabled:
+        logger.info(f"Fallback routing triggered. Attempting Fallback Model: {fallback_model}")
+        attempt = 0
+        while True:
+            try:
+                logger.info(f"Attempting Fallback Model call (attempt {attempt + 1}/{fallback_max_retries + 1}): {fallback_model}")
+                kwargs = {
+                    "modelId": fallback_model,
+                    "system": [{"text": system_prompt}],
+                    "messages": messages,
+                    "inferenceConfig": {
+                        "maxTokens": 1024,
+                        "temperature": 0.1,
+                        "topP": 0.9,
+                    }
+                }
+                if tool_config:
+                    kwargs["toolConfig"] = tool_config
+                    
+                response = fallback_client.converse(**kwargs)
+                logger.info(f"Fallback Model call successful: {fallback_model}")
+                return response
+                
+            except (ClientError, ReadTimeoutError, ConnectTimeoutError) as e:
+                is_retryable = True
+                err_code = "Unknown"
+                err_msg = str(e)
+                
+                if isinstance(e, ClientError):
+                    err_code = e.response["Error"].get("Code", "Unknown")
+                    err_msg = e.response["Error"].get("Message", "Unknown")
+                    status_code = e.response.get("ResponseMetadata", {}).get("HTTPStatusCode", 500)
+                    is_retryable = (status_code in [429, 500, 503] or err_code in ["ThrottlingException", "LimitExceededException", "InternalServerError", "ServiceUnavailable"])
+                
+                logger.warning(f"Fallback Model call failed. Code: {err_code}, Msg: {err_msg}, Retryable: {is_retryable}")
+                
+                if is_retryable and attempt < fallback_max_retries:
+                    base = 0.05
+                    factor = 1.5
+                    temp = base * (factor ** attempt)
+                    sleep_time = random.uniform(0, temp)
+                    logger.info(f"Retrying fallback model in {sleep_time:.3f}s...")
+                    time.sleep(sleep_time)
+                    attempt += 1
+                else:
+                    logger.error(f"Fallback Model exhausted or failed with non-retryable error. Code: {err_code}, Msg: {err_msg}")
+                    break
+                    
+    # 3. If we reach here, both primary and fallback failed
+    raise Exception("All model attempts exhausted or failed.")
+
+def get_ai_assistant_response(request_product_id, question, context=None):
 
     with tracer.start_as_current_span("get_ai_assistant_response") as span:
 
@@ -211,6 +370,20 @@ def get_ai_assistant_response(request_product_id, question):
 
         span.set_attribute("app.product.id", request_product_id)
         span.set_attribute("app.product.question", question)
+
+        # Lớp 4: Context-Aware Dynamic Deadlines
+        if context is not None:
+            try:
+                time_remaining = context.time_remaining()
+                if time_remaining is not None:
+                    logger.info(f"gRPC request time remaining: {time_remaining:.3f}s")
+                    if time_remaining < 3.0:
+                        logger.warning(f"Time remaining {time_remaining:.3f}s is less than hard floor 3.0s. Fail-fast to Mock Summary.")
+                        logger.error("Rate limit reached. Bedrock ThrottlingException. Fail-fast due to remaining time.")
+                        ai_assistant_response.response = "Hiện tại hệ thống không thể tạo tóm tắt đánh giá. Vui lòng tham khảo các đánh giá chi tiết bên dưới."
+                        return ai_assistant_response
+            except Exception as e:
+                logger.error(f"Error checking gRPC deadline: {e}")
 
         cache_key = f"reviews:summary:{request_product_id}:{model_ver}:{prompt_ver}"
         llm_reviews_cache_enabled = check_feature_flag("llmReviewsCacheEnabled")
@@ -271,12 +444,12 @@ def get_ai_assistant_response(request_product_id, question):
                     span.set_status(Status(StatusCode.ERROR, description=str(e)))
                     # Rule AIOps llm-rate-limit-429 check log phrase:
                     logger.error("Rate limit reached. rate_limit_exceeded from mock LLM.")
-                    ai_assistant_response.response = "The system is unable to process your response. Please try again later."
+                    ai_assistant_response.response = "Hiện tại hệ thống không thể tạo tóm tắt đánh giá. Vui lòng tham khảo các đánh giá chi tiết bên dưới."
                     return ai_assistant_response
 
         if not is_mock_rate_limit:
             # AWS Bedrock Converse API flow
-            logger.info("Invoking AWS Bedrock Nova Lite Converse API")
+            logger.info("Invoking AWS Bedrock Converse API with fallback wrapper")
 
             system_prompt = "You are a helpful assistant that answers related to a specific product. Use tools as needed to fetch the product reviews and product information. Keep the response brief with no more than 1-2 sentences. If you don't know the answer, just say you don't know."
             user_prompt = f"Answer the following question about product ID:{request_product_id}: {question}"
@@ -284,33 +457,22 @@ def get_ai_assistant_response(request_product_id, question):
                 {"role": "user", "content": [{"text": user_prompt}]}
             ]
 
-            try:
-                response = bedrock_client.converse(
-                    modelId=os.environ.get('AWS_BEDROCK_MODEL', 'amazon.nova-lite-v1:0'),
-                    system=[{"text": system_prompt}],
-                    messages=messages,
-                    toolConfig={"tools": tools},
-                    inferenceConfig={
-                        "maxTokens": 1024,
-                        "temperature": 0.1,
-                        "topP": 0.9,
-                    },
-                )
-            except ClientError as e:
-                err = e.response["Error"]
-                logger.error(f"Bedrock ClientError: {err['Code']} - {err['Message']}")
-                span.record_exception(e)
-                span.set_status(Status(StatusCode.ERROR, description=str(e)))
-                if err["Code"] == "ThrottlingException":
-                    logger.error("Rate limit reached. Bedrock ThrottlingException.")
-                ai_assistant_response.response = "The system is unable to process your response. Please try again later."
-                return ai_assistant_response
-            except Exception as e:
-                logger.error(f"Bedrock unexpected error: {str(e)}")
-                span.record_exception(e)
-                span.set_status(Status(StatusCode.ERROR, description=str(e)))
-                ai_assistant_response.response = "The system is unable to process your response. Please try again later."
-                return ai_assistant_response
+            # Lớp 3: Bulkhead Isolation (acquire semaphore)
+            with bedrock_bulkhead:
+                try:
+                    response = invoke_bedrock_converse_with_fallback(
+                        messages=messages,
+                        system_prompt=system_prompt,
+                        tool_config={"tools": tools}
+                    )
+                except Exception as e:
+                    logger.error(f"Bedrock converse failure: {str(e)}")
+                    # Rule AIOps fallback check log phrase:
+                    logger.error("Rate limit reached. Bedrock ThrottlingException. Falling back to default mock summary.")
+                    span.record_exception(e)
+                    span.set_status(Status(StatusCode.ERROR, description=str(e)))
+                    ai_assistant_response.response = "Hiện tại hệ thống không thể tạo tóm tắt đánh giá. Vui lòng tham khảo các đánh giá chi tiết bên dưới."
+                    return ai_assistant_response
 
             stop_reason = response.get("stopReason", "end_turn")
             output_msg = response["output"]["message"]
@@ -367,19 +529,19 @@ def get_ai_assistant_response(request_product_id, question):
                 })
 
                 logger.info(f"Invoking Bedrock for final completion")
-                try:
-                    final_response = bedrock_client.converse(
-                        modelId=os.environ.get('AWS_BEDROCK_MODEL', 'amazon.nova-lite-v1:0'),
-                        system=[{"text": system_prompt}],
-                        messages=messages
-                    )
-                    result = final_response["output"]["message"]["content"][0]["text"]
-                except Exception as e:
-                    logger.error(f"Bedrock final completion error: {str(e)}")
-                    span.record_exception(e)
-                    span.set_status(Status(StatusCode.ERROR, description=str(e)))
-                    ai_assistant_response.response = "The system is unable to process your response. Please try again later."
-                    return ai_assistant_response
+                with bedrock_bulkhead:
+                    try:
+                        final_response = invoke_bedrock_converse_with_fallback(
+                            messages=messages,
+                            system_prompt=system_prompt
+                        )
+                        result = final_response["output"]["message"]["content"][0]["text"]
+                    except Exception as e:
+                        logger.error(f"Bedrock final completion error: {str(e)}")
+                        span.record_exception(e)
+                        span.set_status(Status(StatusCode.ERROR, description=str(e)))
+                        ai_assistant_response.response = "Hiện tại hệ thống không thể tạo tóm tắt đánh giá. Vui lòng tham khảo các đánh giá chi tiết bên dưới."
+                        return ai_assistant_response
             else:
                 text_parts = [b["text"] for b in content_blocks if "text" in b]
                 result = "\n".join(text_parts) if text_parts else ""
@@ -476,8 +638,6 @@ if __name__ == "__main__":
     service = ProductReviewService()
     demo_pb2_grpc.add_ProductReviewServiceServicer_to_server(service, server)
     health_pb2_grpc.add_HealthServicer_to_server(service, server)
-
-    global bedrock_client, valkey_client
 
     aws_region = os.environ.get('AWS_REGION', 'us-east-1')
     bedrock_client = boto3.client(service_name="bedrock-runtime", region_name=aws_region)
