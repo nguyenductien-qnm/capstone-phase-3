@@ -1,0 +1,998 @@
+﻿{
+    "data":  [
+                 {
+                     "traceID":  "59de7b155aa6525d2e309107600a5708",
+                     "spans":  [
+                                   {
+                                       "traceID":  "59de7b155aa6525d2e309107600a5708",
+                                       "spanID":  "f5b48e3837c98b7b",
+                                       "operationName":  "grpc.oteldemo.ProductCatalogService/GetProduct",
+                                       "references":  [
+                                                          {
+                                                              "refType":  "CHILD_OF",
+                                                              "traceID":  "59de7b155aa6525d2e309107600a5708",
+                                                              "spanID":  "966bf35e7fe0c897"
+                                                          }
+                                                      ],
+                                       "startTime":  1783581313670000,
+                                       "duration":  4264,
+                                       "tags":  [
+                                                    {
+                                                        "key":  "net.peer.name",
+                                                        "type":  "string",
+                                                        "value":  "product-catalog"
+                                                    },
+                                                    {
+                                                        "key":  "net.peer.port",
+                                                        "type":  "int64",
+                                                        "value":  3550
+                                                    },
+                                                    {
+                                                        "key":  "otel.scope.name",
+                                                        "type":  "string",
+                                                        "value":  "@opentelemetry/instrumentation-grpc"
+                                                    },
+                                                    {
+                                                        "key":  "otel.scope.version",
+                                                        "type":  "string",
+                                                        "value":  "0.208.0"
+                                                    },
+                                                    {
+                                                        "key":  "rpc.grpc.status_code",
+                                                        "type":  "int64",
+                                                        "value":  0
+                                                    },
+                                                    {
+                                                        "key":  "rpc.method",
+                                                        "type":  "string",
+                                                        "value":  "GetProduct"
+                                                    },
+                                                    {
+                                                        "key":  "rpc.service",
+                                                        "type":  "string",
+                                                        "value":  "oteldemo.ProductCatalogService"
+                                                    },
+                                                    {
+                                                        "key":  "rpc.system",
+                                                        "type":  "string",
+                                                        "value":  "grpc"
+                                                    },
+                                                    {
+                                                        "key":  "span.kind",
+                                                        "type":  "string",
+                                                        "value":  "client"
+                                                    }
+                                                ],
+                                       "logs":  [
+
+                                                ],
+                                       "processID":  "p1",
+                                       "warnings":  null
+                                   },
+                                   {
+                                       "traceID":  "59de7b155aa6525d2e309107600a5708",
+                                       "spanID":  "9b7ad2f1a258d7f7",
+                                       "operationName":  "GET /api/products/{productId}",
+                                       "references":  [
+                                                          {
+                                                              "refType":  "CHILD_OF",
+                                                              "traceID":  "59de7b155aa6525d2e309107600a5708",
+                                                              "spanID":  "21041509c2e2ee21"
+                                                          }
+                                                      ],
+                                       "startTime":  1783581313669000,
+                                       "duration":  6450,
+                                       "tags":  [
+                                                    {
+                                                        "key":  "http.method",
+                                                        "type":  "string",
+                                                        "value":  "GET"
+                                                    },
+                                                    {
+                                                        "key":  "http.route",
+                                                        "type":  "string",
+                                                        "value":  "/api/products/[productId]/index"
+                                                    },
+                                                    {
+                                                        "key":  "http.status_code",
+                                                        "type":  "int64",
+                                                        "value":  200
+                                                    },
+                                                    {
+                                                        "key":  "http.target",
+                                                        "type":  "string",
+                                                        "value":  "/api/products/0PUK6V6EV0"
+                                                    },
+                                                    {
+                                                        "key":  "next.route",
+                                                        "type":  "string",
+                                                        "value":  "/api/products/[productId]/index"
+                                                    },
+                                                    {
+                                                        "key":  "next.rsc",
+                                                        "type":  "bool",
+                                                        "value":  false
+                                                    },
+                                                    {
+                                                        "key":  "next.span_name",
+                                                        "type":  "string",
+                                                        "value":  "GET /api/products/[productId]/index"
+                                                    },
+                                                    {
+                                                        "key":  "next.span_type",
+                                                        "type":  "string",
+                                                        "value":  "BaseServer.handleRequest"
+                                                    },
+                                                    {
+                                                        "key":  "otel.scope.name",
+                                                        "type":  "string",
+                                                        "value":  "next.js"
+                                                    },
+                                                    {
+                                                        "key":  "otel.scope.version",
+                                                        "type":  "string",
+                                                        "value":  "0.0.1"
+                                                    },
+                                                    {
+                                                        "key":  "span.kind",
+                                                        "type":  "string",
+                                                        "value":  "server"
+                                                    }
+                                                ],
+                                       "logs":  [
+
+                                                ],
+                                       "processID":  "p1",
+                                       "warnings":  [
+                                                        "clock skew adjustment disabled; not applying calculated delta of -592.508Âµs"
+                                                    ]
+                                   },
+                                   {
+                                       "traceID":  "59de7b155aa6525d2e309107600a5708",
+                                       "spanID":  "21041509c2e2ee21",
+                                       "operationName":  "GET",
+                                       "references":  [
+                                                          {
+                                                              "refType":  "CHILD_OF",
+                                                              "traceID":  "59de7b155aa6525d2e309107600a5708",
+                                                              "spanID":  "125019ce61ea59b1"
+                                                          }
+                                                      ],
+                                       "startTime":  1783581313668000,
+                                       "duration":  7265,
+                                       "tags":  [
+                                                    {
+                                                        "key":  "http.flavor",
+                                                        "type":  "string",
+                                                        "value":  "1.1"
+                                                    },
+                                                    {
+                                                        "key":  "http.host",
+                                                        "type":  "string",
+                                                        "value":  "frontend-proxy:8080"
+                                                    },
+                                                    {
+                                                        "key":  "http.method",
+                                                        "type":  "string",
+                                                        "value":  "GET"
+                                                    },
+                                                    {
+                                                        "key":  "http.scheme",
+                                                        "type":  "string",
+                                                        "value":  "http"
+                                                    },
+                                                    {
+                                                        "key":  "http.status_code",
+                                                        "type":  "int64",
+                                                        "value":  200
+                                                    },
+                                                    {
+                                                        "key":  "http.status_text",
+                                                        "type":  "string",
+                                                        "value":  "OK"
+                                                    },
+                                                    {
+                                                        "key":  "http.target",
+                                                        "type":  "string",
+                                                        "value":  "/api/products/0PUK6V6EV0"
+                                                    },
+                                                    {
+                                                        "key":  "http.url",
+                                                        "type":  "string",
+                                                        "value":  "http://frontend-proxy:8080/api/products/0PUK6V6EV0"
+                                                    },
+                                                    {
+                                                        "key":  "http.user_agent",
+                                                        "type":  "string",
+                                                        "value":  "python-requests/2.34.2"
+                                                    },
+                                                    {
+                                                        "key":  "net.host.ip",
+                                                        "type":  "string",
+                                                        "value":  "172.19.0.27"
+                                                    },
+                                                    {
+                                                        "key":  "net.host.name",
+                                                        "type":  "string",
+                                                        "value":  "frontend-proxy"
+                                                    },
+                                                    {
+                                                        "key":  "net.host.port",
+                                                        "type":  "int64",
+                                                        "value":  8080
+                                                    },
+                                                    {
+                                                        "key":  "net.peer.ip",
+                                                        "type":  "string",
+                                                        "value":  "172.19.0.29"
+                                                    },
+                                                    {
+                                                        "key":  "net.peer.port",
+                                                        "type":  "int64",
+                                                        "value":  41606
+                                                    },
+                                                    {
+                                                        "key":  "net.transport",
+                                                        "type":  "string",
+                                                        "value":  "ip_tcp"
+                                                    },
+                                                    {
+                                                        "key":  "otel.scope.name",
+                                                        "type":  "string",
+                                                        "value":  "@opentelemetry/instrumentation-http"
+                                                    },
+                                                    {
+                                                        "key":  "otel.scope.version",
+                                                        "type":  "string",
+                                                        "value":  "0.208.0"
+                                                    },
+                                                    {
+                                                        "key":  "span.kind",
+                                                        "type":  "string",
+                                                        "value":  "server"
+                                                    }
+                                                ],
+                                       "logs":  [
+
+                                                ],
+                                       "processID":  "p1",
+                                       "warnings":  null
+                                   },
+                                   {
+                                       "traceID":  "59de7b155aa6525d2e309107600a5708",
+                                       "spanID":  "843f3aba5ffa144a",
+                                       "operationName":  "GET",
+                                       "references":  [
+                                                          {
+                                                              "refType":  "CHILD_OF",
+                                                              "traceID":  "59de7b155aa6525d2e309107600a5708",
+                                                              "spanID":  "4940e0d2021e6113"
+                                                          }
+                                                      ],
+                                       "startTime":  1783581313666561,
+                                       "duration":  10133,
+                                       "tags":  [
+                                                    {
+                                                        "key":  "http.method",
+                                                        "type":  "string",
+                                                        "value":  "GET"
+                                                    },
+                                                    {
+                                                        "key":  "http.status_code",
+                                                        "type":  "int64",
+                                                        "value":  200
+                                                    },
+                                                    {
+                                                        "key":  "http.url",
+                                                        "type":  "string",
+                                                        "value":  "http://frontend-proxy:8080/api/products/0PUK6V6EV0"
+                                                    },
+                                                    {
+                                                        "key":  "otel.scope.name",
+                                                        "type":  "string",
+                                                        "value":  "opentelemetry.instrumentation.requests"
+                                                    },
+                                                    {
+                                                        "key":  "otel.scope.version",
+                                                        "type":  "string",
+                                                        "value":  "0.60b1"
+                                                    },
+                                                    {
+                                                        "key":  "span.kind",
+                                                        "type":  "string",
+                                                        "value":  "client"
+                                                    },
+                                                    {
+                                                        "key":  "user_agent.original",
+                                                        "type":  "string",
+                                                        "value":  "python-requests/2.34.2"
+                                                    }
+                                                ],
+                                       "logs":  [
+
+                                                ],
+                                       "processID":  "p2",
+                                       "warnings":  null
+                                   },
+                                   {
+                                       "traceID":  "59de7b155aa6525d2e309107600a5708",
+                                       "spanID":  "125019ce61ea59b1",
+                                       "operationName":  "router frontend egress",
+                                       "references":  [
+                                                          {
+                                                              "refType":  "CHILD_OF",
+                                                              "traceID":  "59de7b155aa6525d2e309107600a5708",
+                                                              "spanID":  "fa8f8705983307d8"
+                                                          }
+                                                      ],
+                                       "startTime":  1783581313667755,
+                                       "duration":  7827,
+                                       "tags":  [
+                                                    {
+                                                        "key":  "component",
+                                                        "type":  "string",
+                                                        "value":  "proxy"
+                                                    },
+                                                    {
+                                                        "key":  "http.protocol",
+                                                        "type":  "string",
+                                                        "value":  "HTTP/1.1"
+                                                    },
+                                                    {
+                                                        "key":  "http.status_code",
+                                                        "type":  "string",
+                                                        "value":  "200"
+                                                    },
+                                                    {
+                                                        "key":  "otel.scope.name",
+                                                        "type":  "string",
+                                                        "value":  "envoy"
+                                                    },
+                                                    {
+                                                        "key":  "otel.scope.version",
+                                                        "type":  "string",
+                                                        "value":  "3b1e52dadbbee013dc674d30906f6bc63c3dee38/1.34.14/Clean/RELEASE/BoringSSL"
+                                                    },
+                                                    {
+                                                        "key":  "peer.address",
+                                                        "type":  "string",
+                                                        "value":  "172.19.0.27:8080"
+                                                    },
+                                                    {
+                                                        "key":  "response_flags",
+                                                        "type":  "string",
+                                                        "value":  "-"
+                                                    },
+                                                    {
+                                                        "key":  "span.kind",
+                                                        "type":  "string",
+                                                        "value":  "client"
+                                                    },
+                                                    {
+                                                        "key":  "upstream_address",
+                                                        "type":  "string",
+                                                        "value":  "172.19.0.27:8080"
+                                                    },
+                                                    {
+                                                        "key":  "upstream_cluster",
+                                                        "type":  "string",
+                                                        "value":  "frontend"
+                                                    },
+                                                    {
+                                                        "key":  "upstream_cluster.name",
+                                                        "type":  "string",
+                                                        "value":  "frontend"
+                                                    }
+                                                ],
+                                       "logs":  [
+
+                                                ],
+                                       "processID":  "p3",
+                                       "warnings":  null
+                                   },
+                                   {
+                                       "traceID":  "59de7b155aa6525d2e309107600a5708",
+                                       "spanID":  "350a51bf1488582e",
+                                       "operationName":  "sql.conn.query",
+                                       "references":  [
+                                                          {
+                                                              "refType":  "CHILD_OF",
+                                                              "traceID":  "59de7b155aa6525d2e309107600a5708",
+                                                              "spanID":  "813d3a6013f0db5c"
+                                                          }
+                                                      ],
+                                       "startTime":  1783581313672862,
+                                       "duration":  895,
+                                       "tags":  [
+                                                    {
+                                                        "key":  "db.query.text",
+                                                        "type":  "string",
+                                                        "value":  "\n\t\tSELECT p.id, p.name, p.description, p.picture, \n\t\t       p.price_currency_code, p.price_units, p.price_nanos, p.categories\n\t\tFROM catalog.products p\n\t\tWHERE p.id = $1\n\t"
+                                                    },
+                                                    {
+                                                        "key":  "db.system.name",
+                                                        "type":  "string",
+                                                        "value":  "postgresql"
+                                                    },
+                                                    {
+                                                        "key":  "otel.scope.name",
+                                                        "type":  "string",
+                                                        "value":  "github.com/XSAM/otelsql"
+                                                    },
+                                                    {
+                                                        "key":  "otel.scope.version",
+                                                        "type":  "string",
+                                                        "value":  "0.41.0"
+                                                    },
+                                                    {
+                                                        "key":  "span.kind",
+                                                        "type":  "string",
+                                                        "value":  "client"
+                                                    }
+                                                ],
+                                       "logs":  [
+
+                                                ],
+                                       "processID":  "p4",
+                                       "warnings":  null
+                                   },
+                                   {
+                                       "traceID":  "59de7b155aa6525d2e309107600a5708",
+                                       "spanID":  "813d3a6013f0db5c",
+                                       "operationName":  "oteldemo.ProductCatalogService/GetProduct",
+                                       "references":  [
+                                                          {
+                                                              "refType":  "CHILD_OF",
+                                                              "traceID":  "59de7b155aa6525d2e309107600a5708",
+                                                              "spanID":  "f5b48e3837c98b7b"
+                                                          }
+                                                      ],
+                                       "startTime":  1783581313672322,
+                                       "duration":  1622,
+                                       "tags":  [
+                                                    {
+                                                        "key":  "app.product.id",
+                                                        "type":  "string",
+                                                        "value":  "0PUK6V6EV0"
+                                                    },
+                                                    {
+                                                        "key":  "app.product.name",
+                                                        "type":  "string",
+                                                        "value":  "Solar System Color Imager"
+                                                    },
+                                                    {
+                                                        "key":  "otel.scope.name",
+                                                        "type":  "string",
+                                                        "value":  "go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+                                                    },
+                                                    {
+                                                        "key":  "otel.scope.version",
+                                                        "type":  "string",
+                                                        "value":  "0.64.0"
+                                                    },
+                                                    {
+                                                        "key":  "rpc.grpc.status_code",
+                                                        "type":  "int64",
+                                                        "value":  0
+                                                    },
+                                                    {
+                                                        "key":  "rpc.method",
+                                                        "type":  "string",
+                                                        "value":  "GetProduct"
+                                                    },
+                                                    {
+                                                        "key":  "rpc.service",
+                                                        "type":  "string",
+                                                        "value":  "oteldemo.ProductCatalogService"
+                                                    },
+                                                    {
+                                                        "key":  "rpc.system",
+                                                        "type":  "string",
+                                                        "value":  "grpc"
+                                                    },
+                                                    {
+                                                        "key":  "server.address",
+                                                        "type":  "string",
+                                                        "value":  "172.19.0.27"
+                                                    },
+                                                    {
+                                                        "key":  "server.port",
+                                                        "type":  "int64",
+                                                        "value":  41360
+                                                    },
+                                                    {
+                                                        "key":  "span.kind",
+                                                        "type":  "string",
+                                                        "value":  "server"
+                                                    }
+                                                ],
+                                       "logs":  [
+                                                    {
+                                                        "timestamp":  1783581313673869,
+                                                        "fields":  [
+                                                                       {
+                                                                           "key":  "event",
+                                                                           "type":  "string",
+                                                                           "value":  "Product Found"
+                                                                       }
+                                                                   ]
+                                                    }
+                                                ],
+                                       "processID":  "p4",
+                                       "warnings":  null
+                                   },
+                                   {
+                                       "traceID":  "59de7b155aa6525d2e309107600a5708",
+                                       "spanID":  "966bf35e7fe0c897",
+                                       "operationName":  "executing api route (pages) /api/products/[productId]/index",
+                                       "references":  [
+                                                          {
+                                                              "refType":  "CHILD_OF",
+                                                              "traceID":  "59de7b155aa6525d2e309107600a5708",
+                                                              "spanID":  "9b7ad2f1a258d7f7"
+                                                          }
+                                                      ],
+                                       "startTime":  1783581313670000,
+                                       "duration":  5091,
+                                       "tags":  [
+                                                    {
+                                                        "key":  "http.status_code",
+                                                        "type":  "int64",
+                                                        "value":  200
+                                                    },
+                                                    {
+                                                        "key":  "next.span_name",
+                                                        "type":  "string",
+                                                        "value":  "executing api route (pages) /api/products/[productId]/index"
+                                                    },
+                                                    {
+                                                        "key":  "next.span_type",
+                                                        "type":  "string",
+                                                        "value":  "Node.runHandler"
+                                                    },
+                                                    {
+                                                        "key":  "otel.scope.name",
+                                                        "type":  "string",
+                                                        "value":  "next.js"
+                                                    },
+                                                    {
+                                                        "key":  "otel.scope.version",
+                                                        "type":  "string",
+                                                        "value":  "0.0.1"
+                                                    },
+                                                    {
+                                                        "key":  "span.kind",
+                                                        "type":  "string",
+                                                        "value":  "internal"
+                                                    }
+                                                ],
+                                       "logs":  [
+
+                                                ],
+                                       "processID":  "p1",
+                                       "warnings":  null
+                                   },
+                                   {
+                                       "traceID":  "59de7b155aa6525d2e309107600a5708",
+                                       "spanID":  "4940e0d2021e6113",
+                                       "operationName":  "user_browse_product",
+                                       "references":  [
+
+                                                      ],
+                                       "startTime":  1783581313665118,
+                                       "duration":  11714,
+                                       "tags":  [
+                                                    {
+                                                        "key":  "otel.scope.name",
+                                                        "type":  "string",
+                                                        "value":  "locustfile"
+                                                    },
+                                                    {
+                                                        "key":  "product.id",
+                                                        "type":  "string",
+                                                        "value":  "0PUK6V6EV0"
+                                                    },
+                                                    {
+                                                        "key":  "span.kind",
+                                                        "type":  "string",
+                                                        "value":  "internal"
+                                                    }
+                                                ],
+                                       "logs":  [
+
+                                                ],
+                                       "processID":  "p2",
+                                       "warnings":  null
+                                   },
+                                   {
+                                       "traceID":  "59de7b155aa6525d2e309107600a5708",
+                                       "spanID":  "fa8f8705983307d8",
+                                       "operationName":  "ingress",
+                                       "references":  [
+                                                          {
+                                                              "refType":  "CHILD_OF",
+                                                              "traceID":  "59de7b155aa6525d2e309107600a5708",
+                                                              "spanID":  "843f3aba5ffa144a"
+                                                          }
+                                                      ],
+                                       "startTime":  1783581313667486,
+                                       "duration":  8138,
+                                       "tags":  [
+                                                    {
+                                                        "key":  "component",
+                                                        "type":  "string",
+                                                        "value":  "proxy"
+                                                    },
+                                                    {
+                                                        "key":  "downstream_cluster",
+                                                        "type":  "string",
+                                                        "value":  "-"
+                                                    },
+                                                    {
+                                                        "key":  "guid:x-request-id",
+                                                        "type":  "string",
+                                                        "value":  "34878e46-f523-9474-872b-92e72aec7e37"
+                                                    },
+                                                    {
+                                                        "key":  "http.method",
+                                                        "type":  "string",
+                                                        "value":  "GET"
+                                                    },
+                                                    {
+                                                        "key":  "http.protocol",
+                                                        "type":  "string",
+                                                        "value":  "HTTP/1.1"
+                                                    },
+                                                    {
+                                                        "key":  "http.status_code",
+                                                        "type":  "string",
+                                                        "value":  "200"
+                                                    },
+                                                    {
+                                                        "key":  "http.url",
+                                                        "type":  "string",
+                                                        "value":  "http://frontend-proxy:8080/api/products/0PUK6V6EV0"
+                                                    },
+                                                    {
+                                                        "key":  "node_id",
+                                                        "type":  "string",
+                                                        "value":  ""
+                                                    },
+                                                    {
+                                                        "key":  "otel.scope.name",
+                                                        "type":  "string",
+                                                        "value":  "envoy"
+                                                    },
+                                                    {
+                                                        "key":  "otel.scope.version",
+                                                        "type":  "string",
+                                                        "value":  "3b1e52dadbbee013dc674d30906f6bc63c3dee38/1.34.14/Clean/RELEASE/BoringSSL"
+                                                    },
+                                                    {
+                                                        "key":  "peer.address",
+                                                        "type":  "string",
+                                                        "value":  "172.19.0.28"
+                                                    },
+                                                    {
+                                                        "key":  "request_size",
+                                                        "type":  "string",
+                                                        "value":  "0"
+                                                    },
+                                                    {
+                                                        "key":  "response_flags",
+                                                        "type":  "string",
+                                                        "value":  "-"
+                                                    },
+                                                    {
+                                                        "key":  "response_size",
+                                                        "type":  "string",
+                                                        "value":  "421"
+                                                    },
+                                                    {
+                                                        "key":  "span.kind",
+                                                        "type":  "string",
+                                                        "value":  "server"
+                                                    },
+                                                    {
+                                                        "key":  "upstream_cluster",
+                                                        "type":  "string",
+                                                        "value":  "frontend"
+                                                    },
+                                                    {
+                                                        "key":  "upstream_cluster.name",
+                                                        "type":  "string",
+                                                        "value":  "frontend"
+                                                    },
+                                                    {
+                                                        "key":  "user_agent",
+                                                        "type":  "string",
+                                                        "value":  "python-requests/2.34.2"
+                                                    },
+                                                    {
+                                                        "key":  "zone",
+                                                        "type":  "string",
+                                                        "value":  ""
+                                                    }
+                                                ],
+                                       "logs":  [
+
+                                                ],
+                                       "processID":  "p3",
+                                       "warnings":  null
+                                   }
+                               ],
+                     "processes":  {
+                                       "p1":  {
+                                                  "serviceName":  "frontend",
+                                                  "tags":  [
+                                                               {
+                                                                   "key":  "container.id",
+                                                                   "type":  "string",
+                                                                   "value":  "90fb8ee8c44745ebeec53f93227c7c36990d5642fe0f6f36ee6e2116b21ca6f7"
+                                                               },
+                                                               {
+                                                                   "key":  "host.arch",
+                                                                   "type":  "string",
+                                                                   "value":  "amd64"
+                                                               },
+                                                               {
+                                                                   "key":  "host.name",
+                                                                   "type":  "string",
+                                                                   "value":  "docker-desktop"
+                                                               },
+                                                               {
+                                                                   "key":  "os.type",
+                                                                   "type":  "string",
+                                                                   "value":  "linux"
+                                                               },
+                                                               {
+                                                                   "key":  "os.version",
+                                                                   "type":  "string",
+                                                                   "value":  "6.6.87.2-microsoft-standard-WSL2+"
+                                                               },
+                                                               {
+                                                                   "key":  "process.command",
+                                                                   "type":  "string",
+                                                                   "value":  "/app/server.js"
+                                                               },
+                                                               {
+                                                                   "key":  "process.command_args",
+                                                                   "type":  "string",
+                                                                   "value":  "[\"/nodejs/bin/node\",\"--require=./Instrumentation.js\",\"/app/server.js\"]"
+                                                               },
+                                                               {
+                                                                   "key":  "process.executable.name",
+                                                                   "type":  "string",
+                                                                   "value":  "/nodejs/bin/node"
+                                                               },
+                                                               {
+                                                                   "key":  "process.executable.path",
+                                                                   "type":  "string",
+                                                                   "value":  "/nodejs/bin/node"
+                                                               },
+                                                               {
+                                                                   "key":  "process.owner",
+                                                                   "type":  "string",
+                                                                   "value":  "nonroot"
+                                                               },
+                                                               {
+                                                                   "key":  "process.pid",
+                                                                   "type":  "int64",
+                                                                   "value":  1
+                                                               },
+                                                               {
+                                                                   "key":  "process.runtime.description",
+                                                                   "type":  "string",
+                                                                   "value":  "Node.js"
+                                                               },
+                                                               {
+                                                                   "key":  "process.runtime.name",
+                                                                   "type":  "string",
+                                                                   "value":  "nodejs"
+                                                               },
+                                                               {
+                                                                   "key":  "process.runtime.version",
+                                                                   "type":  "string",
+                                                                   "value":  "22.22.0"
+                                                               },
+                                                               {
+                                                                   "key":  "service.namespace",
+                                                                   "type":  "string",
+                                                                   "value":  "techx-corp"
+                                                               },
+                                                               {
+                                                                   "key":  "service.version",
+                                                                   "type":  "string",
+                                                                   "value":  "2.2.0"
+                                                               },
+                                                               {
+                                                                   "key":  "telemetry.sdk.language",
+                                                                   "type":  "string",
+                                                                   "value":  "nodejs"
+                                                               },
+                                                               {
+                                                                   "key":  "telemetry.sdk.name",
+                                                                   "type":  "string",
+                                                                   "value":  "opentelemetry"
+                                                               },
+                                                               {
+                                                                   "key":  "telemetry.sdk.version",
+                                                                   "type":  "string",
+                                                                   "value":  "2.2.0"
+                                                               }
+                                                           ]
+                                              },
+                                       "p2":  {
+                                                  "serviceName":  "load-generator",
+                                                  "tags":  [
+                                                               {
+                                                                   "key":  "host.name",
+                                                                   "type":  "string",
+                                                                   "value":  "docker-desktop"
+                                                               },
+                                                               {
+                                                                   "key":  "os.type",
+                                                                   "type":  "string",
+                                                                   "value":  "linux"
+                                                               },
+                                                               {
+                                                                   "key":  "service.namespace",
+                                                                   "type":  "string",
+                                                                   "value":  "techx-corp"
+                                                               },
+                                                               {
+                                                                   "key":  "service.version",
+                                                                   "type":  "string",
+                                                                   "value":  "2.2.0"
+                                                               },
+                                                               {
+                                                                   "key":  "telemetry.sdk.language",
+                                                                   "type":  "string",
+                                                                   "value":  "python"
+                                                               },
+                                                               {
+                                                                   "key":  "telemetry.sdk.name",
+                                                                   "type":  "string",
+                                                                   "value":  "opentelemetry"
+                                                               },
+                                                               {
+                                                                   "key":  "telemetry.sdk.version",
+                                                                   "type":  "string",
+                                                                   "value":  "1.39.1"
+                                                               }
+                                                           ]
+                                              },
+                                       "p3":  {
+                                                  "serviceName":  "frontend-proxy",
+                                                  "tags":  [
+                                                               {
+                                                                   "key":  "host.name",
+                                                                   "type":  "string",
+                                                                   "value":  "docker-desktop"
+                                                               },
+                                                               {
+                                                                   "key":  "os.type",
+                                                                   "type":  "string",
+                                                                   "value":  "linux"
+                                                               },
+                                                               {
+                                                                   "key":  "service.namespace",
+                                                                   "type":  "string",
+                                                                   "value":  "techx-corp"
+                                                               },
+                                                               {
+                                                                   "key":  "service.version",
+                                                                   "type":  "string",
+                                                                   "value":  "2.2.0"
+                                                               },
+                                                               {
+                                                                   "key":  "telemetry.sdk.language",
+                                                                   "type":  "string",
+                                                                   "value":  "cpp"
+                                                               },
+                                                               {
+                                                                   "key":  "telemetry.sdk.name",
+                                                                   "type":  "string",
+                                                                   "value":  "envoy"
+                                                               },
+                                                               {
+                                                                   "key":  "telemetry.sdk.version",
+                                                                   "type":  "string",
+                                                                   "value":  "3b1e52dadbbee013dc674d30906f6bc63c3dee38/1.34.14/Clean/RELEASE/BoringSSL"
+                                                               }
+                                                           ]
+                                              },
+                                       "p4":  {
+                                                  "serviceName":  "product-catalog",
+                                                  "tags":  [
+                                                               {
+                                                                   "key":  "host.name",
+                                                                   "type":  "string",
+                                                                   "value":  "docker-desktop"
+                                                               },
+                                                               {
+                                                                   "key":  "os.description",
+                                                                   "type":  "string",
+                                                                   "value":  "Debian GNU/Linux Debian GNU/Linux 12 (bookworm) (Linux 565dc6f09f15 6.6.87.2-microsoft-standard-WSL2+ #1 SMP PREEMPT_DYNAMIC Tue Jun 17 15:31:56 CST 2025 x86_64)"
+                                                               },
+                                                               {
+                                                                   "key":  "os.type",
+                                                                   "type":  "string",
+                                                                   "value":  "linux"
+                                                               },
+                                                               {
+                                                                   "key":  "process.command_args",
+                                                                   "type":  "string",
+                                                                   "value":  "[\"./product-catalog\"]"
+                                                               },
+                                                               {
+                                                                   "key":  "process.executable.name",
+                                                                   "type":  "string",
+                                                                   "value":  "product-catalog"
+                                                               },
+                                                               {
+                                                                   "key":  "process.executable.path",
+                                                                   "type":  "string",
+                                                                   "value":  "/usr/src/app/product-catalog"
+                                                               },
+                                                               {
+                                                                   "key":  "process.owner",
+                                                                   "type":  "string",
+                                                                   "value":  "nonroot"
+                                                               },
+                                                               {
+                                                                   "key":  "process.pid",
+                                                                   "type":  "int64",
+                                                                   "value":  1
+                                                               },
+                                                               {
+                                                                   "key":  "process.runtime.description",
+                                                                   "type":  "string",
+                                                                   "value":  "go version go1.24.13 linux/amd64"
+                                                               },
+                                                               {
+                                                                   "key":  "process.runtime.name",
+                                                                   "type":  "string",
+                                                                   "value":  "go"
+                                                               },
+                                                               {
+                                                                   "key":  "process.runtime.version",
+                                                                   "type":  "string",
+                                                                   "value":  "go1.24.13"
+                                                               },
+                                                               {
+                                                                   "key":  "service.namespace",
+                                                                   "type":  "string",
+                                                                   "value":  "techx-corp"
+                                                               },
+                                                               {
+                                                                   "key":  "service.version",
+                                                                   "type":  "string",
+                                                                   "value":  "2.2.0"
+                                                               },
+                                                               {
+                                                                   "key":  "telemetry.sdk.language",
+                                                                   "type":  "string",
+                                                                   "value":  "go"
+                                                               },
+                                                               {
+                                                                   "key":  "telemetry.sdk.name",
+                                                                   "type":  "string",
+                                                                   "value":  "opentelemetry"
+                                                               },
+                                                               {
+                                                                   "key":  "telemetry.sdk.version",
+                                                                   "type":  "string",
+                                                                   "value":  "1.39.0"
+                                                               }
+                                                           ]
+                                              }
+                                   },
+                     "warnings":  null
+                 }
+             ],
+    "total":  0,
+    "limit":  0,
+    "offset":  0,
+    "errors":  null
+}
