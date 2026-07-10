@@ -8,7 +8,7 @@
 - **Người ký:** Nhóm AI (AIO03) - Task Force 1
 - **Trụ:** Cost Optimization / Performance Efficiency
 - **Bối cảnh:** 
-  Hệ thống Storefront hiển thị review tóm tắt bằng AI cho khách hàng trên trang chi tiết sản phẩm. Nếu không sử dụng cache, mỗi lượt tải trang chi tiết sẽ gọi trực tiếp AWS Bedrock API, phát sinh chi phí token khổng lồ (bất lợi cho CFO) và làm tăng độ trễ p95 phản hồi lên > 2 giây (vi phạm SLO latency < 1s).
+  Trang chi tiết sản phẩm có một trợ lý AI tóm tắt/hỏi đáp review. **Phạm vi cần nói chính xác:** trợ lý này *không* chạy khi tải trang — `ProductReviews.tsx` chỉ gọi rpc `AskProductAIAssistant` khi khách bấm nút *Ask AI*/quick prompt, còn lúc render trang chỉ có `GetProductReviews` đọc thẳng PostgreSQL. Do đó cuộc gọi Bedrock **không nằm trên đường render và không tính vào SLO storefront p95 < 1s** (xem `specs/fallback_retry.md` và ADR-004). Vấn đề thật sự là: mỗi lần bấm nút, nếu không cache thì (a) trả tiền token lặp lại cho cùng một sản phẩm có review tĩnh, và (b) khách phải chờ ~2.5s trong khi đang nhìn màn hình chờ trợ lý trả lời.
 - **Quyết định:** 
   Tận dụng cụm cache Valkey sẵn có (`valkey-cart` chạy trên cổng `6379`) để lưu trữ các bản tóm tắt review dưới dạng JSON.
   - **Điểm gắn cache:** `AskProductAIAssistant` — đây là rpc duy nhất gọi LLM. `GetProductReviews` chỉ đọc thẳng PostgreSQL nên cache ở đó không tiết kiệm token nào.
@@ -19,10 +19,10 @@
     2. **Versioned Cache Key:** Nhúng `model_ver` và `prompt_ver` vào key. Đổi model (Nova Lite ↔ Nova Pro) hoặc đổi system prompt ⇒ key đổi ⇒ **cache miss tự động**, không cần lệnh xóa thủ công. Đây mới là nguyên nhân thật sự khiến một bản tóm tắt trở nên lỗi thời.
   - **Vì sao không dùng Write-Around Invalidation / Thumbs Down:** Review trong hệ này là **dữ liệu tĩnh** được seed sẵn qua `src/postgresql/init.sql`; `ProductReviewService` không có đường ghi (`AddReview`) và Storefront không có nút feedback. Hai cơ chế đó sẽ invalidate cho những sự kiện không bao giờ xảy ra. Nút Thumbs Down và routing động sang Nova Pro chuyển xuống hạng mục **Mở rộng [Extend]**, không thuộc phạm vi tuần 1.
 - **Phương án khác đã cân:**
-  - *Option A - Sử dụng Amazon ElastiCache (Redis managed):* Độ bền cao và bảo mật hơn, tuy nhiên tăng chi phí cố định tối thiểu ~$30/tuần -> Vi phạm trần ngân sách AWS $300/tuần. Quyết định: Bỏ qua và dùng Valkey in-cluster.
+  - *Option A - Sử dụng Amazon ElastiCache (Redis managed):* Độ bền cao và bảo mật hơn, nhưng tăng chi phí cố định tối thiểu ~$30/tuần **tiền mặt thật**. Con số này **không vi phạm** trần $300/tuần (nó chiếm 10%) — lý do loại là *đánh đổi không xứng*: cụm Valkey in-cluster của CDO đã sẵn có, đáp ứng đúng nhu cầu cache một bản tóm tắt JSON có thể tái sinh bất cứ lúc nào từ LLM. Trả 10% ngân sách hạ tầng để mua độ bền cho dữ liệu vốn dĩ **disposable** là chi sai chỗ; 10% đó có giá trị hơn nhiều khi để cho CDO dùng vào EKS node. Quyết định: Bỏ qua và dùng Valkey in-cluster.
   - *Option B - Sử dụng thuật toán Eviction LFU thay vì LRU:* Bị loại bỏ vì LFU dễ bị Cache Pollution bởi các sản phẩm cũ từng rất hot, không linh hoạt bằng LRU đối với trend mua sắm thay đổi liên tục.
-- **Cost Δ:** Tiết kiệm khoảng **85% - 90%** chi phí gọi Bedrock API (giảm từ ~$80/tuần xuống còn ~$8/tuần cho các sản phẩm hot). Cơ chế Dynamic TTL giúp tiết kiệm thêm **~40% chi phí token** cho các sản phẩm ít reviews.
-- **Ảnh hưởng SLO:** Giảm p95 latency của trang chi tiết sản phẩm từ **2.5s xuống < 100ms** khi cache hit, giữ vững cam kết SLO (< 1s).
+- **Cost Δ:** Tiết kiệm khoảng **85% - 90%** chi phí gọi Bedrock API — với mẫu số 10,000 lời gọi LLM/ngày (xem `pitch.md` Phần 2), là giảm từ **~$9.66/tuần xuống ~$0.97/tuần**. Đây là **credit AWS, không phải tiền mặt**, nên khoản tiết kiệm này *không* phải lý do chính đáng để làm cache — xem mục Ảnh hưởng SLO. Cơ chế Dynamic TTL giúp tiết kiệm thêm **~40% chi phí token** cho các sản phẩm ít reviews.
+- **Ảnh hưởng SLO:** Không đụng tới SLO storefront p95 < 1s (cuộc gọi LLM nằm ngoài đường render trang). Giá trị thật nằm ở **độ trễ phản hồi của trợ lý AI: 2.5s → < 50ms khi cache hit** — tức là trải nghiệm tại đúng khoảnh khắc khách đang chờ. Tóm tắt review là **best-effort, không SLA cứng** theo `onboarding/SLO.md`; ràng buộc SLO duy nhất áp lên nó là *không được hiển thị tóm tắt sai lệch*, và versioned cache key chính là cơ chế bảo vệ điều đó.
 - **Rollback:** Chuyển đổi flag `llmReviewsCacheEnabled` sang `false` để bypass cache và gọi trực tiếp Bedrock. Nếu Valkey bị sập, Reviews service tự động bỏ qua cache và log error.
 - **Hệ quả:**
   - ✅ *Lợi ích:* Tiết kiệm chi phí vượt trội, cải thiện độ chính xác và tính cập nhật thời gian thực của AI, xử lý được phản hồi chất lượng của khách.
@@ -106,8 +106,8 @@
   - *Option B - Sử dụng thuần Amazon Nova Lite (A2):* Tiết kiệm nhất nhưng bị loại do khả năng gọi tool tiếng Việt của Nova Lite chưa đủ tin cậy cho Copilot Agent so với Nova Pro.
 - **Cost Δ:** Tiết kiệm khoảng **100% chi phí tiền mặt thật** cho toàn bộ hệ thống LLM nhờ việc chuyển dịch hoàn toàn sang các mô hình First-party của Amazon (Nova Lite, Nova Micro, Nova Pro) được cấn trừ hoàn toàn qua AWS Credits.
 - **Ảnh hưởng SLO:**
-  - Giữ vững p95 latency storefront < 1.0s — nhờ thời gian xử lý của Nova Lite cực kỳ ngắn (~0.4s).
-  - Bảo vệ tỷ lệ Checkout thành công ≥ 99% nhờ độ chính xác cao của Amazon Nova Pro.
+  - **Không tác động trực tiếp lên p95 latency storefront < 1.0s**, vì cả hai luồng LLM đều nằm ngoài đường render trang (Reviews chạy khi bấm *Ask AI*; Copilot là panel hội thoại riêng). TTFT ~0.4s của Nova Lite cải thiện *độ trễ cảm nhận của trợ lý AI*, không phải p95 của storefront.
+  - Bảo vệ tỷ lệ Checkout thành công ≥ 99% nhờ độ chính xác gọi tool cao của Amazon Nova Pro — Copilot có thể ghi vào giỏ hàng, nên gọi sai tool là rủi ro trực tiếp lên luồng ra tiền.
 - **Hệ quả:**
   - ✅ *Lợi ích:* Cân bản hoàn hảo giữa chi phí, tốc độ và độ chính xác của AI.
   - ⚠️ *Đánh đổi:* Phải duy trì cấu hình và quản lý biến môi trường của 4 model Bedrock khác nhau trong code.
@@ -120,7 +120,7 @@
 - **Người ký:** Nhóm AI (AIO03) - Task Force 1
 - **Trụ:** Reliability / Performance Efficiency
 - **Bối cảnh:** 
-  Các cuộc gọi API AWS Bedrock (đặc biệt là Amazon Nova Pro và Amazon Nova Lite) có thể gặp lỗi ngắt quãng (429 Rate Limit, 500 Internal Error, timeout mạng). Nếu chỉ retry đơn thuần không có backoff hoặc không có dynamic deadline protection, hệ thống sẽ gặp hiện tượng cascading timeout kéo dài thời gian phản hồi trang chi tiết sản phẩm, vi phạm SLO p95 < 1.0s. Hơn nữa, sự cố do BTC bơm qua flagd (như `llmRateLimitError`) cần được xử lý tự động để hệ thống tự hồi phục.
+  Các cuộc gọi API AWS Bedrock (đặc biệt là Amazon Nova Pro và Amazon Nova Lite) có thể gặp lỗi ngắt quãng (429 Rate Limit, 500 Internal Error, timeout mạng). Bản thân cuộc gọi LLM nằm ngoài đường render trang nên **không trực tiếp** làm vỡ SLO p95 < 1.0s. Rủi ro thật là **gián tiếp**: pod `product-reviews` phục vụ đồng thời `AskProductAIAssistant` (gọi LLM, chậm) và `GetProductReviews` (đọc PostgreSQL, nằm trên đường render trang). Khi Bedrock chậm hoặc lỗi mà không có backoff, bulkhead và dynamic deadline, các cuộc gọi LLM treo sẽ cạn kiệt thread pool của pod và **kéo `GetProductReviews` sập theo — lúc đó SLO storefront p95 < 1.0s mới thật sự bị đe doạ.** Hơn nữa, sự cố do BTC bơm qua flagd (như `llmRateLimitError`) cần được xử lý tự động để hệ thống tự hồi phục.
 - **Quyết định:** 
   Triển khai 5-layer resilience stack:
   1. **SDK Client Adaptive Retry Mode:** Sử dụng cấu hình retry thích ứng mặc định của AWS SDK.
@@ -128,11 +128,12 @@
   3. **Bulkhead Isolation:** Giới hạn tối đa 10 luồng gọi Bedrock đồng thời bằng `asyncio.Semaphore` để tránh làm cạn kiệt tài nguyên xử lý của pod.
   4. **Context-Aware Dynamic Deadlines:** Điều chỉnh timeout động của cuộc gọi Bedrock dựa trên thời gian xử lý còn lại của request so với SLO p95 (ví dụ: nếu trang sản phẩm còn 800ms trước khi trễ hạn, timeout của LLM sẽ tự động rút ngắn tương ứng).
   5. **Flag-Aware Circuit Breaker:** Tự động chuyển đổi trạng thái Circuit Breaker sang OPEN ngay khi nhận diện cờ `llmRateLimitError` từ flagd ở vị trí ON, chuyển hướng request sang Mock Summary hoặc model dự phòng mà không cần đợi lỗi thật xảy ra.
+- **Trạng thái triển khai:** ⚠️ **Chưa có trong code — đây là quyết định thiết kế của Tuần 1, thực thi ở Tuần 2.** Tính đến `product_reviews_server.py` hiện tại: `bedrock_client` được khởi tạo trần (`:483`) không có `botocore.config.Config`, không có `Semaphore`, không có backoff/circuit breaker, và không có đường fallback sang Nova Micro. Đáng lưu ý, đường xử lý `llmRateLimitError` hiện tại (`:237-275`) làm **ngược** với layer 5: nó chủ động gọi mock để sinh lỗi 429 rồi trả thẳng thông báo lỗi cho khách, thay vì mở circuit breaker và fallback. Đóng khoảng cách này là hạng mục Tuần 2 (cần tạo task Jira; chưa có mã task tại thời điểm pitch).
 - **Phương án khác đã cân:**
   - *Option A - Chỉ sử dụng SDK retry mặc định (Default Mode):* Bị loại vì không có jitter gây ra hiện tượng thundering herd và không hỗ trợ dynamic deadlines.
   - *Option B - Không giới hạn luồng (No Bulkhead):* Khi Bedrock phản hồi chậm, số lượng request tăng lên làm cạn kiệt CPU/RAM của pod, gây ra sự cố cascading crash.
 - **Cost Δ:** $0 phát sinh cố định. Giảm thiểu chi phí token gọi thừa khi Bedrock đang quá tải.
-- **Ảnh hưởng SLO:** Bảo vệ SLO p95 < 1.0s, duy trì tỷ lệ Availability > 99.9% kể cả khi bị BTC ép tải hoặc kích hoạt lỗi qua flagd.
+- **Ảnh hưởng SLO:** Bảo vệ SLO storefront p95 < 1.0s **gián tiếp**, bằng cách ngăn các cuộc gọi LLM treo làm cạn thread pool của pod `product-reviews` và kéo theo `GetProductReviews` trên đường render trang. Giữ tính năng tóm tắt ở mức best-effort có suy giảm mềm (fallback → Mock Summary) thay vì trả lỗi cho khách, kể cả khi bị BTC ép tải hoặc kích hoạt lỗi qua flagd.
 - **Hệ quả:**
   - ✅ *Lợi ích:* Tăng cường đáng kể khả năng tự phục hồi, chống thundering herd, giảm tỷ lệ timeout của storefront xuống sát 0%.
   - ⚠️ *Đánh đổi:* Phải lập trình và bảo trì thư viện bọc (wrapper) cuộc gọi Bedrock phức tạp hơn.
