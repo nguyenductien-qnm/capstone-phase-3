@@ -6,7 +6,7 @@ Verify the local trace flow for the `techx-corp-platform` Docker Compose stack f
 This is based on a task delegation on Jira, which has a descriptionof the following (in Vietnamese).
 
 ```
-# [AIOps-W1-T3] Audit hạ tầng Telemetry & Phân tích trace context
+# [AIOps-W1-T3 [TF1 - 51]] Audit hạ tầng Telemetry & Phân tích trace context
 
 Mục tiêu & Phạm vi:
 
