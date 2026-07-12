@@ -94,7 +94,7 @@
 - **Quyết định:** 
   Triển khai mô hình định tuyến lai dựa trên đặc thù tác vụ (Task-Specific Routing) trong đơn vùng (Single-Region):
   - **Tác vụ Reviews Summary (Tải cực cao, độ phức tạp thấp):**
-    - Định tuyến chính (Primary): Amazon Nova Lite (`amazon.nova-lite-v1:0`). TTFT cực nhanh (~0.4s theo [Artificial Analysis](https://artificialanalysis.ai/leaderboards/models)), chi phí cực rẻ ([$0.06/$0.24 per 1M tokens](https://aws.amazon.com/bedrock/pricing/)).
+    - Định tuyến chính (Primary): Amazon Nova Lite (`amazon.nova-lite-v1:0`). TTFT ~1.04s, ~175.7 tok/s theo [Artificial Analysis](https://artificialanalysis.ai/models/nova-lite) *(sửa 12/07 — bản đầu ghi 0.4s sai nguồn)*, chi phí cực rẻ ([$0.06/$0.24 per 1M tokens](https://aws.amazon.com/bedrock/pricing/)).
     - Dự phòng (Fallback): Amazon Nova Micro (`amazon.nova-micro-v1:0`) và cuối cùng là Mock Summary.
     - Timeout: **3.0 giây (3000ms)** — sàn cứng. Đặt thấp hơn (vd 2.0s) sẽ cắt ngang đuôi phân phối latency của request sinh 200 token output, huỷ đúng lúc sắp thành công rồi retry lại từ đầu: trả tiền token nhiều lần cho 0 kết quả và dội tải ngược lên Bedrock đúng lúc nó đang chậm. Đổi lại **không được gì**, vì tóm tắt AI là **best-effort, không SLA cứng** (`SLO.md`) và chỉ chạy khi khách bấm nút, không chặn render trang → không tính vào SLO storefront p95 < 1s.
   - **Tác vụ Shopping Copilot (Tải thấp, độ phức tạp cao, cần độ chính xác gọi tool tuyệt đối):**
@@ -106,7 +106,7 @@
   - *Option B - Sử dụng thuần Amazon Nova Lite (A2):* Tiết kiệm nhất nhưng bị loại do khả năng gọi tool tiếng Việt của Nova Lite chưa đủ tin cậy cho Copilot Agent so với Nova Pro.
 - **Cost Δ:** Tiết kiệm khoảng **100% chi phí tiền mặt thật** cho toàn bộ hệ thống LLM nhờ việc chuyển dịch hoàn toàn sang các mô hình First-party của Amazon (Nova Lite, Nova Micro, Nova Pro) được cấn trừ hoàn toàn qua AWS Credits.
 - **Ảnh hưởng SLO:**
-  - **Không tác động trực tiếp lên p95 latency storefront < 1.0s**, vì cả hai luồng LLM đều nằm ngoài đường render trang (Reviews chạy khi bấm *Ask AI*; Copilot là panel hội thoại riêng). TTFT ~0.4s của Nova Lite cải thiện *độ trễ cảm nhận của trợ lý AI*, không phải p95 của storefront.
+  - **Không tác động trực tiếp lên p95 latency storefront < 1.0s**, vì cả hai luồng LLM đều nằm ngoài đường render trang (Reviews chạy khi bấm *Ask AI*; Copilot là panel hội thoại riêng). Độ trễ Nova Lite (~2.2s/call điển hình theo benchmark, chờ đo P95 thật) chỉ ảnh hưởng *độ trễ cảm nhận của trợ lý AI*, không phải p95 của storefront.
   - Bảo vệ tỷ lệ Checkout thành công ≥ 99% nhờ độ chính xác gọi tool cao của Amazon Nova Pro — Copilot có thể ghi vào giỏ hàng, nên gọi sai tool là rủi ro trực tiếp lên luồng ra tiền.
 - **Hệ quả:**
   - ✅ *Lợi ích:* Cân bản hoàn hảo giữa chi phí, tốc độ và độ chính xác của AI.
