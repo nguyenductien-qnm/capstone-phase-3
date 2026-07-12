@@ -333,7 +333,7 @@ tr:last-child td { border-bottom: none; }
           <li>Tác vụ Reviews: **Nova Lite** -> Fallback: **Nova Micro** | Timeout: **2.0s**.</li>
           <li>Tác vụ Copilot: **Amazon Nova Pro** -> Fallback: **Amazon Nova Lite** | Timeout: **5.0s**.</li>
           <li>Mã lỗi kích hoạt fallback: 429 (rate-limit), 500 (server error), timeout.</li>
-          <li>Đặc tính: Tiền mặt thật = $0 (Cấn trừ hoàn toàn qua Credit AWS).</li>
+          <li>Đặc tính: rẻ ~50× Claude Sonnet ($0.06/$0.24 vs $3/$15 per 1M token) — &lt;0.4% trần $300/tuần ở mọi mức tải. <em>(Sửa 12/07: bỏ claim cấn trừ credit — chưa verify với loại credit BTC; nhóm đã chốt không dùng Claude.)</em></li>
         </ul>
       </div>
     </div>
@@ -464,7 +464,7 @@ tr:last-child td { border-bottom: none; }
       <div class="card">
         <h3>Phân cụm Log bằng Drain3</h3>
         <ul class="bullet-list" style="margin-top: 10px;">
-          <li>Tích hợp Drain3 parser: Chiều sâu cây parse $D = 4$, similarity threshold $sim\_th = 0.45$.</li>
+          <li>Tích hợp Drain3 parser: depth $D = 4$; $sim\_th$: grid đo 12/07 trên 19.3k dòng log thật cho <strong>0.3</strong> trội (spec cũ 0.4/0.45 là default chưa kiểm) — chốt sau khi bật masking + đo lại trên EKS.</li>
           <li>Gom cụm hàng nghìn log thô thành Template IDs tĩnh.</li>
           <li>Tự động kích hoạt alert khi xuất hiện **New Template ID** chứa lỗi nguy hiểm (`ConnectionTimeout`, `OOM`).</li>
         </ul>

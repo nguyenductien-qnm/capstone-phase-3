@@ -2,7 +2,7 @@
 
 ---
 
-## ADR-001 - Sử dụng Valkey Caching cho dịch vụ Product Reviews
+## ADR-001 - Sử dụng Valkey Caching cho dịch vụ Product Reviews  ⟵ *amended 12/07, xem Phụ lục kiểm chứng*
 - **Trạng thái:** Chấp nhận (Accepted)
 - **Ngày:** 2026-07-08
 - **Người ký:** Nhóm AI (AIO03) - Task Force 1
@@ -30,7 +30,7 @@
 
 ---
 
-## ADR-002 - Cơ chế Model Fallback & Retry cho cuộc gọi AWS Bedrock
+## ADR-002 - Cơ chế Model Fallback & Retry cho cuộc gọi AWS Bedrock  ⟵ *amended 12/07, xem Phụ lục kiểm chứng*
 - **Trạng thái:** ~~Chấp nhận~~ → **Thay thế bởi ADR-004** (Superseded)
 - **Ngày:** 2026-07-08 (thay thế: 2026-07-09)
 - **Người ký:** Nhóm AI (AIO03) - Task Force 1
@@ -56,7 +56,7 @@
 
 ---
 
-## ADR-003 - Giải quyết Xung đột Eviction Policy trên cụm Valkey dùng chung
+## ADR-003 - Giải quyết Xung đột Eviction Policy trên cụm Valkey dùng chung  ⟵ *amended 12/07, xem Phụ lục kiểm chứng*
 - **Trạng thái:** Chấp nhận (Accepted - Quyết định chọn Option 1)
 - **Ngày:** 2026-07-08
 - **Người ký:** Nhóm AI (AIO03) - Task Force 1
@@ -81,7 +81,7 @@
 
 ---
 
-## ADR-004 - Định tuyến Model LLM lai theo Tác vụ (Hybrid Task-Specific Routing) cho Đơn Vùng (Single-Region)
+## ADR-004 - Định tuyến Model LLM lai theo Tác vụ (Hybrid Task-Specific Routing) cho Đơn Vùng (Single-Region)  ⟵ *amended 12/07, xem Phụ lục kiểm chứng*
 - **Trạng thái:** Chấp nhận (Accepted)
 - **Ngày:** 2026-07-09
 - **Người ký:** Nhóm AI (AIO03) - Task Force 1
@@ -114,7 +114,7 @@
 
 ---
 
-## ADR-005 - Chiến lược Resilience & Retry cho cuộc gọi LLM API
+## ADR-005 - Chiến lược Resilience & Retry cho cuộc gọi LLM API  ⟵ *amended 12/07, xem Phụ lục kiểm chứng*
 - **Trạng thái:** Chấp nhận (Accepted)
 - **Ngày:** 2026-07-09
 - **Người ký:** Nhóm AI (AIO03) - Task Force 1
@@ -169,7 +169,7 @@
 
 ---
 
-## ADR-007 - [Extend] Sử dụng Drain3 cho Log Clustering & Anomaly Detection
+## ADR-007 - [Extend] Sử dụng Drain3 cho Log Clustering & Anomaly Detection  ⟵ *amended 12/07, xem Phụ lục kiểm chứng*
 - **Trạng thái:** Chấp nhận (Accepted)
 - **Ngày:** 2026-07-09
 - **Người ký:** Nhóm AI (AIO03) - Task Force 1
@@ -197,7 +197,7 @@
 
 ---
 
-## ADR-008 - Semantic Search nâng cao bằng Amazon Titan Embeddings + pgvector (Hạng mục Đua Top)
+## ADR-008 - Semantic Search nâng cao bằng Amazon Titan Embeddings + pgvector (Hạng mục Đua Top)  ⟵ *amended 12/07, xem Phụ lục kiểm chứng*
 - **Trạng thái:** Chấp nhận (Accepted)
 - **Ngày:** 2026-07-09
 - **Người ký:** Nhóm AI (AIO03) - Task Force 1

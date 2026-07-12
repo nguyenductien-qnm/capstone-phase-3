@@ -80,7 +80,7 @@ Dưới đây là các thông số chi tiết cấu hình cho cơ chế định 
 
 > **Vì sao 3.0s chứ không phải 2.0s (sàn cứng, không hạ):**
 >
-> 1. **Timeout ngắn hơn thời gian phản hồi thực tế thì retry là vô ích.** Tóm tắt review có input ~1,500 token và output ~200 token. TTFT của Nova Lite ~0.4s, nhưng *sinh xong* 200 token output mới là lúc request hoàn tất. Đặt 2.0s cắt ngang phần đuôi phân phối latency: request bị huỷ **đúng lúc sắp thành công**, rồi retry lại từ đầu — trả tiền token 3 lần cho 0 kết quả, và đẩy tải ngược lên Bedrock đúng lúc nó đang chậm.
+> 1. **Timeout ngắn hơn thời gian phản hồi thực tế thì retry là vô ích.** Tóm tắt review có input ~1,500 token và output ~200 token. *(Sửa 12/07: TTFT Nova Lite theo Artificial Analysis là **~1.04s**, throughput ~175.7 tok/s — không phải ~0.4s như bản đầu; 1 call ≈ 2.2s điển hình → timeout 3.0s ≈ p50–p75 chứ chưa "phủ đuôi"; số cuối chờ đo P95 thật bằng `evals/measure_bedrock_latency.py`.)* Đặt 2.0s cắt ngang giữa phân phối latency: request bị huỷ **đúng lúc sắp thành công**, rồi retry lại từ đầu — trả tiền token nhiều lần cho 0 kết quả, và đẩy tải ngược lên Bedrock đúng lúc nó đang chậm.
 > 2. **Không đánh đổi gì để lấy 2.0s.** Tóm tắt AI là **best-effort, không SLA cứng** (`SLO.md`), và chỉ chạy khi khách **bấm nút** — nó không nằm trên đường render trang, nên không tính vào SLO p95 < 1s của storefront. Rút timeout xuống 2.0s không cứu được SLO nào cả, chỉ tạo thêm retry storm.
 > 3. **Trần 5.0s** cho Copilot: đủ cho Nova Pro chạy vòng tool-calling, vẫn dưới ngưỡng khách bỏ cuộc.
 

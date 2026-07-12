@@ -86,7 +86,7 @@ graph LR
 
 | Parameter | Giá trị | Lý do |
 |---|---|---|
-| `sim_th` | `0.4` | Ngưỡng tương đồng thấp để gom rộng (log GenAI có nhiều biến thể) |
+| `sim_th` | ~~0.4~~ → **0.3 (theo grid đo 12/07 — xem Phụ lục)** | Grid trên 19.3k dòng log thật: 0.3 trội cả 4 tiêu chí. Lưu ý code `log_clustering.py` đang hardcode 0.5 — phải đồng bộ về một giá trị sau khi bật masking + đo lại trên EKS |
 | `depth` | `4` | Đủ sâu để phân biệt các loại lỗi khác nhau |
 | `max_children` | `100` | Cho phép nhiều nhánh prefix tree (log đa dạng) |
 | `max_clusters` | `1000` | Giới hạn hợp lý cho 2 service |

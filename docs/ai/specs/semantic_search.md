@@ -1,5 +1,7 @@
 # Spec: Semantic Search nâng cao (Hạng mục Đua Top)
 
+> ⚠️ **[DEFERRED 12/07]** Catalog thật = 10 sản phẩm (đếm từ DB) → pgvector/HNSW là over-engineering; intent tìm-sản-phẩm giải bằng catalog-in-prompt. Spec này là thiết kế dự phòng, kích hoạt khi catalog >~500 items. Xem Phụ lục cuối file.
+
 > **Trạng thái:** Draft  
 > **Trụ:** Performance Efficiency / Cost Optimization  
 > **Ngày:** 2026-07-09  
