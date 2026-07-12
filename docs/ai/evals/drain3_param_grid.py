@@ -10,12 +10,25 @@ Khong co ground-truth label -> tieu chi chon (do duoc, khong cam tinh):
   5. error_sep     : cac phrase loi da biet co tach template rieng khong
 Usage: python3 drain3_grid.py <logfile>
 """
+import os
 import re
 import sys
 from collections import Counter
 
 from drain3 import TemplateMiner
 from drain3.template_miner_config import TemplateMinerConfig
+from drain3.masking import MaskingInstruction
+
+
+def _mask_rules():
+    pats = [
+        (r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b", "UUID"),
+        (r"\b(?:\d{1,3}\.){3}\d{1,3}\b", "IP"),
+        (r"\b\d{4}-\d{2}-\d{2}[T ][\d:.,+Zz-]+\b", "TS"),
+        (r"\b\d+\.\d+\b", "FLOAT"),
+        (r"\b\d+\b", "NUM"),
+    ]
+    return [MaskingInstruction(regex_pattern=p, mask_with=m) for p, m in pats]
 
 KNOWN_ERRORS = ["Rate limit reached", "OOMKilled", "too many clients",
                 "no such host", "Caught Exception"]
@@ -41,6 +54,10 @@ def run(lines, sim_th, depth):
     cfg = TemplateMinerConfig()
     cfg.drain_sim_th = sim_th
     cfg.drain_depth = depth
+    # Masking: id/timestamp/ip nhung trong dong day len singleton — mask truoc khi mine
+    # (baseline giao trinh AIOps cung mask <NUM>/<IP>/<UUID>). Bat bang MASK=1.
+    if os.getenv("MASK") == "1":
+        cfg.masking_instructions = _mask_rules()
     tm = TemplateMiner(config=cfg)
     for ln in lines:
         tm.add_log_message(ln)

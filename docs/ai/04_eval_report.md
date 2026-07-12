@@ -23,7 +23,7 @@
 | MTTD @ poll 30s (chaos flagd, 5 vòng) | mean 19.6s, **max 35.4s** | như trên |
 | Chi phí query detector | P50 5ms, P95 12ms (n=30) | như trên |
 | Bulkhead blocking vs non-blocking | 1909ms vs **10ms** (fast-request khi 12 LLM treo) | bulkhead_experiment.py |
-| Drain3 sim_th | **0.3 trội 0.4/0.5/0.6** cả 4 tiêu chí; depth vô cảm | drain3_param_grid.py |
+| Drain3 sim_th | **0.3 trội 0.4/0.5/0.6** cả 4 tiêu chí; depth vô cảm → code default 0.3 | drain3_param_grid.py (masking: `MASK=1`) |
 | Fallback ladder runtime | "Fallback routing triggered" ×5; "CB OPENED after 3 failures" | docker logs (compose) |
 | FP 15 phút tải thường | 2 FP config (latency rule match flagd — đã vá filter) + 2 TP sai nhãn (đã vá marker) | detector run |
 
