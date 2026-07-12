@@ -1,8 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-test_task_success.py - Eval task-success cho Shopping Copilot Agent
+test_task_success.py - HARNESS eval task-success cho Shopping Copilot Agent
 ====================================================================
+⚠️ NHÃN TRUNG THỰC (review 12/07): agent trong file này là MOCK (tool-calls
+   trích từ mapping heuristic `extract_tool_calls_from_mock`), vì Copilot thật
+   chưa có code. Số "accuracy" chạy ra hiện tại là SELF-TEST của harness —
+   xác nhận bộ chấm hoạt động — KHÔNG phải eval agent. Cấm trích số này vào
+   pitch/report như kết quả agent. Khi Copilot thật chạy: thay
+   `extract_tool_calls_from_mock` bằng adapter gọi gRPC :50051 thật, và dùng
+   thêm `golden_qa_dataset.json` (24 case grounded/no_info/injection).
+
 Mô tả   : Đo lường khả năng gọi ĐÚNG tool, ĐÚNG tham số, và dừng lại
            ở Confirmation Gate thay vì tự ghi — đúng tiêu chí §3 trong
            AI_FEATURE.md ("được đánh giá không phải trả lời trôi chảy").

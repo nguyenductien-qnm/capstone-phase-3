@@ -144,3 +144,11 @@ Hai cơ chế này từng được đặc tả ở đây và **đã bị loại 
 
 Nút Thumbs Down cùng cơ chế routing động sang Nova Pro chuyển xuống hạng mục **Mở rộng [Extend]**, ngoài phạm vi tuần 1. Nếu về sau có đường ghi review thật, cân nhắc thêm Write-Around Invalidation khi đó.
 
+
+---
+
+## Phụ lục kiểm chứng 12/07/2026
+
+1. **Dynamic TTL đã gỡ khỏi code** → TTL phẳng 7d: premise "review tĩnh" kiểm chứng đúng (proto không rpc ghi, seed init.sql) nên N/variance không bao giờ đổi — công thức không có gì để phản ứng; hệ chỉ có **10 cache key** (10 sản phẩm đếm từ DB). Bỏ luôn query DB thừa mỗi lần cache-write.
+2. **Versioned key giờ mới thật sự versioned**: `model_ver` đọc từ `LLM_REVIEWS_MAIN_MODEL` (trước là hằng "nova-lite-v1" chết — đổi model qua env không xoay key), `prompt_ver` = md5(SYSTEM_PROMPT)[:8].
+3. **⚠️ Blast radius chung instance với cart (liên quan ADR-003):** valkey-cart hiện `volatile-lru` **không có maxmemory** (policy không chạy) + cart không TTL + limit 20Mi → nguy cơ OOMKill mất giỏ (checkout SLO). Nếu set maxmemory sau này, key reviews (volatile duy nhất) sẽ hứng toàn bộ eviction trước. Cần quyết với CDO: khôi phục TTL cart hoặc maxmemory + tách instance.

@@ -698,7 +698,7 @@ components:
         memory: 500Mi            # This is high to enable supporting the recommendationCache feature flag use case
 
   shopping-copilot:
-    enabled: true
+    enabled: false  # no source/image yet (review J2) - re-enable in the PR that ships copilot code
     useDefault:
       env: true
     service:

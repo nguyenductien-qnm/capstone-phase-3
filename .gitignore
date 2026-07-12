@@ -1,2 +1,10 @@
 # Ignore CodeGraph index directory
 .codegraph/
+
+# Bản gốc BTC phát (xbrain-learners/phase3) — dùng để diff, không commit
+_baseline-phase3/
+
+# Python bytecode & local artifacts (review 12/07: pycache tung bi commit o root)
+__pycache__/
+*.pyc
+*.db

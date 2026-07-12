@@ -154,6 +154,15 @@
         "10000x": 10000
       },
       "defaultVariant": "off"
+    },
+    "llmReviewsFallbackEnabled": {
+      "description": "Enable Nova Micro fallback routing for product-reviews summaries when primary model fails",
+      "state": "ENABLED",
+      "variants": {
+        "on": true,
+        "off": false
+      },
+      "defaultVariant": "on"
     }
   }
 }
