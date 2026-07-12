@@ -82,7 +82,7 @@ Mọi hành động can thiệp vào Kubernetes/hệ thống (như restart pod) 
   - **Tần suất xác minh (Verification Polling):** Bắt buộc thực hiện **tối thiểu 3 lần thăm dò (poll) trong vòng 60 giây** (tức là poll ít nhất mỗi 20s một lần, tương đương 6 lần poll trong 120s) để tránh nhiễu và triệt tiêu dương tính giả trước khi đưa ra kết luận cuối cùng.
   - Nếu chỉ số (Latency / Error Rate) bình thường trở lại ở tất cả các lượt poll $\rightarrow$ Quá trình Remediation hoàn tất.
   - Nếu bất kỳ lượt poll nào cho thấy chỉ số không phục hồi hoặc tiếp tục xấu đi nghiêm trọng $\rightarrow$ Thực thi cơ chế tự động **Rollback (Auto-rollback)** về trạng thái hoặc cấu hình trước đó ngay lập tức.
-- **Ràng buộc Sinh tử (Disqualify Risk):** Khi Rollback cấu hình, bắt buộc phải **giữ nguyên cấu hình cờ OpenFeature (`flagd`)**. (Ví dụ: sử dụng lệnh `helm rollback -f deploy/values-flagd-sync.yaml`). Nếu làm mất cờ, sẽ bị loại khỏi chương trình.
+- **Ràng buộc Sinh tử (Disqualify Risk):** Khi Rollback cấu hình, bắt buộc phải **giữ nguyên cấu hình cờ OpenFeature (`flagd`)**. (Ví dụ: sử dụng lệnh `helm rollback -f platform/gitops/environments/sandbox/values-flagd-sync.yaml`). Nếu làm mất cờ, sẽ bị loại khỏi chương trình.
 
 
 ### 4.5 Cầu dao An toàn (Circuit Breaker)

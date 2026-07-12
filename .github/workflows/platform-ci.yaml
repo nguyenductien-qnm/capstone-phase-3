@@ -1,0 +1,37 @@
+name: Platform CI
+
+on:
+  pull_request:
+    paths:
+      - "platform/**"
+      - ".github/workflows/platform-ci.yaml"
+  push:
+    branches: [main, develop]
+    paths:
+      - "platform/**"
+      - ".github/workflows/platform-ci.yaml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: platform-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  helm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - name: Lint application chart
+        run: >-
+          helm lint platform/charts/application
+          -f platform/gitops/environments/sandbox/values-observability.yaml
+          -f platform/gitops/environments/sandbox/values-flagd-sync.yaml
+      - name: Render application chart
+        run: >-
+          helm template techx-corp platform/charts/application
+          -f platform/gitops/environments/sandbox/values-observability.yaml
+          -f platform/gitops/environments/sandbox/values-flagd-sync.yaml
+          > /tmp/techx-corp-rendered.yaml
