@@ -80,7 +80,7 @@ Dưới đây là các thông số chi tiết cấu hình cho cơ chế định 
 
 > **Vì sao 3.0s chứ không phải 2.0s (sàn cứng, không hạ):**
 >
-> 1. **Timeout ngắn hơn thời gian phản hồi thực tế thì retry là vô ích.** Tóm tắt review có input ~1,500 token và output ~200 token. TTFT của Nova Lite ~0.4s, nhưng *sinh xong* 200 token output mới là lúc request hoàn tất. Đặt 2.0s cắt ngang phần đuôi phân phối latency: request bị huỷ **đúng lúc sắp thành công**, rồi retry lại từ đầu — trả tiền token 3 lần cho 0 kết quả, và đẩy tải ngược lên Bedrock đúng lúc nó đang chậm.
+> 1. **Timeout ngắn hơn thời gian phản hồi thực tế thì retry là vô ích.** Tóm tắt review có input ~1,500 token và output ~200 token. *(Sửa 12/07: TTFT Nova Lite theo Artificial Analysis là **~1.04s**, throughput ~175.7 tok/s — không phải ~0.4s như bản đầu; 1 call ≈ 2.2s điển hình → timeout 3.0s ≈ p50–p75 chứ chưa "phủ đuôi"; số cuối chờ đo P95 thật bằng `evals/measure_bedrock_latency.py`.)* Đặt 2.0s cắt ngang giữa phân phối latency: request bị huỷ **đúng lúc sắp thành công**, rồi retry lại từ đầu — trả tiền token nhiều lần cho 0 kết quả, và đẩy tải ngược lên Bedrock đúng lúc nó đang chậm.
 > 2. **Không đánh đổi gì để lấy 2.0s.** Tóm tắt AI là **best-effort, không SLA cứng** (`SLO.md`), và chỉ chạy khi khách **bấm nút** — nó không nằm trên đường render trang, nên không tính vào SLO p95 < 1s của storefront. Rút timeout xuống 2.0s không cứu được SLO nào cả, chỉ tạo thêm retry storm.
 > 3. **Trần 5.0s** cho Copilot: đủ cho Nova Pro chạy vòng tool-calling, vẫn dưới ngưỡng khách bỏ cuộc.
 
@@ -153,3 +153,21 @@ Các biến môi trường được cấu hình linh động cho Pod `product-re
    - Thay vì co timeout, hệ thống **fail-fast**: nếu thời gian còn lại của request **< 3.0s**, bỏ qua Bedrock hoàn toàn và trả **Mock Summary ngay lập tức**. Vừa giữ được sàn timeout, vừa tránh cascading timeout cho storefront.
 5. **Lớp 5: Flag-Aware Circuit Breaker:**
    - Tự động chuyển Circuit Breaker sang trạng thái **OPEN** ngay khi phát hiện flag `llmRateLimitError` từ flagd ở trạng thái ON. Chuyển thẳng request sang Mock Summary hoặc model dự phòng mà không cần thực hiện cuộc gọi thật tới Bedrock, bảo vệ trần chi phí và tránh nghẽn luồng.
+
+---
+
+## Phụ lục kiểm chứng & đồng bộ code 12/07/2026
+
+Spec trên có các điểm lệch với code đã merge (PR#26) và với số đo thật — bảng dưới là nguồn sự thật hiện hành:
+
+| Mục trong spec | Thực tế (đã kiểm chứng) |
+|---|---|
+| Lớp 1 "SDK adaptive retry" | Code **tắt** SDK retry (`retries={'max_attempts': 0}`) — đúng, để tránh retry kép; spec cần sửa mô tả |
+| Lớp 3 "asyncio.Semaphore(10)" | Code sync gRPC dùng `threading.Semaphore`, và blocking-wait là **no-op đã chứng minh** (waiter giữ thread pool; thí nghiệm: 1909ms vs 10ms) → hiện là **non-blocking, size 6** (`LLM_BULKHEAD_SIZE`), bão hoà → mock ngay |
+| Lớp 5 "Circuit breaker theo flag `llmRateLimitError`" | **Đã bỏ** (vùng xám luật AI_FEATURE §3) → breaker theo lỗi quan sát được: 3 lỗi primary liên tiếp → open 30s (`LLM_CB_THRESHOLD`/`LLM_CB_COOLDOWN`). Proof runtime: "Circuit Breaker OPENED for 30.0s after 3 consecutive primary failures" |
+| §2 "TTFT Nova Lite ~0.4s" | Artificial Analysis thực tế: **TTFT 1.04s, 175.7 tok/s** → 1 call ≈2.2s; luồng tóm tắt 2 vòng converse ≈4.4s điển hình. Timeout 3.0s/call ≈ p50–p75, không phải "phủ đuôi" |
+| Flowchart "fallback off → trả 500" | Code trả **mock summary message**, không 500 |
+| §3.1 "bắt buộc giữ LLM_BASE_URL/OPENAI_API_KEY/LLM_MODEL" | Stale — `must_map_env` hiện chỉ đòi `LLM_HOST/PORT`, `PRODUCT_CATALOG_ADDR`, `PRODUCT_REVIEWS_PORT`, `OTEL_SERVICE_NAME` |
+| §3.2 thiếu biến | Bổ sung: `LLM_REVIEWS_FALLBACK_TIMEOUT` (2.0), `LLM_REVIEWS_FALLBACK_RETRIES` (1), `LLM_MOCK_ENABLED` (true), `LLM_BULKHEAD_SIZE` (6), `LLM_CB_THRESHOLD` (3), `LLM_CB_COOLDOWN` (30) |
+| §4 flag mặc định true | Trước 12/07 flag **không tồn tại trong flagd** + default code False → fallback chết trong cluster (runtime xác nhận 0 lần trigger). Đã thêm vào cả 2 `demo.flagd.json`, defaultVariant `on` — proof sau fix: trigger ×5 |
+| Lỗi ngoài dự kiến | `BotoCoreError` (NoCredentials/endpoint) từng thoát ladder → đã vào except tuple, mọi lớp lỗi đi qua fallback/CB |

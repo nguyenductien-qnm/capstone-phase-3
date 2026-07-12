@@ -78,3 +78,9 @@ Các tính năng nâng cao để cạnh tranh top, triển khai Tuần 2-3 (sau 
 ## 5. Ghi chú Phối hợp Hạ tầng (CDO Team Co-working)
 * **Quyền hạn cụm (EKS IAM Access):** Nhóm AI ghi nhận và xác nhận cấu hình EKS Access Entries được CDO merge qua PR #7. Cấu hình này đã giải quyết triệt để lỗi 409 bằng cách lọc ID cluster creator, đồng thời cấp quyền ClusterAdmin đầy đủ cho danh sách admin của Task Force thông qua biến `eks_admin_user_arns`.
 * **Tích hợp Caching:** Nhóm AI thống nhất tận dụng service `valkey-cart` cổng `6379` hiện có trên cụm EKS của CDO thay vì tự deploy cụm Valkey riêng lẻ, giúp tiết kiệm 100% chi phí tài nguyên phát sinh.
+
+---
+
+## Ghi chú đồng bộ 12/07/2026
+- Mục 1.1: "gọi API LLM cho mỗi lượt duyệt" → đã đính chính từ 10/07: LLM chỉ chạy khi khách bấm *Ask AI* (tỉ lệ 10 view : 1 call theo locustfile — xem `pitch.md` Phần 2). Rủi ro cost vẫn đúng hướng nhưng mẫu số nhỏ hơn 10×.
+- Trạng thái task đến 12/07: fallback/bulkhead/CB đã trong code + verify runtime (ADR-log phụ lục); TF1-54 (valkey) phát hiện lỗi chuỗi maxmemory/TTL — chờ quyết với CDO trước khi tiếp tục.

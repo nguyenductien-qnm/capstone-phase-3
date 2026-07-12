@@ -86,7 +86,7 @@ graph LR
 
 | Parameter | Giá trị | Lý do |
 |---|---|---|
-| `sim_th` | `0.4` | Ngưỡng tương đồng thấp để gom rộng (log GenAI có nhiều biến thể) |
+| `sim_th` | ~~0.4~~ → **0.3 (theo grid đo 12/07 — xem Phụ lục)** | Grid trên 19.3k dòng log thật: 0.3 trội cả 4 tiêu chí. Lưu ý code `log_clustering.py` đang hardcode 0.5 — phải đồng bộ về một giá trị sau khi bật masking + đo lại trên EKS |
 | `depth` | `4` | Đủ sâu để phân biệt các loại lỗi khác nhau |
 | `max_children` | `100` | Cho phép nhiều nhánh prefix tree (log đa dạng) |
 | `max_clusters` | `1000` | Giới hạn hợp lý cho 2 service |
@@ -259,3 +259,18 @@ spec:
 - **Thư viện:** [Drain3 GitHub](https://github.com/logpai/Drain3)
 - **Spec liên quan:** [anomaly_remediation.md](./anomaly_remediation.md) (Closed-loop Safety Pattern)
 - **ADR liên quan:** [ADR-log.md](../ADR-log.md) → ADR-007
+
+---
+
+## Phụ lục kiểm chứng 12/07/2026 — grid sim_th/depth trên log thật
+
+Ba con số đang mâu thuẫn: **code `log_clustering.py` hardcode `sim_th=0.5`**, spec này ghi 0.4, còn grid đo trên **19.294 dòng log thật** của hệ (`docs/ai/evals/drain3_param_grid.py`, tiêu chí cố định trước khi đo):
+
+| sim_th | templates | top20 coverage | singleton% | stability |
+|---|---|---|---|---|
+| **0.3** | **795** | **48.3%** | **56.1%** | **0.64** |
+| 0.4 | 1074 | 47.1% | 59.5% | 0.73 |
+| 0.5 (code hiện tại) | 1222 | 46.4% | 60.6% | 0.76 |
+| 0.6 | 1645 | 42.1% | 61.5% | 0.76 |
+
+0.3 trội ở cả 4 tiêu chí; depth 4–6 thay đổi <2% (giữ 4). Trước khi chốt vào code: **bật masking Drain3** (`<NUM>/<UUID>/<IP>/duration>` — singleton 56% chủ yếu do id/timestamp nhúng trong dòng) rồi chạy lại grid trên 24h log EKS. Baseline giáo trình AIOps course cũng mask trước khi so khớp.

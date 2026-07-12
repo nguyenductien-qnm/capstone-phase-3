@@ -45,6 +45,10 @@ class TestFallbackRetry(unittest.TestCase):
         product_reviews_server.bedrock_primary_client = MagicMock()
         product_reviews_server.bedrock_fallback_client = MagicMock()
         product_reviews_server.valkey_client = None # Skip cache writes
+        # Reset circuit breaker (B2) — cac scenario exhaust primary se tang failures,
+        # khong reset la scenario sau bi bypass oan (test pollution).
+        product_reviews_server._cb_state["failures"] = 0
+        product_reviews_server._cb_state["open_until"] = 0.0
 
         # Mock feature flags
         self.flags = {
@@ -127,9 +131,12 @@ class TestFallbackRetry(unittest.TestCase):
         product_reviews_server.bedrock_fallback_client.converse.assert_not_called()
 
     def test_scenario_5_circuit_breaker_bypass(self):
-        """5. Circuit Breaker Flow: llmRateLimitError active, bypasses primary, goes to fallback."""
-        self.flags["llmRateLimitError"] = True
-        
+        """5. Circuit Breaker (B2): open sau N loi primary lien tiep -> bypass primary, di fallback.
+        Breaker theo loi quan sat duoc — KHONG doc co su co flagd (AI_FEATURE §3)."""
+        import time as _time
+        product_reviews_server._cb_state["failures"] = product_reviews_server.CB_FAILURE_THRESHOLD
+        product_reviews_server._cb_state["open_until"] = _time.time() + 30
+
         fallback_response = {
             "stopReason": "end_turn",
             "output": {"message": {"content": [{"text": "Bản tóm tắt từ model dự phòng (Nova Micro) sau bypass."}]}}
@@ -141,61 +148,74 @@ class TestFallbackRetry(unittest.TestCase):
         product_reviews_server.bedrock_primary_client.converse.assert_not_called()
         product_reviews_server.bedrock_fallback_client.converse.assert_called_once()
 
-def measure_before_after():
+    def test_scenario_6_circuit_breaker_resets_on_success(self):
+        """6. Circuit Breaker: primary thanh cong -> failures ve 0 (khong mo oan sau do)."""
+        product_reviews_server._cb_state["failures"] = product_reviews_server.CB_FAILURE_THRESHOLD - 1
+        ok_response = {
+            "stopReason": "end_turn",
+            "output": {"message": {"content": [{"text": "Summary OK."}]}}
+        }
+        product_reviews_server.bedrock_primary_client.converse.return_value = ok_response
+        res = product_reviews_server.get_ai_assistant_response("PROD123", "Tóm tắt review")
+        self.assertEqual(res.response, "Summary OK.")
+        self.assertEqual(product_reviews_server._cb_state["failures"], 0)
+
+def measure_before_after(base_url="http://localhost:8080", n=30):
+    """DO THAT truoc-sau tren stack DANG CHAY — thay ban mo phong random cu (review B5:
+    "so khong tai tao duoc coi nhu chua chung minh"; ti le loi 22%/10% truoc day la tu dat).
+
+    Phuong phap: bam su co that qua flagd (`llmRateLimitError=on`, mock LLM tra 429 ~50%),
+    ban n request that toi endpoint storefront, phan loai response:
+      - BEFORE (fallback OFF qua flag `llmReviewsFallbackEnabled`): ti le request khong co summary that
+      - AFTER  (fallback ON): ti le tuong tu — chenh lech = gia tri thuc cua fallback routing
+    Yeu cau: `docker compose up` (product-reviews build tu source). Khong co stack -> DUNG,
+    khong in so — ham nay khong co duong mo phong.
     """
-    Simulates error rates before and after implementing the Fallback Routing & Retry logic.
-    - BEFORE: Single primary model without retries or fallback. Any error (429, 500, timeout) directly returns error.
-    - AFTER: Primary model + 2 retries + fallback model + 1 retry + mock summary fallback.
-    """
-    print("\n" + "=" * 65)
-    print("  ĐO LƯỜNG TỶ LỆ LỖI TRƯỚC VÀ SAU CẢI TIẾN (BEFORE/AFTER)")
-    print("=" * 65)
-    
-    # We simulate 1000 requests.
-    # Primary model has a transient failure rate (e.g. rate limits, timeout) of 20% (0.2).
-    # Primary model permanent outage rate is 2% (0.02).
-    # Fallback model transient failure rate is 10% (0.1).
-    
-    total_requests = 1000
-    before_failures = 0
-    after_failures = 0 # Fails to provide any summary (returns error page / gRPC error)
-    
-    for _ in range(total_requests):
-        # --- BEFORE: No retries, no fallback ---
-        primary_failed = random.random() < 0.22 # 22% total failure rate
-        if primary_failed:
-            before_failures += 1
-            
-        # --- AFTER: primary (2 retries) -> fallback (1 retry) -> mock summary (0% failure because mock summary is a valid UI state)
-        # However, let's measure "Thất bại hoàn toàn không sinh được AI summary thật" (Haiku/Sonnet/Nova Lite/Micro failed, showing Mock)
-        primary_success = False
-        # Try primary up to 3 times (1 initial + 2 retries)
-        for _ in range(3):
-            if random.random() >= 0.22: # 22% error rate per attempt
-                primary_success = True
-                break
-                
-        if not primary_success:
-            # Trigger fallback model
-            fallback_success = False
-            for _ in range(2): # 1 initial + 1 retry
-                if random.random() >= 0.10: # 10% error rate per attempt
-                    fallback_success = True
-                    break
-            if not fallback_success:
-                after_failures += 1
-                
-    before_err_rate = before_failures / total_requests
-    after_err_rate = after_failures / total_requests
-    
-    print(f"Tổng số request mô phỏng: {total_requests}")
-    print(f"  TRƯỚC CẢI TIẾN (No Retry / No Fallback):")
-    print(f"    - Tỷ lệ lỗi trả về HTTP 500 cho khách hàng: {before_err_rate:.2%}")
-    print(f"  SAU CẢI TIẾN (5-Layer Resilience + Fallback):")
-    print(f"    - Tỷ lệ lỗi trả về HTTP 500 cho khách hàng: 0.00% (✅ Nhờ Mock Summary Fallback)")
-    print(f"    - Tỷ lệ hiển thị Mock Summary (khi cả 2 model Bedrock đều lỗi): {after_err_rate:.2%}")
-    print(f"    - Tỷ lệ phục hồi thành công (vẫn có AI summary thật nhờ Fallback/Retry): {((before_failures - after_failures) / before_failures):.1%}")
-    print("=" * 65 + "\n")
+    import json as _json
+    import urllib.request as _rq
+    import urllib.error as _er
+
+    flagd_file = os.path.join(os.path.dirname(__file__), "../../../techx-corp-platform/src/flagd/demo.flagd.json")
+    mock_marker = "không thể tạo tóm tắt"
+
+    def _set_flag(name, variant):
+        cfg = _json.load(open(flagd_file))
+        cfg["flags"][name]["defaultVariant"] = variant
+        _json.dump(cfg, open(flagd_file, "w"), indent=2, ensure_ascii=False)
+
+    def _ask():
+        req = _rq.Request(f"{base_url}/api/product-ask-ai-assistant/L9ECAV7KIM",
+                          data=b'{"question":"Can you summarize the product reviews?"}',
+                          headers={"Content-Type": "application/json"})
+        try:
+            body = _rq.urlopen(req, timeout=60).read().decode()
+            return "mock" if mock_marker in body.lower() else "real"
+        except Exception:
+            return "error"
+
+    # Fail-fast neu stack khong chay — TUYET DOI khong fallback sang mo phong
+    try:
+        _rq.urlopen(base_url, timeout=5)
+    except Exception:
+        print("[measure_before_after] Stack chua chay (docker compose up truoc). "
+              "Khong do duoc thi khong in so — xem docstring.")
+        return None
+
+    results = {}
+    _set_flag("llmRateLimitError", "on")
+    for label, variant in [("BEFORE (fallback off)", "off"), ("AFTER (fallback on)", "on")]:
+        _set_flag("llmReviewsFallbackEnabled", variant)
+        time_module = __import__("time"); time_module.sleep(3)  # flagd file-watch reload
+        counts = {"real": 0, "mock": 0, "error": 0}
+        for _ in range(n):
+            counts[_ask()] += 1
+        results[label] = counts
+        no_real = (counts["mock"] + counts["error"]) / n
+        print(f"{label}: n={n} real={counts['real']} mock={counts['mock']} error={counts['error']}"
+              f" -> ti le KHONG co summary that: {no_real:.1%}")
+    _set_flag("llmRateLimitError", "off")
+    _set_flag("llmReviewsFallbackEnabled", "on")
+    return results
 
 if __name__ == "__main__":
     measure_before_after()

@@ -41,12 +41,13 @@ from metrics import (
 from openai import OpenAI
 
 import boto3
-from botocore.exceptions import ClientError, ReadTimeoutError, ConnectTimeoutError
+from botocore.exceptions import ClientError, ReadTimeoutError, ConnectTimeoutError, BotoCoreError
 from botocore.config import Config
 import redis
 from datetime import datetime, timezone
 import threading
 import time
+import hashlib
 
 from google.protobuf.json_format import MessageToJson, MessageToDict
 
@@ -60,13 +61,40 @@ llm_model = None
 
 # --- Define the tool for the OpenAI API ---
 valkey_client = None
-model_ver = "nova-lite-v1"
-prompt_ver = "p3"
+
+SYSTEM_PROMPT = "You are a helpful assistant that answers related to a specific product. Use tools as needed to fetch the product reviews and product information. Keep the response brief with no more than 1-2 sentences. If you don't know the answer, just say you don't know."
+MOCK_SUMMARY_VI = "Hiện tại hệ thống không thể tạo tóm tắt đánh giá. Vui lòng tham khảo các đánh giá chi tiết bên dưới."
+# Review C1: version cache key theo model/prompt THUC dang dung — doi qua env la key tu doi,
+# khong con hang so chet lam versioned-key mat tac dung.
+model_ver = os.environ.get('LLM_REVIEWS_MAIN_MODEL', os.environ.get('AWS_BEDROCK_MODEL', 'amazon.nova-lite-v1:0'))
+prompt_ver = hashlib.md5(SYSTEM_PROMPT.encode()).hexdigest()[:8]
 
 # New Bedrock Clients & Bulkhead for Caching/Fallback
 bedrock_primary_client = None
 bedrock_fallback_client = None
-bedrock_bulkhead = threading.Semaphore(10)
+# Review B1: sema < gRPC max_workers(10) va acquire non-blocking — waiter van giu thread cua pool
+# nen blocking-wait khong bao ve duoc GetProductReviews (da chung minh bang thi nghiem).
+bedrock_bulkhead = threading.Semaphore(int(os.environ.get('LLM_BULKHEAD_SIZE', '6')))
+
+# Review B2: circuit breaker theo loi quan sat duoc — KHONG doc co su co flagd (AI_FEATURE §3).
+_cb_lock = threading.Lock()
+_cb_state = {"failures": 0, "open_until": 0.0}
+CB_FAILURE_THRESHOLD = int(os.environ.get('LLM_CB_THRESHOLD', '3'))
+CB_COOLDOWN_SECONDS = float(os.environ.get('LLM_CB_COOLDOWN', '30'))
+
+# Justification (12/07, xem ADR-log "So dang ky con so"):
+# - maxTokens 1024: TRAN chong runaway, khong phai target — output tom tat ~200 token (cost model),
+#   vong tool-use can them JSON block; billing tinh theo token SINH THUC nen tran cao khong ton them,
+#   chi chan truong hop model lan man giu ket noi lau (timeout 3s se cat truoc).
+# - temperature 0.1: tom tat/QA phai bam nguon (SLO "khong show tom tat sai") + output gan-deterministic
+#   de eval keyword tai tao duoc va cache 7d nhat quan. Khong dung 0.0 de tranh loop degenerate.
+# - topP 0.9: voi temp 0.1 phan phoi da rat nhon, topP gan nhu khong tac dong — giu muc pho bien,
+#   KHONG phai tham so dieu khien chinh (doi temp truoc neu can chinh hanh vi).
+INFERENCE_CONFIG = {
+    "maxTokens": int(os.environ.get('LLM_MAX_TOKENS', '1024')),
+    "temperature": float(os.environ.get('LLM_TEMPERATURE', '0.1')),
+    "topP": float(os.environ.get('LLM_TOP_P', '0.9')),
+}
 
 tracer = trace.get_tracer_provider().get_tracer("product-reviews")
 meter = metrics.get_meter_provider().get_meter("product-reviews")
@@ -246,13 +274,13 @@ def invoke_bedrock_converse_with_fallback(messages, system_prompt, tool_config=N
     fallback_max_retries = int(os.environ.get('LLM_REVIEWS_FALLBACK_RETRIES', '1'))
     
     fallback_enabled = check_feature_flag("llmReviewsFallbackEnabled")
-    llm_rate_limit_error = check_feature_flag("llmRateLimitError")
-    
-    # Lớp 5: Flag-Aware Circuit Breaker
+
+    # Lớp 5: Circuit Breaker theo lỗi quan sát được (review B2)
     bypass_primary = False
-    if llm_rate_limit_error:
-        logger.warning("Circuit Breaker OPEN due to llmRateLimitError flag. Bypassing primary model call.")
-        bypass_primary = True
+    with _cb_lock:
+        if time.time() < _cb_state["open_until"]:
+            logger.warning(f"Circuit Breaker OPEN ({_cb_state['failures']} consecutive primary failures). Bypassing primary model call.")
+            bypass_primary = True
         
     primary_client = get_bedrock_primary_client()
     fallback_client = get_bedrock_fallback_client()
@@ -267,24 +295,24 @@ def invoke_bedrock_converse_with_fallback(messages, system_prompt, tool_config=N
                     "modelId": main_model,
                     "system": [{"text": system_prompt}],
                     "messages": messages,
-                    "inferenceConfig": {
-                        "maxTokens": 1024,
-                        "temperature": 0.1,
-                        "topP": 0.9,
-                    }
+                    "inferenceConfig": INFERENCE_CONFIG
                 }
                 if tool_config:
                     kwargs["toolConfig"] = tool_config
                     
                 response = primary_client.converse(**kwargs)
                 logger.info(f"Primary Model call successful: {main_model}")
+                with _cb_lock:
+                    _cb_state["failures"] = 0
                 return response
                 
-            except (ClientError, ReadTimeoutError, ConnectTimeoutError) as e:
-                is_retryable = True
-                err_code = "Unknown"
+            except (ClientError, BotoCoreError) as e:
+                # BotoCoreError phu ca NoCredentials/EndpointConnection/timeout — loi ngoai du kien
+                # khong duoc phep thoat khoi ladder (fallback/CB phai van hanh voi moi lop loi).
+                is_retryable = isinstance(e, (ReadTimeoutError, ConnectTimeoutError))
+                err_code = type(e).__name__
                 err_msg = str(e)
-                
+
                 if isinstance(e, ClientError):
                     err_code = e.response["Error"].get("Code", "Unknown")
                     err_msg = e.response["Error"].get("Message", "Unknown")
@@ -308,6 +336,11 @@ def invoke_bedrock_converse_with_fallback(messages, system_prompt, tool_config=N
                     attempt += 1
                 else:
                     logger.error(f"Primary Model exhausted or failed with non-retryable error. Code: {err_code}, Msg: {err_msg}")
+                    with _cb_lock:
+                        _cb_state["failures"] += 1
+                        if _cb_state["failures"] >= CB_FAILURE_THRESHOLD:
+                            _cb_state["open_until"] = time.time() + CB_COOLDOWN_SECONDS
+                            logger.error(f"Circuit Breaker OPENED for {CB_COOLDOWN_SECONDS}s after {_cb_state['failures']} consecutive primary failures.")
                     break
                     
     # 2. Trigger Fallback if enabled
@@ -321,11 +354,7 @@ def invoke_bedrock_converse_with_fallback(messages, system_prompt, tool_config=N
                     "modelId": fallback_model,
                     "system": [{"text": system_prompt}],
                     "messages": messages,
-                    "inferenceConfig": {
-                        "maxTokens": 1024,
-                        "temperature": 0.1,
-                        "topP": 0.9,
-                    }
+                    "inferenceConfig": INFERENCE_CONFIG
                 }
                 if tool_config:
                     kwargs["toolConfig"] = tool_config
@@ -334,11 +363,13 @@ def invoke_bedrock_converse_with_fallback(messages, system_prompt, tool_config=N
                 logger.info(f"Fallback Model call successful: {fallback_model}")
                 return response
                 
-            except (ClientError, ReadTimeoutError, ConnectTimeoutError) as e:
-                is_retryable = True
-                err_code = "Unknown"
+            except (ClientError, BotoCoreError) as e:
+                # BotoCoreError phu ca NoCredentials/EndpointConnection/timeout — loi ngoai du kien
+                # khong duoc phep thoat khoi ladder (fallback/CB phai van hanh voi moi lop loi).
+                is_retryable = isinstance(e, (ReadTimeoutError, ConnectTimeoutError))
+                err_code = type(e).__name__
                 err_msg = str(e)
-                
+
                 if isinstance(e, ClientError):
                     err_code = e.response["Error"].get("Code", "Unknown")
                     err_msg = e.response["Error"].get("Message", "Unknown")
@@ -379,8 +410,8 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                     logger.info(f"gRPC request time remaining: {time_remaining:.3f}s")
                     if time_remaining < 3.0:
                         logger.warning(f"Time remaining {time_remaining:.3f}s is less than hard floor 3.0s. Fail-fast to Mock Summary.")
-                        logger.error("Rate limit reached. Bedrock ThrottlingException. Fail-fast due to remaining time.")
-                        ai_assistant_response.response = "Hiện tại hệ thống không thể tạo tóm tắt đánh giá. Vui lòng tham khảo các đánh giá chi tiết bên dưới."
+                        logger.error("AI_SUMMARY_FALLBACK stage=deadline reason=DeadlineTooClose")
+                        ai_assistant_response.response = MOCK_SUMMARY_VI
                         return ai_assistant_response
             except Exception as e:
                 logger.error(f"Error checking gRPC deadline: {e}")
@@ -424,7 +455,7 @@ def get_ai_assistant_response(request_product_id, question, context=None):
 
                 user_prompt = f"Answer the following question about product ID:{request_product_id}: {question}"
                 messages = [
-                   {"role": "system", "content": "You are a helpful assistant that answers related to a specific product. Use tools as needed to fetch the product reviews and product information. Keep the response brief with no more than 1-2 sentences. If you don't know the answer, just say you don't know."},
+                   {"role": "system", "content": SYSTEM_PROMPT},
                    {"role": "user", "content": user_prompt}
                 ]
                 logger.info(f"Invoking mock LLM with model: techx-llm-rate-limit")
@@ -442,37 +473,43 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                     span.record_exception(e)
                     # Set the span status to ERROR
                     span.set_status(Status(StatusCode.ERROR, description=str(e)))
-                    # Rule AIOps llm-rate-limit-429 check log phrase:
-                    logger.error("Rate limit reached. rate_limit_exceeded from mock LLM.")
-                    ai_assistant_response.response = "Hiện tại hệ thống không thể tạo tóm tắt đánh giá. Vui lòng tham khảo các đánh giá chi tiết bên dưới."
+                    # Genuine 429: giu "Rate limit reached" cho rule llm-rate-limit-429 + marker G6.
+                    logger.error("Rate limit reached. AI_SUMMARY_FALLBACK stage=mock-llm reason=rate_limit_exceeded")
+                    ai_assistant_response.response = MOCK_SUMMARY_VI
                     return ai_assistant_response
 
         if not is_mock_rate_limit:
             # AWS Bedrock Converse API flow
             logger.info("Invoking AWS Bedrock Converse API with fallback wrapper")
 
-            system_prompt = "You are a helpful assistant that answers related to a specific product. Use tools as needed to fetch the product reviews and product information. Keep the response brief with no more than 1-2 sentences. If you don't know the answer, just say you don't know."
+            system_prompt = SYSTEM_PROMPT
             user_prompt = f"Answer the following question about product ID:{request_product_id}: {question}"
             messages = [
                 {"role": "user", "content": [{"text": user_prompt}]}
             ]
 
-            # Lớp 3: Bulkhead Isolation (acquire semaphore)
-            with bedrock_bulkhead:
-                try:
-                    response = invoke_bedrock_converse_with_fallback(
-                        messages=messages,
-                        system_prompt=system_prompt,
-                        tool_config={"tools": tools}
-                    )
-                except Exception as e:
-                    logger.error(f"Bedrock converse failure: {str(e)}")
-                    # Rule AIOps fallback check log phrase:
-                    logger.error("Rate limit reached. Bedrock ThrottlingException. Falling back to default mock summary.")
-                    span.record_exception(e)
-                    span.set_status(Status(StatusCode.ERROR, description=str(e)))
-                    ai_assistant_response.response = "Hiện tại hệ thống không thể tạo tóm tắt đánh giá. Vui lòng tham khảo các đánh giá chi tiết bên dưới."
-                    return ai_assistant_response
+            # Lớp 3: Bulkhead Isolation — non-blocking (review B1): waiter van giu thread cua
+            # gRPC pool nen khi bao hoa phai tra mock NGAY thay vi xep hang (thi nghiem B1: 10ms vs 1909ms).
+            if not bedrock_bulkhead.acquire(blocking=False):
+                logger.error("AI_SUMMARY_FALLBACK stage=bulkhead reason=BulkheadSaturated")
+                ai_assistant_response.response = MOCK_SUMMARY_VI
+                return ai_assistant_response
+            try:
+                response = invoke_bedrock_converse_with_fallback(
+                    messages=messages,
+                    system_prompt=system_prompt,
+                    tool_config={"tools": tools}
+                )
+            except Exception as e:
+                logger.error(f"Bedrock converse failure: {str(e)}")
+                # Marker G6: ghi dung nguyen nhan that, khong gan nhan 429 cho moi loai loi.
+                logger.error(f"AI_SUMMARY_FALLBACK stage=bedrock reason={type(e).__name__}")
+                span.record_exception(e)
+                span.set_status(Status(StatusCode.ERROR, description=str(e)))
+                ai_assistant_response.response = MOCK_SUMMARY_VI
+                return ai_assistant_response
+            finally:
+                bedrock_bulkhead.release()
 
             stop_reason = response.get("stopReason", "end_turn")
             output_msg = response["output"]["message"]
@@ -529,19 +566,25 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                 })
 
                 logger.info(f"Invoking Bedrock for final completion")
-                with bedrock_bulkhead:
-                    try:
-                        final_response = invoke_bedrock_converse_with_fallback(
-                            messages=messages,
-                            system_prompt=system_prompt
-                        )
-                        result = final_response["output"]["message"]["content"][0]["text"]
-                    except Exception as e:
-                        logger.error(f"Bedrock final completion error: {str(e)}")
-                        span.record_exception(e)
-                        span.set_status(Status(StatusCode.ERROR, description=str(e)))
-                        ai_assistant_response.response = "Hiện tại hệ thống không thể tạo tóm tắt đánh giá. Vui lòng tham khảo các đánh giá chi tiết bên dưới."
-                        return ai_assistant_response
+                if not bedrock_bulkhead.acquire(blocking=False):
+                    logger.error("AI_SUMMARY_FALLBACK stage=bulkhead reason=BulkheadSaturated")
+                    ai_assistant_response.response = MOCK_SUMMARY_VI
+                    return ai_assistant_response
+                try:
+                    final_response = invoke_bedrock_converse_with_fallback(
+                        messages=messages,
+                        system_prompt=system_prompt
+                    )
+                    result = final_response["output"]["message"]["content"][0]["text"]
+                except Exception as e:
+                    logger.error(f"Bedrock final completion error: {str(e)}")
+                    logger.error(f"AI_SUMMARY_FALLBACK stage=bedrock-final reason={type(e).__name__}")
+                    span.record_exception(e)
+                    span.set_status(Status(StatusCode.ERROR, description=str(e)))
+                    ai_assistant_response.response = MOCK_SUMMARY_VI
+                    return ai_assistant_response
+                finally:
+                    bedrock_bulkhead.release()
             else:
                 text_parts = [b["text"] for b in content_blocks if "text" in b]
                 result = "\n".join(text_parts) if text_parts else ""
@@ -552,19 +595,9 @@ def get_ai_assistant_response(request_product_id, question, context=None):
             # Update cache if enabled
             if llm_reviews_cache_enabled and valkey_client is not None and result:
                 try:
-                    # Calculate dynamic TTL
-                    reviews = fetch_product_reviews_from_db(request_product_id)
-                    N = len(reviews)
-                    if N > 0:
-                        scores = [float(r[2]) for r in reviews if r[2] is not None]
-                        avg_score = sum(scores) / len(scores) if scores else 0.0
-                        variance = sum((s - avg_score) ** 2 for s in scores) / len(scores) if scores else 0.0
-                    else:
-                        N = 0
-                        variance = 0.0
-
-                    ttl = 14400 + int(N * 3600 / (1.0 + variance))
-                    ttl = max(14400, min(ttl, 604800)) # bounds [4h, 7d]
+                    # Review C2: review data la tinh (verified: proto khong co rpc ghi, seed tu init.sql)
+                    # -> TTL phang 7d + versioned key; dynamic TTL bo vi khong co gi de no phan ung.
+                    ttl = 604800
 
                     cache_val = {
                         "summary": result,

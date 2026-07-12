@@ -92,3 +92,24 @@ Dịch vụ sẽ export các metric qua cổng OTel collector hoặc Prometheus 
   - `error.type`: Ghi nhận mã lỗi cụ thể nếu có lỗi xảy ra.
 
 
+
+---
+
+## Phụ lục 12/07/2026 — đề xuất cập nhật hợp đồng (cần CDO re-sign)
+
+Ba điểm đã lệch thực tế sau PR#26 (bảng trên giữ nguyên vì đã ký; bảng dưới là nội dung đề xuất thay thế):
+
+1. **LLM backend:** `product-reviews` ĐÃ gọi AWS Bedrock (Converse API, boto3) — không còn "chờ TF1-58". Mock LLM chỉ còn dùng cho luồng sự cố `llmRateLimitError` (`LLM_MOCK_ENABLED=true`).
+2. **Env không còn bắt buộc:** `LLM_BASE_URL`, `LLM_MODEL`, `OPENAI_API_KEY` — code đã bỏ khỏi `must_map_env` (chỉ còn cần `LLM_HOST/PORT` cho mock).
+3. **Env/flag mới cần CDO cấp qua chart:**
+
+| Biến | Mặc định | Ghi chú |
+|---|---|---|
+| `AWS_REGION` / `AWS_BEDROCK_MODEL` | `us-east-1` / `amazon.nova-lite-v1:0` | + IAM `bedrock:InvokeModel` (IRSA hoặc node role) — **đang thiếu, chặn T2** |
+| `LLM_REVIEWS_MAIN_MODEL` / `LLM_REVIEWS_FALLBACK_MODEL` | nova-lite / nova-micro | routing |
+| `LLM_REVIEWS_TIMEOUT` / `LLM_REVIEWS_FALLBACK_TIMEOUT` | 3.0 / 2.0 | giây |
+| `LLM_REVIEWS_MAX_RETRIES` / `LLM_REVIEWS_FALLBACK_RETRIES` | 2 / 1 | |
+| `LLM_BULKHEAD_SIZE` | 6 | phải < gRPC max_workers (10) |
+| `LLM_CB_THRESHOLD` / `LLM_CB_COOLDOWN` | 3 / 30 | circuit breaker |
+| `VALKEY_HOST` / `VALKEY_PORT` | valkey-cart / 6379 | cache tóm tắt |
+| flagd: `llmReviewsFallbackEnabled` (on), `llmReviewsCacheEnabled` | | đã thêm vào demo.flagd.json 12/07 |

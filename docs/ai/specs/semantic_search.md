@@ -1,5 +1,7 @@
 # Spec: Semantic Search nâng cao (Hạng mục Đua Top)
 
+> ⚠️ **[DEFERRED 12/07]** Catalog thật = 10 sản phẩm (đếm từ DB) → pgvector/HNSW là over-engineering; intent tìm-sản-phẩm giải bằng catalog-in-prompt. Spec này là thiết kế dự phòng, kích hoạt khi catalog >~500 items. Xem Phụ lục cuối file.
+
 > **Trạng thái:** Draft  
 > **Trụ:** Performance Efficiency / Cost Optimization  
 > **Ngày:** 2026-07-09  
@@ -247,3 +249,11 @@ func searchProductsFromDBSemantic(ctx context.Context, query string) ([]*pb.Prod
 | Bedrock Embeddings API timeout | Thấp | Cache embeddings cho sản phẩm (one-time); retry cho query embedding |
 | Go client cho pgvector chưa mature | Thấp | Sử dụng raw SQL với `::vector` cast |
 | Kết quả semantic không chính xác cho brand search | Trung bình | Triển khai Hybrid Search (Phase 2) |
+
+---
+
+## Phụ lục kiểm chứng 12/07/2026 — quy mô dữ liệu thật & quyết định defer
+
+Đếm từ DB thật: **catalog = 10 sản phẩm, reviews = 50 dòng (5/sản phẩm)**. Ở quy mô này HNSW (index approximate cho ~10⁵–10⁶ vector) là over-engineering; số "embed 80ms + HNSW 8ms" trong spec chưa đo và không có ý nghĩa ở N=10.
+
+**Quyết định:** intent "tìm sản phẩm NL" của Copilot giải bằng **catalog-in-prompt** (~vài trăm token, zero infra, đạt "Done" của đề); reviews-QA giữ fetch trực tiếp 5 reviews/sản phẩm. **pgvector/Titan defer** — trigger nâng cấp: BTC bơm directive scale catalog (>~500 items) hoặc yêu cầu search ngoài phạm vi Copilot. Spec này giữ làm thiết kế dự phòng cho trigger đó.

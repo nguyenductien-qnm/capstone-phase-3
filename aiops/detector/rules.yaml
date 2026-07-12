@@ -33,10 +33,13 @@ rules:
     type: metric
     severity: warning
     summary: "p95 latency > 1s - vi pham SLO storefront (< 1s)"
+    # Review FP-run 12/07: flagd (4.87s, khong thuoc SLO nao) tung trigger rule nay.
+    # Loai service ha tang/noi bo khoi pham vi SLO storefront (exclusion an toan hon allowlist
+    # - khong vo tinh bo sot service storefront moi).
     query: >-
       histogram_quantile(0.95,
         sum by (service_name, le) (
-          rate(http_server_request_duration_seconds_bucket{service_namespace="techx-corp"}[5m])
+          rate(http_server_request_duration_seconds_bucket{service_namespace="techx-corp", service_name!~"flagd|flagd-ui|otel-collector|grafana|jaeger|prometheus|opensearch|load-generator|llm"}[5m])
         )
       )
     op: gt
@@ -80,8 +83,10 @@ rules:
     type: log
     severity: critical
     summary: "GenAI assistant loi - product-reviews khong sinh duoc tom tat/tra loi (fallback error)"
+    # Review G2/G6: match machine marker do code emit (khong phu thuoc copy hien thi cho khach).
+    # "unable to process your response" da chet sau PR#26 (code doi message sang tieng Viet).
     match_phrases:
-      - "unable to process your response"
+      - "AI_SUMMARY_FALLBACK"
       - "Caught Exception"
     window_minutes: 5
     min_count: 1
@@ -109,8 +114,9 @@ rules:
       - "connection pool"
       - "pool timeout"
       - "remaining connection slots"
-    window_minutes: 5
-    min_count: 3
+    # Review K2 (recall dominates - miss = zero): min_count 3->1, keo dai window de bu FP.
+    window_minutes: 10
+    min_count: 1
 
   - id: oom-detected
     type: log
@@ -132,5 +138,60 @@ rules:
       - "no such host"
       - "name resolution"
       - "Temporary failure in name resolution"
-    window_minutes: 5
-    min_count: 3
+    # Review K2 (recall dominates): min_count 3->1, window 5->10m.
+    window_minutes: 10
+    min_count: 1
+
+  # ---- DRAFT (review K1/K4) - PHAI verify PromQL tren Prometheus song truoc khi tin ----
+  # K1: multi-window multi-burn-rate cho error budget (non-5xx >= 99.5% => budget 0.5%).
+  # Fire khi burn-rate 5m > 14.4x VA 1h > 14.4x (SRE workbook page-level).
+  - id: error-budget-burn-fast
+    type: metric
+    severity: critical
+    summary: "DRAFT K1: error budget burn > 14.4x tren ca 5m va 1h - dang dot budget 24h voi toc do chay het trong <2h"
+    query: >-
+      (
+        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", http_response_status_code=~"5.."}[5m]))
+        /
+        clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp"}[5m])), 0.001)
+        / 0.005
+      )
+      and
+      (
+        (
+          sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", http_response_status_code=~"5.."}[1h]))
+          /
+          clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp"}[1h])), 0.001)
+          / 0.005
+        ) > 14.4
+      )
+    op: gt
+    threshold: 14.4
+
+  # SEMANTICS-VERIFIED 12/07 (compose + chaos productCatalogFailure): loi flag nay hien o tang gRPC
+  # (rpc_grpc_status_code=13) va KHONG sinh HTTP 5xx nao -> cac rule http_server_* mu voi no.
+  # Rule nay do error-ratio gRPC; do thuc te duoi chaos: product-catalog = 6.6% (fire voi threshold 5%).
+  - id: grpc-error-rate-high
+    type: metric
+    severity: critical
+    summary: "gRPC error ratio > 5% - loi tang RPC (khong hien qua HTTP 5xx, vd productCatalogFailure)"
+    query: >-
+      sum by (service_name) (rate(rpc_server_duration_milliseconds_count{rpc_grpc_status_code=~"2|4|13|14"}[5m]))
+      /
+      clamp_min(sum by (service_name) (rate(rpc_server_duration_milliseconds_count[5m])), 0.001)
+    op: gt
+    threshold: 0.05
+
+  # K4: leading indicator cho lop su co OOM (INC-2, review J1 valkey-cart) - bat TRUOC khi kubelet kill.
+  - id: memory-saturation-high
+    type: metric
+    severity: warning
+    summary: "DRAFT K4: container memory > 85% limit trong 10m - nguy co OOMKill (valkey-cart/J1, INC-2)"
+    query: >-
+      max by (container) (
+        avg_over_time(container_memory_working_set_bytes{namespace="techx-corp"}[10m])
+        /
+        clamp_min(kube_pod_container_resource_limits{namespace="techx-corp", resource="memory"}, 1)
+      )
+    op: gt
+    threshold: 0.85

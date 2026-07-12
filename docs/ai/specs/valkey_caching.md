@@ -75,7 +75,7 @@ sequenceDiagram
   *(`model_ver`/`prompt_ver` lặp lại trong value để phục vụ audit và debug; key mới là thứ quyết định hit/miss.)*
 
 ### 3.2 Cấu hình vòng đời và bộ nhớ (TTL & Eviction)
-- **TTL (Time To Live):** **Động (Dynamic TTL)** tính toán tự động từ **4 giờ đến 7 ngày** dựa trên số lượng review ($N$) và độ biến động điểm số ($\sigma^2$) của sản phẩm. Xem chi tiết thuật toán tại Mục 5.
+- **TTL (Time To Live):** ~~Động (Dynamic TTL) 4 giờ đến 7 ngày~~ → **[SỬA 12/07] TTL phẳng 7 ngày.** Dynamic TTL bị gỡ khỏi code sau kiểm chứng: review data là tĩnh (không rpc ghi, seed cố định) nên $N$ và $\sigma^2$ không bao giờ đổi — công thức không có gì để phản ứng, chỉ đốt lại token cho output giống hệt. Xem Mục 5 (giữ làm tư liệu) + Phụ lục.
 - **Eviction Policy (Chính sách giải phóng bộ nhớ) & Giải pháp Bảo vệ Giỏ hàng (Option 1):**
   - Cấu hình eviction policy của cụm Valkey là `volatile-lru`.
   - Để tránh việc giỏ hàng (khi đó còn TTL mặc định 60m trong code) bị xóa nhầm khi RAM đầy, nhóm đã **loại bỏ hoàn toàn TTL của giỏ hàng trong code C# (`ValkeyCartStore.cs`)**. Khi không có TTL, key giỏ hàng trở thành key vĩnh viễn (non-volatile) và được Valkey bảo vệ an toàn 100% khỏi cơ chế tự động eviction.
@@ -110,9 +110,11 @@ sequenceDiagram
 
 ---
 
-## 5. Cơ chế Đặt TTL Động (Score-Based Dynamic TTL)
+## 5. ~~Cơ chế Đặt TTL Động (Score-Based Dynamic TTL)~~ [ĐÃ GỠ 12/07 — giữ làm tư liệu thiết kế]
 
-Để tối ưu hóa chi phí token (AWS Bedrock) và đảm bảo tính cập nhật của bản tóm tắt, hệ thống không sử dụng TTL 24 giờ cố định mà tính toán TTL động dựa trên thông số review của sản phẩm:
+> **Lý do gỡ (kiểm chứng được):** premise dữ liệu review thay đổi là sai — data tĩnh 100% (đã verify proto + DB). Công thức dưới đây chỉ kích hoạt lại nếu hệ có đường ghi review thật (trigger nâng cấp).
+
+Thiết kế gốc: tối ưu hóa chi phí token và tính cập nhật bằng TTL động theo thông số review:
 
 $$\text{TTL}_{\text{seconds}} = \max\left(14400, \frac{604800}{1 + 0.05 \cdot N + 0.5 \cdot \sigma^2}\right)$$
 
@@ -128,8 +130,8 @@ $$\text{TTL}_{\text{seconds}} = \max\left(14400, \frac{604800}{1 + 0.05 \cdot N 
 
 Cache được làm mới bằng đúng **hai cơ chế thụ động**, không có lệnh `DEL` chủ động nào:
 
-### 6.1 Dynamic TTL — làm mới theo thời gian
-Mọi key hết hạn sau 4 giờ đến 7 ngày, tính theo số lượng review ($N$) và độ biến động điểm ($\sigma^2$). Xem công thức tại §5. Sản phẩm nhiều review, điểm ổn định ⇒ TTL dài (nội dung ít đổi). Sản phẩm ít review, điểm dao động ⇒ TTL ngắn.
+### 6.1 TTL phẳng 7 ngày — làm mới theo thời gian [SỬA 12/07]
+Mọi key hết hạn sau **7 ngày** (`ttl = 604800` trong code). Với data tĩnh, expiry chỉ là cơ chế tự-phục-hồi (self-healing) nếu cache chứa giá trị hỏng — không phải cơ chế "cập nhật nội dung".
 
 ### 6.2 Versioned Cache Key — làm mới khi đổi model hoặc prompt
 Key chứa `{model_ver}:{prompt_ver}` (§3.1). Đổi model hoặc sửa system prompt ⇒ key mới ⇒ lần đọc kế tiếp **miss tự nhiên** và sinh lại bằng cấu hình mới. Bản tóm tắt cũ nằm lại cho tới khi TTL hết hạn rồi tự bị dọn, không cần thao tác vận hành.
@@ -144,3 +146,11 @@ Hai cơ chế này từng được đặc tả ở đây và **đã bị loại 
 
 Nút Thumbs Down cùng cơ chế routing động sang Nova Pro chuyển xuống hạng mục **Mở rộng [Extend]**, ngoài phạm vi tuần 1. Nếu về sau có đường ghi review thật, cân nhắc thêm Write-Around Invalidation khi đó.
 
+
+---
+
+## Phụ lục kiểm chứng 12/07/2026
+
+1. **Dynamic TTL đã gỡ khỏi code** → TTL phẳng 7d: premise "review tĩnh" kiểm chứng đúng (proto không rpc ghi, seed init.sql) nên N/variance không bao giờ đổi — công thức không có gì để phản ứng; hệ chỉ có **10 cache key** (10 sản phẩm đếm từ DB). Bỏ luôn query DB thừa mỗi lần cache-write.
+2. **Versioned key giờ mới thật sự versioned**: `model_ver` đọc từ `LLM_REVIEWS_MAIN_MODEL` (trước là hằng "nova-lite-v1" chết — đổi model qua env không xoay key), `prompt_ver` = md5(SYSTEM_PROMPT)[:8].
+3. **⚠️ Blast radius chung instance với cart (liên quan ADR-003):** valkey-cart hiện `volatile-lru` **không có maxmemory** (policy không chạy) + cart không TTL + limit 20Mi → nguy cơ OOMKill mất giỏ (checkout SLO). Nếu set maxmemory sau này, key reviews (volatile duy nhất) sẽ hứng toàn bộ eviction trước. Cần quyết với CDO: khôi phục TTL cart hoặc maxmemory + tách instance.

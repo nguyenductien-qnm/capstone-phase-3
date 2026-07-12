@@ -2,7 +2,7 @@
 
 ---
 
-## ADR-001 - Sử dụng Valkey Caching cho dịch vụ Product Reviews
+## ADR-001 - Sử dụng Valkey Caching cho dịch vụ Product Reviews  ⟵ *amended 12/07, xem Phụ lục kiểm chứng*
 - **Trạng thái:** Chấp nhận (Accepted)
 - **Ngày:** 2026-07-08
 - **Người ký:** Nhóm AI (AIO03) - Task Force 1
@@ -30,7 +30,7 @@
 
 ---
 
-## ADR-002 - Cơ chế Model Fallback & Retry cho cuộc gọi AWS Bedrock
+## ADR-002 - Cơ chế Model Fallback & Retry cho cuộc gọi AWS Bedrock  ⟵ *amended 12/07, xem Phụ lục kiểm chứng*
 - **Trạng thái:** ~~Chấp nhận~~ → **Thay thế bởi ADR-004** (Superseded)
 - **Ngày:** 2026-07-08 (thay thế: 2026-07-09)
 - **Người ký:** Nhóm AI (AIO03) - Task Force 1
@@ -56,7 +56,7 @@
 
 ---
 
-## ADR-003 - Giải quyết Xung đột Eviction Policy trên cụm Valkey dùng chung
+## ADR-003 - Giải quyết Xung đột Eviction Policy trên cụm Valkey dùng chung  ⟵ *amended 12/07, xem Phụ lục kiểm chứng*
 - **Trạng thái:** Chấp nhận (Accepted - Quyết định chọn Option 1)
 - **Ngày:** 2026-07-08
 - **Người ký:** Nhóm AI (AIO03) - Task Force 1
@@ -81,7 +81,7 @@
 
 ---
 
-## ADR-004 - Định tuyến Model LLM lai theo Tác vụ (Hybrid Task-Specific Routing) cho Đơn Vùng (Single-Region)
+## ADR-004 - Định tuyến Model LLM lai theo Tác vụ (Hybrid Task-Specific Routing) cho Đơn Vùng (Single-Region)  ⟵ *amended 12/07, xem Phụ lục kiểm chứng*
 - **Trạng thái:** Chấp nhận (Accepted)
 - **Ngày:** 2026-07-09
 - **Người ký:** Nhóm AI (AIO03) - Task Force 1
@@ -94,7 +94,7 @@
 - **Quyết định:** 
   Triển khai mô hình định tuyến lai dựa trên đặc thù tác vụ (Task-Specific Routing) trong đơn vùng (Single-Region):
   - **Tác vụ Reviews Summary (Tải cực cao, độ phức tạp thấp):**
-    - Định tuyến chính (Primary): Amazon Nova Lite (`amazon.nova-lite-v1:0`). TTFT cực nhanh (~0.4s theo [Artificial Analysis](https://artificialanalysis.ai/leaderboards/models)), chi phí cực rẻ ([$0.06/$0.24 per 1M tokens](https://aws.amazon.com/bedrock/pricing/)).
+    - Định tuyến chính (Primary): Amazon Nova Lite (`amazon.nova-lite-v1:0`). TTFT ~1.04s, ~175.7 tok/s theo [Artificial Analysis](https://artificialanalysis.ai/models/nova-lite) *(sửa 12/07 — bản đầu ghi 0.4s sai nguồn)*, chi phí cực rẻ ([$0.06/$0.24 per 1M tokens](https://aws.amazon.com/bedrock/pricing/)).
     - Dự phòng (Fallback): Amazon Nova Micro (`amazon.nova-micro-v1:0`) và cuối cùng là Mock Summary.
     - Timeout: **3.0 giây (3000ms)** — sàn cứng. Đặt thấp hơn (vd 2.0s) sẽ cắt ngang đuôi phân phối latency của request sinh 200 token output, huỷ đúng lúc sắp thành công rồi retry lại từ đầu: trả tiền token nhiều lần cho 0 kết quả và dội tải ngược lên Bedrock đúng lúc nó đang chậm. Đổi lại **không được gì**, vì tóm tắt AI là **best-effort, không SLA cứng** (`SLO.md`) và chỉ chạy khi khách bấm nút, không chặn render trang → không tính vào SLO storefront p95 < 1s.
   - **Tác vụ Shopping Copilot (Tải thấp, độ phức tạp cao, cần độ chính xác gọi tool tuyệt đối):**
@@ -106,7 +106,7 @@
   - *Option B - Sử dụng thuần Amazon Nova Lite (A2):* Tiết kiệm nhất nhưng bị loại do khả năng gọi tool tiếng Việt của Nova Lite chưa đủ tin cậy cho Copilot Agent so với Nova Pro.
 - **Cost Δ:** Tiết kiệm khoảng **100% chi phí tiền mặt thật** cho toàn bộ hệ thống LLM nhờ việc chuyển dịch hoàn toàn sang các mô hình First-party của Amazon (Nova Lite, Nova Micro, Nova Pro) được cấn trừ hoàn toàn qua AWS Credits.
 - **Ảnh hưởng SLO:**
-  - **Không tác động trực tiếp lên p95 latency storefront < 1.0s**, vì cả hai luồng LLM đều nằm ngoài đường render trang (Reviews chạy khi bấm *Ask AI*; Copilot là panel hội thoại riêng). TTFT ~0.4s của Nova Lite cải thiện *độ trễ cảm nhận của trợ lý AI*, không phải p95 của storefront.
+  - **Không tác động trực tiếp lên p95 latency storefront < 1.0s**, vì cả hai luồng LLM đều nằm ngoài đường render trang (Reviews chạy khi bấm *Ask AI*; Copilot là panel hội thoại riêng). Độ trễ Nova Lite (~2.2s/call điển hình theo benchmark, chờ đo P95 thật) chỉ ảnh hưởng *độ trễ cảm nhận của trợ lý AI*, không phải p95 của storefront.
   - Bảo vệ tỷ lệ Checkout thành công ≥ 99% nhờ độ chính xác gọi tool cao của Amazon Nova Pro — Copilot có thể ghi vào giỏ hàng, nên gọi sai tool là rủi ro trực tiếp lên luồng ra tiền.
 - **Hệ quả:**
   - ✅ *Lợi ích:* Cân bản hoàn hảo giữa chi phí, tốc độ và độ chính xác của AI.
@@ -114,7 +114,7 @@
 
 ---
 
-## ADR-005 - Chiến lược Resilience & Retry cho cuộc gọi LLM API
+## ADR-005 - Chiến lược Resilience & Retry cho cuộc gọi LLM API  ⟵ *amended 12/07, xem Phụ lục kiểm chứng*
 - **Trạng thái:** Chấp nhận (Accepted)
 - **Ngày:** 2026-07-09
 - **Người ký:** Nhóm AI (AIO03) - Task Force 1
@@ -169,7 +169,7 @@
 
 ---
 
-## ADR-007 - [Extend] Sử dụng Drain3 cho Log Clustering & Anomaly Detection
+## ADR-007 - [Extend] Sử dụng Drain3 cho Log Clustering & Anomaly Detection  ⟵ *amended 12/07, xem Phụ lục kiểm chứng*
 - **Trạng thái:** Chấp nhận (Accepted)
 - **Ngày:** 2026-07-09
 - **Người ký:** Nhóm AI (AIO03) - Task Force 1
@@ -197,7 +197,7 @@
 
 ---
 
-## ADR-008 - Semantic Search nâng cao bằng Amazon Titan Embeddings + pgvector (Hạng mục Đua Top)
+## ADR-008 - Semantic Search nâng cao bằng Amazon Titan Embeddings + pgvector (Hạng mục Đua Top)  ⟵ *amended 12/07, xem Phụ lục kiểm chứng*
 - **Trạng thái:** Chấp nhận (Accepted)
 - **Ngày:** 2026-07-09
 - **Người ký:** Nhóm AI (AIO03) - Task Force 1
@@ -274,3 +274,55 @@
   - ✅ *Lợi ích:* Cho phép A/B test model an toàn, so sánh cost/latency/quality per-model trực quan trên Grafana, gradual rollout khi đổi model.
   - ⚠️ *Đánh đổi:* Phải viết và maintain Model Router code, phải thiết lập Grafana dashboard cho metrics per-model.
 - **Spec chi tiết:** [docs/ai/specs/model_gateway_ab_testing.md](specs/model_gateway_ab_testing.md)
+
+---
+
+## Phụ lục kiểm chứng 12/07/2026 — số đo thay số ước lượng (verification addendum)
+
+> Kết quả re-verify toàn bộ ADR trên stack chạy thật (docker compose, image build từ source) + thí nghiệm tái tạo được (script trong `docs/ai/evals/`). Mỗi mục dưới đây SỬA hoặc BỔ SUNG cho ADR tương ứng ở trên.
+
+**ADR-001 (Valkey caching):** Premise "review tĩnh" đã kiểm chứng đúng (proto không có rpc ghi, seed `init.sql`) → hệ quả: **dynamic TTL bị gỡ khỏi code** (không có gì để nó phản ứng, chỉ đốt lại token cho output giống hệt; hệ chỉ có 10 cache key) → TTL phẳng 7d. **Versioned key trước đây vô hiệu** — `model_ver/prompt_ver` là hằng số chết; nay derive từ `LLM_REVIEWS_MAIN_MODEL` + md5(SYSTEM_PROMPT)[:8].
+
+**ADR-002/005 (Fallback & Resilience):** Trạng thái "tuần 2 mới làm" đã stale — PR#26 merge rồi. Kiểm chứng runtime phát hiện và đã sửa 4 lỗi: (1) flag `llmReviewsFallbackEnabled` **không tồn tại trong flagd**, default code = False → fallback chưa từng chạy (proof trước fix: 0 dòng "Fallback routing triggered"; sau fix: ×5); (2) bulkhead `Semaphore(10)` blocking trên pool 10 thread = **no-op** (thí nghiệm `evals/bulkhead_experiment.py`: fast-request 1909ms cả khi sema=6 blocking; non-blocking→mock = 10ms) → sửa thành non-blocking, sema 6; (3) circuit breaker đọc cờ sự cố `llmRateLimitError` — vùng xám luật "đổi hướng cơ chế sự cố" (AI_FEATURE §3) → thay bằng breaker 3-lỗi-liên-tiếp/mở-30s (proof: "Circuit Breaker OPENED for 30.0s after 3 consecutive primary failures"); (4) lớp lỗi `BotoCoreError` (NoCredentials, endpoint...) **thoát ngang ladder** vì không nằm trong except tuple → đã mở rộng. Lớp 1 "SDK adaptive retry" trong spec sai — code tắt SDK retry (`max_attempts: 0`, đúng để tránh retry kép).
+
+**ADR-003 (Eviction policy) — ⚠️ CẢNH BÁO, cần quyết lại với CDO:** chuỗi 3 mảnh tự vô hiệu: `--maxmemory-policy volatile-lru` được thêm **không kèm `--maxmemory`** → policy không bao giờ chạy; TTL cart bị gỡ để "chống eviction" là chẩn đoán sai (TTL expiry ≠ LRU eviction) và gỡ đúng cơ chế chống rò rỉ duy nhất; limit container 20Mi + cart tích vô hạn → **kubelet OOMKill → mất toàn bộ giỏ → đánh checkout SLO ≥99%** (đúng vết INC-2). Cron GC 30-ngày không cứu được. Phương án: khôi phục TTL hoặc set maxmemory + tách instance cache reviews; chọn sau soak test đo time-to-OOM.
+
+**ADR-004 (Hybrid routing):** TTFT Nova Lite ghi ~0.4s **sai so với chính nguồn cite** — Artificial Analysis: **TTFT 1.04s, 175.7 tok/s** → 1 call ≈2.2s, luồng tóm tắt 2 vòng converse ≈4.4s điển hình (không phải "2.5s"). Nhóm đã **chốt bỏ Claude (11/07)** — lập luận bảo vệ Nova chuyển sang con số đã verify: **rẻ ~50× Claude Sonnet** ($0.06/$0.24 vs $3/$15 per 1M); bỏ claim credit chưa kiểm chứng. Claude 3.5 Sonnet trong bảng so sánh đã EOL trên Bedrock 03/2026 — nếu còn dùng so sánh, dùng Sonnet 4.x (cùng giá).
+
+**ADR-007 (Drain3 + detector):** Số đo thật (compose + chaos flagd, script `evals/measure_detection_pipeline.py`): ingest lag P50 2.1s; **MTTD poll 30s: mean 19.6s / max 35.4s** — claim "MTTD < 1 phút" giờ có evidence; vùng poll hợp lệ theo error budget: [10s, 60s], chi phí query ~0 (5ms/query). Grid Drain3 trên 19.294 dòng log thật (`evals/drain3_param_grid.py`): **sim_th 0.3 trội 0.4 ở cả 4 tiêu chí** (795 vs 1074 templates, coverage 48.3% vs 47.1%, singleton 56% vs 60%, stability 0.64 vs 0.73); depth 4–6 vô cảm. Lưu ý: code `log_clustering.py` đang hardcode **0.5** — lệch cả spec (0.4) lẫn số đo (0.3). Việc còn: bật masking rồi đo lại trên 24h log EKS.
+
+**ADR-008 (Semantic search):** Dữ liệu thật: **catalog 10 sản phẩm, 50 reviews** (đếm từ DB). HNSW/pgvector cho N=10 là over-engineering — phương án đạt "Done" của đề với zero infra: đưa cả catalog (~vài trăm token) vào prompt Copilot. **Defer pgvector** tới khi có directive scale; số "embed 80ms + HNSW 8ms" chưa đo, không dùng làm căn cứ.
+
+### Ghi chú build (12/07): protobuf gencode/runtime
+
+Source từng không build được image: `demo_pb2.py` bị regen bằng protoc mới (gencode 7.35.0) trong khi `requirements.txt` (qua grpcio-health-checking 1.71) ghim runtime protobuf 5.29.6 → `VersionError` khi boot. Diff `pb/demo.proto` so baseline chỉ là **2 dòng trắng** — regen là churn thuần. **Fix: revert `demo_pb2*.py` (product-reviews + recommendation) về bản baseline.** Quy tắc rút ra: chỉ regen pb khi proto đổi semantic, và regen bằng đúng grpcio-tools phiên bản khớp requirements (xem `docker-gen-proto.sh`).
+
+### Sổ đăng ký con số (12/07) — số nào đã có căn cứ, số nào còn là assumption
+
+Trả lời câu hỏi kiểm toán "còn số phẳng không lý do không": có, và chúng được liệt kê ở đây thay vì giả vờ không tồn tại. Quy ước: số ASSUMPTION phải có nhãn + kế hoạch đo; không được trình như số đo.
+
+**Đã đo / có derivation:**
+| Số | Căn cứ |
+|---|---|
+| Poll detector 30s | Đo MTTD max 35.4s, vùng hợp lệ [10s,60s] theo error budget; chi phí query 5ms/lần |
+| Mẫu số cost 10:1, giá Nova/Claude, Titan | locustfile weights; pricing page |
+| TTL cache 7d phẳng | Data tĩnh (verified proto/DB) → không cần expiry; 7d là trần tự-phục-hồi tuỳ chọn |
+| Burn-rate 14.4×/6× (rule draft) | Derivation chuẩn SRE workbook từ budget 0.5%/24h |
+| sim_th Drain3 | Grid đo trên 19.3k dòng: 0.3 trội — CHƯA chốt vào code, chờ masking + 24h EKS |
+| Bulkhead "phải < 10 và non-blocking" | Thí nghiệm 10ms vs 1909ms (ràng buộc đã chứng minh) |
+
+**Còn là ASSUMPTION (có nhãn, cần đo hoặc quyết):**
+| Số | Hiện ở đâu | Kế hoạch |
+|---|---|---|
+| Bulkhead size **6** | `LLM_BULKHEAD_SIZE` | Ràng buộc <10 đã chứng minh; giá trị 6 cụ thể chưa tối ưu — load test in-cluster |
+| CB **3 lỗi / 30s** | `LLM_CB_THRESHOLD/COOLDOWN` | Convention; tune bằng chaos test |
+| Timeout **3.0s/2.0s/5.0s** | spec + env | Hướng đúng nhưng gốc dựa TTFT sai (thực 1.04s) — đo P95 thật bằng `evals/measure_bedrock_latency.py` khi có creds |
+| Retry 2/1, backoff 100ms/×1.5 | spec + code | Pattern AWS blog; giá trị cụ thể chưa justify, tác hại nhỏ (≤2 retry) |
+| `maxTokens 1024, temp 0.1, topP 0.9` | code converse | Chưa ai ghi lý do — cần 1 dòng justification hoặc eval nhỏ |
+| EWMA α=0.2, 3σ | spec + detector | Trong canon SPC; backtest trên 24h Prometheus thật |
+| memory-saturation **0.85/10m**, min_count **1/10m** | rules.yaml (draft/K2) | Đo FP 24h để tune |
+| Cooldown alert **600s** | rules.yaml | Chưa đo tần suất page chấp nhận được |
+| Remediation **120s verify / 3-fail CB / 1 pod/h** | anomaly_remediation.md | Label assumption; eval khi bật auto-remediation |
+| Envoy copilot **30s** (5 vòng tool × 5s) | envoy.tmpl.yaml | Dựa ADR-006 khi chưa có agent thật — đo lại khi copilot chạy |
+| Exclusion list rule latency | rules.yaml | Rà lại mỗi khi thêm service mới |
+| Drain3 max_children 100 / max_clusters 1000 | log_clustering.py | Default thư viện, chưa xét — đưa vào lượt grid sau |

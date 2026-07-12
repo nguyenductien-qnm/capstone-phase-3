@@ -182,3 +182,27 @@ Detection spec phải biết rằng:
 - Prometheus rule: phản ứng nhanh, bắt spike đột ngột.
 - Cùng nhau: coverage đầy đủ cho cả 2 loại anomaly, đồng thời giảm false alarm bằng cách yêu cầu confirmation.
 
+
+---
+
+## Phụ lục kiểm chứng 12/07/2026 — MTTD đo thật + lỗ hổng burn-rate
+
+**Số đo pipeline detection** (compose stack, chaos qua flagd, script `docs/ai/evals/measure_detection_pipeline.py`): ingest lag P50 2.1s/max 5.1s; sự cố → phrase thấy được trên OpenSearch P50 5.1s; **MTTD poll 30s: mean ~19.6s, max ~35.4s**; chi phí 1 query detector 5ms P50 → vùng poll hợp lệ theo error budget SLO: **[10s, 60s]**, 30s giữ nguyên là quyết định có số.
+
+**Lỗ hổng theo nguyên tắc giáo trình AIOps course** (*"Never alert on raw error rate — use multi-window multi-burn-rate"*): rule error-rate hiện là single-window 5m raw threshold → (a) page vì blip khi budget 24h còn nguyên, (b) **ngủ quên trước slow burn** (0.4% cả ngày = đốt 80% budget, không alert). Đã thêm rule DRAFT `error-budget-burn-fast` (14.4× ở cả 5m và 1h) + `memory-saturation-high` (>85% limit — leading indicator cho lớp OOM/INC-2) vào `rules.yaml` — **phải verify PromQL trên Prometheus sống trước khi tin**.
+
+**FP run 15 phút tải thật:** rule `latency-p95-high` bắn nhầm vào `flagd` (4.87s, không thuộc SLO nào) — query cần filter service thuộc SLO; rule 429 từng bắn với nhãn sai bản chất khi lỗi thật là thiếu creds → code đã chuyển sang marker `AI_SUMMARY_FALLBACK reason=<type>`, rule `genai-assistant-failure` match marker này. `min_count` db-pool/dns đổi 3→1, window 5→10m (giáo trình: "missing an incident is a zero — recall dominates").
+
+## Phụ lục 2 (12/07 chiều) — semantics verify bằng chaos thật + lỗ hổng tầng gRPC
+
+Thí nghiệm: bật `productCatalogFailure` trên compose, traffic locust chạy nền, đọc Prometheus sống.
+
+**Phát hiện quan trọng: sự cố này KHÔNG sinh HTTP 5xx** — chỉ hiện ở tầng gRPC (`rpc_server_duration_milliseconds_count{rpc_grpc_status_code="13"}`, đo được error-ratio product-catalog = **6.6%**), trong khi `http_server_request_duration_seconds_count` chỉ có mã 200 chảy. Hệ quả: **mọi rule error-rate dựa HTTP (cả rule cũ lẫn burn-rate draft) mù với lớp sự cố gRPC-layer.** Đã thêm rule `grpc-error-rate-high` (threshold 5%) — **semantics verified trên data sống** (fire đúng dưới chaos, im lặng trước đó).
+
+Trạng thái verify từng rule metric:
+| Rule | Parse | Semantics |
+|---|---|---|
+| latency/error-rate/checkout/genai-latency | ✅ | ✅ hoạt động từ FP-run + latency đã fire thật |
+| `grpc-error-rate-high` (mới) | ✅ | ✅ **verified chaos 12/07** |
+| `error-budget-burn-fast` | ✅ | ⚠️ chưa fire được ở local vì chưa tạo được HTTP 5xx thật — verify tiếp trên EKS hoặc chaos khác sinh 5xx |
+| `memory-saturation-high` | ✅ | ⏳ compose không có kube-state-metrics/cadvisor (0 series — đúng kỳ vọng, không FP); **EKS bắt buộc cài kube-state-metrics** để rule sống |
