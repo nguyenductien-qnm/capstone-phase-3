@@ -124,7 +124,7 @@ Các biến môi trường được cấu hình linh động cho Pod `product-re
     *   `LLM_COPILOT_TIMEOUT`: Timeout cho Nova Pro (Mặc định: `5.0`).
     *   `LLM_COPILOT_MAX_RETRIES`: Số lần thử lại tối đa (Mặc định: `2`).
 
-**Quy tắc di trú:** khi đọc model, code resolve theo thứ tự `LLM_REVIEWS_MAIN_MODEL` → fallback về `LLM_MODEL`. Nhờ vậy `deploy/values-aio-llm.yaml` hiện có (chỉ set `LLM_MODEL`, `LLM_BASE_URL`, `OPENAI_API_KEY`) vẫn boot được mà không cần sửa cùng lúc với code.
+**Quy tắc di trú:** khi đọc model, code resolve theo thứ tự `LLM_REVIEWS_MAIN_MODEL` → fallback về `LLM_MODEL`. Nhờ vậy `platform/gitops/environments/sandbox/values-aio-llm.yaml` hiện có (chỉ set `LLM_MODEL`, `LLM_BASE_URL`, `OPENAI_API_KEY`) vẫn boot được mà không cần sửa cùng lúc với code.
 
 ---
 

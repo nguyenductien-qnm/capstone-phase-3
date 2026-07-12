@@ -1,52 +1,271 @@
-data "aws_caller_identity" "current" {}
+data "aws_partition" "current" {}
 
 locals {
-  # Lọc bỏ AWS User hiện tại đang chạy Terraform để tránh lỗi 409 (đã được tự động gán quyền Admin qua enable_cluster_creator_admin_permissions)
-  filtered_admin_user_arns = [
-    for arn in var.admin_user_arns : arn if arn != data.aws_caller_identity.current.arn
-  ]
+  cluster_name = "${var.project_name}-${var.environment}-eks"
+  core_addons = var.enable_core_addons ? toset([
+    "coredns",
+    "kube-proxy",
+    "vpc-cni",
+    "eks-pod-identity-agent",
+  ]) : toset([])
 }
 
-module "eks" {
-  source  = "terraform-aws-modules/eks/aws"
-  version = "~> 20.0"
+resource "aws_cloudwatch_log_group" "control_plane" {
+  name              = "/aws/eks/${local.cluster_name}/cluster"
+  retention_in_days = var.control_plane_log_retention_days
 
-  cluster_name    = var.cluster_name
-  cluster_version = "1.36"
+  tags = {
+    Name = "${local.cluster_name}-control-plane"
+  }
+}
 
-  cluster_endpoint_public_access = true
+resource "aws_iam_role" "cluster" {
+  name = "${local.cluster_name}-cluster-role"
 
-  vpc_id     = var.vpc_id
-  subnet_ids = var.subnet_ids
-
-  enable_cluster_creator_admin_permissions = true
-
-  access_entries = { for arn in local.filtered_admin_user_arns : basename(arn) => {
-    principal_arn = arn
-    policy_associations = {
-      admin = {
-        policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
-        access_scope = {
-          type = "cluster"
-        }
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        Service = "eks.amazonaws.com"
       }
+      Action = "sts:AssumeRole"
+    }]
+  })
+
+  tags = {
+    Name = "${local.cluster_name}-cluster-role"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "cluster" {
+  role       = aws_iam_role.cluster.name
+  policy_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/AmazonEKSClusterPolicy"
+}
+
+resource "aws_eks_cluster" "this" {
+  name     = local.cluster_name
+  version  = var.cluster_version
+  role_arn = aws_iam_role.cluster.arn
+
+  enabled_cluster_log_types = var.enabled_cluster_log_types
+
+  access_config {
+    authentication_mode                         = "API"
+    bootstrap_cluster_creator_admin_permissions = false
+  }
+
+  vpc_config {
+    subnet_ids              = var.private_subnet_ids
+    endpoint_private_access = true
+    endpoint_public_access  = var.endpoint_public_access
+    public_access_cidrs     = var.endpoint_public_access ? var.public_access_cidrs : null
+  }
+
+  depends_on = [
+    aws_cloudwatch_log_group.control_plane,
+    aws_iam_role_policy_attachment.cluster,
+  ]
+
+  lifecycle {
+    precondition {
+      condition     = !var.endpoint_public_access || length(var.public_access_cidrs) > 0
+      error_message = "public_access_cidrs must be set when endpoint_public_access is enabled."
     }
-  }}
 
-  eks_managed_node_groups = {
-    techx_nodes = {
-      name = "techx-node-group-${var.environment}"
-
-      min_size     = var.min_size
-      max_size     = var.max_size
-      desired_size = var.desired_size
-
-      instance_types = var.instance_types
-      capacity_type  = "ON_DEMAND" # Có thể đổi sang SPOT để tiết kiệm chi phí
-
-      iam_role_additional_policies = {
-        AmazonEC2ContainerRegistryReadOnly = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
-      }
+    precondition {
+      condition = (
+        !var.endpoint_public_access ||
+        var.environment == "dev" ||
+        alltrue([
+          for cidr in var.public_access_cidrs :
+          !contains(["0.0.0.0/0", "::/0"], cidr)
+        ])
+      )
+      error_message = "World-open EKS API CIDRs are allowed only in the dev environment."
     }
   }
+
+  tags = {
+    Name = local.cluster_name
+  }
+}
+
+# Cluster OIDC provider for IRSA. This is unrelated to the GitHub Actions OIDC
+# provider: IRSA maps Kubernetes service accounts to workload IAM roles.
+data "tls_certificate" "cluster_oidc" {
+  url = aws_eks_cluster.this.identity[0].oidc[0].issuer
+}
+
+resource "aws_iam_openid_connect_provider" "cluster" {
+  url             = aws_eks_cluster.this.identity[0].oidc[0].issuer
+  client_id_list  = ["sts.amazonaws.com"]
+  thumbprint_list = [data.tls_certificate.cluster_oidc.certificates[0].sha1_fingerprint]
+
+  tags = {
+    Name = "${local.cluster_name}-irsa"
+  }
+}
+
+resource "aws_iam_role" "node" {
+  name = "${local.cluster_name}-node-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        Service = "ec2.amazonaws.com"
+      }
+      Action = "sts:AssumeRole"
+    }]
+  })
+
+  tags = {
+    Name = "${local.cluster_name}-node-role"
+  }
+}
+
+# Keep the node role limited to node bootstrap, CNI and image pulls. Application,
+# telemetry and autoscaler permissions belong to dedicated IRSA roles.
+resource "aws_iam_role_policy_attachment" "node" {
+  for_each = toset([
+    "AmazonEKSWorkerNodePolicy",
+    "AmazonEKS_CNI_Policy",
+    "AmazonEC2ContainerRegistryPullOnly",
+  ])
+
+  role       = aws_iam_role.node.name
+  policy_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/${each.value}"
+}
+
+resource "aws_launch_template" "node" {
+  name_prefix            = "${local.cluster_name}-node-"
+  update_default_version = true
+
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 1
+    instance_metadata_tags      = "disabled"
+  }
+
+  block_device_mappings {
+    device_name = "/dev/xvda"
+
+    ebs {
+      encrypted             = true
+      volume_size           = var.node_disk_size_gib
+      volume_type           = "gp3"
+      delete_on_termination = true
+    }
+  }
+
+  tag_specifications {
+    resource_type = "instance"
+    tags = {
+      Name = "${local.cluster_name}-node"
+    }
+  }
+
+  tags = {
+    Name = "${local.cluster_name}-node-template"
+  }
+}
+
+resource "aws_eks_node_group" "this" {
+  cluster_name    = aws_eks_cluster.this.name
+  node_group_name = "${local.cluster_name}-primary"
+  node_role_arn   = aws_iam_role.node.arn
+  subnet_ids      = var.private_subnet_ids
+  instance_types  = var.node_instance_types
+  capacity_type   = var.node_capacity_type
+
+  launch_template {
+    id      = aws_launch_template.node.id
+    version = aws_launch_template.node.latest_version
+  }
+
+  scaling_config {
+    min_size     = var.node_scaling.min_size
+    max_size     = var.node_scaling.max_size
+    desired_size = var.node_scaling.desired_size
+  }
+
+  update_config {
+    max_unavailable = 1
+  }
+
+  labels = var.node_labels
+
+  dynamic "taint" {
+    for_each = var.node_taints
+    content {
+      key    = taint.value.key
+      value  = taint.value.value
+      effect = taint.value.effect
+    }
+  }
+
+  depends_on = [aws_iam_role_policy_attachment.node]
+
+  tags = {
+    Name = "${local.cluster_name}-primary"
+  }
+}
+
+data "aws_eks_addon_version" "core" {
+  for_each = local.core_addons
+
+  addon_name         = each.value
+  kubernetes_version = aws_eks_cluster.this.version
+  most_recent        = true
+}
+
+resource "aws_eks_addon" "core" {
+  for_each = local.core_addons
+
+  cluster_name  = aws_eks_cluster.this.name
+  addon_name    = each.value
+  addon_version = data.aws_eks_addon_version.core[each.key].version
+
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "PRESERVE"
+
+  depends_on = [aws_eks_node_group.this]
+
+  tags = {
+    Name = "${local.cluster_name}-${each.value}"
+  }
+}
+
+# Access Entries are the only human/automation path into the Kubernetes API.
+# For AWS IAM Identity Center, principal_arn must be the IAM role ARN under
+# AWSReservedSSO_..., never an STS assumed-role session ARN.
+resource "aws_eks_access_entry" "this" {
+  for_each = var.access_entries
+
+  cluster_name      = aws_eks_cluster.this.name
+  principal_arn     = each.value.principal_arn
+  type              = "STANDARD"
+  kubernetes_groups = each.value.kubernetes_groups
+
+  tags = {
+    Name = "${local.cluster_name}-${each.key}"
+  }
+}
+
+resource "aws_eks_access_policy_association" "this" {
+  for_each = var.access_entries
+
+  cluster_name  = aws_eks_cluster.this.name
+  principal_arn = each.value.principal_arn
+  policy_arn    = "arn:${data.aws_partition.current.partition}:eks::aws:cluster-access-policy/${each.value.access_policy_name}"
+
+  access_scope {
+    type       = each.value.access_scope_type
+    namespaces = each.value.access_scope_type == "namespace" ? each.value.namespaces : null
+  }
+
+  depends_on = [aws_eks_access_entry.this]
 }
