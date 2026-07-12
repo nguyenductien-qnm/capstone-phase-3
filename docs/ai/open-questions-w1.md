@@ -21,13 +21,6 @@ Bối cảnh: code đã gọi `bedrock-runtime` (us-east-1); thiếu quyền là
 4. ECR repo cho image `product-reviews` (và tuần 2 `shopping-copilot`) — đặt tên/tag theo convention nào, ai có quyền push? (`.env.override` đang trỏ `804372444787.dkr.ecr.us-east-1...`.)
 5. EKS đã có **kube-state-metrics + cadvisor metrics** trong Prometheus chưa? Rule `memory-saturation-high` (cảnh báo sớm OOM — chính là lớp sự cố J1) cần 2 metric đó.
 
-## C. Hỏi mentor — khung chấm & target
-
-1. ✍️ Khung **evidence-pack 6 doc** (`01_requirements`…`06_contracts`, theo `CAPSTONE_EVIDENCE_PACK_FORMAT.md` của W11-12) có áp dụng cho Phase 3 không, hay Phase 3 chấm theo cấu trúc tự do? (Nhóm đã tạo sẵn 01/02/04 — nếu không cần thì giữ làm tài liệu nội bộ.)
-2. ✍️ **Target MTTD** có con số chính thức không? Nhóm tự đặt ≤ 2 phút (suy từ error budget non-5xx 0.5%/24h); đo được max 35.4s @ poll 30s. Nếu mentor có số khác (vd ≤ 1 phút, ≤ 30s) thì poll interval sẽ chỉnh theo bảng sensitivity có sẵn.
-3. Circuit breaker đọc **tín hiệu lỗi quan sát được** (đã sửa) — xác nhận cách hiểu luật "không tắt/đổi hướng cơ chế sự cố flagd": việc *đọc* cờ để bypass call (bản cũ) có bị tính vi phạm không? (Nhóm đã bỏ để an toàn, hỏi để chắc.)
-4. Số đo hiện từ **docker compose local** (script tái tạo committed) — mentor chấp nhận làm evidence tạm trong khi chờ đo lại trên EKS, hay chỉ tính số EKS?
-5. `_baseline-phase3/` để diff là bản BTC phát — có được phép trích diff vào doc công khai của nhóm không (hiện chỉ mô tả kết quả)?
 
 ## D. Nhờ CDO cung cấp (cho bài toán thay OpenSearch — doc `ai-data-requirements-for-cdo.md`)
 1. Con số "tốn" hiện tại của OpenSearch trên EKS: RAM request/limit, EBS GB, % chi phí node.
