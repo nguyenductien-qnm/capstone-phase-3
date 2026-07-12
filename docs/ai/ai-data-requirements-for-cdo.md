@@ -111,3 +111,25 @@ Có dùng — đúng 2 consumer: `aiops/detector` (5 rule log, phrase-count cử
 
 ## 7. Trace continuity — ĐÃ VERIFY (12/07, bổ sung cho telemetry-audit)
 Jaeger API (compose stack): **1 trace duy nhất `8e7b90520fad0c60` chứa span của 12 service** (load-generator → frontend-proxy → frontend → checkout → payment/email/shipping/cart/currency/product-catalog/quote/flagd); đường GenAI: 1 trace xuyên load-generator → frontend-proxy → frontend → product-reviews. **Trace context không đứt** qua Envoy.
+
+---
+
+## 8. CHỐT HƯỚNG (theo quan điểm mentor 13/07)
+
+Mentor định khung quyết định — nhóm AI chốt lại như sau:
+
+**Nguyên tắc 1 — đi từ requirement cơ bản nhất, có N thằng đáp ứng thì cost thấp nhất win.**
+Requirement của tầng AI với log backend (đo được, không phải ý muốn): (a) phrase-count trong cửa sổ 5m, (b) đọc raw lines theo range cho Drain3, (c) ingest lag giữ MTTD ≤ 2 phút (hiện 35.4s, dư 3.4×). Đây là **toàn bộ** ràng buộc — mọi backend đáp ứng 3 cái này đều hợp lệ với AI.
+
+→ **Quy trình chốt: CDO đo cost/footprint thật của các ứng viên (OpenSearch-bóp-nhỏ, Loki, VictoriaLogs) trên 3 requirement đó + convenience vận hành; cái rẻ nhất mà vẫn đạt → win.** AI không có tiếng nói về việc chọn cái nào — chỉ cung cấp requirement + script đo MTTD/ingest để so táo-với-táo (mục 5), và cam kết đổi backend ≈ 50 dòng adapter, **không lock-in**.
+
+**Nguyên tắc 2 — TÁCH log storage khỏi vector store, giải riêng từng cái.**
+- **Vế log storage (bài toán HIỆN TẠI, cần chốt tuần này):** chỉ là 2 requirement (a)(b) ở trên. Vector search **KHÔNG thuộc vế này** — đừng gom vào để "chọn OpenSearch cho tiện cả hai".
+- **Vế vector store (bài toán TƯƠNG LAI, chưa tồn tại):** semantic search hiện **DEFERRED** — catalog 10 sản phẩm, intent tìm-sản-phẩm giải bằng catalog-in-prompt, chưa cần vector store nào (xem `03_specs/semantic_search.md`). Khi nào thật sự làm semantic search (trigger: catalog scale >~500) mới mở vế này, và lúc đó cân pgvector (đã có PostgreSQL) vs OpenSearch Vector vs khác — **quyết riêng, bằng requirement của lúc đó.**
+- **Chỉ hợp nhất SAU khi cả hai vế finalize độc lập:** nếu lúc đó thấy một service làm tốt cả hai với cost thấp hơn 2 service riêng thì mới gộp. Không gộp trước vì "cho tiện" — đó là cách sinh ra over-provisioning.
+
+**Hệ quả cụ thể cho quyết định OpenSearch tuần này:**
+1. Bài toán = **chỉ log storage**. Bỏ hoàn toàn yếu tố "sau này có thể cần vector" ra khỏi phép so — nó thuộc vế khác, chưa tới.
+2. CDO tự do chọn giải pháp rẻ nhất đạt 3 requirement log; AI đã xác nhận không phụ thuộc OpenSearch (product-reviews/copilot không đọc OS), 2 tool AIOps đổi backend rẻ.
+3. Nếu CDO chọn giữ OpenSearch-bóp-nhỏ vì tiện vận hành sẵn có → hợp lệ, miễn đạt ingest lag. Nếu chọn Loki/VictoriaLogs vì rẻ hơn → AI cung cấp adapter. Cả hai đều OK với AI.
+4. **Không** dựng OpenSearch Vector Search bây giờ chỉ vì "biết đâu sau cần" — YAGNI, và trái nguyên tắc tách vế của mentor.
