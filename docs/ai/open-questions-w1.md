@@ -17,8 +17,7 @@ Bối cảnh: code đã gọi `bedrock-runtime` (us-east-1); thiếu quyền là
 
 1. ✍️ Cấp `bedrock:InvokeModel` bằng **IRSA cho serviceAccount `product-reviews`** (least-privilege, khuyến nghị) hay **node role** (nhanh hơn)? Tuần 2 cần thêm serviceAccount `shopping-copilot`.
 2. ✍️ Model access trong Bedrock console đã enable cho `amazon.nova-lite-v1:0`, `nova-micro-v1:0`, `nova-pro-v1:0` chưa? (Region `us-east-1`.)
-3. Loại credit AWS của account là gì (Activate/EDU/promo)? — quyết định cách trình bày cost trước CFO; nhóm đã bỏ Claude nên không blocking, nhưng cần biết để không hứa sai.
-4. ECR repo cho image `product-reviews` (và tuần 2 `shopping-copilot`) — đặt tên/tag theo convention nào, ai có quyền push? (`.env.override` đang trỏ `804372444787.dkr.ecr.us-east-1...`.)
+
 5. EKS đã có **kube-state-metrics + cadvisor metrics** trong Prometheus chưa? Rule `memory-saturation-high` (cảnh báo sớm OOM — chính là lớp sự cố J1) cần 2 metric đó.
 
 
