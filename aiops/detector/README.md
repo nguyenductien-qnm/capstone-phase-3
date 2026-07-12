@@ -1,6 +1,6 @@
 # AIOps Error-Detection & Alerting — TF1-53 [AIOps-W1-T5]
 
-Script/tool phát hiện lỗi vận hành và gửi cảnh báo cho on-call. Đây là mắt **"Monitor / Trigger"** — cửa vào của closed-loop trong [`docs/ai/specs/anomaly_remediation.md`](../../docs/ai/specs/anomaly_remediation.md).
+Script/tool phát hiện lỗi vận hành và gửi cảnh báo cho on-call. Đây là mắt **"Monitor / Trigger"** — cửa vào của closed-loop trong [`docs/ai/03_specs/anomaly_remediation.md`](../../docs/ai/03_specs/anomaly_remediation.md).
 
 > **Phạm vi:** CHỈ phát hiện + cảnh báo. **Không** tự khắc phục (đó là TF1-50 Remediation). **Không** gỡ/đổi hướng flagd (vi phạm = disqualify).
 

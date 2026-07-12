@@ -24,3 +24,14 @@ Bối cảnh: code đã gọi `bedrock-runtime` (us-east-1); thiếu quyền là
 ## D. Nhờ CDO cung cấp (cho bài toán thay OpenSearch — doc `ai-data-requirements-for-cdo.md`)
 1. Con số "tốn" hiện tại của OpenSearch trên EKS: RAM request/limit, EBS GB, % chi phí node.
 2. Nếu CDO muốn thử Loki: ai dựng container chạy song song 24h? (AI cung cấp script đo MTTD/ingest để so táo-với-táo, cam kết không lock-in backend.)
+
+---
+
+## ✅ CÂU TRẢ LỜI NHẬN ĐƯỢC (mentor, 12/07 tối)
+
+| Câu | Trả lời | Hành động đã làm |
+|---|---|---|
+| C1 — evidence-pack 6 doc áp dụng Phase 3? | **CÓ** | Hoàn tất bộ 6: `01_requirements` / `02_solution_design` / `03_ai_engine_spec` (+`03_specs/`) / `04_eval_report` / `05_adrs` (đổi tên từ ADR-log) / `06_contracts` (pointer → `docs/shared/integration-contracts/`) |
+| C3 — đọc cờ sự cố flagd để bypass? | **CÓ PHẠM LUẬT** | May: đã gỡ từ 12/07 sáng (trước khi hỏi) — circuit breaker hiện theo lỗi quan sát được. Ghi xác nhận vào `05_adrs.md` |
+| C4 — số đo compose local làm evidence? | **DÙNG TẠM ĐƯỢC** | `04_eval_report.md` đánh dấu evidence tier: "compose (tạm, mentor chấp nhận 12/07)" vs "EKS (chính thức, W2)" |
+| C2 — target MTTD chính thức? | Chưa có số cứng | Theo tài liệu AIOps course: **TTD là KPI đo qua chaos** (confusion matrix + TTD/TTR per experiment), còn *alerting policy* đi theo **multi-window burn-rate trên error budget** — tức course nghiêng về **target suy từ SLO/budget, không phải con số cố định**. Cách nhóm suy ≤2 phút từ budget 0.5%/24h là đúng school này; giữ target đó + bảng sensitivity, sẽ trình mentor như derivation thay vì xin số |

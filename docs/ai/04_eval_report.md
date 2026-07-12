@@ -1,5 +1,8 @@
 # 04 — Eval Report (Nhóm AI / AIO03) — skeleton W1, số đo tính đến 12/07
 
+> **Evidence tier (mentor chốt 12/07):** số đo trên **docker compose local = evidence TẠM (được chấp nhận)**;
+> W2 chạy lại toàn bộ script trên EKS để nâng thành evidence chính thức. Mỗi bảng số dưới giữ nhãn nguồn.
+
 > ⚠️ Cùng caveat khung evidence-pack. Nguyên tắc: **chỉ số đo/tái tạo được mới vào bảng Kết quả**;
 > số mô phỏng/mock bị loại hoặc dán nhãn. Script tái tạo: `docs/ai/evals/`.
 

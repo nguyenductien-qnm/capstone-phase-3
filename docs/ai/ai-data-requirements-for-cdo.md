@@ -8,7 +8,7 @@
 | Service | Chạy ở đâu | Đọc | Ghi | Đụng OpenSearch? |
 |---|---|---|---|---|
 | `product-reviews` (AI summary path) | Pod in-cluster, gRPC `:3551` | PostgreSQL `reviews.productreviews` (50 dòng), `catalog.products` (10 dòng); Bedrock API; flagd | Valkey cache (≤10 key, mỗi key ~1KB JSON) | **Không** — chỉ *phát* log/trace/metric qua OTel collector như mọi service khác |
-| `tools/aiops-detector` | 1 pod nhỏ (poll loop) | Prometheus (3 rule PromQL) + **OpenSearch (5 rule log)** | Webhook Slack/Discord (alert) | **Có — consumer OpenSearch duy nhất của nhóm AI** |
+| `aiops/detector` | 1 pod nhỏ (poll loop) | Prometheus (3 rule PromQL) + **OpenSearch (5 rule log)** | Webhook Slack/Discord (alert) | **Có — consumer OpenSearch duy nhất của nhóm AI** |
 | `aiops/log_clustering` (Drain3) | CronJob batch | Log text thô (hiện đọc qua OpenSearch) | Template/cluster report | **Có** — chỉ cần đọc raw lines theo khoảng thời gian |
 | Shopping Copilot (tuần 2+) | Pod mới | `product-catalog`, `product-reviews`, `cart` qua gRPC; Bedrock | — | **Không** |
 
@@ -16,7 +16,7 @@ Kết luận nhanh cho CDO: **toàn bộ phụ thuộc OpenSearch của tầng A
 
 ## 2. Chính xác tầng AI cần gì từ backend log
 
-### 2.1 Query pattern (trích nguyên văn từ `tools/aiops-detector/sources.py`)
+### 2.1 Query pattern (trích nguyên văn từ `aiops/detector/sources.py`)
 
 Kiểu 1 — đếm phrase trong cửa sổ trượt (5 rule × poll 30s = **10 query/phút**):
 ```json
@@ -37,7 +37,7 @@ Kiểu 2 — đọc batch raw lines theo khoảng thời gian (Drain3, 1 lần/c
 - Dashboard riêng (đã dùng Grafana).
 - Realtime/streaming: **không cần** — vì sao: MTTD = ingest lag (2.1s, đo) + gom min_count + offset poll (≤30s); stream chỉ xoá được vế poll (~15–30s) mà không bỏ được logic cửa sổ 5 phút, trong khi MTTD hiện tại (max 35.4s) đã pass target 2 phút với biên 3.4× — đổi 1 consumer service chạy 24/7 (state, reconnect, thêm điểm hỏng, thêm RAM trong trần $300) lấy ~30s không có giá trị theo đề. Poll stateless, 0.08% duty (đo).
 - Retention dài: **detection chỉ cần 5 phút dữ liệu** — không phải ý kiến: mọi rule log trong `rules.yaml` query đúng `now-5m`, detector không bao giờ đọc cũ hơn. RCA lookback 24–72h là trần thực tế vì: SLO đo rolling **24h** (SLO.md) → mọi câu hỏi vỡ-SLO chỉ cần 24h; Ops Review tuần dùng metrics tổng hợp Prometheus (giữ riêng), không cần raw log; kịch bản xa nhất là sự cố tối thứ 6 đào lại sáng thứ 2 ≈ 60h → trần 72h. Thứ giữ lâu là kết luận (postmortem/ADR/template), không phải raw log. Tiền: 220MB/ngày × 3d ≈ 660MB vs 30d ≈ 6.6GB — gấp 10 storage cho dữ liệu không ai mở. **Phạm vi: 3 ngày đủ cho nhu cầu AI** — nhu cầu audit/compliance của CDO (nếu có) cộng riêng.
-- Vector search (đề xuất semantic search pgvector đã bị review đánh giá là thừa với catalog 10 sản phẩm — `review-week1-verification.md` mục I).
+- Vector search (đề xuất semantic search pgvector đã bị review đánh giá là thừa với catalog 10 sản phẩm — `03_specs/semantic_search.md` (banner DEFERRED + phụ lục)).
 
 ### 2.3 Volume & độ trễ (số đo)
 
@@ -87,7 +87,7 @@ Nguồn so sánh: [Loki vs Elasticsearch 2026](https://lucaberton.com/blog/loki-
 ## 6. Trả lời trực tiếp 4 câu hỏi CDO (12/07 — question.md)
 
 **Q1. AI có dùng OpenSearch query log không? Có bắt buộc OpenSearch không?**
-Có dùng — đúng 2 consumer: `tools/aiops-detector` (5 rule log, phrase-count cửa sổ 5m, 10 query/phút, mỗi query trả 1 số + 1 sample) và `aiops/log_clustering` (Drain3, đọc batch raw lines theo khoảng thời gian, CronJob). **KHÔNG bắt buộc OpenSearch.** Nhu cầu thật chỉ là: (a) đếm dòng khớp phrase trong cửa sổ thời gian, (b) đọc raw lines theo range. Loki/VictoriaLogs/OpenSearch bóp nhỏ đều đạt (bảng so sánh mục 4). Lớp query đã tách trong `sources.py` — đổi backend ≈ 50 dòng adapter. Ràng buộc duy nhất: pipeline giữ MTTD ≤ 2 phút (hiện đo được 35.4s max, dư 3.4×).
+Có dùng — đúng 2 consumer: `aiops/detector` (5 rule log, phrase-count cửa sổ 5m, 10 query/phút, mỗi query trả 1 số + 1 sample) và `aiops/log_clustering` (Drain3, đọc batch raw lines theo khoảng thời gian, CronJob). **KHÔNG bắt buộc OpenSearch.** Nhu cầu thật chỉ là: (a) đếm dòng khớp phrase trong cửa sổ thời gian, (b) đọc raw lines theo range. Loki/VictoriaLogs/OpenSearch bóp nhỏ đều đạt (bảng so sánh mục 4). Lớp query đã tách trong `sources.py` — đổi backend ≈ 50 dòng adapter. Ràng buộc duy nhất: pipeline giữ MTTD ≤ 2 phút (hiện đo được 35.4s max, dư 3.4×).
 
 **Q2. Input của AI lấy cụ thể gì (log/metrics/trace)?**
 | Input | Ai dùng | Cụ thể | Bắt buộc? |
@@ -100,8 +100,8 @@ Có dùng — đúng 2 consumer: `tools/aiops-detector` (5 rule log, phrase-coun
 
 **Q3. Requirement service để deploy AI (Bedrock, AgentCore...)?**
 - **Bedrock runtime** (`bedrock-runtime`, us-east-1): models `amazon.nova-lite-v1:0`, `nova-micro-v1:0` (reviews), `nova-pro-v1:0` (copilot W2). **Cần CDO cấp IAM `bedrock:InvokeModel`** qua IRSA cho serviceAccount `product-reviews` (sau này thêm `shopping-copilot`) hoặc node role — **đang thiếu, là blocker deploy thật duy nhất từ phía hạ tầng.**
-- **KHÔNG cần**: AgentCore/Bedrock Agents (copilot tự dựng tool-calling qua Converse API — zero managed-agent cost), Knowledge Bases/OpenSearch Serverless (đã loại — catalog 10 sản phẩm, xem `specs/semantic_search.md` phụ lục), GPU/SageMaker.
-- Env/flag mới cho chart: xem bảng trong `contracts/product-reviews-integration.md` phụ lục 12/07 (cần CDO re-sign).
+- **KHÔNG cần**: AgentCore/Bedrock Agents (copilot tự dựng tool-calling qua Converse API — zero managed-agent cost), Knowledge Bases/OpenSearch Serverless (đã loại — catalog 10 sản phẩm, xem `03_specs/semantic_search.md` phụ lục), GPU/SageMaker.
+- Env/flag mới cho chart: xem bảng trong `../shared/integration-contracts/product-reviews-integration.md` phụ lục 12/07 (cần CDO re-sign).
 - Copilot W2: pod mới gRPC `:50051`, envoy route + cluster đã có trong `envoy.tmpl.yaml`; chart để `enabled: false` tới khi có image.
 
 **Q4. Chỉnh lại structure code bên AI — ĐÃ LÀM (12/07):**

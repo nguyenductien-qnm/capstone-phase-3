@@ -1,7 +1,7 @@
 # 02 — Solution Design (Nhóm AI / AIO03)
 
-> ⚠️ Cùng caveat khung evidence-pack như `01_requirements.md`. Chi tiết từng quyết định: ADR-log.md
-> (kèm "Phụ lục kiểm chứng 12/07" + "Sổ đăng ký con số"); spec chi tiết: `specs/`.
+> ⚠️ Cùng caveat khung evidence-pack như `01_requirements.md`. Chi tiết từng quyết định: 05_adrs.md
+> (kèm "Phụ lục kiểm chứng 12/07" + "Sổ đăng ký con số"); spec chi tiết: `03_specs/`.
 
 ## 1. Kiến trúc tầng AI
 
