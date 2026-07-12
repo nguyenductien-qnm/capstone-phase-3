@@ -206,3 +206,14 @@ Trạng thái verify từng rule metric:
 | `grpc-error-rate-high` (mới) | ✅ | ✅ **verified chaos 12/07** |
 | `error-budget-burn-fast` | ✅ | ⚠️ chưa fire được ở local vì chưa tạo được HTTP 5xx thật — verify tiếp trên EKS hoặc chaos khác sinh 5xx |
 | `memory-saturation-high` | ✅ | ⏳ compose không có kube-state-metrics/cadvisor (0 series — đúng kỳ vọng, không FP); **EKS bắt buộc cài kube-state-metrics** để rule sống |
+
+## Phụ lục 3 — bảng sensitivity poll↔MTTD (đo 12/07, migrate từ review)
+
+| Poll | MTTD max (đo/suy từ delay đo được + U(0,P)) | Chi phí query (5ms/query đo được) | Verdict theo target ≤2 phút |
+|---|---|---|---|
+| 10s | 15.4s | ~0.25% duty | Pass — biên tối đa |
+| **30s (hiện tại)** | **35.4s** | ~0.08% | **Pass biên 3.4× — giữ** |
+| 60s | 65.4s | ~0.04% | Pass — dùng nếu cần giảm tải backend log |
+| 120s | 125.4s | ~0.02% | Chạm biên — loại |
+
+Nếu mentor đổi target: ≤1 phút → poll ≤30s vẫn pass; ≤30s → poll 10s pass (max 15.4s); <10s → không đạt bằng chỉnh poll, phải giảm sàn ingest 2.1s (collector batch/refresh) — bài toán khác. Sàn dưới poll 10s: xem 05_adrs Sổ đăng ký (vòng detector tuần tự + query timeout 5s từng quan sát được).

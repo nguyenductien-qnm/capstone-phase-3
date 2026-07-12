@@ -65,7 +65,7 @@ Auto-remediation (detect-only), semantic search hạ tầng vector (defer — ca
 | Log-based signals (429/OOM/DB/DNS/GenAI) | 5 rule log, marker-based | ✅ |
 
 ### AIOps mở rộng (đề: RCA cross-service, capacity/cost forecast, drift)
-Backlog W2 có kế hoạch đo (ma trận tương quan + alert co-occurrence làm nền RCA — `05_adrs` G7-plan); drift/forecast = W3 backlog. Chưa build — đúng vai "mở rộng đề xuất trong backlog".
+Backlog W2 có kế hoạch đo (ma trận tương quan + alert co-occurrence làm nền RCA — `05_adrs.md` mục G7/K3); drift/forecast = W3 backlog. Chưa build — đúng vai "mở rộng đề xuất trong backlog".
 
 ### Kết luận phủ đề
 Sau các fix 12/07 tối: **Phần A phủ đủ 100% yêu cầu chữ-đen-trắng của đề** (guardrail là mảnh cuối, vừa đóng); Phần B đúng lộ trình W2; AIOps core phủ 5/6 nhóm tín hiệu (cost = gap có kế hoạch); mở rộng ở mức backlog có phương pháp. Mọi trạng thái ⏳/draft đều có script/kế hoạch đo kèm.
