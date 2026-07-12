@@ -1,8 +1,3 @@
-variable "aws_region" {
-  type        = string
-  description = "AWS Region triển khai"
-}
-
 variable "project_name" {
   type        = string
   description = "Tên dự án sử dụng cho resource tagging"
@@ -32,6 +27,10 @@ variable "public_subnets" {
     availability_zone = string
   }))
   description = "Cấu hình Public Subnets"
+  validation {
+    condition     = alltrue([for k, v in var.public_subnets : can(cidrhost(v.cidr_block, 0))])
+    error_message = "Tất cả Public Subnet CIDR phải hợp lệ."
+  }
 }
 
 variable "private_app_subnets" {
@@ -40,6 +39,10 @@ variable "private_app_subnets" {
     availability_zone = string
   }))
   description = "Cấu hình Private Application Subnets"
+  validation {
+    condition     = alltrue([for k, v in var.private_app_subnets : can(cidrhost(v.cidr_block, 0))])
+    error_message = "Tất cả Private App Subnet CIDR phải hợp lệ."
+  }
 }
 
 variable "private_data_subnets" {
@@ -48,6 +51,10 @@ variable "private_data_subnets" {
     availability_zone = string
   }))
   description = "Cấu hình Private Data Subnets"
+  validation {
+    condition     = alltrue([for k, v in var.private_data_subnets : can(cidrhost(v.cidr_block, 0))])
+    error_message = "Tất cả Private Data Subnet CIDR phải hợp lệ."
+  }
 }
 
 variable "private_mq_subnets" {
@@ -56,6 +63,10 @@ variable "private_mq_subnets" {
     availability_zone = string
   }))
   description = "Cấu hình Private Message Queue Subnets"
+  validation {
+    condition     = alltrue([for k, v in var.private_mq_subnets : can(cidrhost(v.cidr_block, 0))])
+    error_message = "Tất cả Private MQ Subnet CIDR phải hợp lệ."
+  }
 }
 
 variable "enable_nat_gateway" {
@@ -79,81 +90,4 @@ variable "private_subnet_tags" {
   description = "Các tags bổ sung cho Private Subnets (App, Data, MQ)"
   default     = {}
 }
-
-variable "db_name" {
-  type        = string
-  description = "Tên database khởi tạo"
-}
-
-variable "db_username" {
-  type        = string
-  description = "Username quản trị (admin) của Database"
-}
-
-variable "rds_instance_class" {
-  type        = string
-  description = "Loại Instance của Primary RDS"
-}
-
-variable "rds_allocated_storage" {
-  type        = number
-  description = "Dung lượng lưu trữ allocated (GB)"
-}
-
-variable "enable_read_replica" {
-  type        = bool
-  description = "Bật/Tắt tạo Read Replica cho PostgreSQL"
-}
-
-variable "replica_instance_class" {
-  type        = string
-  description = "Loại Instance của Read Replica (nếu bật)"
-}
-
-variable "enable_rds_proxy" {
-  type        = bool
-  description = "Bật/Tắt tạo RDS Proxy cho PostgreSQL"
-}
-
-variable "valkey_node_type" {
-  type        = string
-  description = "Loại Node của ElastiCache Valkey (ví dụ: cache.t4g.micro)"
-}
-
-variable "valkey_num_cache_clusters" {
-  type        = number
-  description = "Số lượng node trong Valkey replication group"
-}
-
-variable "ecr_repositories" {
-  type        = list(string)
-  description = "Danh sách tên các repositories cần khởi tạo trên ECR"
-}
-
-variable "nlb_dns_name" {
-  type        = string
-  description = "Tên miền công cộng (DNS Name) của Network Load Balancer (NLB) để làm origin"
-}
-
-variable "subdomain" {
-  type        = string
-  description = "Tên miền phụ được trỏ vào CloudFront (ví dụ: api.yourdomain.com)"
-}
-
-variable "acm_certificate_arn" {
-  type        = string
-  description = "ARN của chứng chỉ ACM SSL tạo thủ công trên AWS Console"
-}
-
-variable "rds_multi_az" {
-  type        = bool
-  description = "Bật/Tắt chế độ Multi-AZ cho Primary DB"
-}
-
-
-
-
-
-
-
 

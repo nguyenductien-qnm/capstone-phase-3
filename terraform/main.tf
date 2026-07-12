@@ -1,60 +1,66 @@
-terraform {
-  required_version = ">= 1.5.0"
-
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
-    }
-  }
-
-  backend "s3" {
-    bucket       = "terraform-state-phase-3"
-    key          = "dev/terraform.tfstate"
-    region       = "us-east-1"
-    encrypt      = true
-    use_lockfile = true
-  }
-}
-
-provider "aws" {
-  region = var.aws_region
-  default_tags {
-    tags = {
-      Project     = "TechX-Corp"
-      Environment = var.environment
-      ManagedBy   = "Terraform"
-      Owner       = "AIO-03"
-    }
-  }
-}
-
-# 1. Gọi Module khởi tạo mạng VPC
 module "vpc" {
-  source       = "./modules/vpc"
-  environment  = var.environment
-  cluster_name = var.cluster_name
-  vpc_cidr     = var.vpc_cidr
+  source = "./module/vpc"
+
+  project_name         = var.project_name
+  environment          = var.environment
+  vpc_cidr             = var.vpc_cidr
+  public_subnets       = var.public_subnets
+  private_app_subnets  = var.private_app_subnets
+  private_data_subnets = var.private_data_subnets
+  private_mq_subnets   = var.private_mq_subnets
+  enable_nat_gateway   = var.enable_nat_gateway
+  single_nat_gateway   = var.single_nat_gateway
+  public_subnet_tags   = var.public_subnet_tags
+  private_subnet_tags  = var.private_subnet_tags
 }
 
-# 2. Gọi Module tạo Registry ECR lưu Docker Images
+module "rds" {
+  source = "./module/rds"
+
+  project_name           = var.project_name
+  environment            = var.environment
+  vpc_id                 = module.vpc.vpc_id
+  database_subnet_ids    = values(module.vpc.private_data_subnet_ids)
+  app_subnet_cidr_blocks = [for s in var.private_app_subnets : s.cidr_block]
+
+  db_name                = var.db_name
+  db_username            = var.db_username
+  instance_class         = var.rds_instance_class
+  allocated_storage      = var.rds_allocated_storage
+  enable_read_replica    = var.enable_read_replica
+  replica_instance_class = var.replica_instance_class
+  enable_rds_proxy       = var.enable_rds_proxy
+  multi_az               = var.rds_multi_az
+}
+
+module "elasticache" {
+  source = "./module/elasticache"
+
+  project_name           = var.project_name
+  environment            = var.environment
+  vpc_id                 = module.vpc.vpc_id
+  cache_subnet_ids       = values(module.vpc.private_data_subnet_ids)
+  app_subnet_cidr_blocks = [for s in var.private_app_subnets : s.cidr_block]
+
+  node_type          = var.valkey_node_type
+  num_cache_clusters = var.valkey_num_cache_clusters
+}
+
 module "ecr" {
-  source          = "./modules/ecr"
-  repository_name = var.repository_name
-  environment     = var.environment
+  source = "./module/ecr"
+
+  project_name     = var.project_name
+  environment      = var.environment
+  ecr_repositories = var.ecr_repositories
 }
 
-# 3. Gọi Module tạo cụm EKS Cluster & Worker Nodes
-module "eks" {
-  source       = "./modules/eks"
-  cluster_name = var.cluster_name
-  vpc_id       = module.vpc.vpc_id
-  subnet_ids   = module.vpc.private_subnets
-  environment  = var.environment
+module "cloudfront" {
+  source = "./module/cloudfront"
 
-  instance_types  = var.instance_types
-  desired_size    = var.node_desired_size
-  min_size        = var.node_min_size
-  max_size        = var.node_max_size
-  admin_user_arns = var.eks_admin_user_arns
+  project_name        = var.project_name
+  environment         = var.environment
+  origin_domain_name  = var.nlb_dns_name
+  acm_certificate_arn = var.acm_certificate_arn
+  aliases             = [var.subdomain]
 }
+
