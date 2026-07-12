@@ -195,3 +195,14 @@ rules:
       )
     op: gt
     threshold: 0.85
+
+  # DRAFT (de bai AIOps core: "da tin hieu ... queue lag") - he co Kafka (accounting/fraud-detection).
+  # PHAI verify ten metric tren Prometheus EKS (kafka receiver cua collector) truoc khi tin.
+  - id: kafka-consumer-lag-high
+    type: metric
+    severity: warning
+    summary: "DRAFT: Kafka consumer lag > 1000 msg trong 10m - consumer tut hau, don hang xu ly cham"
+    query: >-
+      max by (group) (avg_over_time(kafka_consumer_group_lag{namespace="techx-corp"}[10m]))
+    op: gt
+    threshold: 1000

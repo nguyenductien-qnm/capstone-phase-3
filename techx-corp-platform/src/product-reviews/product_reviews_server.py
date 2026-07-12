@@ -29,6 +29,7 @@ import demo_pb2_grpc
 from grpc_health.v1 import health_pb2
 from grpc_health.v1 import health_pb2_grpc
 from database import fetch_product_reviews, fetch_product_reviews_from_db, fetch_avg_product_review_score_from_db
+from guardrails import sanitize_json_for_llm, leaks_system_prompt
 
 from openfeature import api
 from openfeature.contrib.provider.flagd import FlagdProvider
@@ -531,6 +532,8 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                     logger.info(f"Processing tool call: '{tool_name}' with arguments: {tool_input}")
 
                     if tool_name == "fetch_product_reviews":
+                        # Guardrail Phan A: review la du lieu KHONG tin cay — loc PII + injection
+                        # truoc khi dua vao prompt (sanitize per-field, giu JSON hop le).
                         function_response = fetch_product_reviews(
                             product_id=tool_input.get("product_id")
                         )
@@ -545,7 +548,9 @@ def get_ai_assistant_response(request_product_id, question, context=None):
 
                     tool_results.append({
                         "toolUseId": tool_use_id,
-                        "content": [{"json": json.loads(function_response)}],
+                        # Guardrail Phan A: tool result (review/catalog) la du lieu khong tin cay —
+                        # loc PII + prompt-injection per-field truoc khi vao prompt, giu JSON hop le.
+                        "content": [{"json": json.loads(sanitize_json_for_llm(function_response))}],
                     })
 
                 llm_inaccurate_response = check_feature_flag("llmInaccurateResponse")
@@ -564,6 +569,18 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                     "role": "user",
                     "content": user_content
                 })
+
+                # Lop 4 (bo sung 12/07): re-check deadline TRUOC vong converse thu 2 —
+                # check dau request khong con dung sau khi vong 1 + tool da tieu thoi gian.
+                if context is not None:
+                    try:
+                        _tr = context.time_remaining()
+                        if _tr is not None and _tr < float(os.environ.get('LLM_REVIEWS_FALLBACK_TIMEOUT', '2.0')):
+                            logger.error("AI_SUMMARY_FALLBACK stage=deadline reason=DeadlineTooCloseFinalRound")
+                            ai_assistant_response.response = MOCK_SUMMARY_VI
+                            return ai_assistant_response
+                    except Exception:
+                        pass
 
                 logger.info(f"Invoking Bedrock for final completion")
                 if not bedrock_bulkhead.acquire(blocking=False):
@@ -588,6 +605,11 @@ def get_ai_assistant_response(request_product_id, question, context=None):
             else:
                 text_parts = [b["text"] for b in content_blocks if "text" in b]
                 result = "\n".join(text_parts) if text_parts else ""
+
+            # Guardrail Phan A: output guard — chan lo system prompt ra khach.
+            if leaks_system_prompt(result, SYSTEM_PROMPT):
+                logger.error("AI_SUMMARY_FALLBACK stage=output-guard reason=SystemPromptLeak")
+                result = MOCK_SUMMARY_VI
 
             ai_assistant_response.response = result
             logger.info(f"Returning Bedrock AI assistant response: '{result}'")
@@ -682,7 +704,9 @@ if __name__ == "__main__":
     except Exception:
         valkey_host = 'valkey-cart'
         valkey_port = 6379
-    valkey_client = redis.Redis(host=valkey_host, port=valkey_port, decode_responses=True)
+    # socket timeout 0.5s theo spec valkey_caching §4.2 — Valkey sap khong duoc keo treo request
+    valkey_client = redis.Redis(host=valkey_host, port=valkey_port, decode_responses=True,
+                                socket_timeout=0.5, socket_connect_timeout=0.5)
 
     llm_host = must_map_env('LLM_HOST')
     llm_port = must_map_env('LLM_PORT')
