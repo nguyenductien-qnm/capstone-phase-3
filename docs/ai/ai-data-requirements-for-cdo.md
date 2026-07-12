@@ -109,6 +109,22 @@ Có dùng — đúng 2 consumer: `aiops/detector` (5 rule log, phrase-count cử
 - Docs: bổ sung bộ chuẩn `01_requirements.md`, `02_solution_design.md`, `04_eval_report.md` (khớp khung evidence-pack course); index tổng ở `docs/ai/README.md`.
 - Evals: dataset 5→34 case; script đo thật (4 file) thay mô phỏng.
 
+### 8.1 Trình tự giải cụ thể (dừng ngay khi đạt — "rẻ nhất mà đạt" TÍNH CẢ chi phí migration)
+
+> Điểm mấu chốt: thay backend tốn giờ engineer + rủi ro. Giải pháp chỉ *ngang* OpenSearch về cost thì **thua** vì cộng thêm chi phí chuyển — muốn thắng phải rẻ hơn đủ để bù migration.
+
+**Bước 1 — bóp OpenSearch trước, đo lại (ứng viên mặc định, migration = 0).**
+Requirement AI cực nhỏ → OS không cần config mặc định: 1 node, heap 512MB–1GB, ISM retention 3d, tắt replica/plugin thừa. Cost hiện tại phần lớn thường là heap mặc định (~50% RAM) + retention vô hạn cho nhu cầu chỉ ~660MB (220MB/ngày × 3d). Bóp xong đo cost. **Vừa ngân sách → DỪNG, chọn cái này** (rẻ nhất thật vì không migration, không rủi ro).
+
+**Bước 2 — chỉ khi bóp vẫn vượt: Loki song song 24h, so táo-với-táo.**
+Loki index label-only (RAM/EBS thấp hơn full-text), OTLP native (collector thêm `otlphttp`), detector ~50 dòng adapter. Chạy song song OS-đã-bóp 24h, đo cùng lúc RAM/CPU/EBS + script MTTD/ingest của AI trên cả hai. **Chọn Loki chỉ khi rẻ hơn đủ bù migration.** (VictoriaLogs = dự phòng nhẹ hơn, ecosystem non hơn.)
+
+**Bước 3 — vector store: KHÔNG đụng bây giờ.** DEFERRED (catalog 10 sản phẩm); loại khỏi phép so tuần này. Khi thật làm semantic search (scale >~500) mới mở, cân pgvector (PostgreSQL sẵn có) trước.
+
+**Ai làm gì:** AI xong phần mình (requirement + script + cam kết không lock-in). CDO chạy bước 1→2, cần AI cấp gì thì AI hỗ trợ. AI không chọn backend — trụ cost là của CDO.
+
+**Dự đoán (không phải cam kết):** khả năng cao **bước 1 thắng** — "OS tốn" thường do default heap + retention vô hạn cho nhu cầu 660MB. Nếu đúng, rẻ nhất = giữ OS nhưng bóp, không thay.
+
 ## 7. Trace continuity — ĐÃ VERIFY (12/07, bổ sung cho telemetry-audit)
 Jaeger API (compose stack): **1 trace duy nhất `8e7b90520fad0c60` chứa span của 12 service** (load-generator → frontend-proxy → frontend → checkout → payment/email/shipping/cart/currency/product-catalog/quote/flagd); đường GenAI: 1 trace xuyên load-generator → frontend-proxy → frontend → product-reviews. **Trace context không đứt** qua Envoy.
 
