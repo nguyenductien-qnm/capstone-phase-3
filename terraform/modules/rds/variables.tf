@@ -41,6 +41,12 @@ variable "db_username" {
   }
 }
 
+variable "engine_version" {
+  type        = string
+  description = "PostgreSQL engine version supported by the target AWS region"
+  default     = "16.14"
+}
+
 variable "instance_class" {
   type        = string
   description = "Loại Instance của Primary RDS"
@@ -71,4 +77,3 @@ variable "multi_az" {
   description = "Bật/Tắt chế độ Multi-AZ cho Primary DB"
   default     = false
 }
-

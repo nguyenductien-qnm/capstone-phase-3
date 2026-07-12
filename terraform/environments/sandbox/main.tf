@@ -46,6 +46,7 @@ module "rds" {
 
   db_name                = var.db_name
   db_username            = var.db_username
+  engine_version         = var.rds_engine_version
   instance_class         = var.rds_instance_class
   allocated_storage      = var.rds_allocated_storage
   enable_read_replica    = var.enable_read_replica
@@ -77,6 +78,7 @@ module "ecr" {
 
 module "cloudfront" {
   source = "../../modules/cloudfront"
+  count  = var.enable_cloudfront ? 1 : 0
 
   project_name        = var.project_name
   environment         = var.environment

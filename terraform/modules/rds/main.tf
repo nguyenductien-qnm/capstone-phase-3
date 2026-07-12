@@ -66,7 +66,7 @@ resource "aws_security_group_rule" "db_ingress_proxy" {
 resource "aws_db_instance" "this" {
   identifier           = "${var.project_name}-${var.environment}-postgres"
   engine               = "postgres"
-  engine_version       = "16.1"
+  engine_version       = var.engine_version
   instance_class       = var.instance_class
   allocated_storage    = var.allocated_storage
   db_name              = var.db_name

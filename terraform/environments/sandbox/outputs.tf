@@ -81,12 +81,12 @@ output "ecr_repository_urls" {
 
 output "cloudfront_domain_name" {
   description = "Tên miền công cộng của CloudFront Distribution trỏ tới EKS"
-  value       = module.cloudfront.cloudfront_domain_name
+  value       = try(module.cloudfront[0].cloudfront_domain_name, null)
 }
 
 output "custom_domain_url" {
   description = "Đường dẫn URL của ứng dụng sử dụng tên miền tùy chỉnh"
-  value       = "https://${var.subdomain}"
+  value       = var.enable_cloudfront ? "https://${var.subdomain}" : null
 }
 
 output "eks_cluster_name" {
@@ -113,7 +113,6 @@ output "eks_update_kubeconfig_command" {
   description = "Lệnh cấu hình kubectl sau khi đăng nhập AWS SSO"
   value       = "aws eks update-kubeconfig --region ${var.aws_region} --name ${module.eks.cluster_name}"
 }
-
 
 
 

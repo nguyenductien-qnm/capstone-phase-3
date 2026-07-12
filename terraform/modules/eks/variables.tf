@@ -26,7 +26,7 @@ variable "private_subnet_ids" {
 variable "endpoint_public_access" {
   description = "Enable the public Kubernetes API endpoint for operators outside the VPC"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "public_access_cidrs" {

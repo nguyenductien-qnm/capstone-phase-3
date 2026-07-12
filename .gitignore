@@ -24,6 +24,8 @@ __pycache__/
 *.tfstate
 *.tfstate.*
 errored.tfstate
+tfplan
+*.tfplan
 
 # Ignore sensitive variable files
 *.tfvars

@@ -155,6 +155,12 @@ variable "db_username" {
   description = "Username quản trị (admin) của Database"
 }
 
+variable "rds_engine_version" {
+  type        = string
+  description = "PostgreSQL engine version supported by the target AWS region"
+  default     = "16.14"
+}
+
 variable "rds_instance_class" {
   type        = string
   description = "Loại Instance của Primary RDS"
@@ -210,11 +216,16 @@ variable "acm_certificate_arn" {
   description = "ARN của chứng chỉ ACM SSL tạo thủ công trên AWS Console"
 }
 
+variable "enable_cloudfront" {
+  type        = bool
+  description = "Tạo CloudFront distribution; sandbox mặc định tắt vì một số account cần AWS verification trước"
+  default     = false
+}
+
 variable "rds_multi_az" {
   type        = bool
   description = "Bật/Tắt chế độ Multi-AZ cho Primary DB"
 }
-
 
 
 
