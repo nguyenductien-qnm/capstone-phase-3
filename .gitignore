@@ -1,6 +1,22 @@
 # Ignore CodeGraph index directory
 .codegraph/
 
+# OS and editor files
+.DS_Store
+.idea/
+.vscode/
+
+# Python generated files
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Local environment and secret files
+.env
+.env.*
+!.env.example
+
 # Ignore local Terraform directories
 .terraform/
 
@@ -8,10 +24,19 @@
 *.tfstate
 *.tfstate.*
 errored.tfstate
+tfplan
+*.tfplan
 
 # Ignore sensitive variable files
 *.tfvars
 *.tfvars.json
+!terraform/environments/*/access.auto.tfvars
 
 # Ignore temporary logs
 *.log
+
+# Build and test output
+dist/
+build/
+coverage/
+.coverage

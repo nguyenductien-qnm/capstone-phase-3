@@ -1,0 +1,32 @@
+name: Infrastructure CI
+
+on:
+  pull_request:
+    paths:
+      - "terraform/**"
+      - ".github/workflows/infra-ci.yaml"
+  push:
+    branches: [main, develop]
+    paths:
+      - "terraform/**"
+      - ".github/workflows/infra-ci.yaml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: infra-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform/environments/sandbox
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - run: terraform fmt -check -recursive ../../
+      - run: terraform init -backend=false -input=false
+      - run: terraform validate
