@@ -23,11 +23,16 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import random
 import re
+import threading
 import time
 from dataclasses import dataclass, field
 
-from botocore.exceptions import ClientError
+import boto3
+from botocore.config import Config
+from botocore.exceptions import ClientError, ConnectTimeoutError, ReadTimeoutError
 
 import tools
 
@@ -160,6 +165,101 @@ def _scrub_pii(text: str) -> str:
     return text
 
 
+# --- Resiliency: Bulkhead & Circuit Breaker ---
+bedrock_bulkhead = threading.Semaphore(int(os.environ.get('LLM_BULKHEAD_SIZE', '6')))
+_cb_lock = threading.Lock()
+_cb_state = {"failures": 0, "open_until": 0.0}
+CB_FAILURE_THRESHOLD = int(os.environ.get('LLM_CB_THRESHOLD', '3'))
+CB_COOLDOWN_SECONDS = float(os.environ.get('LLM_CB_COOLDOWN', '30'))
+
+_fallback_client = None
+def get_bedrock_fallback_client():
+    global _fallback_client
+    if _fallback_client is None:
+        aws_region = os.environ.get('AWS_REGION', 'us-east-1')
+        fallback_timeout = float(os.environ.get('LLM_COPILOT_FALLBACK_TIMEOUT', '3.0'))
+        fallback_config = Config(connect_timeout=1.0, read_timeout=fallback_timeout, retries={'max_attempts': 0})
+        _fallback_client = boto3.client(service_name="bedrock-runtime", region_name=aws_region, config=fallback_config)
+    return _fallback_client
+
+def invoke_bedrock_converse_with_fallback(primary_client, model_id, system, messages, tool_config, inference_config):
+    fallback_model = os.environ.get('LLM_COPILOT_FALLBACK_MODEL', 'amazon.nova-lite-v1:0')
+    max_retries = int(os.environ.get('LLM_COPILOT_MAX_RETRIES', '1'))
+    fallback_max_retries = int(os.environ.get('LLM_COPILOT_FALLBACK_RETRIES', '1'))
+    
+    # Unit test FakeBedrock support
+    is_fake = hasattr(primary_client, "_scripted")
+    fallback_client = primary_client if is_fake else get_bedrock_fallback_client()
+
+    bypass_primary = False
+    with _cb_lock:
+        if time.time() < _cb_state["open_until"]:
+            logger.warning("Circuit Breaker OPEN. Bypassing primary model.")
+            bypass_primary = True
+        
+    if not bypass_primary:
+        attempt = 0
+        while True:
+            try:
+                kwargs = {
+                    "modelId": model_id,
+                    "system": system,
+                    "messages": messages,
+                    "inferenceConfig": inference_config
+                }
+                if tool_config: kwargs["toolConfig"] = tool_config
+                res = primary_client.converse(**kwargs)
+                with _cb_lock: _cb_state["failures"] = 0
+                return res
+            except Exception as e:
+                if is_fake:
+                    break # let fake exceptions fall through to fallback/failure
+                is_retryable = False
+                err_code = type(e).__name__
+                if isinstance(e, ClientError):
+                    err_code = e.response["Error"].get("Code", "Unknown")
+                    status_code = e.response.get("ResponseMetadata", {}).get("HTTPStatusCode", 500)
+                    is_retryable = (status_code in [429, 500, 503] or err_code in ["ThrottlingException", "LimitExceededException", "InternalServerError", "ServiceUnavailable"])
+                elif isinstance(e, (ReadTimeoutError, ConnectTimeoutError)):
+                    is_retryable = True
+                    
+                if is_retryable and attempt < max_retries:
+                    time.sleep(random.uniform(0, 0.1 * (1.5 ** attempt)))
+                    attempt += 1
+                else:
+                    with _cb_lock:
+                        _cb_state["failures"] += 1
+                        if _cb_state["failures"] >= CB_FAILURE_THRESHOLD:
+                            _cb_state["open_until"] = time.time() + CB_COOLDOWN_SECONDS
+                    break
+
+    logger.info(f"Attempting Fallback Model: {fallback_model}")
+    attempt = 0
+    while True:
+        try:
+            kwargs = {
+                "modelId": fallback_model,
+                "system": system,
+                "messages": messages,
+                "inferenceConfig": inference_config
+            }
+            if tool_config: kwargs["toolConfig"] = tool_config
+            return fallback_client.converse(**kwargs)
+        except Exception as e:
+            if is_fake:
+                raise e
+            is_retryable = False
+            if isinstance(e, ClientError):
+                status_code = e.response.get("ResponseMetadata", {}).get("HTTPStatusCode", 500)
+                is_retryable = (status_code in [429, 500, 503])
+            elif isinstance(e, (ReadTimeoutError, ConnectTimeoutError)):
+                is_retryable = True
+                
+            if is_retryable and attempt < fallback_max_retries:
+                time.sleep(random.uniform(0, 0.05 * (1.5 ** attempt)))
+                attempt += 1
+            else:
+                raise e
 def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> AgentResult:
     """Run one Bedrock agent turn. Falls back to a degraded reply on LLM failure."""
     actions: list[ToolCall] = []
@@ -168,21 +268,27 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
     tool_calls = 0
 
     while True:
+        if not bedrock_bulkhead.acquire(blocking=False):
+            logger.error("AI_COPILOT_FALLBACK stage=bulkhead reason=BulkheadSaturated")
+            return AgentResult(text=_fallback_text(), actions_taken=actions, degraded=True)
         try:
-            response = bedrock_client.converse(
-                modelId=model_id,
+            response = invoke_bedrock_converse_with_fallback(
+                primary_client=bedrock_client,
+                model_id=model_id,
                 system=[{"text": SYSTEM_PROMPT}],
                 messages=current,
-                toolConfig={"tools": TOOLS_DEFINITION},
-                inferenceConfig={"maxTokens": 1024, "temperature": 0.1, "topP": 0.9},
+                tool_config={"tools": TOOLS_DEFINITION},
+                inference_config={"maxTokens": 1024, "temperature": 0.1, "topP": 0.9},
             )
         except ClientError as e:
-            code = e.response["Error"]["Code"]
+            code = e.response["Error"].get("Code", "Unknown") if "Error" in e.response else "Unknown"
             logger.warning("Bedrock ClientError %s — degraded fallback", code)
             return AgentResult(text=_fallback_text(), actions_taken=actions, degraded=True)
         except Exception as e:
             logger.error("Bedrock call failed: %s — degraded fallback", e)
             return AgentResult(text=_fallback_text(), actions_taken=actions, degraded=True)
+        finally:
+            bedrock_bulkhead.release()
 
         stop = response.get("stopReason", "end_turn")
         blocks = response["output"]["message"].get("content", [])
