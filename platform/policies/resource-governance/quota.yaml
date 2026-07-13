@@ -1,10 +1,14 @@
-apiVersion: v1
-kind: ResourceQuota
-metadata: { name: techx-quota }
-spec:
-  hard:
-    requests.cpu: "4"
-    requests.memory: 8Gi
-    limits.cpu: "8"
-    limits.memory: 12Gi
-    pods: "40"
+# [CDO-42] SUPERSEDED — không apply file này trực tiếp nữa.
+#
+# ResourceQuota + LimitRange giờ được quản lý trong Helm chart để ArgoCD sync:
+#   platform/charts/application/templates/resource-governance.yaml
+# và cấu hình bằng values:
+#   platform/charts/application/values.yaml  ->  key `resourceGovernance`
+#
+# Lý do: quota rời (kubectl apply thủ công) không được GitOps quản lý, dễ lệch với
+# cluster và không co giãn theo namespace ArgoCD deploy vào. Đưa vào chart để:
+#   - Namespace tự kế thừa từ ArgoCD destination (không hard-code).
+#   - LimitRange đảm bảo mọi pod có CPU request mặc định -> HPA CPU hoạt động.
+#   - Một nguồn sự thật duy nhất, review qua PR, rollback qua git.
+#
+# Giữ file làm con trỏ lịch sử; nội dung quota cũ nằm trong git history.
