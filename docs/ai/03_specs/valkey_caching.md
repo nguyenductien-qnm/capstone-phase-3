@@ -126,31 +126,30 @@ $$\text{TTL}_{\text{seconds}} = \max\left(14400, \frac{604800}{1 + 0.05 \cdot N 
 
 ---
 
-## 6. Chiến Lược Làm Mới Cache (Cache Refresh Strategy)
+## 6. Chiến Lược Làm Mới Cache — Content-Addressed Invalidation [chốt 13/07]
 
-Cache được làm mới bằng đúng **hai cơ chế thụ động**, không có lệnh `DEL` chủ động nào:
+> **Cơ chế chuẩn thế giới** (Rails `cache_key` với content digest / HTTP ETag): *"key là hàm của STATE object; không bao giờ invalidate thủ công — key cũ (giờ sai) tự hết hạn"* ([Rails caching guide](https://github.com/rails/rails/blob/main/guides/source/caching_with_rails.md), [cache invalidation strategies](https://oneuptime.com/blog/post/2026-01-30-cache-invalidation-strategies/view)). Đây là giải pháp thay cho cả TTL-tĩnh (có staleness window) lẫn dynamic-TTL (đoán, không self-heal).
 
-### 6.1 TTL phẳng 7 ngày — làm mới theo thời gian [SỬA 12/07]
-Mọi key hết hạn sau **7 ngày** (`ttl = 604800` trong code). Với data tĩnh, expiry chỉ là cơ chế tự-phục-hồi (self-healing) nếu cache chứa giá trị hỏng — không phải cơ chế "cập nhật nội dung".
+Cache key nhúng **fingerprint nội dung review**:
+```
+reviews:summary:{product_id}:{model_ver}:{prompt_ver}:{content_fp}
+```
+- `content_fp` = `md5(COUNT || MAX(id) || md5(content))[:12]` — 1 aggregate query (`fetch_reviews_fingerprint`, index sẵn trên `product_id`, ~5 dòng → rẻ hơn LLM call ~1000×).
+- Review **thêm/xoá** → COUNT+MAX(id) đổi; review **sửa** → md5(content) đổi → **fingerprint đổi → cache key đổi → MISS tự nhiên → sinh lại bằng nội dung mới.**
+- **Zero staleness window**: khách không bao giờ nhận summary cũ dù review vừa đổi 1 giây trước (khác TTL-tĩnh có thể cũ tới 7 ngày).
+- **Self-healing**: không có code invalidate riêng để "quên gọi" (khác write-invalidation thủ công). Không đoán TTL (khác dynamic-TTL đã gỡ).
 
-### 6.2 Versioned Cache Key — làm mới khi đổi model hoặc prompt
-Key chứa `{model_ver}:{prompt_ver}` (§3.1). Đổi model hoặc sửa system prompt ⇒ key mới ⇒ lần đọc kế tiếp **miss tự nhiên** và sinh lại bằng cấu hình mới. Bản tóm tắt cũ nằm lại cho tới khi TTL hết hạn rồi tự bị dọn, không cần thao tác vận hành.
+### 6.1 TTL 7d = GC backstop thuần
+`ttl = 604800`. Khi fingerprint đổi, key cũ trở thành rác (không ai đọc) → TTL 7d dọn nó. TTL **không còn vai trò chống outdate** — đó là việc của fingerprint. Đây đúng tinh thần "để key cũ tự hết hạn".
 
-### 6.3 Vì sao KHÔNG dùng Write-Around Invalidation và Thumbs Down
+### 6.2 Versioned key theo model/prompt (giữ nguyên)
+`{model_ver}:{prompt_ver}` (derive từ env model thật + hash system prompt). Đổi model hoặc prompt → key mới → miss tự nhiên; kết hợp với `content_fp` thành khoá đầy đủ theo mọi chiều state.
 
-Hai cơ chế này từng được đặc tả ở đây và **đã bị loại bỏ** sau khi đối chiếu với hệ thống thật:
+### 6.3 Fail-open
+Lỗi query fingerprint → skip cache call đó (gọi thẳng Bedrock), không serve từ key có thể sai. An toàn hơn fail-closed.
 
-- **Không có đường ghi review.** `ProductReviewService` trong `pb/demo.proto` chỉ có 3 rpc đọc: `GetProductReviews`, `GetAverageProductReviewScore`, `AskProductAIAssistant`. Review là **dữ liệu tĩnh** seed sẵn qua `src/postgresql/init.sql`. Write-Around Invalidation sẽ là invalidation cho một sự kiện không bao giờ xảy ra.
-- **Không có nút feedback.** Storefront không có Thumbs Up/Down, và không có rpc nhận feedback.
-- **Nguyên nhân lỗi thời thật sự là đổi model/prompt**, không phải review mới — và §6.2 xử lý đúng nguyên nhân đó với chi phí bằng không.
+### 6.4 Đánh đổi & tối ưu tương lai
+- Chi phí thêm: +1 aggregate query/Ask-AI (kể cả cache hit). Ở 10 sản phẩm / ~0.1 qps: <1ms, không đáng kể.
+- Nếu sau này DB-load thành vấn đề (traffic cao): thay query bằng **version-counter trong Valkey** bump bởi `AddReview` (khi rpc ghi có mặt — TF1-55/56). Đánh đổi: nhanh hơn nhưng phụ thuộc write-path nhớ bump (kém self-heal hơn). Content-fingerprint là mặc định vì robust hơn.
 
-Nút Thumbs Down cùng cơ chế routing động sang Nova Pro chuyển xuống hạng mục **Mở rộng [Extend]**, ngoài phạm vi tuần 1. Nếu về sau có đường ghi review thật, cân nhắc thêm Write-Around Invalidation khi đó.
-
-
----
-
-## Phụ lục kiểm chứng 12/07/2026
-
-1. **Dynamic TTL đã gỡ khỏi code** → TTL phẳng 7d: premise "review tĩnh" kiểm chứng đúng (proto không rpc ghi, seed init.sql) nên N/variance không bao giờ đổi — công thức không có gì để phản ứng; hệ chỉ có **10 cache key** (10 sản phẩm đếm từ DB). Bỏ luôn query DB thừa mỗi lần cache-write.
-2. **Versioned key giờ mới thật sự versioned**: `model_ver` đọc từ `LLM_REVIEWS_MAIN_MODEL` (trước là hằng "nova-lite-v1" chết — đổi model qua env không xoay key), `prompt_ver` = md5(SYSTEM_PROMPT)[:8].
-3. **⚠️ Blast radius chung instance với cart (liên quan ADR-003):** valkey-cart hiện `volatile-lru` **không có maxmemory** (policy không chạy) + cart không TTL + limit 20Mi → nguy cơ OOMKill mất giỏ (checkout SLO). Nếu set maxmemory sau này, key reviews (volatile duy nhất) sẽ hứng toàn bộ eviction trước. Cần quyết với CDO: khôi phục TTL cart hoặc maxmemory + tách instance.
+Self-check: `docs/ai/evals/test_cache_key_invalidation.py` (4 assertion: thêm/sửa review → key đổi).

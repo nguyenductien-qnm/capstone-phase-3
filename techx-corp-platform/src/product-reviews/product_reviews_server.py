@@ -28,7 +28,7 @@ import demo_pb2
 import demo_pb2_grpc
 from grpc_health.v1 import health_pb2
 from grpc_health.v1 import health_pb2_grpc
-from database import fetch_product_reviews, fetch_product_reviews_from_db, fetch_avg_product_review_score_from_db
+from database import fetch_product_reviews, fetch_product_reviews_from_db, fetch_avg_product_review_score_from_db, fetch_reviews_fingerprint
 from guardrails import sanitize_json_for_llm, leaks_system_prompt
 
 from openfeature import api
@@ -417,8 +417,18 @@ def get_ai_assistant_response(request_product_id, question, context=None):
             except Exception as e:
                 logger.error(f"Error checking gRPC deadline: {e}")
 
-        cache_key = f"reviews:summary:{request_product_id}:{model_ver}:{prompt_ver}"
-        llm_reviews_cache_enabled = check_feature_flag("llmReviewsCacheEnabled")
+        # Content-addressed cache key (chuan the gioi: Rails cache_key / HTTP ETag).
+        # Nhung fingerprint noi dung review vao key -> review doi la key doi la MISS tu nhien,
+        # ZERO staleness window. TTL 7d chi con la GC backstop (don key fingerprint cu),
+        # KHONG con vai tro chong outdate. Thay hoan toan dynamic-TTL da go.
+        # Fail-open: loi fingerprint -> skip cache call nay (an toan hon serve summary co the cu).
+        try:
+            content_fp = fetch_reviews_fingerprint(request_product_id)
+        except Exception as e:
+            logger.error(f"Reviews fingerprint error (skip cache this call): {e}")
+            content_fp = None
+        cache_key = f"reviews:summary:{request_product_id}:{model_ver}:{prompt_ver}:{content_fp}"
+        llm_reviews_cache_enabled = check_feature_flag("llmReviewsCacheEnabled") and content_fp is not None
         logger.info(f"llmReviewsCacheEnabled feature flag: {llm_reviews_cache_enabled}")
 
         # Check Valkey Cache
