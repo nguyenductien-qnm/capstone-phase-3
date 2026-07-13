@@ -114,6 +114,22 @@ output "eks_update_kubeconfig_command" {
   value       = "aws eks update-kubeconfig --region ${var.aws_region} --name ${module.eks.cluster_name}"
 }
 
+output "msk_bootstrap_brokers_plaintext" {
+  description = "Connection string cho Plaintext (port 9092) của MSK"
+  value       = module.msk.bootstrap_brokers_plaintext
+}
+
+output "msk_bootstrap_brokers_tls" {
+  description = "Connection string cho TLS (port 9094) của MSK"
+  value       = module.msk.bootstrap_brokers_tls
+}
+
+output "msk_security_group_id" {
+  description = "Security Group ID của MSK cluster"
+  value       = module.msk.msk_security_group_id
+}
+
+
 
 
 
