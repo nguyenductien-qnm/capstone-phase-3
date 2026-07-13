@@ -29,7 +29,7 @@ import demo_pb2_grpc
 from grpc_health.v1 import health_pb2
 from grpc_health.v1 import health_pb2_grpc
 from database import fetch_product_reviews, fetch_product_reviews_from_db, fetch_avg_product_review_score_from_db, fetch_reviews_fingerprint
-from guardrails import sanitize_json_for_llm, leaks_system_prompt
+from guardrails import sanitize_json_for_llm, leaks_system_prompt, redact_pii, detect_prompt_injection_llm
 
 from openfeature import api
 from openfeature.contrib.provider.flagd import FlagdProvider
@@ -547,6 +547,15 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                         function_response = fetch_product_reviews(
                             product_id=tool_input.get("product_id")
                         )
+                        # --- INPUT GUARDRAIL (Lớp 1: always-on, deterministic, per-field) ---
+                        function_response = sanitize_json_for_llm(function_response)
+                        logger.info(f"[Guardrail L1] review sanitized for product_id={tool_input.get('product_id')}")
+                        # --- INPUT GUARDRAIL (Lớp 2: optional LLM-judge, sau feature flag) ---
+                        if check_feature_flag("llmGuardrailLlmJudge"):
+                            if detect_prompt_injection_llm(get_bedrock_primary_client(), function_response):
+                                logger.warning(f"[Guardrail L2] LLM-judge malicious for product_id={tool_input.get('product_id')}. Blocking.")
+                                function_response = json.dumps({"error": "Content blocked by security guardrail."})
+                        # -----------------------------------------------------------------------
                         logger.info(f"Function response for fetch_product_reviews: '{function_response}'")
                     elif tool_name == "fetch_product_info":
                         function_response = fetch_product_info(
@@ -616,7 +625,8 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                 text_parts = [b["text"] for b in content_blocks if "text" in b]
                 result = "\n".join(text_parts) if text_parts else ""
 
-            # Guardrail Phan A: output guard — chan lo system prompt ra khach.
+            # Guardrail Phan A: output guard — chặn lộ system prompt + redact PII khỏi khách.
+            result = redact_pii(result)
             if leaks_system_prompt(result, SYSTEM_PROMPT):
                 logger.error("AI_SUMMARY_FALLBACK stage=output-guard reason=SystemPromptLeak")
                 result = MOCK_SUMMARY_VI
