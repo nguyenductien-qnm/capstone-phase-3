@@ -234,7 +234,7 @@ def build_drain3_miner(state_file: Optional[str] = None) -> TemplateMiner:
     # (397 vs 554 templates, coverage 59% vs 55%, singleton/stability thap nhat) -> 0.3 xac nhan.
     # Re-confirm cuoi tren 24h log EKS (MASK=1 drain3_param_grid.py).
     config.drain_sim_th = float(os.getenv("DRAIN_SIM_TH", "0.3"))
-    # max_children: số nhánh tối đa của cây prefix.
+    # max_children/max_clusters: DEFAULT thu vien Drain3 (chua backtest cho corpus nay) - TF1-71.
     config.drain_max_children = 100
     # max_clusters: giới hạn số template sinh ra.
     config.drain_max_clusters = 1000
