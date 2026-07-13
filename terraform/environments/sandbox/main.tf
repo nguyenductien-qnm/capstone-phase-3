@@ -86,3 +86,14 @@ module "cloudfront" {
   acm_certificate_arn = var.acm_certificate_arn
   aliases             = [var.subdomain]
 }
+
+module "msk" {
+  source = "../../modules/msk"
+
+  project_name          = var.project_name
+  environment           = var.environment
+  vpc_id                = module.vpc.vpc_id
+  mq_subnet_ids         = values(module.vpc.private_mq_subnet_ids)
+  eks_security_group_id = module.eks.cluster_security_group_id
+}
+
