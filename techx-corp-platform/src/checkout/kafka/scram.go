@@ -11,11 +11,11 @@ import (
 type XDGSCRAMClient struct {
 	*scram.Client
 	*scram.ClientConversation
-	scram.HashGeneratorFunc
+	scram.HashGeneratorFcn
 }
 
 func (x *XDGSCRAMClient) Begin(userName, password, authzID string) (err error) {
-	x.Client, err = x.HashGeneratorFunc.NewClient(userName, password, authzID)
+	x.Client, err = x.HashGeneratorFcn.NewClient(userName, password, authzID)
 	if err != nil {
 		return err
 	}
@@ -31,5 +31,5 @@ func (x *XDGSCRAMClient) Done() bool {
 	return x.ClientConversation.Done()
 }
 
-var SHA256 scram.HashGeneratorFunc = func() hash.Hash { return sha256.New() }
-var SHA512 scram.HashGeneratorFunc = func() hash.Hash { return sha512.New() }
+var SHA256 scram.HashGeneratorFcn = func() hash.Hash { return sha256.New() }
+var SHA512 scram.HashGeneratorFcn = func() hash.Hash { return sha512.New() }

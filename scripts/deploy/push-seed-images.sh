@@ -5,7 +5,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-REG="804372444787.dkr.ecr.us-east-1.amazonaws.com/techx-corp"
+REG="804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp"
 REGION="us-east-1"
 
 echo "1. Đăng nhập Docker vào ECR..."

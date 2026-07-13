@@ -3,7 +3,6 @@
 package kafka
 
 import (
-	"crypto/sha512"
 	"fmt"
 	"log/slog"
 	"os"
@@ -40,7 +39,7 @@ func CreateKafkaProducer(brokers []string, logger *slog.Logger) (sarama.AsyncPro
 	saramaConfig.Net.SASL.User = os.Getenv("KAFKA_USER")
 	saramaConfig.Net.SASL.Password = os.Getenv("KAFKA_PASSWORD")
 	saramaConfig.Net.SASL.Mechanism = sarama.SASLTypeSCRAMSHA512
-	saramaConfig.Net.SASL.SCRAMClientGeneratorFunc = func() sarama.SCRAMClient { return &XDGSCRAMClient{HashGeneratorFunc: SHA512} }
+	saramaConfig.Net.SASL.SCRAMClientGeneratorFunc = func() sarama.SCRAMClient { return &XDGSCRAMClient{HashGeneratorFcn: SHA512} }
 	saramaConfig.Producer.Return.Successes = true
 	saramaConfig.Producer.Return.Errors = true
 
