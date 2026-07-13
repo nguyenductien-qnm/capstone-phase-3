@@ -117,9 +117,20 @@ def test_degraded_on_bedrock_failure():
     assert res.text and "trợ lý" in res.text.lower()
 
 
+def test_pii_scrubbing():
+    res = agent.run_agent(FakeBedrock([_end("Liên hệ alice@example.com hoặc 0912345678 để biết thêm chi tiết. Thẻ 1234-5678-9012-3456")]), "m",
+                          [{"role": "user", "content": [{"text": "thông tin liên hệ?"}]}], "u1")
+    assert "alice" not in res.text or "a***m@example.com" in res.text
+    assert "0912345678" not in res.text
+    assert "[REDACTED PHONE]" in res.text
+    assert "1234-5678-9012-3456" not in res.text
+    assert "[REDACTED CARD]" in res.text
+
+
 if __name__ == "__main__":
     test_confirmation_gate_two_phase()
     test_read_tool_routing_and_audit()
     test_max_loop_limit()
     test_degraded_on_bedrock_failure()
+    test_pii_scrubbing()
     print("OK — all shopping-copilot self-checks passed")
