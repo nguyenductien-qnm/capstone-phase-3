@@ -323,7 +323,7 @@ components:
         memory: 160Mi
     hpa:
       enabled: true
-      minReplicas: 1
+      minReplicas: 2      # có PDB (CDO-34) -> min>=2, tránh Karpenter consolidate giết pod duy nhất (INC-2)
       maxReplicas: 6      # write-heavy, tải tăng tuyến tính theo user
     initContainers:
       - name: wait-for-valkey-cart
@@ -380,8 +380,8 @@ components:
         memory: 20Mi
     hpa:
       enabled: true
-      minReplicas: 1
-      maxReplicas: 5      # checkout = SLO 99%, cho headroom scale
+      minReplicas: 2      # có PDB (CDO-34) + revenue-critical SLO 99% -> min>=2 (tránh INC-2)
+      maxReplicas: 5      # cho headroom scale
     initContainers:
       - name: wait-for-kafka
         image: busybox:latest
@@ -526,7 +526,7 @@ components:
         memory: 250Mi
     hpa:
       enabled: true
-      minReplicas: 1
+      minReplicas: 2      # có PDB (CDO-34) -> min>=2, tránh INC-2 khi node consolidate
       maxReplicas: 6
     securityContext:
       runAsUser: 1001  # nextjs
@@ -734,7 +734,7 @@ components:
         memory: 20Mi
     hpa:
       enabled: true
-      minReplicas: 1
+      minReplicas: 2      # có PDB (CDO-34) -> min>=2, tránh INC-2 khi node consolidate
       maxReplicas: 6      # read-heavy bottleneck dưới flash-sale
 
   product-reviews:
