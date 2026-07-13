@@ -636,6 +636,8 @@ components:
 
   frontend-proxy:
     enabled: true
+    imageOverride:
+      tag: "1.0-frontend-proxy"
     useDefault:
       env: true
     service:
@@ -660,7 +662,7 @@ components:
         maxSurge: 1
     # CDO-80: Envoy config (envoy.tmpl.yaml) KHÔNG bật admin → không có /ready:10000.
     # Dùng tcpSocket:8080 (listener chính) — Envoy bind ngay khi khởi động = process sống + listener mở.
-    # KHÔNG đụng envoy.tmpl.yaml (thuộc member khác) và không cần rebuild image.
+    # MANDATE-01 dùng image đã rebuild; digest annotation buộc rollout vì tag 1.0 được tái sử dụng.
     readinessProbe:
       tcpSocket: { port: 8080 }
       periodSeconds: 5
@@ -673,6 +675,7 @@ components:
       timeoutSeconds: 2
       failureThreshold: 6
     podAnnotations:
+      mandate-01/image-index-digest: "sha256:ea6155465ee5877e570fcc412b68b2ae0fb4ef15bf3a0e2785bc12a7dd37235f"
       resource.opentelemetry.io/service.namespace: techx-corp
       io.opentelemetry.discovery.metrics/enabled: 'true'
       io.opentelemetry.discovery.metrics/scraper: httpcheck
