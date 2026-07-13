@@ -252,8 +252,12 @@ components:
       - name: OTEL_DOTNET_AUTO_TRACES_ENTITYFRAMEWORKCORE_INSTRUMENTATION_ENABLED
         value: "false"
     resources:
+      requests:
+        cpu: 100m         # P0 right-size: OOMKilled 36 lần, .NET cần RAM cao
+        memory: 128Mi
       limits:
-        memory: 120Mi
+        cpu: 200m
+        memory: 256Mi
     initContainers:
       - name: wait-for-kafka
         image: busybox:latest
@@ -319,7 +323,9 @@ components:
     resources:
       requests:
         cpu: 100m         # CDO-42: cart ghi/đọc mỗi session, tải tăng theo user -> HPA
+        memory: 64Mi      # P0 right-size: thêm request, giữ limit
       limits:
+        cpu: 200m
         memory: 160Mi
     hpa:
       enabled: true
@@ -372,12 +378,14 @@ components:
       - name: OTEL_EXPORTER_OTLP_ENDPOINT
         value: http://$(OTEL_COLLECTOR_NAME):4317
       - name: GOMEMLIMIT
-        value: 16MiB
+        value: 96MiB      # P0 right-size: nâng cùng limit để Go dùng được RAM mới
     resources:
       requests:
-        cpu: 50m          # CDO-42: chỉ thêm CPU request, GIỮ nguyên mem limit (GOMEMLIMIT=16MiB)
+        cpu: 100m         # P0: revenue-critical, limit cũ 20Mi quá thấp
+        memory: 64Mi
       limits:
-        memory: 20Mi
+        cpu: 200m
+        memory: 128Mi
     hpa:
       enabled: true
       minReplicas: 2      # có PDB (CDO-34) + revenue-critical SLO 99% -> min>=2 (tránh INC-2)
@@ -659,7 +667,7 @@ components:
       - name: LOCUST_AUTOSTART
         value: "true"
       - name: LOCUST_BROWSER_TRAFFIC_ENABLED
-        value: "true"
+        value: "false"    # P0: HTTP thuần -> giảm RAM (browser traffic ăn ~1.2Gi ở 10 user)
       - name: PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION
         value: python
       - name: FLAGD_HOST
@@ -671,8 +679,12 @@ components:
       - name: OTEL_EXPORTER_OTLP_ENDPOINT
         value: http://$(OTEL_COLLECTOR_NAME):4317
     resources:
+      requests:
+        cpu: 200m         # P0 right-size: giảm RAM để giải phóng cho app
+        memory: 256Mi
       limits:
-        memory: 1500Mi
+        cpu: 500m
+        memory: 500Mi
 
   payment:
     enabled: true
@@ -717,7 +729,7 @@ components:
       - name: FLAGD_PORT
         value: "8013"
       - name: GOMEMLIMIT
-        value: 16MiB
+        value: 96MiB      # P0 right-size: nâng cùng limit để Go dùng được RAM mới
       - name: DB_CONNECTION_STRING
         valueFrom:
           secretKeyRef:
@@ -729,9 +741,11 @@ components:
         value: http://$(OTEL_COLLECTOR_NAME):4317
     resources:
       requests:
-        cpu: 100m         # CDO-42: read-heavy (mọi browse gọi tới) -> bottleneck -> HPA. Giữ mem limit (GOMEMLIMIT=16MiB)
+        cpu: 100m         # CDO-42: read-heavy (mọi browse gọi tới) -> bottleneck -> HPA
+        memory: 32Mi      # P0 right-size: OOMKilled 4 lần, Go runtime
       limits:
-        memory: 20Mi
+        cpu: 200m
+        memory: 128Mi
     hpa:
       enabled: true
       minReplicas: 2      # có PDB (CDO-34) -> min>=2, tránh INC-2 khi node consolidate
@@ -917,8 +931,12 @@ components:
       - name: IPV6_ENABLED
         value: "false"
     resources:
+      requests:
+        cpu: 50m          # P0 right-size: limit cũ 20Mi quá thấp
+        memory: 32Mi
       limits:
-        memory: 20Mi
+        cpu: 100m
+        memory: 128Mi
 
   flagd:
     enabled: true
@@ -1272,8 +1290,12 @@ jaeger:
       - name: JAEGER_GRPC_PORT
         value: "4317"
     resources:
+      requests:
+        cpu: 100m         # P0 right-size: memory storage phình
+        memory: 256Mi
       limits:
-        memory: 600Mi
+        cpu: 200m
+        memory: 1Gi
   userconfig:
     service:
       extensions: [jaeger_storage, jaeger_query, healthcheckv2]
