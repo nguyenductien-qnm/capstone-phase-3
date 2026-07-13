@@ -18,7 +18,7 @@ default:
   image:
     # SEED registry (image mẫu BTC cấp). Mỗi TF ĐỔI sang ECR của account mình:
     #   helm ... --set default.image.repository=<ACCOUNT>.dkr.ecr.<REGION>.amazonaws.com/techx-corp
-    repository: 804372444787.dkr.ecr.us-east-1.amazonaws.com/techx-corp
+    repository: 804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp
     # Overrides the image tag whose default is the chart appVersion.
     # The service's name will be applied to the end of this value.
     tag: "1.0"
@@ -177,11 +177,24 @@ components:
       resource.opentelemetry.io/service.namespace: techx-corp
     env:
       - name: KAFKA_ADDR
-        value: kafka:9092
+        value: b-1.ecommercedevmsk.61s37h.c4.kafka.us-east-1.amazonaws.com:9096,b-2.ecommercedevmsk.61s37h.c4.kafka.us-east-1.amazonaws.com:9096
+      - name: KAFKA_USER
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: username
+      - name: KAFKA_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: password
       - name: OTEL_EXPORTER_OTLP_ENDPOINT
         value: http://$(OTEL_COLLECTOR_NAME):4318
       - name: DB_CONNECTION_STRING
-        value: Host=postgresql;Username=otelu;Password=otelp;Database=otel
+        valueFrom:
+          secretKeyRef:
+            name: db-secret
+            key: accounting-db-conn
       - name: OTEL_DOTNET_AUTO_TRACES_ENTITYFRAMEWORKCORE_INSTRUMENTATION_ENABLED
         value: "false"
     resources:
@@ -190,7 +203,7 @@ components:
     initContainers:
       - name: wait-for-kafka
         image: busybox:latest
-        command: ["sh", "-c", "until nc -z -v -w30 kafka 9092; do echo waiting for kafka; sleep 2; done;"]
+        command: ["sh", "-c", "until nc -z -v -w30 b-1.ecommercedevmsk.61s37h.c4.kafka.us-east-1.amazonaws.com 9096; do echo waiting for kafka; sleep 2; done;"]
 
   ad:
     enabled: true
@@ -229,7 +242,7 @@ components:
       - name: ASPNETCORE_URLS
         value: http://*:$(CART_PORT)
       - name: VALKEY_ADDR
-        value: valkey-cart:6379
+        value: master.ecommerce-dev-valkey.7ylfic.use1.cache.amazonaws.com:6379
       - name: VALKEY_TLS
         value: "true"
       - name: VALKEY_AUTH_TOKEN
@@ -249,7 +262,7 @@ components:
     initContainers:
       - name: wait-for-valkey-cart
         image: busybox:latest
-        command: ["sh", "-c", "until nc -z -v -w30 valkey-cart 6379; do echo waiting for valkey-cart; sleep 2; done;"]
+        command: ["sh", "-c", "until nc -z -v -w30 master.ecommerce-dev-valkey.7ylfic.use1.cache.amazonaws.com 6379; do echo waiting for valkey-cart; sleep 2; done;"]
 
   checkout:
     enabled: true
@@ -275,7 +288,17 @@ components:
       - name: SHIPPING_ADDR
         value: http://shipping:8080
       - name: KAFKA_ADDR
-        value: kafka:9092
+        value: b-1.ecommercedevmsk.61s37h.c4.kafka.us-east-1.amazonaws.com:9096,b-2.ecommercedevmsk.61s37h.c4.kafka.us-east-1.amazonaws.com:9096
+      - name: KAFKA_USER
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: username
+      - name: KAFKA_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: password
       - name: FLAGD_HOST
         value: flagd
       - name: FLAGD_PORT
@@ -290,7 +313,7 @@ components:
     initContainers:
       - name: wait-for-kafka
         image: busybox:latest
-        command: ["sh", "-c", "until nc -z -v -w30 kafka 9092; do echo waiting for kafka; sleep 2; done;"]
+        command: ["sh", "-c", "until nc -z -v -w30 b-1.ecommercedevmsk.61s37h.c4.kafka.us-east-1.amazonaws.com 9096; do echo waiting for kafka; sleep 2; done;"]
 
   currency:
     enabled: true
@@ -344,7 +367,17 @@ components:
       resource.opentelemetry.io/service.namespace: techx-corp
     env:
       - name: KAFKA_ADDR
-        value: kafka:9092
+        value: b-1.ecommercedevmsk.61s37h.c4.kafka.us-east-1.amazonaws.com:9096,b-2.ecommercedevmsk.61s37h.c4.kafka.us-east-1.amazonaws.com:9096
+      - name: KAFKA_USER
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: username
+      - name: KAFKA_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: password
       - name: FLAGD_HOST
         value: flagd
       - name: FLAGD_PORT
@@ -361,7 +394,7 @@ components:
     initContainers:
       - name: wait-for-kafka
         image: busybox:latest
-        command: ["sh", "-c", "until nc -z -v -w30 kafka 9092; do echo waiting for kafka; sleep 2; done;"]
+        command: ["sh", "-c", "until nc -z -v -w30 b-1.ecommercedevmsk.61s37h.c4.kafka.us-east-1.amazonaws.com 9096; do echo waiting for kafka; sleep 2; done;"]
 
   frontend:
     enabled: true
@@ -423,6 +456,10 @@ components:
     service:
       port: 8080
       type: LoadBalancer
+      annotations:
+        service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+        service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "instance"
+        service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
       io.opentelemetry.discovery.metrics/enabled: 'true'
@@ -592,7 +629,10 @@ components:
       - name: GOMEMLIMIT
         value: 16MiB
       - name: DB_CONNECTION_STRING
-        value: postgres://otelu:otelp@postgresql/otel?sslmode=disable
+        valueFrom:
+          secretKeyRef:
+            name: db-secret
+            key: catalog-db-conn
       - name: OTEL_SEMCONV_STABILITY_OPT_IN
         value: database
       - name: OTEL_EXPORTER_OTLP_ENDPOINT
@@ -629,7 +669,10 @@ components:
       - name: FLAGD_PORT
         value: "8013"
       - name: DB_CONNECTION_STRING
-        value: host=postgresql user=otelu password=otelp dbname=otel
+        valueFrom:
+          secretKeyRef:
+            name: db-secret
+            key: reviews-db-conn
       - name: PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION
         value: python
       - name: OTEL_PYTHON_LOG_CORRELATION
@@ -638,10 +681,15 @@ components:
         value: "true"
       - name: OTEL_EXPORTER_OTLP_ENDPOINT
         value: http://$(OTEL_COLLECTOR_NAME):4317
-      - name: VALKEY_HOST
-        value: valkey-cart
-      - name: VALKEY_PORT
-        value: "6379"
+      - name: VALKEY_ADDR
+        value: master.ecommerce-dev-valkey.7ylfic.use1.cache.amazonaws.com:6379
+      - name: VALKEY_TLS
+        value: "true"
+      - name: VALKEY_AUTH_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: valkey-secret
+            key: auth_token
     resources:
       requests:
         cpu: 100m
@@ -846,7 +894,7 @@ components:
           name: flagd-config
 
   kafka:
-    enabled: true
+    enabled: false
     useDefault:
       env: true
     replicas: 1
@@ -893,7 +941,7 @@ components:
         value: "8013"
 
   postgresql:
-    enabled: true
+    enabled: false
     useDefault:
       env: false
     imageOverride:
@@ -944,7 +992,7 @@ components:
         memory: 100Mi
 
   valkey-cart:
-    enabled: true
+    enabled: false
     useDefault:
       env: false
     imageOverride:

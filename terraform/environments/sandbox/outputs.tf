@@ -124,10 +124,21 @@ output "msk_bootstrap_brokers_tls" {
   value       = module.msk.bootstrap_brokers_tls
 }
 
+output "msk_bootstrap_brokers_sasl_scram" {
+  description = "Connection string cho SASL/SCRAM (port 9096) của MSK"
+  value       = module.msk.bootstrap_brokers_sasl_scram
+}
+
 output "msk_security_group_id" {
   description = "Security Group ID của MSK cluster"
   value       = module.msk.msk_security_group_id
 }
+
+output "msk_secret_arn" {
+  description = "ARN của Secret Manager lưu msk credentials"
+  value       = module.msk.msk_secret_arn
+}
+
 
 
 

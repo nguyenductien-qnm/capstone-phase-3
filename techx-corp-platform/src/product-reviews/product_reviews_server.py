@@ -704,9 +704,13 @@ if __name__ == "__main__":
     except Exception:
         valkey_host = 'valkey-cart'
         valkey_port = 6379
+    
+    valkey_password = os.environ.get('VALKEY_AUTH_TOKEN', None)
+    valkey_ssl = os.environ.get('VALKEY_TLS', 'false').lower() == 'true'
     # socket timeout 0.5s theo spec valkey_caching §4.2 — Valkey sap khong duoc keo treo request
     valkey_client = redis.Redis(host=valkey_host, port=valkey_port, decode_responses=True,
-                                socket_timeout=0.5, socket_connect_timeout=0.5)
+                                socket_timeout=0.5, socket_connect_timeout=0.5,
+                                password=valkey_password, ssl=valkey_ssl)
 
     llm_host = must_map_env('LLM_HOST')
     llm_port = must_map_env('LLM_PORT')
