@@ -33,7 +33,9 @@ Tất cả quản lý bằng Helm để **ArgoCD tự sync** (GitOps), không ap
 - **behavior (dùng chung ở `default.hpa`):**
   - *scale-UP nhanh:* `stabilizationWindowSeconds: 0`, +100%/lần hoặc +2 pod mỗi 30s (`selectPolicy: Max`) → bắt kịp burst flash-sale.
   - *scale-DOWN chậm:* `stabilizationWindowSeconds: 300`, -1 pod/60s (`selectPolicy: Min`) → "co xuống" mượt, không thrash, trả tài nguyên về sau đỉnh.
-- **minReplicas:** 1 cho hầu hết (rẻ nhất, đúng tinh thần co xuống); **frontend-proxy = 2** (edge duy nhất sau NLB → HA, khớp PDB CDO-34).
+- **minReplicas:**
+  - **=2 cho service có PDB (CDO-34):** frontend-proxy, frontend, cart, checkout, product-catalog. Lý do **INC-2**: nếu min=1, lúc tải thấp HPA co về 1 pod → đúng lúc Karpenter (CDO-99) consolidate node → giết pod duy nhất → downtime. PDB (`minAvailable`) **vô nghĩa khi chỉ 1 pod**. min=2 để PDB giữ được 1 available khi node bị thu hồi. (Reliability thắng cost ở service có PDB.)
+  - **=1 cho service không PDB:** currency, recommendation, ad (rẻ, đúng tinh thần co xuống).
 - **maxReplicas:** 4–6 tùy service, chặn dưới ResourceQuota.
 
 ## 4. Kiểm chứng ngân sách (MANDATE-02)
@@ -42,8 +44,10 @@ CPU request theo replica (cores):
 
 | | Baseline (min) | Peak (tất cả ở max) |
 |---|---|---|
-| Tổng CPU requests | **0.75** | **3.45** |
+| Tổng CPU requests | **1.10** | **3.45** |
 | ResourceQuota `requests.cpu` (trần cứng) | 4.00 | 4.00 |
+
+*(Baseline 1.10 cores sau khi nâng min=2 cho 5 service có PDB; trước đó min=1 toàn bộ = 0.75.)*
 
 → Peak **3.45 < 4.00 cores**: HPA có room scale cho flash-sale **mà không bao giờ vượt trần quota**. Quota là ceiling — HPA không thể phá.
 
@@ -81,7 +85,8 @@ Verify trực tiếp trên `ecommerce-dev-eks` (ns deploy = `techx-tf1`):
 ## 7. Ranh giới với task khác
 
 - **CDO-37 (Manh Khang, CPU requests/limits toàn diện):** tôi chỉ thêm CPU request cho **8 hot-path service** đủ để HPA chạy; sweep toàn bộ + tinh chỉnh limit là của CDO-37.
-- **CDO-34 (Nguyen Dinh Thi, PDB):** frontend-proxy min=2 khớp với PDB.
+- **CDO-34 (Nguyen Dinh Thi, PDB):** min=2 cho 5 service có PDB (frontend-proxy, frontend, cart, checkout, product-catalog) — HPA `minReplicas` là điều kiện để PDB có ý nghĩa (INC-2).
+- **CDO-28 (Phong, chỉnh replica cart/checkout/product-catalog):** **chồng lấn — HPA thay thế replica tĩnh.** Không được để cả `spec.replicas` cố định lẫn HPA cùng quản một Deployment (mỗi lần sync sẽ đánh nhau, pod flap). `minReplicas` của HPA đảm nhận vai trò "sàn replica" của CDO-28. → thống nhất với Phong: bỏ con số replica tĩnh cho 3 service này, để HPA cầm lái.
 - **CDO-47 (ndtien317, probes):** HPA scale-up nhanh sẽ mượt hơn khi có readiness probe; nằm ở CDO-47.
 
 ---
@@ -95,7 +100,7 @@ Verify trực tiếp trên `ecommerce-dev-eks` (ns deploy = `techx-tf1`):
 - **Bối cảnh:** MANDATE-02 yêu cầu chịu flash-sale 200 user/15′ giữ SLO mà không tăng ngân sách. Hệ thống chưa có autoscale, và pod thiếu CPU request nên không thể HPA.
 - **Quyết định:** HPA `autoscaling/v2` CPU-utilization 70% cho 8 hot-path service, behavior scale-up nhanh / scale-down chậm; LimitRange cấp CPU request mặc định; ResourceQuota làm trần cứng. Tất cả trong Helm để ArgoCD sync.
 - **Phương án khác đã cân:** (A) HPA theo memory — loại vì mem limit quá chặt, dễ flap. (B) Custom metric RPS/p95 qua prometheus-adapter — loại (tuần này) vì phải cài thêm hạ tầng, vượt scope. (C) Tăng replica cố định — loại vì neo cost ở đỉnh, phá "co xuống".
-- **Cost Δ:** Baseline không đổi đáng kể (min=1, +1 pod cho proxy). Peak request 3.45 cores < trần quota 4 cores → không phình vượt ngân sách. Không thêm dịch vụ trả phí.
+- **Cost Δ:** Baseline 1.10 cores (min=2 cho 5 service có PDB). Peak request 3.45 cores < trần quota 4 cores → không phình vượt ngân sách. Không thêm dịch vụ trả phí.
 - **Ảnh hưởng SLO:** Kỳ vọng cải thiện checkout/browse SLO khi burst (thêm pod). Verify bằng load-test 200 user (Pha B).
 - **Rollback:** Set `hpa.enabled: false` (hoặc `resourceGovernance.*.enabled: false`) trong values → ArgoCD tự gỡ HPA/quota, Deployment về replica tĩnh. Rollback qua git revert PR. Kích hoạt nếu HPA flap hoặc quota chặn nhầm workload hợp lệ.
 - **Hệ quả:** ✅ Autoscale bám tải, cost có trần cứng, GitOps-clean. ⚠️ Phụ thuộc metrics-server (chưa verify trên cluster); CPU request mới cần theo dõi để không đội baseline.
