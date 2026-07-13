@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -231,7 +232,8 @@ func main() {
 	svc.kafkaBrokerSvcAddr = os.Getenv("KAFKA_ADDR")
 
 	if svc.kafkaBrokerSvcAddr != "" {
-		svc.KafkaProducerClient, err = kafka.CreateKafkaProducer([]string{svc.kafkaBrokerSvcAddr}, logger)
+		brokers := strings.Split(svc.kafkaBrokerSvcAddr, ",")
+		svc.KafkaProducerClient, err = kafka.CreateKafkaProducer(brokers, logger)
 		if err != nil {
 			logger.Error(err.Error())
 		}
