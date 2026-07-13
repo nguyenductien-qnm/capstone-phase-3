@@ -44,15 +44,16 @@ module "rds" {
   database_subnet_ids    = values(module.vpc.private_data_subnet_ids)
   app_subnet_cidr_blocks = [for s in var.private_app_subnets : s.cidr_block]
 
-  db_name                = var.db_name
-  db_username            = var.db_username
-  engine_version         = var.rds_engine_version
-  instance_class         = var.rds_instance_class
-  allocated_storage      = var.rds_allocated_storage
-  enable_read_replica    = var.enable_read_replica
-  replica_instance_class = var.replica_instance_class
-  enable_rds_proxy       = var.enable_rds_proxy
-  multi_az               = var.rds_multi_az
+  db_name                    = var.db_name
+  db_username                = var.db_username
+  engine_version             = var.rds_engine_version
+  instance_class             = var.rds_instance_class
+  allocated_storage          = var.rds_allocated_storage
+  enable_read_replica        = var.enable_read_replica
+  replica_instance_class     = var.replica_instance_class
+  enable_rds_proxy           = var.enable_rds_proxy
+  multi_az                   = var.rds_multi_az
+  eks_node_security_group_id = module.eks.cluster_security_group_id
 }
 
 module "elasticache" {
@@ -64,8 +65,9 @@ module "elasticache" {
   cache_subnet_ids       = values(module.vpc.private_data_subnet_ids)
   app_subnet_cidr_blocks = [for s in var.private_app_subnets : s.cidr_block]
 
-  node_type          = var.valkey_node_type
-  num_cache_clusters = var.valkey_num_cache_clusters
+  node_type                  = var.valkey_node_type
+  num_cache_clusters         = var.valkey_num_cache_clusters
+  eks_node_security_group_id = module.eks.cluster_security_group_id
 }
 
 module "ecr" {

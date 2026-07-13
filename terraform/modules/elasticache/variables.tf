@@ -36,3 +36,8 @@ variable "num_cache_clusters" {
   type        = number
   description = "Số lượng cache nodes (clusters) trong replication group"
 }
+
+variable "eks_node_security_group_id" {
+  type        = string
+  description = "EKS node security group ID to allow access to Valkey"
+}

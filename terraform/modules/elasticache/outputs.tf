@@ -12,3 +12,8 @@ output "port" {
   description = "Cổng kết nối của Valkey cluster"
   value       = aws_elasticache_replication_group.this.port
 }
+
+output "secret_arn" {
+  description = "ARN của Secret Manager lưu Valkey credentials"
+  value       = aws_secretsmanager_secret.valkey_credentials.arn
+}
