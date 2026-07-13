@@ -162,9 +162,13 @@ class ProductReviewService(demo_pb2_grpc.ProductReviewServiceServicer):
 
         return ai_assistant_response
 
+    def __init__(self):
+        self.is_serving = True
+
     def Check(self, request, context):
-        return health_pb2.HealthCheckResponse(
-            status=health_pb2.HealthCheckResponse.SERVING)
+        if self.is_serving:
+            return health_pb2.HealthCheckResponse(status=health_pb2.HealthCheckResponse.SERVING)
+        return health_pb2.HealthCheckResponse(status=health_pb2.HealthCheckResponse.NOT_SERVING)
 
     def Watch(self, request, context):
         return health_pb2.HealthCheckResponse(
@@ -737,6 +741,18 @@ if __name__ == "__main__":
     # Start server
     port = must_map_env('PRODUCT_REVIEWS_PORT')
     server.add_insecure_port(f'[::]:{port}')
+    
+    import signal
+    def handle_sigterm(signum, frame):
+        logger.info("Received SIGTERM, marking NOT_SERVING and initiating graceful shutdown...")
+        service.is_serving = False
+        # Wait a bit for LB to stop sending traffic before actually stopping
+        server.stop(grace=10)
+
+    signal.signal(signal.SIGTERM, handle_sigterm)
+    signal.signal(signal.SIGINT, handle_sigterm)
+
     server.start()
     logger.info(f'Product reviews service started, listening on port {port}')
     server.wait_for_termination()
+    logger.info("Server stopped.")

@@ -141,9 +141,19 @@ def serve():
     pb_grpc.add_ShoppingCopilotServiceServicer_to_server(
         ShoppingCopilotServicer(bedrock), server)
     server.add_insecure_port(f"[::]:{PORT}")
+    
+    import signal
+    def handle_sigterm(signum, frame):
+        logger.info("Received SIGTERM, initiating graceful shutdown...")
+        server.stop(grace=10)
+
+    signal.signal(signal.SIGTERM, handle_sigterm)
+    signal.signal(signal.SIGINT, handle_sigterm)
+
     server.start()
     logger.info("Shopping Copilot gRPC server listening on :%s (model=%s)", PORT, MAIN_MODEL)
     server.wait_for_termination()
+    logger.info("Server stopped.")
 
 
 if __name__ == "__main__":
