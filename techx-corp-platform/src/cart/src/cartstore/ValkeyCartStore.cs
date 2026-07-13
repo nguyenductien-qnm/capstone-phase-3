@@ -182,7 +182,10 @@ public class ValkeyCartStore : ICartStore
             }
 
             await db.HashSetAsync(userId, new[]{ new HashEntry(CartFieldName, cart.ToByteArray()) });
-            // await db.KeyExpireAsync(userId, TimeSpan.FromMinutes(60)); // Removed to prevent cart eviction under volatile-lru (ADR-003)
+            // ADR-003 chua chot (review J1: volatile-lru khong co maxmemory -> policy khong chay;
+            // go TTL lam mat co che chong ro ri duy nhat -> nguy co OOMKill mat gio -> checkout SLO).
+            // Khoi phuc TTL baseline 60m cho toi khi CDO chot huong (maxmemory + tach instance).
+            await db.KeyExpireAsync(userId, TimeSpan.FromMinutes(60));
         }
         catch (Exception ex)
         {
@@ -207,7 +210,10 @@ public class ValkeyCartStore : ICartStore
 
             // Update the cache with empty cart for given user
             await db.HashSetAsync(userId, new[] { new HashEntry(CartFieldName, _emptyCartBytes) });
-            // await db.KeyExpireAsync(userId, TimeSpan.FromMinutes(60)); // Removed to prevent cart eviction under volatile-lru (ADR-003)
+            // ADR-003 chua chot (review J1: volatile-lru khong co maxmemory -> policy khong chay;
+            // go TTL lam mat co che chong ro ri duy nhat -> nguy co OOMKill mat gio -> checkout SLO).
+            // Khoi phuc TTL baseline 60m cho toi khi CDO chot huong (maxmemory + tach instance).
+            await db.KeyExpireAsync(userId, TimeSpan.FromMinutes(60));
         }
         catch (Exception ex)
         {

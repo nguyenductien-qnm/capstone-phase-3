@@ -230,10 +230,11 @@ def build_drain3_miner(state_file: Optional[str] = None) -> TemplateMiner:
     # sim_th: ngưỡng tương đồng (0.0 – 1.0). Cao = gom chặt, thấp = nhóm rộng.
     # sim_th: grid 12/07 tren 19.3k dong log THAT cho 0.3 troi 0.4 o CA 4 tieu chi
     # (templates/coverage/singleton/stability) -> default = so DO, khong phai spec cu (0.4).
-    # Env-overridable; re-confirm bang grid CO masking tren 24h log EKS (masking da them vao
-    # drain3_param_grid.py 13/07).
+    # Env-overridable. Grid CO masking (13/07, 8k dong): 0.3 VAN thang 0.4/0.5/0.6 ca 4 tieu chi
+    # (397 vs 554 templates, coverage 59% vs 55%, singleton/stability thap nhat) -> 0.3 xac nhan.
+    # Re-confirm cuoi tren 24h log EKS (MASK=1 drain3_param_grid.py).
     config.drain_sim_th = float(os.getenv("DRAIN_SIM_TH", "0.3"))
-    # max_children: số nhánh tối đa của cây prefix.
+    # max_children/max_clusters: DEFAULT thu vien Drain3 (chua backtest cho corpus nay) - TF1-71.
     config.drain_max_children = 100
     # max_clusters: giới hạn số template sinh ra.
     config.drain_max_clusters = 1000
