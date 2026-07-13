@@ -8,6 +8,11 @@ output "bootstrap_brokers_tls" {
   value       = aws_msk_cluster.this.bootstrap_brokers_tls
 }
 
+output "bootstrap_brokers_sasl_scram" {
+  description = "Connection string for SASL/SCRAM (port 9096)"
+  value       = aws_msk_cluster.this.bootstrap_brokers_sasl_scram
+}
+
 output "msk_security_group_id" {
   description = "Security Group ID of the MSK cluster"
   value       = aws_security_group.msk.id

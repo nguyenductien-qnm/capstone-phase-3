@@ -101,6 +101,7 @@ resource "aws_db_instance" "replica" {
   instance_class       = var.replica_instance_class
   skip_final_snapshot  = true
   db_subnet_group_name = null # replica tự động thừa hưởng subnet group của primary
+  storage_encrypted    = true
 
   vpc_security_group_ids = [aws_security_group.db.id]
 
