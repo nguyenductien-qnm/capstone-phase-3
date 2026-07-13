@@ -8,7 +8,7 @@
 > - Retry config: [AWS SDK Retry Behavior](https://docs.aws.amazon.com/sdkref/latest/guide/feature-retry-behavior.html)
 > - Backoff & Jitter: [AWS Architecture Blog](https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/)
 >
-> **Quyết định liên quan:** [ADR-004](../ADR-log.md#adr-004---định-tuyến-model-llm-lai-theo-tác-vụ-hybrid-task-specific-routing-cho-đơn-vùng-single-region)
+> **Quyết định liên quan:** [ADR-004](../05_adrs.md#adr-004---định-tuyến-model-llm-lai-theo-tác-vụ-hybrid-task-specific-routing-cho-đơn-vùng-single-region)
 
 ## 1. Flowchart Cơ chế Dự phòng (Fallback & Retry Flowchart)
 

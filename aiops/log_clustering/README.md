@@ -186,4 +186,4 @@ Exit code = `1` nếu có alert (để CI/CD pipeline bắt được).
 
 - [Drain3 GitHub](https://github.com/logpai/Drain3)
 - Paper gốc: *Drain: An Online Log Parsing Approach with Fixed Depth Tree* (He et al., ICWS 2017)
-- Spec AIOps: [docs/ai/specs/anomaly_remediation.md](../../docs/ai/specs/anomaly_remediation.md)
+- Spec AIOps: [docs/ai/03_specs/anomaly_remediation.md](../../docs/ai/03_specs/anomaly_remediation.md)

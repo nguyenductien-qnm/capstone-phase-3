@@ -1,6 +1,6 @@
 # AIOps Error-Detection & Alerting — TF1-53 [AIOps-W1-T5]
 
-Script/tool phát hiện lỗi vận hành và gửi cảnh báo cho on-call. Đây là mắt **"Monitor / Trigger"** — cửa vào của closed-loop trong [`docs/ai/specs/anomaly_remediation.md`](../../docs/ai/specs/anomaly_remediation.md).
+Script/tool phát hiện lỗi vận hành và gửi cảnh báo cho on-call. Đây là mắt **"Monitor / Trigger"** — cửa vào của closed-loop trong [`docs/ai/03_specs/anomaly_remediation.md`](../../docs/ai/03_specs/anomaly_remediation.md).
 
 > **Phạm vi:** CHỈ phát hiện + cảnh báo. **Không** tự khắc phục (đó là TF1-50 Remediation). **Không** gỡ/đổi hướng flagd (vi phạm = disqualify).
 
@@ -85,3 +85,6 @@ kubectl -n <ns> apply -f deploy/deployment.yaml
 - Prometheus: `http://prometheus:9090`, metric `http_server_request_duration_seconds_*`, label `service_namespace="techx-corp"`, `service_name`.
 - OpenSearch: `http://opensearch:9200`, index `otel-logs-*`, message field `body`, time field `observedTimestamp` (theo `grafana/provisioning/datasources/opensearch.yaml`).
 - Nếu tên metric/label khác sau khi cắm LLM thật hoặc đổi phiên bản collector → chỉnh trong `rules.yaml`, không sửa code.
+
+## ⚠️ Nhãn cho `detector_kpi_metrics.json` (review 12/07)
+Số precision/recall/F1/TTD trong file này sinh từ `evaluate_detector.py` trên **dữ liệu synthetic tự tạo nhãn** (sine + ramp + spike). Giá trị hợp lệ duy nhất: so sánh *tương đối* 3 thuật toán (hybrid > 3σ > static). **Không được trích làm KPI hệ thống** trong pitch/report — KPI thật lấy từ chaos test đo MTTD (xem `docs/ai/evals/measure_detection_pipeline.py`; đã đo: MTTD max 35.4s @ poll 30s trên compose).

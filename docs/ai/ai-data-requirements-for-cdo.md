@@ -8,7 +8,7 @@
 | Service | Chạy ở đâu | Đọc | Ghi | Đụng OpenSearch? |
 |---|---|---|---|---|
 | `product-reviews` (AI summary path) | Pod in-cluster, gRPC `:3551` | PostgreSQL `reviews.productreviews` (50 dòng), `catalog.products` (10 dòng); Bedrock API; flagd | Valkey cache (≤10 key, mỗi key ~1KB JSON) | **Không** — chỉ *phát* log/trace/metric qua OTel collector như mọi service khác |
-| `tools/aiops-detector` | 1 pod nhỏ (poll loop) | Prometheus (3 rule PromQL) + **OpenSearch (5 rule log)** | Webhook Slack/Discord (alert) | **Có — consumer OpenSearch duy nhất của nhóm AI** |
+| `aiops/detector` | 1 pod nhỏ (poll loop) | Prometheus (3 rule PromQL) + **OpenSearch (5 rule log)** | Webhook Slack/Discord (alert) | **Có — consumer OpenSearch duy nhất của nhóm AI** |
 | `aiops/log_clustering` (Drain3) | CronJob batch | Log text thô (hiện đọc qua OpenSearch) | Template/cluster report | **Có** — chỉ cần đọc raw lines theo khoảng thời gian |
 | Shopping Copilot (tuần 2+) | Pod mới | `product-catalog`, `product-reviews`, `cart` qua gRPC; Bedrock | — | **Không** |
 
@@ -16,7 +16,7 @@ Kết luận nhanh cho CDO: **toàn bộ phụ thuộc OpenSearch của tầng A
 
 ## 2. Chính xác tầng AI cần gì từ backend log
 
-### 2.1 Query pattern (trích nguyên văn từ `tools/aiops-detector/sources.py`)
+### 2.1 Query pattern (trích nguyên văn từ `aiops/detector/sources.py`)
 
 Kiểu 1 — đếm phrase trong cửa sổ trượt (5 rule × poll 30s = **10 query/phút**):
 ```json
@@ -37,7 +37,7 @@ Kiểu 2 — đọc batch raw lines theo khoảng thời gian (Drain3, 1 lần/c
 - Dashboard riêng (đã dùng Grafana).
 - Realtime/streaming: **không cần** — vì sao: MTTD = ingest lag (2.1s, đo) + gom min_count + offset poll (≤30s); stream chỉ xoá được vế poll (~15–30s) mà không bỏ được logic cửa sổ 5 phút, trong khi MTTD hiện tại (max 35.4s) đã pass target 2 phút với biên 3.4× — đổi 1 consumer service chạy 24/7 (state, reconnect, thêm điểm hỏng, thêm RAM trong trần $300) lấy ~30s không có giá trị theo đề. Poll stateless, 0.08% duty (đo).
 - Retention dài: **detection chỉ cần 5 phút dữ liệu** — không phải ý kiến: mọi rule log trong `rules.yaml` query đúng `now-5m`, detector không bao giờ đọc cũ hơn. RCA lookback 24–72h là trần thực tế vì: SLO đo rolling **24h** (SLO.md) → mọi câu hỏi vỡ-SLO chỉ cần 24h; Ops Review tuần dùng metrics tổng hợp Prometheus (giữ riêng), không cần raw log; kịch bản xa nhất là sự cố tối thứ 6 đào lại sáng thứ 2 ≈ 60h → trần 72h. Thứ giữ lâu là kết luận (postmortem/ADR/template), không phải raw log. Tiền: 220MB/ngày × 3d ≈ 660MB vs 30d ≈ 6.6GB — gấp 10 storage cho dữ liệu không ai mở. **Phạm vi: 3 ngày đủ cho nhu cầu AI** — nhu cầu audit/compliance của CDO (nếu có) cộng riêng.
-- Vector search (đề xuất semantic search pgvector đã bị review đánh giá là thừa với catalog 10 sản phẩm — `review-week1-verification.md` mục I).
+- Vector search (đề xuất semantic search pgvector đã bị review đánh giá là thừa với catalog 10 sản phẩm — `03_specs/semantic_search.md` (banner DEFERRED + phụ lục)).
 
 ### 2.3 Volume & độ trễ (số đo)
 
@@ -87,7 +87,7 @@ Nguồn so sánh: [Loki vs Elasticsearch 2026](https://lucaberton.com/blog/loki-
 ## 6. Trả lời trực tiếp 4 câu hỏi CDO (12/07 — question.md)
 
 **Q1. AI có dùng OpenSearch query log không? Có bắt buộc OpenSearch không?**
-Có dùng — đúng 2 consumer: `tools/aiops-detector` (5 rule log, phrase-count cửa sổ 5m, 10 query/phút, mỗi query trả 1 số + 1 sample) và `aiops/log_clustering` (Drain3, đọc batch raw lines theo khoảng thời gian, CronJob). **KHÔNG bắt buộc OpenSearch.** Nhu cầu thật chỉ là: (a) đếm dòng khớp phrase trong cửa sổ thời gian, (b) đọc raw lines theo range. Loki/VictoriaLogs/OpenSearch bóp nhỏ đều đạt (bảng so sánh mục 4). Lớp query đã tách trong `sources.py` — đổi backend ≈ 50 dòng adapter. Ràng buộc duy nhất: pipeline giữ MTTD ≤ 2 phút (hiện đo được 35.4s max, dư 3.4×).
+Có dùng — đúng 2 consumer: `aiops/detector` (5 rule log, phrase-count cửa sổ 5m, 10 query/phút, mỗi query trả 1 số + 1 sample) và `aiops/log_clustering` (Drain3, đọc batch raw lines theo khoảng thời gian, CronJob). **KHÔNG bắt buộc OpenSearch.** Nhu cầu thật chỉ là: (a) đếm dòng khớp phrase trong cửa sổ thời gian, (b) đọc raw lines theo range. Loki/VictoriaLogs/OpenSearch bóp nhỏ đều đạt (bảng so sánh mục 4). Lớp query đã tách trong `sources.py` — đổi backend ≈ 50 dòng adapter. Ràng buộc duy nhất: pipeline giữ MTTD ≤ 2 phút (hiện đo được 35.4s max, dư 3.4×).
 
 **Q2. Input của AI lấy cụ thể gì (log/metrics/trace)?**
 | Input | Ai dùng | Cụ thể | Bắt buộc? |
@@ -100,8 +100,8 @@ Có dùng — đúng 2 consumer: `tools/aiops-detector` (5 rule log, phrase-coun
 
 **Q3. Requirement service để deploy AI (Bedrock, AgentCore...)?**
 - **Bedrock runtime** (`bedrock-runtime`, us-east-1): models `amazon.nova-lite-v1:0`, `nova-micro-v1:0` (reviews), `nova-pro-v1:0` (copilot W2). **Cần CDO cấp IAM `bedrock:InvokeModel`** qua IRSA cho serviceAccount `product-reviews` (sau này thêm `shopping-copilot`) hoặc node role — **đang thiếu, là blocker deploy thật duy nhất từ phía hạ tầng.**
-- **KHÔNG cần**: AgentCore/Bedrock Agents (copilot tự dựng tool-calling qua Converse API — zero managed-agent cost), Knowledge Bases/OpenSearch Serverless (đã loại — catalog 10 sản phẩm, xem `specs/semantic_search.md` phụ lục), GPU/SageMaker.
-- Env/flag mới cho chart: xem bảng trong `contracts/product-reviews-integration.md` phụ lục 12/07 (cần CDO re-sign).
+- **KHÔNG cần**: AgentCore/Bedrock Agents (copilot tự dựng tool-calling qua Converse API — zero managed-agent cost), Knowledge Bases/OpenSearch Serverless (đã loại — catalog 10 sản phẩm, xem `03_specs/semantic_search.md` phụ lục), GPU/SageMaker.
+- Env/flag mới cho chart: xem bảng trong `../shared/integration-contracts/product-reviews-integration.md` phụ lục 12/07 (cần CDO re-sign).
 - Copilot W2: pod mới gRPC `:50051`, envoy route + cluster đã có trong `envoy.tmpl.yaml`; chart để `enabled: false` tới khi có image.
 
 **Q4. Chỉnh lại structure code bên AI — ĐÃ LÀM (12/07):**
@@ -109,5 +109,43 @@ Có dùng — đúng 2 consumer: `tools/aiops-detector` (5 rule log, phrase-coun
 - Docs: bổ sung bộ chuẩn `01_requirements.md`, `02_solution_design.md`, `04_eval_report.md` (khớp khung evidence-pack course); index tổng ở `docs/ai/README.md`.
 - Evals: dataset 5→34 case; script đo thật (4 file) thay mô phỏng.
 
+### 8.1 Trình tự giải cụ thể (dừng ngay khi đạt — "rẻ nhất mà đạt" TÍNH CẢ chi phí migration)
+
+> Điểm mấu chốt: thay backend tốn giờ engineer + rủi ro. Giải pháp chỉ *ngang* OpenSearch về cost thì **thua** vì cộng thêm chi phí chuyển — muốn thắng phải rẻ hơn đủ để bù migration.
+
+**Bước 1 — bóp OpenSearch trước, đo lại (ứng viên mặc định, migration = 0).**
+Requirement AI cực nhỏ → OS không cần config mặc định: 1 node, heap 512MB–1GB, ISM retention 3d, tắt replica/plugin thừa. Cost hiện tại phần lớn thường là heap mặc định (~50% RAM) + retention vô hạn cho nhu cầu chỉ ~660MB (220MB/ngày × 3d). Bóp xong đo cost. **Vừa ngân sách → DỪNG, chọn cái này** (rẻ nhất thật vì không migration, không rủi ro).
+
+**Bước 2 — chỉ khi bóp vẫn vượt: Loki song song 24h, so táo-với-táo.**
+Loki index label-only (RAM/EBS thấp hơn full-text), OTLP native (collector thêm `otlphttp`), detector ~50 dòng adapter. Chạy song song OS-đã-bóp 24h, đo cùng lúc RAM/CPU/EBS + script MTTD/ingest của AI trên cả hai. **Chọn Loki chỉ khi rẻ hơn đủ bù migration.** (VictoriaLogs = dự phòng nhẹ hơn, ecosystem non hơn.)
+
+**Bước 3 — vector store: KHÔNG đụng bây giờ.** DEFERRED (catalog 10 sản phẩm); loại khỏi phép so tuần này. Khi thật làm semantic search (scale >~500) mới mở, cân pgvector (PostgreSQL sẵn có) trước.
+
+**Ai làm gì:** AI xong phần mình (requirement + script + cam kết không lock-in). CDO chạy bước 1→2, cần AI cấp gì thì AI hỗ trợ. AI không chọn backend — trụ cost là của CDO.
+
+**Dự đoán (không phải cam kết):** khả năng cao **bước 1 thắng** — "OS tốn" thường do default heap + retention vô hạn cho nhu cầu 660MB. Nếu đúng, rẻ nhất = giữ OS nhưng bóp, không thay.
+
 ## 7. Trace continuity — ĐÃ VERIFY (12/07, bổ sung cho telemetry-audit)
 Jaeger API (compose stack): **1 trace duy nhất `8e7b90520fad0c60` chứa span của 12 service** (load-generator → frontend-proxy → frontend → checkout → payment/email/shipping/cart/currency/product-catalog/quote/flagd); đường GenAI: 1 trace xuyên load-generator → frontend-proxy → frontend → product-reviews. **Trace context không đứt** qua Envoy.
+
+---
+
+## 8. CHỐT HƯỚNG (theo quan điểm mentor 13/07)
+
+Mentor định khung quyết định — nhóm AI chốt lại như sau:
+
+**Nguyên tắc 1 — đi từ requirement cơ bản nhất, có N thằng đáp ứng thì cost thấp nhất win.**
+Requirement của tầng AI với log backend (đo được, không phải ý muốn): (a) phrase-count trong cửa sổ 5m, (b) đọc raw lines theo range cho Drain3, (c) ingest lag giữ MTTD ≤ 2 phút (hiện 35.4s, dư 3.4×). Đây là **toàn bộ** ràng buộc — mọi backend đáp ứng 3 cái này đều hợp lệ với AI.
+
+→ **Quy trình chốt: CDO đo cost/footprint thật của các ứng viên (OpenSearch-bóp-nhỏ, Loki, VictoriaLogs) trên 3 requirement đó + convenience vận hành; cái rẻ nhất mà vẫn đạt → win.** AI không có tiếng nói về việc chọn cái nào — chỉ cung cấp requirement + script đo MTTD/ingest để so táo-với-táo (mục 5), và cam kết đổi backend ≈ 50 dòng adapter, **không lock-in**.
+
+**Nguyên tắc 2 — TÁCH log storage khỏi vector store, giải riêng từng cái.**
+- **Vế log storage (bài toán HIỆN TẠI, cần chốt tuần này):** chỉ là 2 requirement (a)(b) ở trên. Vector search **KHÔNG thuộc vế này** — đừng gom vào để "chọn OpenSearch cho tiện cả hai".
+- **Vế vector store (bài toán TƯƠNG LAI, chưa tồn tại):** semantic search hiện **DEFERRED** — catalog 10 sản phẩm, intent tìm-sản-phẩm giải bằng catalog-in-prompt, chưa cần vector store nào (xem `03_specs/semantic_search.md`). Khi nào thật sự làm semantic search (trigger: catalog scale >~500) mới mở vế này, và lúc đó cân pgvector (đã có PostgreSQL) vs OpenSearch Vector vs khác — **quyết riêng, bằng requirement của lúc đó.**
+- **Chỉ hợp nhất SAU khi cả hai vế finalize độc lập:** nếu lúc đó thấy một service làm tốt cả hai với cost thấp hơn 2 service riêng thì mới gộp. Không gộp trước vì "cho tiện" — đó là cách sinh ra over-provisioning.
+
+**Hệ quả cụ thể cho quyết định OpenSearch tuần này:**
+1. Bài toán = **chỉ log storage**. Bỏ hoàn toàn yếu tố "sau này có thể cần vector" ra khỏi phép so — nó thuộc vế khác, chưa tới.
+2. CDO tự do chọn giải pháp rẻ nhất đạt 3 requirement log; AI đã xác nhận không phụ thuộc OpenSearch (product-reviews/copilot không đọc OS), 2 tool AIOps đổi backend rẻ.
+3. Nếu CDO chọn giữ OpenSearch-bóp-nhỏ vì tiện vận hành sẵn có → hợp lệ, miễn đạt ingest lag. Nếu chọn Loki/VictoriaLogs vì rẻ hơn → AI cung cấp adapter. Cả hai đều OK với AI.
+4. **Không** dựng OpenSearch Vector Search bây giờ chỉ vì "biết đâu sau cần" — YAGNI, và trái nguyên tắc tách vế của mentor.

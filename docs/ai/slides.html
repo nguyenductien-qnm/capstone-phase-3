@@ -232,7 +232,7 @@ tr:last-child td { border-bottom: none; }
       <div class="card">
         <div style="font-family: monospace; font-size: 24px; font-weight: 800; color: var(--brand-danger); margin-bottom: 8px;">01</div>
         <h3>Vỡ trần chi phí &amp; Latency</h3>
-        <p>Gọi API Bedrock trực tiếp cho mỗi request xem sản phẩm làm vọt p95 &gt; 2.5s và tốn hàng nghìn USD hóa đơn token Bedrock.</p>
+        <p>Gọi API Bedrock trực tiếp cho mỗi request xem sản phẩm làm vọt độ trễ trợ lý ~2–4s (ước benchmark) và tốn hàng nghìn USD hóa đơn token Bedrock.</p>
       </div>
       <div class="card">
         <div style="font-family: monospace; font-size: 24px; font-weight: 800; color: var(--brand-danger); margin-bottom: 8px;">02</div>
@@ -264,7 +264,7 @@ tr:last-child td { border-bottom: none; }
     <div class="grid-2" style="margin-top: 15px; font-size: 12.5px;">
       <div class="card">
         <h3 style="color: var(--brand-accent);">Option 1: volatile-lru + Bỏ Cart TTL (Đề xuất)</h3>
-        <p>Không đặt TTL cho Cart trong code để biến giỏ hàng thành key vĩnh viễn (non-volatile). Valkey chỉ trục xuất Review cache (có TTL động) khi đầy RAM. Dọn rác bằng Cron job offline.</p>
+        <p>Không đặt TTL cho Cart trong code để biến giỏ hàng thành key vĩnh viễn (non-volatile). Review cache dùng TTL phẳng 7d (TTL động đã gỡ — data tĩnh). ⚠️ Chuỗi ADR-003 (volatile-lru không maxmemory + gỡ TTL cart) đang chờ quyết lại với CDO. Dọn rác bằng Cron job offline.</p>
         <div style="margin-top: 8px; display: flex; gap: 4px; flex-wrap: wrap;">
           <span class="chip green">Chi phí: $0/tuần</span>
           <span class="chip green">Độ an toàn: 100%</span>
@@ -528,7 +528,7 @@ tr:last-child td { border-bottom: none; }
       <div class="card">
         <span class="chip yellow">👤 PM (Product)</span>
         <h3 style="margin-top: 8px;">"Tại sao lo tối ưu infra?"</h3>
-        <p><i>Trả lời:</i> Tốc độ load trang ảnh hưởng trực tiếp đến doanh thu. Caching giảm latency từ 2.5s xuống &lt; 50ms (nhanh gấp 50 lần), giúp giữ chân khách hàng tốt hơn.</p>
+        <p><i>Trả lời:</i> Tốc độ load trang ảnh hưởng trực tiếp đến doanh thu. Caching giảm latency trợ lý ~2–4s xuống &lt; 50ms, giúp giữ chân khách hàng tốt hơn.</p>
       </div>
       <div class="card">
         <span class="chip green">👤 CFO (Tài chính)</span>

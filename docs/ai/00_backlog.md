@@ -23,7 +23,7 @@ Hệ thống hiện tại chạy trên K8s (EKS) với dịch vụ tóm tắt re
 | 9 | **TF1-50** | [Extend] Thiết kế Spec Auto-Remediation closed-loop & Safety | Reliability | Trung bình × Trung bình (3×3 = 9) | Thiết lập an toàn cho vòng tự khắc phục (Dry-run, Blast Radius) | $0 | Trung bình | Kịch bản tự động xử lý sự cố cấp công nghiệp (xây mới) trước khi code thực tế. |
 | 10 | **TF1-53** | [Extend] Xây dựng script/tool cảnh báo vận hành | Observability | Thấp × Cao (2×4 = 8) | Gửi alert cảnh báo sớm về lỗi pool DB, OOM, DNS | $0 | Trung bình | Tích hợp script phát hiện lỗi và alert cứu hộ (công cụ xây thêm bên ngoài repo gốc). |
 | 11 | **TF1-54** | Triển khai Option 1 giải quyết xung đột Eviction Policy Valkey | Reliability / Cost | Cao × Cao (4×4 = 16) | Đảm bảo an toàn giỏ hàng dưới ngân sách $300 | $0 | Trung bình | Chốt kiến trúc Option 1: volatile-lru + Bỏ Cart TTL + Cron GC dọn dẹp hàng đêm. |
-| 12 | ~~**TF1-55**~~ → **TF1-58** | ~~Bổ sung rpc `AddReview` + `SubmitSummaryFeedback`~~ → Versioned cache key + nối Bedrock | Functional / Cost | Trung bình × Trung bình (3×3 = 9) | Làm mới cache đúng nguyên nhân (đổi model/prompt) | $0 | Trung bình | **TF1-55 đã huỷ.** Review là dữ liệu tĩnh seed qua `src/postgresql/init.sql`; không có UI viết review, không có nút feedback. Write-Around Invalidation và Thumbs Down sẽ invalidate cho sự kiện không bao giờ xảy ra. Thay bằng `reviews:summary:{product_id}:{model_ver}:{prompt_ver}` — xem ADR-001 và `specs/valkey_caching.md` §6. |
+| 12 | ~~**TF1-55**~~ → **TF1-58** | ~~Bổ sung rpc `AddReview` + `SubmitSummaryFeedback`~~ → Versioned cache key + nối Bedrock | Functional / Cost | Trung bình × Trung bình (3×3 = 9) | Làm mới cache đúng nguyên nhân (đổi model/prompt) | $0 | Trung bình | **TF1-55 đã huỷ.** Review là dữ liệu tĩnh seed qua `src/postgresql/init.sql`; không có UI viết review, không có nút feedback. Write-Around Invalidation và Thumbs Down sẽ invalidate cho sự kiện không bao giờ xảy ra. Thay bằng `reviews:summary:{product_id}:{model_ver}:{prompt_ver}` — xem ADR-001 và `03_specs/valkey_caching.md` §6. |
 
 
 ---
@@ -42,9 +42,9 @@ Các tính năng nâng cao để cạnh tranh top, triển khai Tuần 2-3 (sau 
 
 | # | Tên | Trụ | ADR | Spec | Mô tả | Cost Δ |
 |---|---|---|---|---|---|---|
-| 12 | **Semantic Search nâng cao** | Perf / Cost | ADR-008 | [semantic_search.md](specs/semantic_search.md) | Nâng cấp keyword→vector search bằng Titan Embeddings + pgvector | ~$0 |
-| 13 | **AI Recommendations** | Perf / Cost | ADR-009 | [ai_recommendations.md](specs/ai_recommendations.md) | Nâng cấp random→embedding similarity recommendations | ~$0 |
-| 14 | **Model Gateway & A/B Testing** | Perf / Cost / Rel | ADR-010 | [model_gateway_ab_testing.md](specs/model_gateway_ab_testing.md) | Flag-driven model routing + per-model metrics | ~$0 |
+| 12 | **Semantic Search nâng cao** | Perf / Cost | ADR-008 | [semantic_search.md](03_specs/semantic_search.md) | Nâng cấp keyword→vector search bằng Titan Embeddings + pgvector | ~$0 |
+| 13 | **AI Recommendations** | Perf / Cost | ADR-009 | [ai_recommendations.md](03_specs/ai_recommendations.md) | Nâng cấp random→embedding similarity recommendations | ~$0 |
+| 14 | **Model Gateway & A/B Testing** | Perf / Cost / Rel | ADR-010 | [model_gateway_ab_testing.md](03_specs/model_gateway_ab_testing.md) | Flag-driven model routing + per-model metrics | ~$0 |
 
 **Tất cả 3 hạng mục đều chi phí $0 bổ sung** vì:
 - Reuse pgvector trên PostgreSQL hiện có (semantic search + recommendations)
