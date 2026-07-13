@@ -99,3 +99,9 @@ module "msk" {
   eks_security_group_id = module.eks.cluster_security_group_id
 }
 
+module "cloudtrail" {
+  source = "../../modules/cloudtrail"
+
+  project_name = var.project_name
+  environment  = var.environment
+}
