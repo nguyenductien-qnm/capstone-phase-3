@@ -43,7 +43,7 @@ public class ValkeyCartStore : ICartStore
         });
     private readonly ConfigurationOptions _redisConnectionOptions;
 
-    public ValkeyCartStore(ILogger<ValkeyCartStore> logger, string valkeyAddress, string valkeyToken, bool valkeyTls)
+    public ValkeyCartStore(ILogger<ValkeyCartStore> logger, string valkeyAddress, string valkeyToken = "", bool valkeyTls = false)
     {
         _logger = logger;
         // Serialize empty cart into byte array.
@@ -58,6 +58,11 @@ public class ValkeyCartStore : ICartStore
         }
 
         _redisConnectionOptions = ConfigurationOptions.Parse(_connectionString);
+
+        if (valkeyTls)
+        {
+            _redisConnectionOptions.CertificateValidation += (sender, cert, chain, err) => true;
+        }
 
         // Try to reconnect multiple times if the first retry fails.
         _redisConnectionOptions.ConnectRetry = RedisRetryNumber;
