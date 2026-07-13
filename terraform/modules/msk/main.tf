@@ -53,6 +53,12 @@ resource "aws_msk_cluster" "this" {
     }
   }
 
+  client_authentication {
+    sasl {
+      scram = true
+    }
+  }
+
   logging_info {
     broker_logs {
       cloudwatch_logs {
@@ -90,4 +96,54 @@ resource "aws_cloudwatch_log_group" "msk" {
     Project     = var.project_name
   }
 }
+
+# KMS Key cho Secrets Manager để lưu msk credentials (bắt buộc cho MSK SCRAM)
+resource "aws_kms_key" "msk" {
+  description             = "KMS Key cho MSK Secrets Manager"
+  deletion_window_in_days = 7
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-msk-kms-key"
+    Environment = var.environment
+    Project     = var.project_name
+  }
+}
+
+# Sinh mật khẩu ngẫu nhiên cho msk user
+resource "random_password" "msk_password" {
+  length  = 16
+  special = false
+}
+
+# AWS Secrets Manager lưu trữ credentials (phải bắt đầu bằng AmazonMSK_)
+resource "aws_secretsmanager_secret" "msk_credentials" {
+  name                    = "AmazonMSK_${var.project_name}-${var.environment}-msk-secret"
+  kms_key_id              = aws_kms_key.msk.key_id
+  recovery_window_in_days = 0
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-msk-secret"
+    Environment = var.environment
+    Project     = var.project_name
+  }
+}
+
+resource "aws_secretsmanager_secret_version" "msk_credentials" {
+  secret_id = aws_secretsmanager_secret.msk_credentials.id
+  secret_string = jsonencode({
+    username = "msk_user"
+    password = random_password.msk_password.result
+  })
+}
+
+# Liên kết secrets với MSK cluster
+resource "aws_msk_scram_secret_association" "this" {
+  cluster_arn     = aws_msk_cluster.this.arn
+  secret_arn_list = [aws_secretsmanager_secret.msk_credentials.arn]
+
+  depends_on = [
+    aws_secretsmanager_secret_version.msk_credentials
+  ]
+}
+
 

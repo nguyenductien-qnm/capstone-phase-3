@@ -23,7 +23,11 @@ require (
 	go.opentelemetry.io/otel/trace v1.39.0
 	google.golang.org/grpc v1.78.0
 	google.golang.org/protobuf v1.36.11
+	github.com/xdg-go/scram v1.1.2
+	github.com/xdg-go/pbkdf2 v1.0.0
+	github.com/xdg-go/stringprep v1.0.4
 )
+
 
 require (
 	buf.build/gen/go/open-feature/flagd/connectrpc/go v1.18.1-20250529171031-ebdc14163473.1 // indirect

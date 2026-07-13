@@ -12,3 +12,9 @@ output "msk_security_group_id" {
   description = "Security Group ID of the MSK cluster"
   value       = aws_security_group.msk.id
 }
+
+output "msk_secret_arn" {
+  description = "ARN của Secret Manager lưu msk credentials"
+  value       = aws_secretsmanager_secret.msk_credentials.arn
+}
+
