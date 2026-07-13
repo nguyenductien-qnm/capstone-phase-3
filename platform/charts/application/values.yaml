@@ -227,6 +227,8 @@ components:
     enabled: true
     useDefault:
       env: true
+    # Consumer Kafka async, KHÔNG HPA (scale nên theo lag, không phải CPU) và ngoài
+    # critical path storefront → không cần PDB/spread (gián đoạn ngắn được Kafka đệm).
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
     env:
@@ -290,10 +292,40 @@ components:
 
   cart:
     enabled: true
+    imageOverride:
+      tag: "1.1-cart"           # CDO-80: image mới có gRPC health tách liveness/readiness
     useDefault:
       env: true
     service:
       port: 8080
+    # --- Reliability (CDO-34/80/29) ---
+    podDisruptionBudget:
+      maxUnavailable: 1
+    topologySpread: true
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
+    deploymentStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 0
+        maxSurge: 1
+    startupProbe:                 # .NET + chờ valkey, JIT warmup lâu hơn
+      grpc: { port: 8080, service: "readiness" }
+      periodSeconds: 5
+      failureThreshold: 30
+    readinessProbe:
+      grpc: { port: 8080, service: "readiness" }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
+    livenessProbe:
+      grpc: { port: 8080, service: "liveness" }
+      periodSeconds: 10
+      timeoutSeconds: 2
+      failureThreshold: 6
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
     env:
@@ -332,10 +364,41 @@ components:
 
   checkout:
     enabled: true
+    imageOverride:
+      tag: "1.1-checkout"        # CDO-80: image mới có gRPC health tách liveness/readiness (bump từ 1.0 để atomic với probe)
     useDefault:
       env: true
     service:
       port: 8080
+    # --- Reliability (CDO-34/80/29) ---
+    # replicas do HPA quản (hpa.enabled → template tự bỏ replicas cứng, tránh fight HPA).
+    podDisruptionBudget:
+      maxUnavailable: 1           # CDO-34: luôn còn >=1 pod khi Karpenter drain node
+    topologySpread: true          # CDO-34: trải 2 pod ra khác node (ScheduleAnyway)
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        exec: { command: ["/bin/sh", "-c", "sleep 5"] }   # CDO-29: chờ endpoint propagate, không rơi request
+    deploymentStrategy:           # CDO-29: rollout không hạ pod cũ trước khi pod mới Ready
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 0
+        maxSurge: 1
+    startupProbe:                 # CDO-80: che boot chờ kafka (<=150s)
+      grpc: { port: 8080, service: "readiness" }
+      periodSeconds: 5
+      failureThreshold: 30
+    readinessProbe:               # CDO-80: gate traffic theo dependency
+      grpc: { port: 8080, service: "readiness" }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
+    livenessProbe:                # CDO-80: chỉ process sống — KHÔNG phụ thuộc kafka (Option C)
+      grpc: { port: 8080, service: "liveness" }
+      periodSeconds: 10
+      timeoutSeconds: 2
+      failureThreshold: 6
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
     env:
@@ -441,6 +504,8 @@ components:
     enabled: true
     useDefault:
       env: true
+    # Consumer Kafka async, KHÔNG HPA (scale nên theo lag, không phải CPU) và ngoài
+    # critical path storefront → không cần PDB/spread (gián đoạn ngắn được Kafka đệm).
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
     env:
@@ -480,6 +545,34 @@ components:
       env: true
     service:
       port: 8080
+    # --- Reliability (CDO-34/80/29) ---
+    podDisruptionBudget:
+      maxUnavailable: 1
+    topologySpread: true
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
+    deploymentStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 0
+        maxSurge: 1
+    startupProbe:                 # Next.js HTTP — không gRPC
+      httpGet: { path: /, port: 8080 }
+      periodSeconds: 5
+      failureThreshold: 24
+    readinessProbe:
+      httpGet: { path: /, port: 8080 }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
+    livenessProbe:
+      httpGet: { path: /, port: 8080 }
+      periodSeconds: 10
+      timeoutSeconds: 2
+      failureThreshold: 6
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
     env:
@@ -544,6 +637,33 @@ components:
         service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
         service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "instance"
         service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
+    # --- Reliability (CDO-34/80/29) — cửa ngõ storefront, quan trọng nhất ---
+    podDisruptionBudget:
+      maxUnavailable: 1
+    topologySpread: true
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        exec: { command: ["/bin/sh", "-c", "sleep 5"] }   # cực quan trọng cho Envoy: drain kết nối trước khi tắt
+    deploymentStrategy:           # CDO-29: zero-downtime khi rollout Envoy cho Mandate 01
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 0
+        maxSurge: 1
+    # CDO-80: Envoy config (envoy.tmpl.yaml) KHÔNG bật admin → không có /ready:10000.
+    # Dùng tcpSocket:8080 (listener chính) — Envoy bind ngay khi khởi động = process sống + listener mở.
+    # KHÔNG đụng envoy.tmpl.yaml (thuộc member khác) và không cần rebuild image.
+    readinessProbe:
+      tcpSocket: { port: 8080 }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
+    livenessProbe:
+      tcpSocket: { port: 8080 }
+      periodSeconds: 10
+      timeoutSeconds: 2
+      failureThreshold: 6
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
       io.opentelemetry.discovery.metrics/enabled: 'true'
@@ -703,10 +823,40 @@ components:
 
   product-catalog:
     enabled: true
+    imageOverride:
+      tag: "1.1-product-catalog"   # CDO-80: image mới có gRPC health tách liveness/readiness
     useDefault:
       env: true
     service:
       port: 8080
+    # --- Reliability (CDO-34/80/29) ---
+    podDisruptionBudget:
+      maxUnavailable: 1
+    topologySpread: true
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
+    deploymentStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 0
+        maxSurge: 1
+    startupProbe:                 # Go + chờ Postgres (~120s)
+      grpc: { port: 8080, service: "readiness" }
+      periodSeconds: 5
+      failureThreshold: 24
+    readinessProbe:
+      grpc: { port: 8080, service: "readiness" }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
+    livenessProbe:
+      grpc: { port: 8080, service: "liveness" }
+      periodSeconds: 10
+      timeoutSeconds: 2
+      failureThreshold: 6
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
     env:

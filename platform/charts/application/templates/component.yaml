@@ -13,6 +13,7 @@
         {{- include "techx-corp.service" $config -}}
         {{- include "techx-corp.ingress" $config -}}
         {{- include "techx-corp.configmap" $config -}}
+        {{- include "techx-corp.pdb" $config -}}
     {{ end }}
 
 {{- end }}

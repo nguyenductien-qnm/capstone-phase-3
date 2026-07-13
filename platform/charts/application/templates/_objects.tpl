@@ -10,8 +10,14 @@ metadata:
   labels:
     {{- include "techx-corp.labels" . | nindent 4 }}
 spec:
+  {{- if not (.hpa).enabled }}
   replicas: {{ .replicas | default .defaultValues.replicas }}
+  {{- end }}
   revisionHistoryLimit: {{ .revisionHistoryLimit | default .defaultValues.revisionHistoryLimit }}
+  {{- if .deploymentStrategy }}
+  strategy:
+    {{- toYaml .deploymentStrategy | nindent 4 }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "techx-corp.selectorLabels" . | nindent 6 }}
@@ -33,6 +39,18 @@ spec:
         {{- ((.imageOverride).pullSecrets) | default .defaultValues.image.pullSecrets | toYaml | nindent 8}}
       {{- end }}
       serviceAccountName: {{ include "techx-corp.serviceAccountName" .}}
+      {{- if .terminationGracePeriodSeconds }}
+      terminationGracePeriodSeconds: {{ .terminationGracePeriodSeconds }}
+      {{- end }}
+      {{- if .topologySpread }}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway   # 2 node/budget chặt → tránh Pending; nâng DoNotSchedule khi >=2 node ổn định
+          labelSelector:
+            matchLabels:
+              {{- include "techx-corp.selectorLabels" . | nindent 14 }}
+      {{- end }}
       {{- $schedulingRules := .schedulingRules | default dict }}
       {{- if or .defaultValues.schedulingRules.nodeSelector $schedulingRules.nodeSelector}}
       nodeSelector:
@@ -70,6 +88,14 @@ spec:
           securityContext:
             {{- .securityContext | default .defaultValues.securityContext | toYaml | nindent 12 }}
           {{- end}}
+          {{- if .lifecycle }}
+          lifecycle:
+            {{- .lifecycle | toYaml | nindent 12 }}
+          {{- end }}
+          {{- if .startupProbe }}
+          startupProbe:
+            {{- .startupProbe | toYaml | nindent 12 }}
+          {{- end }}
           {{- if .livenessProbe }}
           livenessProbe:
             {{- .livenessProbe | toYaml | nindent 12 }}
@@ -308,3 +334,23 @@ spec:
 {{- end}}
 {{- end}}
 {{- end}}
+
+{{/*
+Demo component PodDisruptionBudget template (CDO-34)
+*/}}
+{{- define "techx-corp.pdb" }}
+{{- if .podDisruptionBudget }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .name }}
+  labels:
+    {{- include "techx-corp.labels" . | nindent 4 }}
+spec:
+  {{- toYaml .podDisruptionBudget | nindent 2 }}
+  selector:
+    matchLabels:
+      {{- include "techx-corp.selectorLabels" . | nindent 6 }}
+{{- end }}
+{{- end }}
