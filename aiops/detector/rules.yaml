@@ -201,6 +201,9 @@ rules:
   - id: kafka-consumer-lag-high
     type: metric
     severity: warning
+    # ⚠️ Metric nay KHONG ton tai tren compose local (collector khong scrape kafka consumer lag) —
+    # ten metric `kafka_consumer_group_lag` la GIA DINH, PHAI verify tren Prometheus EKS + kafka exporter
+    # truoc khi tin (TF1-71). Giu DRAFT, khong bat production cho toi khi verify.
     summary: "DRAFT: Kafka consumer lag > 1000 msg trong 10m - consumer tut hau, don hang xu ly cham"
     query: >-
       max by (group) (avg_over_time(kafka_consumer_group_lag{namespace="techx-corp"}[10m]))
