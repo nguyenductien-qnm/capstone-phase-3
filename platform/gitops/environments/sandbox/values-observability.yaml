@@ -1,8 +1,17 @@
 # Observability dùng chung: bật 5 subchart, tắt TẤT CẢ app component.
 opentelemetry-collector: { enabled: true }
 jaeger: { enabled: true }
-prometheus: { enabled: true }
-grafana: { enabled: true }
+prometheus: { enabled: true }   # 400Mi đủ, 0 restart — giữ nguyên (không đụng đợt này)
+grafana:
+  enabled: true
+  # P0: grafana v13 OOMKilled ở 300Mi (restart 16 lần) → nâng limit chống OOM
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      cpu: 300m
+      memory: 768Mi
 opensearch: { enabled: true }
 
 components:
