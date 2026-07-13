@@ -35,11 +35,11 @@ resource "aws_ecr_lifecycle_policy" "this" {
     rules = [
       {
         rulePriority = 1
-        description  = "Chi giu lai toi da 10 images de tiet kiem chi phi"
+        description  = "Chi giu lai toi da 50 images de tiet kiem chi phi"
         selection = {
           tagStatus   = "any"
           countType   = "imageCountMoreThan"
-          countNumber = 10
+          countNumber = 50
         }
         action = {
           type = "expire"
