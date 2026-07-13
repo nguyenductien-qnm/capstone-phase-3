@@ -79,7 +79,7 @@ sequenceDiagram
 - **Eviction Policy (Chính sách giải phóng bộ nhớ) & Giải pháp Bảo vệ Giỏ hàng (Option 1):**
   - Cấu hình eviction policy của cụm Valkey là `volatile-lru`.
   - Để tránh việc giỏ hàng (khi đó còn TTL mặc định 60m trong code) bị xóa nhầm khi RAM đầy, nhóm đã **loại bỏ hoàn toàn TTL của giỏ hàng trong code C# (`ValkeyCartStore.cs`)**. Khi không có TTL, key giỏ hàng trở thành key vĩnh viễn (non-volatile) và được Valkey bảo vệ an toàn 100% khỏi cơ chế tự động eviction.
-  - **Trạng thái:** ✅ đã triển khai (TF1-54) — `ValkeyCartStore.cs:174` và `:199` đã comment out `KeyExpireAsync`. Xem ADR-003 về yêu cầu CDO co-sign.
+  - **Trạng thái 13/07:** ⏪ **TTL cart KHÔI PHỤC 60m (baseline)** — ADR-003 chưa chốt, review J1 chỉ ra gỡ TTL + volatile-lru-không-maxmemory = nguy cơ OOMKill mất giỏ (checkout SLO). Giữ TTL an toàn cho tới khi CDO chốt hướng (maxmemory + tách instance). `ValkeyCartStore.cs:177,205` đã bật lại `KeyExpireAsync(60m)`.
   - Thiết lập một **background CronJob** chạy lúc 2h sáng hàng ngày để chủ động quét dọn (`SCAN`) các giỏ hàng rác đã quá 30 ngày không có hoạt động, tránh làm rò rỉ và nghẽn bộ nhớ.
 
 
