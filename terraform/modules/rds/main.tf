@@ -38,15 +38,14 @@ resource "aws_security_group" "db" {
   }
 }
 
-# Rule kết nối trực tiếp từ Application Subnets vào DB
 resource "aws_security_group_rule" "db_ingress_app" {
-  type              = "ingress"
-  from_port         = 5432
-  to_port           = 5432
-  protocol          = "tcp"
-  cidr_blocks       = ["0.0.0.0/0"]
-  security_group_id = aws_security_group.db.id
-  description       = "Allow connection from application subnets to database"
+  type                     = "ingress"
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+  source_security_group_id = var.eks_node_security_group_id
+  security_group_id        = aws_security_group.db.id
+  description              = "Allow connection from application subnets to database"
 }
 
 # Rule kết nối từ RDS Proxy vào DB (nếu bật Proxy)
@@ -127,11 +126,11 @@ resource "aws_security_group" "proxy" {
   description = "Security Group cho RDS Proxy"
 
   ingress {
-    from_port   = 5432
-    to_port     = 5432
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "Allow connection from application subnets to RDS Proxy"
+    from_port       = 5432
+    to_port         = 5432
+    protocol        = "tcp"
+    security_groups = [var.eks_node_security_group_id]
+    description     = "Allow connection from application subnets to RDS Proxy"
   }
 
   egress {

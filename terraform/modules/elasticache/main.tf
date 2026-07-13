@@ -12,11 +12,11 @@ resource "aws_security_group" "valkey" {
   description = "Security Group cho ElastiCache Valkey"
 
   ingress {
-    from_port   = 6379
-    to_port     = 6379
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "Allow connection from application subnets to Valkey"
+    from_port       = 6379
+    to_port         = 6379
+    protocol        = "tcp"
+    security_groups = [var.eks_node_security_group_id]
+    description     = "Allow connection from application subnets to Valkey"
   }
 
   egress {
@@ -51,10 +51,36 @@ resource "aws_elasticache_replication_group" "this" {
   automatic_failover_enabled = true
   transit_encryption_enabled = true
   at_rest_encryption_enabled = true
+  auth_token                 = random_password.valkey_auth.result
+  auth_token_update_strategy = "SET"
 
   tags = {
     Name        = "${var.project_name}-${var.environment}-valkey"
     Environment = var.environment
     Project     = var.project_name
   }
+}
+
+resource "random_password" "valkey_auth" {
+  length  = 32
+  special = false
+}
+
+resource "aws_secretsmanager_secret" "valkey_credentials" {
+  name                    = "${var.project_name}-${var.environment}-valkey-secret"
+  recovery_window_in_days = 0
+
+  tags = {
+    Environment = var.environment
+    Project     = var.project_name
+  }
+}
+
+resource "aws_secretsmanager_secret_version" "valkey_credentials" {
+  secret_id = aws_secretsmanager_secret.valkey_credentials.id
+  secret_string = jsonencode({
+    auth_token = random_password.valkey_auth.result
+    endpoint   = aws_elasticache_replication_group.this.primary_endpoint_address
+    port       = 6379
+  })
 }

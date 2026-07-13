@@ -230,6 +230,13 @@ components:
         value: http://*:$(CART_PORT)
       - name: VALKEY_ADDR
         value: valkey-cart:6379
+      - name: VALKEY_TLS
+        value: "true"
+      - name: VALKEY_AUTH_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: valkey-secret
+            key: auth_token
       - name: FLAGD_HOST
         value: flagd
       - name: FLAGD_PORT

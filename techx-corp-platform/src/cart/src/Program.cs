@@ -41,7 +41,9 @@ builder.Logging
 
 builder.Services.AddSingleton<ICartStore>(x =>
 {
-    var store = new ValkeyCartStore(x.GetRequiredService<ILogger<ValkeyCartStore>>(), valkeyAddress);
+    string valkeyToken = builder.Configuration["VALKEY_AUTH_TOKEN"];
+    bool valkeyTls = builder.Configuration["VALKEY_TLS"]?.ToLower() == "true";
+    var store = new ValkeyCartStore(x.GetRequiredService<ILogger<ValkeyCartStore>>(), valkeyAddress, valkeyToken, valkeyTls);
     store.Initialize();
     return store;
 });
