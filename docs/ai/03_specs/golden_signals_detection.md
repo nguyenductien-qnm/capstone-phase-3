@@ -217,3 +217,17 @@ Trạng thái verify từng rule metric:
 | 120s | 125.4s | ~0.02% | Chạm biên — loại |
 
 Nếu mentor đổi target: ≤1 phút → poll ≤30s vẫn pass; ≤30s → poll 10s pass (max 15.4s); <10s → không đạt bằng chỉnh poll, phải giảm sàn ingest 2.1s (collector batch/refresh) — bài toán khác. Sàn dưới poll 10s: xem 05_adrs Sổ đăng ký (vòng detector tuần tự + query timeout 5s từng quan sát được).
+
+
+## Phụ lục 4 (13/07) — trạng thái kiểm chứng 4 tham số detector
+
+Trả lời "poll 30s / window 5m / min_count 1–3 / cooldown 600s — đã đo chưa, có cần vậy không":
+
+| Tham số | Trạng thái | Đánh giá bản chất |
+|---|---|---|
+| **poll 30s** | ✅ ĐO (MTTD max 35.4s, sensitivity [10,60]s, query 5ms) | Cần & verified. Giữ 30s. |
+| **min_count** | ⚠️ Đã hạ hết về **1** (K2 recall-dominates); FP-run 15′ = 0 FP | "1–3" co về "1" — **không cần giá trị 3**. Sự cố hiếm-nghiêm-trọng: mọi lần xuất hiện = incident. |
+| **window 5m/10m** | ❌ Chưa đo FP theo window | Lookback thô. 5m default, 10m cho db-pool/dns bù min_count=1. |
+| **cooldown 600s** | ❌ Chưa đo — convention | Chống re-page mỗi poll; bớt tối quan trọng khi có dedup (TF1-70). |
+
+**Kế hoạch đo cuối (TF1-71 trên EKS):** FP-run 24h dưới tải thật → tune window/cooldown bằng số FP + tần suất page chấp nhận được, thay convention. Trước đó: window/cooldown giữ nguyên với nhãn assumption, không trình như số đo.
