@@ -7,7 +7,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/nguyenductien-qnm/capstone-phase-3.git
-    targetRevision: feat/app-migration
+    targetRevision: develop
     path: platform/gitops/applications
     directory:
       recurse: true
