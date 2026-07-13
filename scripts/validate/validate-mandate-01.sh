@@ -28,8 +28,8 @@ check_ingress() {
   rg -q "^[[:space:]]+number: $port$" "$file" || fail "$file backend port"
 }
 
-check_ingress "$TAILSCALE/grafana-ingress.yaml" techx-observability tag:ops-grafana grafana-tf1 grafana 80
-check_ingress "$TAILSCALE/jaeger-ingress.yaml" techx-observability tag:ops-jaeger jaeger-tf1 jaeger 16686
+check_ingress "$TAILSCALE/grafana-ingress.yaml" techx-tf1 tag:ops-grafana grafana-tf1 grafana 80
+check_ingress "$TAILSCALE/jaeger-ingress.yaml" techx-tf1 tag:ops-jaeger jaeger-tf1 jaeger 16686
 check_ingress "$TAILSCALE/argocd-ingress.yaml" argocd tag:ops-argocd argocd-tf1 argocd-server 80
 check_ingress "$TAILSCALE/locust-ingress.yaml" techx-tf1 tag:ops-locust locust-tf1 load-generator 8089
 
