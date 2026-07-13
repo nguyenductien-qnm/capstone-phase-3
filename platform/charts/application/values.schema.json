@@ -35,6 +35,12 @@
     "components": {
       "$ref": "#/definitions/Components"
     },
+    "resourceGovernance": {
+      "type": "object"
+    },
+    "autoscaling": {
+      "type": "object"
+    },
     "opentelemetry-collector": {
       "type": "object"
     },
@@ -239,6 +245,9 @@
         },
         "additionalVolumes": {
           "type": "array"
+        },
+        "hpa": {
+          "type": "object"
         }
       },
       "required": [
@@ -316,6 +325,9 @@
           "type": "object"
         },
         "podSecurityContext": {
+          "type": "object"
+        },
+        "hpa": {
           "type": "object"
         }
       },

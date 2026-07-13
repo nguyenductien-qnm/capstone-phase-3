@@ -1,0 +1,37 @@
+# CDO-42 — metrics-server (dependency của HPA).
+# HPA đọc API metrics.k8s.io (CPU/mem thực từ kubelet) để tính % so với request.
+# Thiếu add-on này -> HPA hiển thị <unknown> và không scale.
+# Quản lý qua ArgoCD (App-of-Apps: root-app recurse platform/gitops/applications/).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: metrics-server
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://kubernetes-sigs.github.io/metrics-server/
+    chart: metrics-server
+    targetRevision: 3.12.2      # app metrics-server v0.7.2
+    helm:
+      values: |
+        args:
+          # EKS: kubelet serving cert không nằm trong CA cluster mặc định -> cần bỏ verify.
+          - --kubelet-insecure-tls
+        resources:
+          requests:
+            cpu: 50m
+            memory: 100Mi
+          limits:
+            memory: 200Mi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true

@@ -35,6 +35,60 @@ default:
     tolerations: []
   # Default securityContext for all components
   securityContext: {}
+  # CDO-42: HPA defaults dùng chung cho mọi component bật hpa.enabled.
+  # Metric CPU-only (autoscaling/v2). behavior: scale-UP nhanh để bắt kịp flash-sale,
+  # scale-DOWN chậm + stabilization 300s để không thrash và để "co xuống" mượt (MANDATE-02).
+  hpa:
+    targetCPUUtilizationPercentage: 70
+    behavior:
+      scaleUp:
+        stabilizationWindowSeconds: 0
+        policies:
+          - type: Percent
+            value: 100
+            periodSeconds: 30
+          - type: Pods
+            value: 2
+            periodSeconds: 30
+        selectPolicy: Max
+      scaleDown:
+        stabilizationWindowSeconds: 300
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 60
+        selectPolicy: Min
+
+# CDO-42: Namespace-level resource governance (ResourceQuota + LimitRange).
+# Governance tĩnh, apply được ngay, làm NỀN cho HPA:
+#   - LimitRange: mọi container không khai resources vẫn có request/limit mặc định
+#     -> HPA có CPU request để tính %, và ResourceQuota không bị pod "trần trụi" phá.
+#   - ResourceQuota: trần cứng CPU/mem/pods của namespace -> chặn autoscale phình cost
+#     (MANDATE-02: chịu tải flash-sale mà KHÔNG vượt ngân sách).
+# Namespace KHÔNG hard-code: kế thừa namespace mà ArgoCD/helm deploy vào.
+resourceGovernance:
+  resourceQuota:
+    enabled: true
+    hard:
+      requests.cpu: "4"
+      requests.memory: 8Gi
+      limits.cpu: "8"
+      limits.memory: 12Gi
+      pods: "40"
+  limitRange:
+    enabled: true
+    # default = limit mặc định khi container không khai; defaultRequest = request mặc định.
+    # CPU request mặc định BẮT BUỘC có để HPA CPU-utilization hoạt động.
+    default:
+      cpu: 200m
+      memory: 128Mi
+    defaultRequest:
+      cpu: 50m
+      memory: 64Mi
+    # max: trần mỗi container, ăn khớp với ResourceQuota để 1 pod không nuốt cả quota.
+    max:
+      cpu: "2"
+      memory: 2Gi
 
 serviceAccount:
   # Specifies whether a service account should be created
@@ -225,8 +279,14 @@ components:
       - name: OTEL_LOGS_EXPORTER
         value: otlp
     resources:
+      requests:
+        cpu: 50m          # CDO-42: cần cho HPA CPU-utilization
       limits:
         memory: 300Mi
+    hpa:
+      enabled: true
+      minReplicas: 1
+      maxReplicas: 4
 
   cart:
     enabled: true
@@ -257,8 +317,14 @@ components:
       - name: OTEL_EXPORTER_OTLP_ENDPOINT
         value: http://$(OTEL_COLLECTOR_NAME):4317
     resources:
+      requests:
+        cpu: 100m         # CDO-42: cart ghi/đọc mỗi session, tải tăng theo user -> HPA
       limits:
         memory: 160Mi
+    hpa:
+      enabled: true
+      minReplicas: 1
+      maxReplicas: 6      # write-heavy, tải tăng tuyến tính theo user
     initContainers:
       - name: wait-for-valkey-cart
         image: busybox:latest
@@ -308,8 +374,14 @@ components:
       - name: GOMEMLIMIT
         value: 16MiB
     resources:
+      requests:
+        cpu: 50m          # CDO-42: chỉ thêm CPU request, GIỮ nguyên mem limit (GOMEMLIMIT=16MiB)
       limits:
         memory: 20Mi
+    hpa:
+      enabled: true
+      minReplicas: 1
+      maxReplicas: 5      # checkout = SLO 99%, cho headroom scale
     initContainers:
       - name: wait-for-kafka
         image: busybox:latest
@@ -333,8 +405,14 @@ components:
       - name: IPV6_ENABLED
         value: "false"
     resources:
+      requests:
+        cpu: 50m          # CDO-42: cần cho HPA CPU-utilization
       limits:
         memory: 20Mi
+    hpa:
+      enabled: true
+      minReplicas: 1
+      maxReplicas: 4
 
   email:
     enabled: true
@@ -442,8 +520,14 @@ components:
       - name: PUBLIC_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
         value: http://localhost:8080/otlp-http/v1/traces             # This expects users to use `kubectl port-forward ...`
     resources:
+      requests:
+        cpu: 100m         # CDO-42: frontend Next.js, hot-path browse -> HPA
       limits:
         memory: 250Mi
+    hpa:
+      enabled: true
+      minReplicas: 1
+      maxReplicas: 6
     securityContext:
       runAsUser: 1001  # nextjs
       runAsGroup: 1001
@@ -513,8 +597,14 @@ components:
       - name: SHOPPING_COPILOT_PORT
         value: "50051"
     resources:
+      requests:
+        cpu: 100m         # CDO-42: Envoy edge, mọi traffic đi qua -> scale sớm nhất
       limits:
         memory: 65Mi
+    hpa:
+      enabled: true
+      minReplicas: 2      # edge duy nhất sau NLB -> giữ 2 cho HA (khớp PDB CDO-34)
+      maxReplicas: 6
     securityContext:
       runAsUser: 101  # envoy
       runAsGroup: 101
@@ -638,8 +728,14 @@ components:
       - name: OTEL_EXPORTER_OTLP_ENDPOINT
         value: http://$(OTEL_COLLECTOR_NAME):4317
     resources:
+      requests:
+        cpu: 100m         # CDO-42: read-heavy (mọi browse gọi tới) -> bottleneck -> HPA. Giữ mem limit (GOMEMLIMIT=16MiB)
       limits:
         memory: 20Mi
+    hpa:
+      enabled: true
+      minReplicas: 1
+      maxReplicas: 6      # read-heavy bottleneck dưới flash-sale
 
   product-reviews:
     enabled: true
@@ -749,8 +845,14 @@ components:
       - name: OTEL_EXPORTER_OTLP_ENDPOINT
         value: http://$(OTEL_COLLECTOR_NAME):4317
     resources:
+      requests:
+        cpu: 100m         # CDO-42: gọi mỗi lần render trang -> HPA
       limits:
         memory: 500Mi            # This is high to enable supporting the recommendationCache feature flag use case
+    hpa:
+      enabled: true
+      minReplicas: 1
+      maxReplicas: 4
 
   shopping-copilot:
     enabled: false  # no source/image yet (review J2) - re-enable in the PR that ships copilot code
