@@ -1520,7 +1520,8 @@ prometheus:
     prometheus:
       enabled: false
   kube-state-metrics:
-    enabled: false
+    # Required by the Kubernetes scaling dashboard (Deployment/HPA/Pod/Node state).
+    enabled: true
   prometheus-node-exporter:
     enabled: false
   prometheus-pushgateway:
