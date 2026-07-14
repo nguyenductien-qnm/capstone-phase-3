@@ -133,6 +133,12 @@ variable "enable_core_addons" {
   default     = true
 }
 
+variable "enable_cluster_autoscaler" {
+  description = "Create the IRSA role/policy for the Cluster Autoscaler (MANDATE-02 node autoscaling)"
+  type        = bool
+  default     = true
+}
+
 variable "access_entries" {
   description = <<-EOT
     EKS API access entries. For AWS IAM Identity Center, use the IAM role ARN:

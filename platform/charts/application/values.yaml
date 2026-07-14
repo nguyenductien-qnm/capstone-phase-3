@@ -1625,6 +1625,13 @@ opensearch:
       value: "true"
     - name: "DISABLE_SECURITY_PLUGIN"
       value: "true"
+  # CDO-42 fix: opensearch chart mặc định requests.cpu=1 nhưng KHÔNG khai limits.cpu.
+  # LimitRange (default cpu 200m) tự bơm limit=200m < request=1 -> Pod invalid (FailedCreate).
+  # Khai tường minh cpu request/limit (nằm trong LimitRange max cpu "2") để không bị clamp.
   resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
     limits:
+      cpu: "1"
       memory: 1100Mi
