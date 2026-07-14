@@ -25,8 +25,7 @@ Hệ thống hiện tại chạy trên K8s (EKS) với dịch vụ tóm tắt re
 | 11 | **TF1-54** | Triển khai Option 1 giải quyết xung đột Eviction Policy Valkey | Reliability / Cost | Cao × Cao (4×4 = 16) | Đảm bảo an toàn giỏ hàng dưới ngân sách $300 | $0 | Trung bình | Chốt kiến trúc Option 1: volatile-lru + Bỏ Cart TTL + Cron GC dọn dẹp hàng đêm. |
 | 12 | ~~**TF1-55**~~ → **TF1-58** | ~~Bổ sung rpc `AddReview` + `SubmitSummaryFeedback`~~ → Versioned cache key + nối Bedrock | Functional / Cost | Trung bình × Trung bình (3×3 = 9) | Làm mới cache đúng nguyên nhân (đổi model/prompt) | $0 | Trung bình | **TF1-55 đã huỷ.** Review là dữ liệu tĩnh seed qua `src/postgresql/init.sql`; không có UI viết review, không có nút feedback. Write-Around Invalidation và Thumbs Down sẽ invalidate cho sự kiện không bao giờ xảy ra. Thay bằng `reviews:summary:{product_id}:{model_ver}:{prompt_ver}` — xem ADR-001 và `03_specs/valkey_caching.md` §6. |
 | 13 | **TF1-61** | Bổ sung Guardrails chống Prompt Injection, PII & Hallucination | Security / Trust | Cao × Cao (5×5 = 25) | Ngăn chặn LLM trả về thông tin rác, lộ system prompt (MANDATE-06) | $0 | Trung bình | Yêu cầu bắt buộc của Ban tổ chức (hạn 18/07). |
-| 14 | **TF1-XX** | Graceful Shutdown cho Copilot & Product Reviews | Reliability | Trung bình × Cao (3×4 = 12) | Không rớt request khi deploy/restart (MANDATE-03) | $0 | Thấp | Yêu cầu bắt buộc của Ban tổ chức (hạn 16/07). Đã code xong trên nhánh `feat/TF1-57-59-68` (PR #61). |
-| 15 | **TF1-YY** | Cấu hình Docker non-root cho Copilot | Security | Trung bình × Cao (3×4 = 12) | Chống rủi ro bảo mật leo thang đặc quyền (MANDATE-05) | $0 | Thấp | Yêu cầu bắt buộc của Ban tổ chức (hạn 17/07). Đã code xong trên nhánh `feat/TF1-57-59-68` (PR #61). |
+
 
 
 ---
@@ -97,5 +96,5 @@ Các tính năng nâng cao để cạnh tranh top, triển khai Tuần 2-3 (sau 
   - **TF1-68:** In Progress - Chốt ADR-003 valkey với CDO: maxmemory + tách instance.
   - **TF1-74:** Backlog - Copilot end-to-end: confirmation gate + guardrail + injection eval trên agent thật (Đây chính là task để xử lý dứt điểm MANDATE-06).
   - *Ngoài ra còn các task W2 mới từ TF1-62 đến TF1-80 cho AIOps và deploy EKS thật.*
-- Do TF1-61 đã đánh Done trên Jira, phần Action Guardrails & Hallucination Eval (MANDATE-06) sẽ được log vào task **TF1-74**. Việc cấu hình Graceful Shutdown & Non-root (MANDATE-03, 05) được log dưới dạng task kỹ thuật bổ trợ (TF1-XX, YY).
+- Do TF1-61 đã đánh Done trên Jira, phần Action Guardrails & Hallucination Eval (MANDATE-06) sẽ được log vào task **TF1-74**. Việc cấu hình Graceful Shutdown & Non-root (MANDATE-03, 05) thuộc trách nhiệm của nhóm CDO, nên không track trong backlog của nhóm AI.
 - **TTL cart 60m đã khôi phục trong code** (`ValkeyCartStore.cs:188,216`) — giữ nguyên sau migration.
