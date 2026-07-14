@@ -49,6 +49,9 @@ resource "aws_elasticache_replication_group" "this" {
   security_group_ids = [aws_security_group.valkey.id]
 
   automatic_failover_enabled = true
+  # CDO-91 / ADR-REL-004: guarantee cross-AZ chính thức. Yêu cầu num_cache_clusters >= 2 (đang = 2).
+  # $0 chi phí. Lưu ý: apply có thể gây 1 lần failover ngắn -> chạy ngoài giờ cao điểm.
+  multi_az_enabled           = true
   transit_encryption_enabled = true
   at_rest_encryption_enabled = true
   auth_token                 = random_password.valkey_auth.result

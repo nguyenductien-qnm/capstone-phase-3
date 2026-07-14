@@ -49,4 +49,23 @@
 
 ---
 
+## ADR-REL-004 - valkey-cart SPOF: chuyển sang ElastiCache HA (2 node/2 AZ) + bật MultiAZ
+> Trạng thái: Chấp nhận
+- **Ngày:** 2026-07-14
+- **Người ký:** Nguyen Dinh Thi (Rel Eng #2 - Deploy Safety) · Tech Lead (sign-off)
+- **Trụ:** Reliability (SPOF) · chạm Cost
+- **Bối cảnh (INC-2):** valkey-cart là kho state của giỏ hàng. Bản gốc chart chạy valkey **in-cluster 1 replica** → mất pod/node = **mất toàn bộ giỏ khách**. Tăng replica cart API (CDO-28) KHÔNG cứu được, vì dữ liệu giỏ nằm ở valkey chứ không ở cart API (cart chỉ là stateless client). Đây là SPOF thật trên luồng ra tiền.
+- **Quyết định:** Tắt valkey in-cluster (`components.valkey-cart.enabled=false`, values.yaml:1272) và trỏ cart sang **AWS ElastiCache Valkey** managed (`VALKEY_ADDR` = primary endpoint, values.yaml:345). Cấu hình HA: `automatic_failover_enabled=true`, `transit/at_rest_encryption=true` (`terraform/modules/elasticache/main.tf:51-53`). **Bổ sung `multi_az_enabled=true`** để có guarantee cross-AZ chính thức.
+- **Bằng chứng runtime (14/07/2026, `aws elasticache describe-replication-groups --replication-group-id ecommerce-dev-valkey`):**
+  - 2 node: `ecommerce-dev-valkey-001` (primary, **us-east-1b**), `ecommerce-dev-valkey-002` (replica, **us-east-1a**).
+  - `AutomaticFailover = enabled`; node đã nằm ở **2 AZ khác nhau**.
+  - Caveat phát hiện: `MultiAZ = disabled` → đã quyết bật (mục trên). Cart dùng primary DNS endpoint → tự repoint khi failover.
+- **Phương án khác đã cân:** A) Giữ valkey in-cluster + thêm replica/Sentinel (loại: tự vận hành HA cache trên K8s tốn công + rủi ro, trong khi managed rẻ và ổn hơn). B) Chấp nhận SPOF (loại: vi phạm yêu cầu ② Mandate-03 "không điểm chết đơn lẻ trên luồng ra tiền"). C) Không bật MultiAZ, chỉ dựa auto-failover (loại: node đã cross-AZ nhưng thiếu guarantee chính thức của AWS; bật flag chi phí $0).
+- **Cost Δ:** 2× `cache.t4g.micro` (đã đang chạy) — trong trần $300/tuần. Bật MultiAZ **$0** (không tính phí riêng, không thêm node).
+- **Ảnh hưởng SLO:** Hết SPOF giỏ hàng → giữ cart ≥99.5%. Residual risk: failover blip vài giây khi mất primary (nằm trong cart error budget 0.5%; cart có readiness gate + HPA min=2 + retry). Single-primary write là đặc tính chấp nhận của ElastiCache (không multi-master).
+- **Rollback:** trỏ `VALKEY_ADDR` về endpoint cũ / bật lại valkey in-cluster; `multi_az_enabled=false` (chỉ là flag).
+- **Hệ quả:** ✅ SPOF giỏ hàng đã gỡ, HA managed cross-AZ · ⚠️ bật MultiAZ cần `terraform apply` có thể gây 1 lần failover ngắn → làm ngoài giờ cao điểm, KHÔNG sát demo. Cross-ref: SG valkey mở `0.0.0.0/0:6379` (CACHE.md:32) là vấn đề **security (Directive #1)**, tracked riêng — không thuộc ADR này.
+
+---
+
 > Thêm ADR mới ở dưới. ADR bị thay thế: đổi Trạng thái + link forward, giữ nguyên nội dung cũ.
