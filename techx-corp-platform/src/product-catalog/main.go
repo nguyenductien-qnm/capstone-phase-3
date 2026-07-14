@@ -250,8 +250,36 @@ func main() {
 	healthcheck := health.NewServer()
 	healthpb.RegisterHealthServer(srv, healthcheck)
 
+	// CDO-80 (Option C): tách liveness khỏi readiness. Liveness luôn SERVING khi
+	// process sống (không phụ thuộc Postgres) → Postgres giật không restart pod.
+	healthcheck.SetServingStatus("liveness", healthpb.HealthCheckResponse_SERVING)
+	healthcheck.SetServingStatus("", healthpb.HealthCheckResponse_SERVING) // tương thích ngược
+
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGKILL)
 	defer cancel()
+
+	// Readiness phản ánh dependency Postgres, cập nhật định kỳ: DB mất → NOT_SERVING
+	// (pod bị kéo khỏi Endpoints) nhưng KHÔNG restart; DB hồi → SERVING trở lại.
+	go func() {
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+		updateReadiness := func() {
+			if db != nil && db.PingContext(ctx) == nil {
+				healthcheck.SetServingStatus("readiness", healthpb.HealthCheckResponse_SERVING)
+			} else {
+				healthcheck.SetServingStatus("readiness", healthpb.HealthCheckResponse_NOT_SERVING)
+			}
+		}
+		updateReadiness()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				updateReadiness()
+			}
+		}
+	}()
 
 	go func() {
 		if err := srv.Serve(ln); err != nil {

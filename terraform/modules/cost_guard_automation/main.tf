@@ -287,25 +287,19 @@ resource "aws_budgets_budget" "custom_period" {
   }
 
   notification {
-    comparison_operator   = "GREATER_THAN"
-    notification_type     = "FORECASTED"
-    threshold             = 80
-    threshold_type        = "PERCENTAGE"
-    notification_channels = [aws_sns_topic.budget_alarms_80.arn]
-    messages = {
-      en = "Budget Alert: Your forecasted AWS spending will exceed 80% of your ${each.value.amount} budget for ${each.key}."
-    }
+    comparison_operator     = "GREATER_THAN"
+    notification_type       = "FORECASTED"
+    threshold               = 80
+    threshold_type          = "PERCENTAGE"
+    subscriber_sns_topic_arns = [aws_sns_topic.budget_alarms_80.arn]
   }
 
   notification {
-    comparison_operator   = "GREATER_THAN"
-    notification_type     = "FORECASTED"
-    threshold             = 95
-    threshold_type        = "PERCENTAGE"
-    notification_channels = [aws_sns_topic.budget_alarms_95.arn]
-    messages = {
-      en = "CRITICAL Budget Alert: Your forecasted AWS spending will exceed 95% of your ${each.value.amount} budget for ${each.key}. Scaling down resources."
-    }
+    comparison_operator     = "GREATER_THAN"
+    notification_type       = "FORECASTED"
+    threshold               = 95
+    threshold_type          = "PERCENTAGE"
+    subscriber_sns_topic_arns = [aws_sns_topic.budget_alarms_95.arn]
   }
 
   tags = merge(
@@ -333,14 +327,11 @@ resource "aws_budgets_budget" "monthly_80_percent" {
   }
 
   notification {
-    comparison_operator   = "GREATER_THAN"
-    notification_type     = "FORECASTED"
-    threshold             = 80
-    threshold_type        = "PERCENTAGE"
-    notification_channels = [aws_sns_topic.budget_alarms_80.arn]
-    messages = {
-      en = "Budget Alert: Your forecasted AWS spending will exceed 80% of your $${var.budget_limit} budget limit."
-    }
+    comparison_operator     = "GREATER_THAN"
+    notification_type       = "FORECASTED"
+    threshold               = 80
+    threshold_type          = "PERCENTAGE"
+    subscriber_sns_topic_arns = [aws_sns_topic.budget_alarms_80.arn]
   }
 
   tags = merge(
@@ -367,14 +358,11 @@ resource "aws_budgets_budget" "monthly_95_percent" {
   }
 
   notification {
-    comparison_operator   = "GREATER_THAN"
-    notification_type     = "FORECASTED"
-    threshold             = 95
-    threshold_type        = "PERCENTAGE"
-    notification_channels = [aws_sns_topic.budget_alarms_95.arn]
-    messages = {
-      en = "CRITICAL Budget Alert: Your forecasted AWS spending will exceed 95% of your $${var.budget_limit} budget limit. Scaling down resources."
-    }
+    comparison_operator     = "GREATER_THAN"
+    notification_type       = "FORECASTED"
+    threshold               = 95
+    threshold_type          = "PERCENTAGE"
+    subscriber_sns_topic_arns = [aws_sns_topic.budget_alarms_95.arn]
   }
 
   tags = merge(

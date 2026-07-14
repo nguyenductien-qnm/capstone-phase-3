@@ -274,3 +274,17 @@ Ba con số đang mâu thuẫn: **code `log_clustering.py` hardcode `sim_th=0.5`
 | 0.6 | 1645 | 42.1% | 61.5% | 0.76 |
 
 0.3 trội ở cả 4 tiêu chí; depth 4–6 thay đổi <2% (giữ 4). Trước khi chốt vào code: **bật masking Drain3** (`<NUM>/<UUID>/<IP>/duration>` — singleton 56% chủ yếu do id/timestamp nhúng trong dòng) rồi chạy lại grid trên 24h log EKS. Baseline giáo trình AIOps course cũng mask trước khi so khớp.
+
+
+## Phụ lục 2 (13/07) — grid CÓ masking (xác nhận sim_th 0.3)
+
+Chạy lại grid với masking `<NUM>/<UUID>/<IP>/<TS>/<FLOAT>` bật (`MASK=1`, 8k dòng log thật):
+
+| sim_th | templates | top20 cov | singleton% | stability |
+|---|---|---|---|---|
+| **0.3 / depth 4** | **397** | **59.1%** | **56.2%** | **0.62** |
+| 0.4 / depth 4 | 554 | 55.0% | 64.3% | 0.70 |
+| 0.5 / depth 4 | 638 | 55.0% | 63.6% | 0.74 |
+| 0.6 / depth 4 | 834 | 40.7% | 64.4% | 0.78 |
+
+Masking cắt ~30% template so bản pre-masking (397 vs 795) — đúng kỳ vọng (id/timestamp không còn tách cụm). **0.3 vẫn trội cả 4 tiêu chí** → `sim_th=0.3, depth=4` là số chốt (env `DRAIN_SIM_TH`); re-confirm cuối trên 24h log EKS.

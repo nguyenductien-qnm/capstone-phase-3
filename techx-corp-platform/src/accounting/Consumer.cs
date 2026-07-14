@@ -145,7 +145,11 @@ internal class Consumer : IDisposable
             BootstrapServers = servers,
             // https://github.com/confluentinc/confluent-kafka-dotnet/tree/07de95ed647af80a0db39ce6a8891a630423b952#basic-consumer-example
             AutoOffsetReset = AutoOffsetReset.Earliest,
-            EnableAutoCommit = true
+            EnableAutoCommit = true,
+            SecurityProtocol = SecurityProtocol.SaslSsl,
+            SaslMechanism = SaslMechanism.ScramSha512,
+            SaslUsername = Environment.GetEnvironmentVariable("KAFKA_USER"),
+            SaslPassword = Environment.GetEnvironmentVariable("KAFKA_PASSWORD")
         };
 
         return new ConsumerBuilder<string, byte[]>(conf)

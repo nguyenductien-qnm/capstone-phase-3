@@ -38,5 +38,5 @@ variable "ebs_volume_size" {
 variable "kafka_version" {
   type        = string
   description = "Phiên bản Apache Kafka của cụm MSK"
-  default     = "3.4.0"
+  default     = "3.6.0"
 }

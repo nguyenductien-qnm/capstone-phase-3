@@ -109,6 +109,16 @@ output "eks_node_group_name" {
   value       = module.eks.node_group_name
 }
 
+output "eks_ops_node_group_name" {
+  description = "Tên EKS managed node group cho observability"
+  value       = module.eks.ops_node_group_name
+}
+
+output "eks_ebs_csi_role_arn" {
+  description = "Pod Identity IAM role cho EBS CSI controller"
+  value       = module.eks.ebs_csi_role_arn
+}
+
 output "eks_update_kubeconfig_command" {
   description = "Lệnh cấu hình kubectl sau khi đăng nhập AWS SSO"
   value       = "aws eks update-kubeconfig --region ${var.aws_region} --name ${module.eks.cluster_name}"
@@ -122,6 +132,11 @@ output "msk_bootstrap_brokers_plaintext" {
 output "msk_bootstrap_brokers_tls" {
   description = "Connection string cho TLS (port 9094) của MSK"
   value       = module.msk.bootstrap_brokers_tls
+}
+
+output "msk_bootstrap_brokers_sasl_scram" {
+  description = "Connection string cho SASL/SCRAM (port 9096) của MSK"
+  value       = module.msk.bootstrap_brokers_sasl_scram
 }
 
 output "msk_security_group_id" {
@@ -169,5 +184,10 @@ output "cost_guard_monthly_budget_95" {
 output "cost_guard_log_group_name" {
   description = "CloudWatch Log Group name cho Cost Guard Lambda"
   value       = try(module.cost_guard_automation[0].cloudwatch_log_group_name, null)
+}
+
+output "msk_secret_arn" {
+  description = "ARN của Secret Manager lưu msk credentials"
+  value       = module.msk.msk_secret_arn
 }
 

@@ -32,6 +32,10 @@ module "eks" {
   node_disk_size_gib  = var.eks_node_disk_size_gib
   node_scaling        = var.eks_node_scaling
 
+  ops_node_subnet_id      = module.vpc.private_app_subnet_ids[var.eks_ops_node_subnet_key]
+  ops_node_instance_types = var.eks_ops_node_instance_types
+  ops_node_disk_size_gib  = var.eks_ops_node_disk_size_gib
+
   access_entries = var.eks_access_entries
 }
 
@@ -121,8 +125,14 @@ module "cost_guard_automation" {
   rds_instance_identifiers = [module.rds.instance_id]
   elasticache_cluster_ids  = [module.elasticache.cluster_id]
 
-  lambda_timeout                = var.cost_guard_lambda_timeout
-  lambda_memory                 = var.cost_guard_lambda_memory
+  lambda_timeout            = var.cost_guard_lambda_timeout
+  lambda_memory             = var.cost_guard_lambda_memory
   cloudwatch_log_retention_days = var.cost_guard_log_retention_days
 }
 
+module "cloudtrail" {
+  source = "../../modules/cloudtrail"
+
+  project_name = var.project_name
+  environment  = var.environment
+}

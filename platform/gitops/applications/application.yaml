@@ -11,7 +11,7 @@ spec:
   source:
     # URL của git repository chứa mã nguồn của bạn
     repoURL: "https://github.com/nguyenductien-qnm/capstone-phase-3.git"
-    targetRevision: main
+    targetRevision: develop
     # Đường dẫn trỏ tới thư mục Helm Chart của bạn trong Git
     path: platform/charts/application
 
@@ -19,6 +19,9 @@ spec:
     helm:
       valueFiles:
         - ../../gitops/environments/sandbox/values-flagd-sync.yaml
+        - ../../gitops/environments/sandbox/values-ops-observability.yaml
+        # CI-managed image tags (app-build.yaml bump) — load CUỐI để override tag.
+        - ../../gitops/environments/sandbox/values-image-tags.yaml
 
   destination:
     # URL API của cụm Kubernetes (nội bộ cụm)

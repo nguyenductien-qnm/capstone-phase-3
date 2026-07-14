@@ -1,0 +1,17 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: argocd-ts
+  namespace: argocd
+  annotations:
+    tailscale.com/tags: "tag:ops-argocd"
+spec:
+  ingressClassName: tailscale
+  tls:
+    - hosts:
+        - argocd-tf1
+  defaultBackend:
+    service:
+      name: argocd-server
+      port:
+        number: 80

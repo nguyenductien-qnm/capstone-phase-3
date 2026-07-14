@@ -100,6 +100,10 @@
 
 ### 2. So sánh chi phí chi tiết/ngày:
 
+> [!NOTE]
+> **Cache hit 90% trong bảng là GIẢ ĐỊNH mô hình, CHƯA ĐO.** Hit rate thật phụ thuộc pattern truy cập (10 sản phẩm + versioned key) — đo khi có tải EKS (TF1-67). Nhưng kết luận "đạt" **không nhạy** với con số này: ngay cả 0% cache, Nova chỉ $9.66/tuần (<3.3% trần). Cache chủ yếu cắt latency, không phải chi phí (Nova đã rẻ).
+
+
 | Kịch bản | Model | Cache hit | Chi phí/ngày | Chi phí/tuần | Loại chi phí | Kết luận |
 |---|---|---|---|---|---|---|
 | **(Đã loại) Claude, không Cache** | Claude 3.5 Sonnet | 0% | **$75.00** | **$525.00** | 💵 Tiền mặt thật | ❌ **Vượt trần 1.75 lần** |
@@ -139,7 +143,7 @@
 * **Lập luận bảo vệ:**
   > *"Thưa SRE Lead, tôi xin phân định rõ **cái gì đã chạy** và **cái gì mới là thiết kế của tuần này** — vì tuần 1 là tuần lập kế hoạch:*
   >
-  > ***Đã có trong code hôm nay:*** *`product-reviews` gọi Amazon Bedrock Nova Lite qua Converse API, có Valkey cache với versioned key (derive từ model env + hash prompt) và **TTL phẳng 7d** (TTL động đã gỡ 12/07 — review data tĩnh), và detector cảnh báo vận hành (`aiops/detector`) chạy với **12 rule** (thêm grpc-error-rate verified-chaos, burn-rate & memory-saturation draft) bám ngưỡng SLO thật (error rate 0.5%, checkout 1%, p95 1.0s).*
+  > ***Đã có trong code hôm nay:*** *`product-reviews` gọi Amazon Bedrock Nova Lite qua Converse API, có Valkey cache với versioned key (derive từ model env + hash prompt) và **TTL phẳng 7d** (TTL động đã gỡ 12/07 — review data tĩnh), và detector cảnh báo vận hành (`aiops/detector`) chạy với **13 rule** (thêm grpc-error-rate verified-chaos + burn-rate/memory/kafka-lag draft) bám ngưỡng SLO thật (error rate 0.5%, checkout 1%, p95 1.0s).*
   >
   > ***Đã đặc tả, chưa cắm vào code — sẽ làm ở Tuần 2:***
   > *1. **Resilience Stack (ADR-005) + Hybrid Routing (ADR-004):** khi Bedrock lỗi (429/500) hoặc quá timeout, hệ thống sẽ retry tối đa 2 lần với exponential backoff + full jitter, rồi fallback: Reviews đi Nova Lite (timeout 3.0s) → Nova Micro (2.0s) → Mock Summary; Copilot đi Nova Pro (5.0s) → Nova Lite (3.0s). Bulkhead `asyncio.Semaphore(10)` sẽ chặn các cuộc gọi Bedrock chậm làm cạn thread pool của pod `product-reviews` — quan trọng vì **cùng pod đó cũng phục vụ `GetProductReviews` nằm trên đường render trang**, nên đây mới là đường mà lỗi LLM có thể lan sang SLO p95 < 1s của storefront. Circuit Breaker sẽ mở ngay khi flagd bật `llmRateLimitError`, để không đốt token vào các cuộc gọi chắc chắn hỏng. Cập nhật 12/07: bulkhead (non-blocking, size 6), circuit breaker (3 lỗi liên tiếp → open 30s, theo lỗi quan sát được — không đọc cờ flagd) và fallback ladder đã nằm trong code, có bằng chứng runtime: khi primary lỗi, log ghi "Fallback routing triggered → nova-micro" và "Circuit Breaker OPENED for 30.0s"; khách luôn nhận mock summary, không bao giờ nhận lỗi thô.*
