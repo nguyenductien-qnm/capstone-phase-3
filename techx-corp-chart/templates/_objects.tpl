@@ -138,6 +138,9 @@ spec:
       {{- if .initContainers }}
       initContainers:
         {{- tpl (toYaml .initContainers) . | nindent 8 }}
+        {{- range .initContainers }}
+        {{- include "techx-corp.validateNoLatest" (list .image (printf "%s/initContainer/%s" $.name .name)) }}
+        {{- end }}
       {{- end}}
       volumes:
         {{- range .mountedConfigMaps }}
