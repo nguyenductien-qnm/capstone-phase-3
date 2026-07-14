@@ -34,7 +34,17 @@ default:
     affinity: {}
     tolerations: []
   # Default securityContext for all components
-  securityContext: {}
+  securityContext:
+    allowPrivilegeEscalation: false
+    runAsNonRoot: true
+    capabilities:
+      drop:
+        - ALL
+  # Default podSecurityContext for all components
+  podSecurityContext:
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
 
 serviceAccount:
   # Specifies whether a service account should be created
@@ -204,6 +214,13 @@ components:
       - name: wait-for-kafka
         image: busybox:latest
         command: ["sh", "-c", "until nc -z -v -w30 b-1.ecommercedevmsk.61s37h.c4.kafka.us-east-1.amazonaws.com 9096; do echo waiting for kafka; sleep 2; done;"]
+        securityContext:
+          runAsUser: 1000
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
 
   ad:
     enabled: true
@@ -227,6 +244,14 @@ components:
     resources:
       limits:
         memory: 300Mi
+    securityContext:
+      runAsUser: 1000
+      runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+      readOnlyRootFilesystem: true
 
   cart:
     enabled: true
@@ -263,6 +288,13 @@ components:
       - name: wait-for-valkey-cart
         image: busybox:latest
         command: ["sh", "-c", "until nc -z -v -w30 master.ecommerce-dev-valkey.7ylfic.use1.cache.amazonaws.com 6379; do echo waiting for valkey-cart; sleep 2; done;"]
+        securityContext:
+          runAsUser: 1000
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
 
   checkout:
     enabled: true
@@ -314,6 +346,13 @@ components:
       - name: wait-for-kafka
         image: busybox:latest
         command: ["sh", "-c", "until nc -z -v -w30 b-1.ecommercedevmsk.61s37h.c4.kafka.us-east-1.amazonaws.com 9096; do echo waiting for kafka; sleep 2; done;"]
+        securityContext:
+          runAsUser: 1000
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
 
   currency:
     enabled: true
@@ -395,6 +434,13 @@ components:
       - name: wait-for-kafka
         image: busybox:latest
         command: ["sh", "-c", "until nc -z -v -w30 b-1.ecommercedevmsk.61s37h.c4.kafka.us-east-1.amazonaws.com 9096; do echo waiting for kafka; sleep 2; done;"]
+        securityContext:
+          runAsUser: 1000
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
 
   frontend:
     enabled: true
@@ -448,6 +494,10 @@ components:
       runAsUser: 1001  # nextjs
       runAsGroup: 1001
       runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
 
   frontend-proxy:
     enabled: true
@@ -519,6 +569,10 @@ components:
       runAsUser: 101  # envoy
       runAsGroup: 101
       runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
 
   image-provider:
     enabled: true
@@ -610,6 +664,10 @@ components:
       runAsUser: 1000  # node
       runAsGroup: 1000
       runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
 
   product-catalog:
     enabled: true
@@ -724,6 +782,10 @@ components:
       runAsUser: 33  # www-data
       runAsGroup: 33
       runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
 
   recommendation:
     enabled: true
@@ -883,6 +945,13 @@ components:
       - name: init-config
         image: busybox
         command: ["sh", "-c", "cp /config-ro/demo.flagd.json /config-rw/demo.flagd.json && cat /config-rw/demo.flagd.json"]
+        securityContext:
+          runAsUser: 1000
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
         volumeMounts:
           - mountPath: /config-ro
             name: config-ro
@@ -925,6 +994,10 @@ components:
       runAsUser: 1000  # appuser
       runAsGroup: 1000
       runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
 
   llm:
     enabled: true
@@ -1020,6 +1093,10 @@ components:
       runAsUser: 999  # valkey
       runAsGroup: 1000
       runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
 
 opentelemetry-collector:
   enabled: true
