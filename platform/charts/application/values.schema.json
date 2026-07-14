@@ -41,6 +41,9 @@
     "autoscaling": {
       "type": "object"
     },
+    "observabilityStorage": {
+      "type": "object"
+    },
     "opentelemetry-collector": {
       "type": "object"
     },

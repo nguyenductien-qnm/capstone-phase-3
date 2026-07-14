@@ -1298,6 +1298,16 @@ components:
       runAsGroup: 1000
       runAsNonRoot: true
 
+observabilityStorage:
+  enabled: false
+  name: gp3-observability
+  reclaimPolicy: Retain
+  volumeBindingMode: WaitForFirstConsumer
+  allowVolumeExpansion: true
+  parameters:
+    type: gp3
+    encrypted: "true"
+
 opentelemetry-collector:
   enabled: true
   image:

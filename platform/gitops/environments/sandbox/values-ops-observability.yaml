@@ -1,9 +1,75 @@
-# Sandbox observability overrides.
-# Keep this file focused on operational sizing/scheduling so application image
-# updates remain independently managed by values-image-tags.yaml.
+# Sandbox observability overrides. The dedicated node is provisioned by the
+# EKS module as workload-tier=observability with a NoSchedule taint.
+
+observabilityStorage:
+  enabled: true
+
+opentelemetry-collector:
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: observability
+      effect: NoSchedule
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  config:
+    service:
+      pipelines:
+        logs:
+          exporters: [debug]
+
+jaeger:
+  jaeger:
+    nodeSelector:
+      workload-tier: observability
+    tolerations:
+      - key: dedicated
+        operator: Equal
+        value: observability
+        effect: NoSchedule
+    resources:
+      requests:
+        cpu: 100m
+        memory: 640Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
 
 prometheus:
+  kube-state-metrics:
+    nodeSelector:
+      workload-tier: observability
+    tolerations:
+      - key: dedicated
+        operator: Equal
+        value: observability
+        effect: NoSchedule
+    resources:
+      requests:
+        cpu: 25m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
   server:
+    nodeSelector:
+      workload-tier: observability
+    tolerations:
+      - key: dedicated
+        operator: Equal
+        value: observability
+        effect: NoSchedule
+    persistentVolume:
+      enabled: true
+      storageClass: gp3-observability
+      accessModes:
+        - ReadWriteOnce
+      size: 20Gi
     resources:
       requests:
         cpu: 250m
@@ -13,6 +79,14 @@ prometheus:
         memory: 1536Mi
 
 grafana:
+  nodeSelector:
+    workload-tier: observability
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: observability
+      effect: NoSchedule
+  plugins: []
   resources:
     requests:
       cpu: 100m
@@ -28,3 +102,24 @@ grafana:
       limits:
         cpu: 50m
         memory: 128Mi
+
+opensearch:
+  enabled: false
+
+components:
+  load-generator:
+    schedulingRules:
+      nodeSelector:
+        workload-tier: observability
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: observability
+          effect: NoSchedule
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 750m
+        memory: 512Mi
