@@ -134,6 +134,24 @@ variable "eks_node_scaling" {
   }
 }
 
+variable "eks_ops_node_subnet_key" {
+  type        = string
+  description = "Private application subnet key for the single-AZ observability node group"
+  default     = "app-2"
+}
+
+variable "eks_ops_node_instance_types" {
+  type        = list(string)
+  description = "EC2 instance types for the observability node group"
+  default     = ["m6a.large"]
+}
+
+variable "eks_ops_node_disk_size_gib" {
+  type        = number
+  description = "Encrypted gp3 root volume size for the observability node"
+  default     = 30
+}
+
 variable "eks_access_entries" {
   description = "EKS Access Entries cho SSO/operator/automation; dùng IAM role ARN, không dùng STS assumed-role ARN"
   type = map(object({
@@ -226,7 +244,6 @@ variable "rds_multi_az" {
   type        = bool
   description = "Bật/Tắt chế độ Multi-AZ cho Primary DB"
 }
-
 
 
 

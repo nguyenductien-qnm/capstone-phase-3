@@ -60,6 +60,11 @@ eks_node_scaling = {
   desired_size = 2
 }
 
+# Dedicated observability MNG: fixed at one non-burstable node in us-east-1b.
+eks_ops_node_subnet_key     = "app-2"
+eks_ops_node_instance_types = ["m6a.large"]
+eks_ops_node_disk_size_gib  = 30
+
 # Bật public access cho phép kết nối từ ngoài VPC qua SSO.
 # Production: đặt false và dùng VPN/bastion.
 eks_endpoint_public_access = true

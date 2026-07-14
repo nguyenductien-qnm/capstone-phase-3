@@ -220,6 +220,80 @@ resource "aws_eks_node_group" "this" {
   }
 }
 
+resource "aws_launch_template" "ops" {
+  name_prefix            = "${local.cluster_name}-ops-"
+  update_default_version = true
+
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 1
+    instance_metadata_tags      = "disabled"
+  }
+
+  block_device_mappings {
+    device_name = "/dev/xvda"
+
+    ebs {
+      encrypted             = true
+      volume_size           = var.ops_node_disk_size_gib
+      volume_type           = "gp3"
+      delete_on_termination = true
+    }
+  }
+
+  tag_specifications {
+    resource_type = "instance"
+    tags = {
+      Name = "${local.cluster_name}-ops"
+    }
+  }
+
+  tags = {
+    Name = "${local.cluster_name}-ops-template"
+  }
+}
+
+resource "aws_eks_node_group" "ops" {
+  cluster_name    = aws_eks_cluster.this.name
+  node_group_name = "${local.cluster_name}-ops"
+  node_role_arn   = aws_iam_role.node.arn
+  subnet_ids      = [var.ops_node_subnet_id]
+  instance_types  = var.ops_node_instance_types
+  capacity_type   = "ON_DEMAND"
+
+  launch_template {
+    id      = aws_launch_template.ops.id
+    version = aws_launch_template.ops.latest_version
+  }
+
+  scaling_config {
+    min_size     = 1
+    max_size     = 1
+    desired_size = 1
+  }
+
+  update_config {
+    max_unavailable = 1
+  }
+
+  labels = {
+    "workload-tier" = "observability"
+  }
+
+  taint {
+    key    = "dedicated"
+    value  = "observability"
+    effect = "NO_SCHEDULE"
+  }
+
+  depends_on = [aws_iam_role_policy_attachment.node]
+
+  tags = {
+    Name = "${local.cluster_name}-ops"
+  }
+}
+
 data "aws_eks_addon_version" "core" {
   for_each = local.core_addons
 
@@ -238,7 +312,7 @@ resource "aws_eks_addon" "core" {
   resolve_conflicts_on_create = "OVERWRITE"
   resolve_conflicts_on_update = "PRESERVE"
 
-  depends_on = [aws_eks_node_group.this]
+  depends_on = [aws_eks_node_group.this, aws_eks_node_group.ops]
 
   tags = {
     Name = "${local.cluster_name}-${each.value}"
