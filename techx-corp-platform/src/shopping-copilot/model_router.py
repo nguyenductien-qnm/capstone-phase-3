@@ -1,5 +1,6 @@
 import os
 import logging
+import random
 from openfeature import api
 from openfeature.contrib.provider.flagd import FlagdProvider
 
@@ -28,8 +29,17 @@ def get_routed_model(task_type: str, default_model: str) -> str:
     # We pass an evaluation context to differentiate routing by task_type
     context = {"task_type": task_type}
     try:
-        routed_model = client.get_string_value("llmModelRouting", default_model, context)
-        return routed_model
+        config = client.get_object_value("llmModelRouting", {}, context)
+        if not config:
+            return default_model
+            
+        models = list(config.keys())
+        weights = list(config.values())
+        
+        if not models or sum(weights) == 0:
+            return default_model
+            
+        return random.choices(models, weights=weights, k=1)[0]
     except Exception as e:
         logger.warning(f"Model Router error: {e}. Falling back to {default_model}")
         return default_model

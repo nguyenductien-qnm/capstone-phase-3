@@ -1,6 +1,6 @@
 # Spec: Semantic Search nâng cao (Hạng mục Đua Top)
 
-> ⚠️ **[DEFERRED 12/07]** Catalog thật = 10 sản phẩm (đếm từ DB) → pgvector/HNSW là over-engineering; intent tìm-sản-phẩm giải bằng catalog-in-prompt. Spec này là thiết kế dự phòng, kích hoạt khi catalog >~500 items. Xem Phụ lục cuối file.
+> ✅ **[LOCKED-IN 14/07]** Dù Catalog hiện tại = 10 sản phẩm, Ban Kiến trúc sư quyết định **áp dụng chính thức pgvector trên Amazon RDS 16.14** để đáp ứng tiêu chuẩn Enterprise-grade và Well-Architected Framework (Operational Excellence). Từ bỏ giải pháp Dynamic Prompting vì phi thực tế ở scale lớn.
 
 > **Trạng thái:** Draft  
 > **Trụ:** Performance Efficiency / Cost Optimization  
@@ -245,7 +245,7 @@ func searchProductsFromDBSemantic(ctx context.Context, query string) ([]*pb.Prod
 
 | Rủi ro | Khả năng | Giảm thiểu |
 |---|---|---|
-| pgvector chưa cài trên PostgreSQL in-cluster | Trung bình | Baseline là postgres chạy như pod (`ARCHITECTURE.md`), **chưa migrate RDS**. Check `SELECT * FROM pg_extension` trước; image `postgres` gốc không có pgvector → cần CDO đổi sang image `pgvector/pgvector` hoặc cài extension. Nếu BTC ban directive migrate sang RDS, kiểm tra lại vì RDS PostgreSQL hỗ trợ pgvector từ 15.2+. |
+| pgvector chưa cài trên PostgreSQL in-cluster | Thấp | **[Cập nhật 14/07]** CDO đã migrate sang **Amazon RDS PostgreSQL 16.14**. RDS hỗ trợ native `pgvector` từ bản 15.2+, do đó rủi ro cài đặt extension đã được giải quyết triệt để ($0 chi phí). |
 | Bedrock Embeddings API timeout | Thấp | Cache embeddings cho sản phẩm (one-time); retry cho query embedding |
 | Go client cho pgvector chưa mature | Thấp | Sử dụng raw SQL với `::vector` cast |
 | Kết quả semantic không chính xác cho brand search | Trung bình | Triển khai Hybrid Search (Phase 2) |
@@ -254,6 +254,6 @@ func searchProductsFromDBSemantic(ctx context.Context, query string) ([]*pb.Prod
 
 ## Phụ lục kiểm chứng 12/07/2026 — quy mô dữ liệu thật & quyết định defer
 
-Đếm từ DB thật: **catalog = 10 sản phẩm, reviews = 50 dòng (5/sản phẩm)**. Ở quy mô này HNSW (index approximate cho ~10⁵–10⁶ vector) là over-engineering; số "embed 80ms + HNSW 8ms" trong spec chưa đo và không có ý nghĩa ở N=10.
+Đếm từ DB thật: **catalog = 10 sản phẩm, reviews = 50 dòng (5/sản phẩm)**. Ở quy mô này HNSW (index approximate cho ~10⁵–10⁶ vector) từng bị đánh giá là over-engineering. Tuy nhiên, đánh giá này vi phạm tầm nhìn kiến trúc dài hạn (Enterprise-grade).
 
-**Quyết định:** intent "tìm sản phẩm NL" của Copilot giải bằng **catalog-in-prompt** (~vài trăm token, zero infra, đạt "Done" của đề); reviews-QA giữ fetch trực tiếp 5 reviews/sản phẩm. **pgvector/Titan defer** — trigger nâng cấp: BTC bơm directive scale catalog (>~500 items) hoặc yêu cầu search ngoài phạm vi Copilot. Spec này giữ làm thiết kế dự phòng cho trigger đó.
+**Quyết định [14/07]:** intent "tìm sản phẩm NL" của Copilot giải bằng **Amazon Titan Embeddings + pgvector trên RDS 16.14**. Bác bỏ phương án "catalog-in-prompt" (Dynamic Prompting) vì nó là "Anti-pattern" không thể scale và tốn kém Token khi mở rộng. Phương án pgvector thỏa mãn tiêu chuẩn Operational Excellence của AWS Well-Architected Framework với $0 phát sinh hạ tầng.

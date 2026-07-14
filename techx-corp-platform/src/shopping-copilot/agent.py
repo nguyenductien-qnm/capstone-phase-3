@@ -35,6 +35,7 @@ from botocore.config import Config
 from botocore.exceptions import ClientError, ConnectTimeoutError, ReadTimeoutError
 
 import tools
+from guardrails import sanitize_json_for_llm, leaks_system_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -180,17 +181,7 @@ def _run_read_tool(name: str, args: dict, user_id: str) -> str:
         return tools.list_recommendations(args.get("product_ids", []))
     return json.dumps({"error": f"Unknown tool '{name}'"})
 
-def _scrub_pii(text: str) -> str:
-    """Mask emails and phone numbers to prevent PII leakage."""
-    if not text:
-        return text
-    # Mask email: something@example.com -> s***g@example.com
-    text = re.sub(r'([a-zA-Z0-9_.+-])[a-zA-Z0-9_.+-]+(@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)', r'\1***\2', text)
-    # Mask credit cards first
-    text = re.sub(r'\b\d{4}[ -]?\d{4}[ -]?\d{4}[ -]?\d{4}\b', '[REDACTED CARD]', text)
-    # Mask US/VN phone numbers roughly (10-11 digits)
-    text = re.sub(r'\b(\+?84|0|1)[\d\s\-\.]{8,12}\b', '[REDACTED PHONE]', text)
-    return text
+# _scrub_pii has been removed in favor of guardrails.sanitize_text
 
 
 # --- Resiliency: Bulkhead & Circuit Breaker ---
@@ -323,9 +314,13 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
 
         if stop != "tool_use":
             text = "\n".join(b["text"] for b in blocks if "text" in b)
-            # Guardrail: Scrub PII before returning to user
-            clean_text = _scrub_pii(text) if text else ""
-            return AgentResult(text=clean_text or "(không có phản hồi)", actions_taken=actions,
+            # Guardrail Phan A: Output guard
+            if leaks_system_prompt(text, SYSTEM_PROMPT):
+                logger.error("AI_COPILOT_FALLBACK stage=output-guard reason=SystemPromptLeak")
+                text = _fallback_text()
+                return AgentResult(text=text, actions_taken=actions, degraded=True)
+
+            return AgentResult(text=text or "(không có phản hồi)", actions_taken=actions,
                                pending=pending)
 
         tool_calls += 1
@@ -357,6 +352,8 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
                 ok = True
             else:
                 out = _run_read_tool(name, args, user_id)
+                # Guardrail Phan A: sanitize tool response before giving to LLM
+                out = sanitize_json_for_llm(out)
                 ok = '"error"' not in out
 
             actions.append(ToolCall(

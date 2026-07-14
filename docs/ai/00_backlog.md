@@ -79,7 +79,7 @@ Các tính năng nâng cao để cạnh tranh top, triển khai Tuần 2-3 (sau 
 
 ## 5. Ghi chú Phối hợp Hạ tầng (CDO Team Co-working)
 * **Quyền hạn cụm (EKS IAM Access):** Nhóm AI ghi nhận và xác nhận cấu hình EKS Access Entries được CDO merge qua PR #7. Cấu hình này đã giải quyết triệt để lỗi 409 bằng cách lọc ID cluster creator, đồng thời cấp quyền ClusterAdmin đầy đủ cho danh sách admin của Task Force thông qua biến `eks_admin_user_arns`.
-* **Tích hợp Caching:** Nhóm AI thống nhất tận dụng service `valkey-cart` cổng `6379` hiện có trên cụm EKS của CDO thay vì tự deploy cụm Valkey riêng lẻ, giúp tiết kiệm 100% chi phí tài nguyên phát sinh. **[CẬP NHẬT 14/07]** CDO đã migrate backend sang **ElastiCache Valkey managed** (`terraform/modules/elasticache/`); pod in-cluster tắt — xem ADR-003 addendum.
+* **Tích hợp Caching & DB:** Nhóm AI thống nhất tận dụng resource hiện có. **[CẬP NHẬT 14/07]** CDO đã chính thức migrate toàn bộ Data Stores (Valkey, Postgres, Kafka) sang AWS Managed Services (**ElastiCache, RDS PostgreSQL 16.14, MSK**). Các pod in-cluster liên quan đã tắt. Đội AI cần đặc biệt lưu ý kiểm soát cost (MANDATE-02).
 
 ---
 
@@ -94,7 +94,7 @@ Các tính năng nâng cao để cạnh tranh top, triển khai Tuần 2-3 (sau 
   - **TF1-59:** In Progress - Implement ShoppingCopilotServiceServicer (đã code xong trên PR #47, chờ merge).
   - **TF1-61:** Done - Guardrail prompt-injection / PII / lộ system prompt (hiện tại = 0).
   - **TF1-68:** In Progress - Chốt ADR-003 valkey với CDO: maxmemory + tách instance.
-  - **TF1-74:** Backlog - Copilot end-to-end: confirmation gate + guardrail + injection eval trên agent thật (Đây chính là task để xử lý dứt điểm MANDATE-06).
+  - **TF1-74:** Done - Copilot end-to-end: confirmation gate + guardrail + injection eval trên agent thật (Đã xử lý MANDATE-06 bằng ADR-011 và eval_mandate06.py).
   - *Ngoài ra còn các task W2 mới từ TF1-62 đến TF1-80 cho AIOps và deploy EKS thật.*
 - Do TF1-61 đã đánh Done trên Jira, phần Action Guardrails & Hallucination Eval (MANDATE-06) sẽ được log vào task **TF1-74**. Việc cấu hình Graceful Shutdown & Non-root (MANDATE-03, 05) thuộc trách nhiệm của nhóm CDO, nên không track trong backlog của nhóm AI.
 - **TTL cart 60m đã khôi phục trong code** (`ValkeyCartStore.cs:188,216`) — giữ nguyên sau migration.

@@ -1,6 +1,6 @@
 # Spec: AI-Powered Product Recommendations (Hạng mục Đua Top)
 
-> **Trạng thái:** Draft  
+> **Trạng thái:** Implemented  
 > **Trụ:** Performance Efficiency / Cost Optimization  
 > **Ngày:** 2026-07-09  
 > **Tác giả:** Nhóm AI (AIO03) - TF1  
@@ -137,20 +137,16 @@ import psycopg2
 from pgvector.psycopg2 import register_vector
 
 class RecommendationService(demo_pb2_grpc.RecommendationServiceServicer):
-    def __init__(self):
-        self.db_conn = psycopg2.connect(os.environ.get('DATABASE_URL'))
-        register_vector(self.db_conn)
-    
     def ListRecommendations(self, request, context):
         span = trace.get_current_span()
         
         # Kiểm tra feature flag
         if check_feature_flag("aiRecommendationsEnabled"):
-            prod_list = self._get_ai_recommendations(request.product_ids)
             span.set_attribute("app.recommendation.type", "ai-embedding")
+            prod_list = self._get_ai_recommendations(request.product_ids)
         else:
-            prod_list = self._get_random_recommendations(request.product_ids)
             span.set_attribute("app.recommendation.type", "random-fallback")
+            prod_list = self._get_random_recommendations(request.product_ids)
         
         response = demo_pb2.ListRecommendationsResponse()
         response.product_ids.extend(prod_list)
@@ -163,33 +159,44 @@ class RecommendationService(demo_pb2_grpc.RecommendationServiceServicer):
     def _get_ai_recommendations(self, input_product_ids, max_results=5):
         """Find similar products using embedding cosine similarity."""
         with tracer.start_as_current_span("get_ai_recommendations") as span:
-            cur = self.db_conn.cursor()
-            
-            # Lấy embedding trung bình của các input products
-            placeholders = ','.join(['%s'] * len(input_product_ids))
-            cur.execute(f"""
-                SELECT AVG(embedding) as avg_embedding
-                FROM catalog.products
-                WHERE id IN ({placeholders}) AND embedding IS NOT NULL
-            """, input_product_ids)
-            
-            avg_embedding = cur.fetchone()[0]
-            if avg_embedding is None:
+            db_connection_str = os.environ.get('DB_CONNECTION_STRING')
+            if not db_connection_str:
                 return self._get_random_recommendations(input_product_ids)
-            
-            # Tìm top-K similar products (loại trừ input products)
-            cur.execute("""
-                SELECT id, 1 - (embedding <=> %s::vector) AS similarity
-                FROM catalog.products
-                WHERE id != ALL(%s) AND embedding IS NOT NULL
-                ORDER BY embedding <=> %s::vector
-                LIMIT %s
-            """, (str(list(avg_embedding)), input_product_ids, 
-                  str(list(avg_embedding)), max_results))
-            
-            results = [row[0] for row in cur.fetchall()]
-            span.set_attribute("app.ai_recommendations.count", len(results))
-            return results
+                
+            with psycopg2.connect(db_connection_str) as connection:
+                register_vector(connection)
+                with connection.cursor() as cur:
+                    # Lấy embedding trung bình của các input products
+                    placeholders = ','.join(['%s'] * len(input_product_ids))
+                    cur.execute(f"""
+                        SELECT AVG(embedding) as avg_embedding
+                        FROM catalog.products
+                        WHERE id IN ({placeholders}) AND embedding IS NOT NULL
+                    """, input_product_ids)
+                    
+                    avg_embedding = cur.fetchone()[0]
+                    if avg_embedding is None:
+                        return self._get_random_recommendations(input_product_ids)
+                    
+                    # Cần chuyển sang dạng chuỗi hoặc list để pgvector parse đúng
+                    embedding_str = str(list(avg_embedding))
+                    
+                    # Tìm top-K similar products (loại trừ input products)
+                    cur.execute(\"\"\"
+                        SELECT id
+                        FROM catalog.products
+                        WHERE id != ALL(%s) AND embedding IS NOT NULL
+                        ORDER BY embedding <=> %s::vector
+                        LIMIT %s
+                    \"\"\", (input_product_ids, embedding_str, max_results))
+                    
+                    results = [row[0] for row in cur.fetchall()]
+                    span.set_attribute("app.ai_recommendations.count", len(results))
+                    
+                    if not results:
+                        return self._get_random_recommendations(input_product_ids)
+                        
+                    return results
 ```
 
 ### Phase 2: Feature Flag (Day 2)
