@@ -67,7 +67,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
           "refId": "A",
-          "expr": "100 * sum(rate(traces_span_metrics_calls_total{service_name=\"checkout\",status_code!=\"STATUS_CODE_ERROR\"}[5m])) / clamp_min(sum(rate(traces_span_metrics_calls_total{service_name=\"checkout\"}[5m])), 1e-9)"
+          "expr": "100 * sum(rate(traces_span_metrics_calls_total{service_name=\"checkout\",span_kind=\"SPAN_KIND_SERVER\",status_code!=\"STATUS_CODE_ERROR\"}[5m])) / clamp_min(sum(rate(traces_span_metrics_calls_total{service_name=\"checkout\",span_kind=\"SPAN_KIND_SERVER\"}[5m])), 1e-9)"
         }
       ]
     },
@@ -103,7 +103,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
           "refId": "A",
-          "expr": "100 * sum(rate(traces_span_metrics_calls_total{service_name=\"frontend\",status_code!=\"STATUS_CODE_ERROR\"}[5m])) / clamp_min(sum(rate(traces_span_metrics_calls_total{service_name=\"frontend\"}[5m])), 1e-9)"
+          "expr": "100 * sum(rate(traces_span_metrics_calls_total{service_name=\"frontend\",span_kind=\"SPAN_KIND_SERVER\",status_code!=\"STATUS_CODE_ERROR\"}[5m])) / clamp_min(sum(rate(traces_span_metrics_calls_total{service_name=\"frontend\",span_kind=\"SPAN_KIND_SERVER\"}[5m])), 1e-9)"
         }
       ]
     },
@@ -138,7 +138,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
           "refId": "A",
-          "expr": "100 * sum(rate(traces_span_metrics_calls_total{service_name=\"cart\",status_code!=\"STATUS_CODE_ERROR\"}[5m])) / clamp_min(sum(rate(traces_span_metrics_calls_total{service_name=\"cart\"}[5m])), 1e-9)"
+          "expr": "100 * sum(rate(traces_span_metrics_calls_total{service_name=\"cart\",span_kind=\"SPAN_KIND_SERVER\",status_code!=\"STATUS_CODE_ERROR\"}[5m])) / clamp_min(sum(rate(traces_span_metrics_calls_total{service_name=\"cart\",span_kind=\"SPAN_KIND_SERVER\"}[5m])), 1e-9)"
         }
       ]
     },
@@ -215,7 +215,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
           "refId": "A",
-          "expr": "100 * (1 - ( (sum(rate(traces_span_metrics_calls_total{service_name=\"checkout\",status_code=\"STATUS_CODE_ERROR\"}[24h])) / clamp_min(sum(rate(traces_span_metrics_calls_total{service_name=\"checkout\"}[24h])), 1e-9)) / 0.01 ))"
+          "expr": "100 * (1 - ( (sum(rate(traces_span_metrics_calls_total{service_name=\"checkout\",span_kind=\"SPAN_KIND_SERVER\",status_code=\"STATUS_CODE_ERROR\"}[24h])) / clamp_min(sum(rate(traces_span_metrics_calls_total{service_name=\"checkout\",span_kind=\"SPAN_KIND_SERVER\"}[24h])), 1e-9)) / 0.01 ))"
         }
       ]
     },
@@ -250,7 +250,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
           "refId": "A",
-          "expr": "100 * (1 - ( (sum(rate(traces_span_metrics_calls_total{service_name=\"frontend\",status_code=\"STATUS_CODE_ERROR\"}[24h])) / clamp_min(sum(rate(traces_span_metrics_calls_total{service_name=\"frontend\"}[24h])), 1e-9)) / 0.005 ))"
+          "expr": "100 * (1 - ( (sum(rate(traces_span_metrics_calls_total{service_name=\"frontend\",span_kind=\"SPAN_KIND_SERVER\",status_code=\"STATUS_CODE_ERROR\"}[24h])) / clamp_min(sum(rate(traces_span_metrics_calls_total{service_name=\"frontend\",span_kind=\"SPAN_KIND_SERVER\"}[24h])), 1e-9)) / 0.005 ))"
         }
       ]
     },
@@ -285,7 +285,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
           "refId": "A",
-          "expr": "100 * (1 - ( (sum(rate(traces_span_metrics_calls_total{service_name=\"cart\",status_code=\"STATUS_CODE_ERROR\"}[24h])) / clamp_min(sum(rate(traces_span_metrics_calls_total{service_name=\"cart\"}[24h])), 1e-9)) / 0.005 ))"
+          "expr": "100 * (1 - ( (sum(rate(traces_span_metrics_calls_total{service_name=\"cart\",span_kind=\"SPAN_KIND_SERVER\",status_code=\"STATUS_CODE_ERROR\"}[24h])) / clamp_min(sum(rate(traces_span_metrics_calls_total{service_name=\"cart\",span_kind=\"SPAN_KIND_SERVER\"}[24h])), 1e-9)) / 0.005 ))"
         }
       ]
     },
@@ -320,7 +320,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
           "refId": "A",
-          "expr": "(sum(rate(traces_span_metrics_calls_total{service_name=\"checkout\",status_code=\"STATUS_CODE_ERROR\"}[1h])) / clamp_min(sum(rate(traces_span_metrics_calls_total{service_name=\"checkout\"}[1h])), 1e-9)) / 0.01"
+          "expr": "(sum(rate(traces_span_metrics_calls_total{service_name=\"checkout\",span_kind=\"SPAN_KIND_SERVER\",status_code=\"STATUS_CODE_ERROR\"}[1h])) / clamp_min(sum(rate(traces_span_metrics_calls_total{service_name=\"checkout\",span_kind=\"SPAN_KIND_SERVER\"}[1h])), 1e-9)) / 0.01"
         }
       ]
     },
@@ -380,19 +380,19 @@
           "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
           "refId": "A",
           "legendFormat": "checkout",
-          "expr": "100 * sum(rate(traces_span_metrics_calls_total{service_name=\"checkout\",status_code!=\"STATUS_CODE_ERROR\"}[5m])) / clamp_min(sum(rate(traces_span_metrics_calls_total{service_name=\"checkout\"}[5m])), 1e-9)"
+          "expr": "100 * sum(rate(traces_span_metrics_calls_total{service_name=\"checkout\",span_kind=\"SPAN_KIND_SERVER\",status_code!=\"STATUS_CODE_ERROR\"}[5m])) / clamp_min(sum(rate(traces_span_metrics_calls_total{service_name=\"checkout\",span_kind=\"SPAN_KIND_SERVER\"}[5m])), 1e-9)"
         },
         {
           "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
           "refId": "B",
           "legendFormat": "frontend (browse)",
-          "expr": "100 * sum(rate(traces_span_metrics_calls_total{service_name=\"frontend\",status_code!=\"STATUS_CODE_ERROR\"}[5m])) / clamp_min(sum(rate(traces_span_metrics_calls_total{service_name=\"frontend\"}[5m])), 1e-9)"
+          "expr": "100 * sum(rate(traces_span_metrics_calls_total{service_name=\"frontend\",span_kind=\"SPAN_KIND_SERVER\",status_code!=\"STATUS_CODE_ERROR\"}[5m])) / clamp_min(sum(rate(traces_span_metrics_calls_total{service_name=\"frontend\",span_kind=\"SPAN_KIND_SERVER\"}[5m])), 1e-9)"
         },
         {
           "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
           "refId": "C",
           "legendFormat": "cart",
-          "expr": "100 * sum(rate(traces_span_metrics_calls_total{service_name=\"cart\",status_code!=\"STATUS_CODE_ERROR\"}[5m])) / clamp_min(sum(rate(traces_span_metrics_calls_total{service_name=\"cart\"}[5m])), 1e-9)"
+          "expr": "100 * sum(rate(traces_span_metrics_calls_total{service_name=\"cart\",span_kind=\"SPAN_KIND_SERVER\",status_code!=\"STATUS_CODE_ERROR\"}[5m])) / clamp_min(sum(rate(traces_span_metrics_calls_total{service_name=\"cart\",span_kind=\"SPAN_KIND_SERVER\"}[5m])), 1e-9)"
         }
       ]
     },
