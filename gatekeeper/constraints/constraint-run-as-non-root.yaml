@@ -1,0 +1,24 @@
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sPSPAllowedUsers
+metadata:
+  name: run-as-non-root
+  annotations:
+    description: >-
+      Bắt buộc containers phải chạy với user không phải root.
+      Yêu cầu runAsNonRoot: true hoặc runAsUser > 0 trong securityContext.
+      Áp dụng cho namespace techx-tf1.
+spec:
+  enforcementAction: deny
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+    namespaces:
+      - techx-tf1
+    excludedNamespaces:
+      - kube-system
+      - gatekeeper-system
+      - argocd
+  parameters:
+    runAsUser:
+      rule: MustRunAsNonRoot

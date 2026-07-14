@@ -1,0 +1,26 @@
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sDisallowCapabilities
+metadata:
+  name: deny-dangerous-capabilities
+  annotations:
+    description: >-
+      Bắt buộc containers phải drop ALL capabilities trong securityContext.
+      Chỉ cho phép add lại NET_BIND_SERVICE nếu thực sự cần bind port < 1024.
+      Áp dụng cho namespace techx-tf1. Loại trừ namespace hệ thống.
+spec:
+  enforcementAction: deny
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+    namespaces:
+      - techx-tf1
+    excludedNamespaces:
+      - kube-system
+      - gatekeeper-system
+      - argocd
+  parameters:
+    allowedCapabilities:
+      - NET_BIND_SERVICE
+    requiredDropCapabilities:
+      - ALL

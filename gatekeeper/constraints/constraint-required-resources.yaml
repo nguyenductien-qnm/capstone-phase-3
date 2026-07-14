@@ -1,0 +1,27 @@
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sRequiredResources
+metadata:
+  name: require-cpu-memory-limits-requests
+  annotations:
+    description: >-
+      Bắt buộc tất cả containers phải khai báo đầy đủ resources.requests
+      và resources.limits cho CPU và Memory. Áp dụng cho namespace techx-tf1.
+spec:
+  enforcementAction: deny
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+    namespaces:
+      - techx-tf1
+    excludedNamespaces:
+      - kube-system
+      - gatekeeper-system
+      - argocd
+  parameters:
+    limits:
+      - cpu
+      - memory
+    requests:
+      - cpu
+      - memory
