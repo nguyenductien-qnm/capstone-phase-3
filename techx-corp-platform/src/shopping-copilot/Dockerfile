@@ -27,5 +27,9 @@ COPY ./src/shopping-copilot/tools.py tools.py
 COPY ./src/shopping-copilot/agent.py agent.py
 COPY ./src/shopping-copilot/copilot_server.py copilot_server.py
 
+# MANDATE-05: no container runs as root
+RUN adduser -D -u 10001 copilot
+USER copilot
+
 EXPOSE ${SHOPPING_COPILOT_PORT}
 ENTRYPOINT [ "/venv/bin/opentelemetry-instrument", "/venv/bin/python", "copilot_server.py" ]

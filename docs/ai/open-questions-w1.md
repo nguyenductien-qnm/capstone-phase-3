@@ -4,7 +4,9 @@ Mỗi câu kèm bối cảnh 1 dòng + phương án để người trả lời c
 
 ## A. Hỏi CDO — valkey-cart (J1, CRITICAL — TTL cart đã KHÔI PHỤC 60m tạm thời 13/07 để an toàn, chờ CDO chốt hướng cuối — code CDO, SLO checkout của chung)
 
-Bối cảnh: `volatile-lru` được thêm **không kèm `--maxmemory`** (policy không chạy); TTL cart đã gỡ; limit container 20Mi → cart tích vô hạn → nguy cơ kubelet OOMKill = mất toàn bộ giỏ đang sống = đánh checkout ≥99%.
+> **✅ CẬP NHẬT 14/07: J1 đóng do hạ tầng đổi.** CDO đã migrate cart + reviews cache sang **ElastiCache Valkey managed** (`terraform/modules/elasticache/`, TLS + auth, failover); pod `valkey-cart` in-cluster đã tắt. Kịch bản OOMKill 20Mi không còn. Câu 1-4 dưới đây obsolete — chỉ còn cần CDO: (1) xác nhận `maxmemory-policy` trên param group (default `volatile-lru`), (2) CloudWatch alarm `Evictions > 0`, (3) co-sign hồi tố ADR-003 (đã có addendum 14/07 trong `05_adrs.md`). Tracked TF1-68.
+
+Bối cảnh (lịch sử): `volatile-lru` được thêm **không kèm `--maxmemory`** (policy không chạy); TTL cart đã gỡ; limit container 20Mi → cart tích vô hạn → nguy cơ kubelet OOMKill = mất toàn bộ giỏ đang sống = đánh checkout ≥99%.
 
 1. ✍️ Chọn hướng nào: **(a)** khôi phục TTL cart (60m như baseline, hay số khác?); **(b)** set `--maxmemory` (bao nhiêu? cần < cgroup limit) + nâng limit 20Mi lên; **(c)** cả hai?
 2. ✍️ Cache reviews của AI đang ở chung instance valkey-cart — CDO muốn **tách instance riêng** (thêm ~20-50Mi) hay chấp nhận chung + maxmemory? (Nếu chung + maxmemory: key reviews là nhóm volatile duy nhất → hứng 100% eviction trước.)
