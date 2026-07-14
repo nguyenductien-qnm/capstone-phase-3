@@ -24,6 +24,9 @@ Hệ thống hiện tại chạy trên K8s (EKS) với dịch vụ tóm tắt re
 | 10 | **TF1-53** | [Extend] Xây dựng script/tool cảnh báo vận hành | Observability | Thấp × Cao (2×4 = 8) | Gửi alert cảnh báo sớm về lỗi pool DB, OOM, DNS | $0 | Trung bình | Tích hợp script phát hiện lỗi và alert cứu hộ (công cụ xây thêm bên ngoài repo gốc). |
 | 11 | **TF1-54** | Triển khai Option 1 giải quyết xung đột Eviction Policy Valkey | Reliability / Cost | Cao × Cao (4×4 = 16) | Đảm bảo an toàn giỏ hàng dưới ngân sách $300 | $0 | Trung bình | Chốt kiến trúc Option 1: volatile-lru + Bỏ Cart TTL + Cron GC dọn dẹp hàng đêm. |
 | 12 | ~~**TF1-55**~~ → **TF1-58** | ~~Bổ sung rpc `AddReview` + `SubmitSummaryFeedback`~~ → Versioned cache key + nối Bedrock | Functional / Cost | Trung bình × Trung bình (3×3 = 9) | Làm mới cache đúng nguyên nhân (đổi model/prompt) | $0 | Trung bình | **TF1-55 đã huỷ.** Review là dữ liệu tĩnh seed qua `src/postgresql/init.sql`; không có UI viết review, không có nút feedback. Write-Around Invalidation và Thumbs Down sẽ invalidate cho sự kiện không bao giờ xảy ra. Thay bằng `reviews:summary:{product_id}:{model_ver}:{prompt_ver}` — xem ADR-001 và `03_specs/valkey_caching.md` §6. |
+| 13 | **TF1-61** | Bổ sung Guardrails chống Prompt Injection, PII & Hallucination | Security / Trust | Cao × Cao (5×5 = 25) | Ngăn chặn LLM trả về thông tin rác, lộ system prompt (MANDATE-06) | $0 | Trung bình | Yêu cầu bắt buộc của Ban tổ chức (hạn 18/07). |
+| 14 | **TF1-XX** | Graceful Shutdown cho Copilot & Product Reviews | Reliability | Trung bình × Cao (3×4 = 12) | Không rớt request khi deploy/restart (MANDATE-03) | $0 | Thấp | Yêu cầu bắt buộc của Ban tổ chức (hạn 16/07). Đã code xong trên nhánh `feat/TF1-59`. |
+| 15 | **TF1-YY** | Cấu hình Docker non-root cho Copilot | Security | Trung bình × Cao (3×4 = 12) | Chống rủi ro bảo mật leo thang đặc quyền (MANDATE-05) | $0 | Thấp | Yêu cầu bắt buộc của Ban tổ chức (hạn 17/07). Đã code xong trên nhánh `feat/TF1-59`. |
 
 
 ---
@@ -60,18 +63,18 @@ Các tính năng nâng cao để cạnh tranh top, triển khai Tuần 2-3 (sau 
 ### 👥 Danh sách Phân công Tiểu ban (Sub-teams):
 
 #### 🤖 Tiểu ban AIE (AI Engineering)
-1. **Nguyễn Hữu Định (AI Lead):** Phụ trách Quản trị rủi ro, Backlog (`00_backlog.md`) và Slide Pitching (`pitch.md`).
-2. **Nguyễn Công Thịnh:** Thiết kế Spec Valkey Cache & Fallback Routing.
-3. **Phan Đức Tài:** Thiết kế Spec gRPC Shopping Copilot & Hợp đồng tích hợp CDO.
-4. **Lê Kim Dũng:** Phát triển Shopping Copilot PoC (Streamlit) & Script chạy Evals.
+1. **Nguyễn Hữu Định (Định Nguyễn - AI Lead):** Phụ trách Quản trị rủi ro, Backlog, Slide Pitching, và code chính cho các task gán trên Jira (TF1-59, TF1-68, TF1-57).
+2. **Nguyễn Công Thịnh (Thịnh Nguyễn Công):** Thiết kế Spec Valkey Cache, Fallback Routing, Deploy Bedrock (TF1-65, TF1-60, TF1-46).
+3. **Phan Đức Tài:** Thiết kế Spec gRPC, Đo Bedrock latency (TF1-66, TF1-56, TF1-47).
+4. **Lê Kim Dũng (03 lê kim dũng):** Phát triển Shopping Copilot PoC, Evals (TF1-48, TF1-64).
 
 #### 📈 Tiểu ban AIOps (AI Operations)
-5. **Thịnh Nguyễn Hưng (Hưng Thịnh):** Thiết kế Spec Golden Signal Anomaly Detection (EWMA).
-6. **Nguyễn Ngọc Giao:** Thiết kế Spec Auto-Remediation closed-loop & Safety boundary.
-7. **Trần Mạnh Trường (Mạnh Trường):** Audit hạ tầng Telemetry & Phân tích trace context Jaeger.
-8. **Vinh Bui:** Nghiên cứu & Xây dựng Log Clustering sử dụng thuật toán Drain3.
-9. **Thanh Pham Huu Tien:** Xây dựng script/tool phát hiện lỗi và cảnh báo vận hành.
-10. **Thanh Hoang (Jax):** Đồng hành và hỗ trợ phát triển script cảnh báo vận hành.
+5. **Thịnh Nguyễn Hưng:** Thiết kế Spec Anomaly Detection, Telemetry, Cost (TF1-49, TF1-75, TF1-73).
+6. **Nguyễn Ngọc Giao:** Thiết kế Auto-Remediation, Verify EKS alert, Burn-rate alerting, Guardrails (TF1-50, TF1-79, TF1-69, TF1-61).
+7. **Trần Mạnh Trường:** Audit Telemetry & Chốt log backend (TF1-76).
+8. **Vinh Bui:** Xây dựng Log Clustering, Guardrails End-to-end (TF1-52, TF1-74, TF1-78).
+9. **Thanh Pham Huu Tien:** Deploy aiops-detector, Verify rule draft (TF1-62, TF1-71, TF1-53).
+10. **Thanh Hoang (Jax):** Backtest EWMA, Correlate stage RCA (TF1-80, TF1-70, TF1-51).
 
 ---
 
@@ -87,5 +90,12 @@ Các tính năng nâng cao để cạnh tranh top, triển khai Tuần 2-3 (sau 
 
 ## Ghi chú đồng bộ 14/07/2026
 - **Mandate mới từ BTC** (`_baseline-phase3/mandates/`): MANDATE-03 (bảo trì không downtime, hạn 16/07), MANDATE-05 (runtime hardening: non-root/pin image/limits + admission policy, hạn 17/07), **MANDATE-06 (AI trust & safety, hạn 18/07 — trụ AIE: mentor tự bắn injection + câu hỏi ngoài review, phải chặn/fallback; ADR ký tên; eval tái tạo được)**. MANDATE-04 chỉ áp TF4.
-- **Trạng thái Jira:** TF1-57 → Backlog (deferred theo W2 plan, description đã khớp title + reopen conditions); TF1-59 code xong trên PR #47 (servicer :50051, confirmation gate, audit log, test pass; Dockerfile non-root theo MANDATE-05) — chờ review/merge; TF1-68 J1 đóng do CDO migrate ElastiCache, còn chờ CDO co-sign ADR-003 (addendum 14/07).
+- **Trạng thái Jira (Cập nhật từ API Jira chiều 14/07):** 
+  - **TF1-57:** Backlog (deferred theo W2 plan, description đã khớp title + reopen conditions).
+  - **TF1-59:** In Progress - Implement ShoppingCopilotServiceServicer (đã code xong trên PR #47, chờ merge).
+  - **TF1-61:** Done - Guardrail prompt-injection / PII / lộ system prompt (hiện tại = 0).
+  - **TF1-68:** In Progress - Chốt ADR-003 valkey với CDO: maxmemory + tách instance.
+  - **TF1-74:** Backlog - Copilot end-to-end: confirmation gate + guardrail + injection eval trên agent thật (Đây chính là task để xử lý dứt điểm MANDATE-06).
+  - *Ngoài ra còn các task W2 mới từ TF1-62 đến TF1-80 cho AIOps và deploy EKS thật.*
+- Do TF1-61 đã đánh Done trên Jira, phần Action Guardrails & Hallucination Eval (MANDATE-06) sẽ được log vào task **TF1-74**. Việc cấu hình Graceful Shutdown & Non-root (MANDATE-03, 05) được log dưới dạng task kỹ thuật bổ trợ (TF1-XX, YY).
 - **TTL cart 60m đã khôi phục trong code** (`ValkeyCartStore.cs:188,216`) — giữ nguyên sau migration.

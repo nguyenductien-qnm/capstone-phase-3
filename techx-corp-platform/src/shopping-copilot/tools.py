@@ -162,3 +162,25 @@ def execute_add_item(user_id: str, product_id: str, quantity: int) -> str:
     except Exception as e:
         logger.error("execute_add_item error: %s", e)
         return _error_json(str(e))
+
+
+def list_recommendations(product_ids: list[str]) -> str:
+    """Intent 5 (read) — get AI recommendations for given product IDs via RecommendationService."""
+    try:
+        RECOMMENDATION_ADDR = os.environ.get("RECOMMENDATION_ADDR", "recommendation:8080")
+        with grpc.insecure_channel(RECOMMENDATION_ADDR) as channel:
+            stub = demo_pb2_grpc.RecommendationServiceStub(channel)
+            response = stub.ListRecommendations(
+                demo_pb2.ListRecommendationsRequest(product_ids=product_ids),
+                timeout=_RPC_TIMEOUT,
+            )
+        return json.dumps({
+            "status": "ok",
+            "recommended_product_ids": list(response.product_ids)
+        })
+    except grpc.RpcError as e:
+        logger.error("ListRecommendations RPC failed: %s", e)
+        return _error_json(f"ListRecommendations failed: {e.code().name} – {e.details()}")
+    except Exception as e:
+        logger.error("list_recommendations error: %s", e)
+        return _error_json(str(e))

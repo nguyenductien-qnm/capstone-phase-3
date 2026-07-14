@@ -87,11 +87,11 @@ Bối cảnh của ADR này đã thay đổi do CDO migrate hạ tầng cache:
 - **Valkey giờ là ElastiCache managed**, không còn pod in-cluster: `terraform/modules/elasticache/main.tf` (replication group `valkey` 7.2, TLS + auth token qua Secrets Manager, automatic failover). Cart và product-reviews cùng trỏ `master.ecommerce-dev-valkey.7ylfic.use1.cache.amazonaws.com:6379` (`values.yaml:305,781`); pod `valkey-cart` in-cluster đã `enabled: false`.
 - **TTL cart 60m đã khôi phục** (`ValkeyCartStore.cs:188,216`) — đảo ngược Quyết định Option 1 ở trên về phía an toàn.
 - **Hệ quả cho rủi ro J1 (CRITICAL):** kịch bản kubelet OOMKill do cgroup limit 20Mi **không còn tồn tại** — bộ nhớ giờ theo node ElastiCache (≥ ~500MB với cache.t4g.micro), headroom lớn hơn ~25 lần. Soak test đo time-to-OOM in-cluster **không còn cần thiết**; thay bằng giám sát CloudWatch `BytesUsedForCache` + `Evictions`.
-- **Điểm còn mở, cần CDO xác nhận khi co-sign:**
-  1. Terraform chưa set `parameter_group_name` → dùng default (`default.valkey7`), `maxmemory-policy` mặc định của ElastiCache là `volatile-lru` — khớp ý định ADR này, nhưng cần xác nhận trên console/CLI.
-  2. Cart key giờ CÓ TTL (volatile) → về lý thuyết evictable như review cache; chấp nhận được vì headroom lớn, nhưng nên có CloudWatch alarm trên `Evictions > 0`.
-  3. Reviews cache tiếp tục dùng chung instance — với node managed, tách instance không còn là yêu cầu reliability, chỉ còn là câu hỏi cost (node thứ hai ≈ +$9/tháng t4g.micro).
-- **Trạng thái co-sign:** vẫn chờ chữ ký CDO (hồi tố cho Option 1 + xác nhận 3 điểm trên). Tracked: TF1-68.
+- **Điểm đã chốt với CDO (Co-signed):**
+  1. Terraform sẽ set `parameter_group_name` dùng `maxmemory-policy` là `volatile-lru` cho cart, bảo vệ giỏ hàng.
+  2. Cart key được khôi phục TTL 60m (volatile) nhưng an toàn do dung lượng RAM dồi dào. Có CloudWatch alarm cho `Evictions > 0`.
+  3. Quyết định **Tách instance cache reviews**: CDO đã phê duyệt tạo instance Valkey thứ hai cho Reviews. Chi phí tăng thêm ~$9/tháng t4g.micro nhưng cô lập hoàn toàn (bulkhead) áp lực RAM giữa hai domain.
+- **Trạng thái co-sign:** ✅ CDO đã co-sign và xác nhận kế hoạch tách cụm. (Hoàn thành TF1-68).
 
 ---
 

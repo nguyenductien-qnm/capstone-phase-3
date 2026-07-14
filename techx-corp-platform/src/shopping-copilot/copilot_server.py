@@ -82,7 +82,11 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
         session = self._sessions.setdefault(request.session_id or request.user_id, [])
         session.append({"role": "user", "content": [{"text": request.question}]})
 
-        result = agent.run_agent(self._bedrock, MAIN_MODEL, session, request.user_id)
+        import model_router
+        routed_model = model_router.get_routed_model("copilot", MAIN_MODEL)
+        logger.info(f"Routed model for copilot: {routed_model}")
+
+        result = agent.run_agent(self._bedrock, routed_model, session, request.user_id)
 
         session.append({"role": "assistant", "content": [{"text": result.text}]})
         # Bound the stored context so old turns don't crowd the window.
