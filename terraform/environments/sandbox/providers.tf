@@ -9,6 +9,10 @@ terraform {
       source  = "hashicorp/tls"
       version = "~> 4.0"
     }
+    archive = {
+      source  = "hashicorp/archive"
+      version = "~> 2.0"
+    }
   }
 
   backend "s3" {
@@ -32,3 +36,6 @@ provider "aws" {
     }
   }
 }
+
+data "aws_caller_identity" "current" {}
+
