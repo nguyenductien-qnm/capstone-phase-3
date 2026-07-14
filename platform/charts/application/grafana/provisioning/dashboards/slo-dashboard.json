@@ -148,7 +148,7 @@
       "id": 4,
       "type": "stat",
       "title": "Storefront p95 latency (SLO < 1s)",
-      "description": "p95 duration span frontend (ms). Nguong 1000ms.",
+      "description": "p95 duration span frontend-proxy (Envoy edge, low-cardinality). Nguong 1000ms.",
       "fieldConfig": {
         "defaults": {
           "unit": "ms",
@@ -172,7 +172,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
           "refId": "A",
-          "expr": "histogram_quantile(0.95, sum(rate(traces_span_metrics_duration_milliseconds_bucket{service_name=\"frontend\"}[5m])) by (le))"
+          "expr": "histogram_quantile(0.95, sum(rate(traces_span_metrics_duration_milliseconds_bucket{service_name=\"frontend-proxy\"}[5m])) by (le))"
         }
       ]
     },
@@ -331,7 +331,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 17 },
       "id": 9,
       "type": "timeseries",
-      "title": "Latency p95/p99 storefront (frontend, ms)",
+      "title": "Latency p95/p99 storefront (frontend-proxy edge, ms)",
       "fieldConfig": {
         "defaults": {
           "unit": "ms",
@@ -355,13 +355,13 @@
           "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
           "refId": "A",
           "legendFormat": "p95",
-          "expr": "histogram_quantile(0.95, sum(rate(traces_span_metrics_duration_milliseconds_bucket{service_name=\"frontend\"}[5m])) by (le))"
+          "expr": "histogram_quantile(0.95, sum(rate(traces_span_metrics_duration_milliseconds_bucket{service_name=\"frontend-proxy\"}[5m])) by (le))"
         },
         {
           "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
           "refId": "B",
           "legendFormat": "p99",
-          "expr": "histogram_quantile(0.99, sum(rate(traces_span_metrics_duration_milliseconds_bucket{service_name=\"frontend\"}[5m])) by (le))"
+          "expr": "histogram_quantile(0.99, sum(rate(traces_span_metrics_duration_milliseconds_bucket{service_name=\"frontend-proxy\"}[5m])) by (le))"
         }
       ]
     }

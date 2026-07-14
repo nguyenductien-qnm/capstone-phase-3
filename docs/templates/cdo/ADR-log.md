@@ -59,7 +59,7 @@
 - **Bằng chứng runtime (14/07/2026, `aws elasticache describe-replication-groups --replication-group-id ecommerce-dev-valkey`):**
   - 2 node: `ecommerce-dev-valkey-001` (primary, **us-east-1b**), `ecommerce-dev-valkey-002` (replica, **us-east-1a**).
   - `AutomaticFailover = enabled`; node đã nằm ở **2 AZ khác nhau**.
-  - Caveat phát hiện: `MultiAZ = disabled` → đã quyết bật (mục trên). Cart dùng primary DNS endpoint → tự repoint khi failover.
+  - Caveat phát hiện: `MultiAZ = disabled` → **đã bật + verify live 14/07/2026** (`terraform apply -target=module.elasticache`: plan 1 in-place change, sau apply `MultiAZ=enabled`, Status=available, không recreate). Cart dùng primary DNS endpoint → tự repoint khi failover.
 - **Phương án khác đã cân:** A) Giữ valkey in-cluster + thêm replica/Sentinel (loại: tự vận hành HA cache trên K8s tốn công + rủi ro, trong khi managed rẻ và ổn hơn). B) Chấp nhận SPOF (loại: vi phạm yêu cầu ② Mandate-03 "không điểm chết đơn lẻ trên luồng ra tiền"). C) Không bật MultiAZ, chỉ dựa auto-failover (loại: node đã cross-AZ nhưng thiếu guarantee chính thức của AWS; bật flag chi phí $0).
 - **Cost Δ:** 2× `cache.t4g.micro` (đã đang chạy) — trong trần $300/tuần. Bật MultiAZ **$0** (không tính phí riêng, không thêm node).
 - **Ảnh hưởng SLO:** Hết SPOF giỏ hàng → giữ cart ≥99.5%. Residual risk: failover blip vài giây khi mất primary (nằm trong cart error budget 0.5%; cart có readiness gate + HPA min=2 + retry). Single-primary write là đặc tính chấp nhận của ElastiCache (không multi-master).

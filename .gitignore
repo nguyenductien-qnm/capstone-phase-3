@@ -47,3 +47,6 @@ _baseline-phase3/
 # Python bytecode & local artifacts (review 12/07: pycache tung bi commit o root)
 *.pyc
 *.db
+
+# CDO-83 evidence output (runtime snapshots)
+docs/templates/cdo/evidence/
