@@ -174,12 +174,12 @@ resource "aws_launch_template" "node" {
 }
 
 resource "aws_eks_node_group" "this" {
-  cluster_name    = aws_eks_cluster.this.name
-  node_group_name = "${local.cluster_name}-primary"
-  node_role_arn   = aws_iam_role.node.arn
-  subnet_ids      = var.private_subnet_ids
-  instance_types  = var.node_instance_types
-  capacity_type   = var.node_capacity_type
+  cluster_name           = aws_eks_cluster.this.name
+  node_group_name_prefix = "${local.cluster_name}-primary-"
+  node_role_arn          = aws_iam_role.node.arn
+  subnet_ids             = var.private_subnet_ids
+  instance_types         = var.node_instance_types
+  capacity_type          = var.node_capacity_type
 
   launch_template {
     id      = aws_launch_template.node.id
@@ -209,10 +209,12 @@ resource "aws_eks_node_group" "this" {
 
   depends_on = [aws_iam_role_policy_attachment.node]
 
-  # MANDATE-02: Cluster Autoscaler LÀ chủ sở hữu desired_size lúc runtime. Bỏ qua drift để
-  # terraform apply không "giật" số node CA đang giữ ngược lại. min/max vẫn do terraform quản.
+  # Instance type changes replace an EKS managed node group. Create the replacement first so
+  # workloads move to healthy nodes before EKS drains and removes the previous group. Scheduled
+  # actions own runtime desired capacity, while Terraform keeps the configured 3-node baseline.
   lifecycle {
-    ignore_changes = [scaling_config[0].desired_size]
+    create_before_destroy = true
+    ignore_changes        = [scaling_config[0].desired_size]
   }
 
   tags = {

@@ -31,6 +31,7 @@ tfplan
 *.tfvars
 *.tfvars.json
 !terraform/environments/*/access.auto.tfvars
+!terraform/environments/sandbox/primary-capacity.tfvars
 
 # Ignore temporary logs
 *.log

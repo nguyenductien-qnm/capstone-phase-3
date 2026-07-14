@@ -205,7 +205,10 @@ jobs:
         id: plan
         run: |
           set +e
-          terraform plan -no-color -input=false -lock-timeout="$TF_LOCK_TIMEOUT" -var-file="$RUNNER_TEMP/sandbox.tfvars" -detailed-exitcode -out=tfplan
+          terraform plan -no-color -input=false -lock-timeout="$TF_LOCK_TIMEOUT" \
+            -var-file="$RUNNER_TEMP/sandbox.tfvars" \
+            -var-file="primary-capacity.tfvars" \
+            -detailed-exitcode -out=tfplan
           PLAN_EXIT=$?
           set -e
           if [ "$PLAN_EXIT" -eq 1 ]; then

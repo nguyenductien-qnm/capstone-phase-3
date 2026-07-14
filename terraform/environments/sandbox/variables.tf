@@ -106,6 +106,7 @@ variable "eks_control_plane_log_retention_days" {
 variable "eks_node_instance_types" {
   type        = list(string)
   description = "Các EC2 instance type cho EKS managed node group"
+  default     = ["t3.medium"]
 }
 
 variable "eks_node_capacity_type" {
@@ -128,9 +129,9 @@ variable "eks_node_scaling" {
     desired_size = number
   })
   default = {
-    min_size     = 2
-    max_size     = 6
-    desired_size = 2
+    min_size     = 3
+    max_size     = 4
+    desired_size = 3
   }
 }
 
@@ -244,8 +245,6 @@ variable "rds_multi_az" {
   type        = bool
   description = "Bật/Tắt chế độ Multi-AZ cho Primary DB"
 }
-
-
 
 
 
