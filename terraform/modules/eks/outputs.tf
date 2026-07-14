@@ -43,3 +43,8 @@ output "node_role_arn" {
   description = "Managed node group IAM role ARN"
   value       = aws_iam_role.node.arn
 }
+
+output "cluster_autoscaler_role_arn" {
+  description = "IRSA role ARN for the Cluster Autoscaler (annotate on kube-system/cluster-autoscaler SA)"
+  value       = try(aws_iam_role.cluster_autoscaler[0].arn, null)
+}

@@ -209,6 +209,12 @@ resource "aws_eks_node_group" "this" {
 
   depends_on = [aws_iam_role_policy_attachment.node]
 
+  # MANDATE-02: Cluster Autoscaler LÀ chủ sở hữu desired_size lúc runtime. Bỏ qua drift để
+  # terraform apply không "giật" số node CA đang giữ ngược lại. min/max vẫn do terraform quản.
+  lifecycle {
+    ignore_changes = [scaling_config[0].desired_size]
+  }
+
   tags = {
     Name = "${local.cluster_name}-primary"
   }
