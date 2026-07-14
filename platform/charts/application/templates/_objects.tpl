@@ -46,7 +46,7 @@ spec:
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway   # 2 node/budget chặt → tránh Pending; nâng DoNotSchedule khi >=2 node ổn định
+          whenUnsatisfiable: {{ .topologySpreadWhenUnsatisfiable | default "DoNotSchedule" }}   # CDO-34: DoNotSchedule (hard) — ép 2 pod critical ra khác node để mất-node không sập cả service. An toàn vì cluster >=3 node ổn định + có Cluster Autoscaler (ADR-REL-003) bù node khi Pending. Override "ScheduleAnyway" per-component nếu cần nới.
           labelSelector:
             matchLabels:
               {{- include "techx-corp.selectorLabels" . | nindent 14 }}
