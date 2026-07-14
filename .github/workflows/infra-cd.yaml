@@ -360,18 +360,37 @@ jobs:
           aws eks update-kubeconfig --name "$CLUSTER_NAME" --region "$AWS_REGION"
           kubectl cluster-info
 
-      - name: Cài ArgoCD qua Helm (idempotent)
+      - name: Ensure ArgoCD is available
         run: |
           set -euo pipefail
-          helm repo add argo https://argoproj.github.io/argo-helm
-          helm repo update
-          helm upgrade --install argocd argo/argo-cd \
+
+          if helm status argocd --namespace "$ARGOCD_NAMESPACE" >/dev/null 2>&1; then
+            install_with_helm=true
+            echo "ArgoCD is Helm-managed; upgrading the existing release."
+          elif kubectl get deployment argocd-server \
+            --namespace "$ARGOCD_NAMESPACE" >/dev/null 2>&1; then
+            install_with_helm=false
+            echo "ArgoCD is already installed outside Helm; preserving the existing installation."
+          else
+            install_with_helm=true
+            echo "ArgoCD is not installed; creating a Helm release."
+          fi
+
+          if [ "$install_with_helm" = "true" ]; then
+            helm repo add argo https://argoproj.github.io/argo-helm --force-update
+            helm repo update
+            helm upgrade --install argocd argo/argo-cd \
+              --namespace "$ARGOCD_NAMESPACE" \
+              --create-namespace \
+              --version "$ARGOCD_CHART_VERSION" \
+              --set server.service.type=ClusterIP \
+              --wait \
+              --timeout 5m
+          fi
+
+          kubectl wait --for=condition=Ready pod --all \
             --namespace "$ARGOCD_NAMESPACE" \
-            --create-namespace \
-            --version "$ARGOCD_CHART_VERSION" \
-            --set server.service.type=ClusterIP \
-            --wait \
-            --timeout 5m
+            --timeout=5m
           kubectl get pods -n "$ARGOCD_NAMESPACE"
 
       - name: Apply ArgoCD Root App (App-of-Apps)
