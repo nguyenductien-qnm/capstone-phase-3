@@ -26,4 +26,5 @@ observability: OTel → Prometheus/OpenSearch/Jaeger ──► aiops-detector (p
 | Log backend | Đề xuất CDO cân nhắc Loki/bóp OpenSearch — nhu cầu AI chỉ là phrase-count 5m + batch read | Chi tiết: `ai-data-requirements-for-cdo.md` |
 
 ## 3. Rủi ro mở
-J1 valkey-cart (maxmemory/TTL — chờ CDO), IAM Bedrock chưa có (chặn deploy thật), copilot chưa có code (chart disabled).
+~~J1 valkey-cart (maxmemory/TTL — chờ CDO), IAM Bedrock chưa có (chặn deploy thật), copilot chưa có code (chart disabled).~~
+**[CẬP NHẬT 14/07]** J1 **đóng** — CDO migrate sang ElastiCache Valkey managed (ADR-003 addendum; còn chờ co-sign, TF1-68). Copilot **đã có code** — servicer thật trên `:50051`, PR #47 (TF1-59); chart vẫn `enabled: false` chờ CDO build image + flip (J2). Còn mở: **IAM Bedrock (IRSA)** cho `product-reviews` + `shopping-copilot` — blocker deploy thật duy nhất (open-questions B1); MANDATE-06 (hạn 18/07) yêu cầu demo chặn injection/hallucination trước mentor.
