@@ -179,6 +179,19 @@ jobs:
           role-to-assume: ${{ secrets.TF_AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Materialize sandbox variables
+        shell: bash
+        env:
+          TFVARS_SANDBOX: ${{ secrets.TFVARS_SANDBOX }}
+        run: |
+          set -euo pipefail
+          if [ -z "$TFVARS_SANDBOX" ]; then
+            echo "::error::TFVARS_SANDBOX is not configured in the sandbox environment"
+            exit 1
+          fi
+          umask 077
+          printf '%s\n' "$TFVARS_SANDBOX" > "$RUNNER_TEMP/sandbox.tfvars"
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
@@ -192,7 +205,7 @@ jobs:
         id: plan
         run: |
           set +e
-          terraform plan -no-color -input=false -lock-timeout="$TF_LOCK_TIMEOUT" -detailed-exitcode -out=tfplan
+          terraform plan -no-color -input=false -lock-timeout="$TF_LOCK_TIMEOUT" -var-file="$RUNNER_TEMP/sandbox.tfvars" -detailed-exitcode -out=tfplan
           PLAN_EXIT=$?
           set -e
           if [ "$PLAN_EXIT" -eq 1 ]; then

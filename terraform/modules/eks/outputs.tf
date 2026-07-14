@@ -39,6 +39,11 @@ output "node_group_name" {
   value       = aws_eks_node_group.this.node_group_name
 }
 
+output "ops_node_group_name" {
+  description = "Dedicated observability managed node group name"
+  value       = aws_eks_node_group.ops.node_group_name
+}
+
 output "node_role_arn" {
   description = "Managed node group IAM role ARN"
   value       = aws_iam_role.node.arn
@@ -47,4 +52,9 @@ output "node_role_arn" {
 output "cluster_autoscaler_role_arn" {
   description = "IRSA role ARN for the Cluster Autoscaler (annotate on kube-system/cluster-autoscaler SA)"
   value       = try(aws_iam_role.cluster_autoscaler[0].arn, null)
+}
+
+output "ebs_csi_role_arn" {
+  description = "Pod Identity IAM role ARN for the EBS CSI controller"
+  value       = aws_iam_role.ebs_csi.arn
 }

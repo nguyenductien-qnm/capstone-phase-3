@@ -109,6 +109,16 @@ output "eks_node_group_name" {
   value       = module.eks.node_group_name
 }
 
+output "eks_ops_node_group_name" {
+  description = "Tên EKS managed node group cho observability"
+  value       = module.eks.ops_node_group_name
+}
+
+output "eks_ebs_csi_role_arn" {
+  description = "Pod Identity IAM role cho EBS CSI controller"
+  value       = module.eks.ebs_csi_role_arn
+}
+
 output "eks_update_kubeconfig_command" {
   description = "Lệnh cấu hình kubectl sau khi đăng nhập AWS SSO"
   value       = "aws eks update-kubeconfig --region ${var.aws_region} --name ${module.eks.cluster_name}"
@@ -138,7 +148,6 @@ output "msk_secret_arn" {
   description = "ARN của Secret Manager lưu msk credentials"
   value       = module.msk.msk_secret_arn
 }
-
 
 
 
