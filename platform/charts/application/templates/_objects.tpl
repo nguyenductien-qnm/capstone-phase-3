@@ -46,7 +46,7 @@ spec:
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: {{ .topologySpreadWhenUnsatisfiable | default "DoNotSchedule" }}   # CDO-34: DoNotSchedule (hard) — ép 2 pod critical ra khác node để mất-node không sập cả service. Sandbox giữ cố định 3 primary node; override "ScheduleAnyway" per-component nếu cần nới.
+          whenUnsatisfiable: {{ .topologySpreadWhenUnsatisfiable | default "DoNotSchedule" }}   # CDO-34: DoNotSchedule (hard) — ép 2 pod critical ra khác node để mất-node không sập cả service. Sandbox giữ baseline 2 primary node và pre-scale lên 3; override "ScheduleAnyway" per-component nếu cần nới.
           labelSelector:
             matchLabels:
               {{- include "techx-corp.selectorLabels" . | nindent 14 }}

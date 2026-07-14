@@ -211,7 +211,7 @@ resource "aws_eks_node_group" "this" {
 
   # Instance type changes replace an EKS managed node group. Create the replacement first so
   # workloads move to healthy nodes before EKS drains and removes the previous group. Scheduled
-  # actions own runtime desired capacity, while Terraform keeps the configured 3-node baseline.
+  # actions own runtime desired capacity, while Terraform keeps the configured 2-node baseline.
   lifecycle {
     create_before_destroy = true
     ignore_changes        = [scaling_config[0].desired_size]

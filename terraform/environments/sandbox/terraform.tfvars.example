@@ -55,9 +55,9 @@ eks_node_instance_types = ["t3.medium"]
 eks_node_capacity_type  = "ON_DEMAND"   # hoặc SPOT
 
 eks_node_scaling = {
-  min_size     = 3
-  max_size     = 4
-  desired_size = 3
+  min_size     = 2
+  max_size     = 3
+  desired_size = 2
 }
 
 # Dedicated observability MNG: fixed at one non-burstable node in us-east-1b.
