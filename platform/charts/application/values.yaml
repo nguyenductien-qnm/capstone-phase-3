@@ -69,12 +69,16 @@ default:
 resourceGovernance:
   resourceQuota:
     enabled: true
+    # MANDATE-02: raised from 4/8/8Gi/12Gi/40 after live load test (200 users) hit
+    # `limits.cpu=8` ceiling -> HPA pods rejected with FailedCreate (exceeded quota)
+    # while nodes sat ~43% idle. Sized to full HPA-max peak + headroom:
+    #   peak requests.cpu~5.35 -> 6 ; peak limits.cpu~12.65 -> 14 ; fits within 5x t3.large.
     hard:
-      requests.cpu: "4"
-      requests.memory: 8Gi
-      limits.cpu: "8"
-      limits.memory: 12Gi
-      pods: "40"
+      requests.cpu: "6"
+      requests.memory: 10Gi
+      limits.cpu: "14"
+      limits.memory: 16Gi
+      pods: "70"
   limitRange:
     enabled: true
     # default = limit mặc định khi container không khai; defaultRequest = request mặc định.
