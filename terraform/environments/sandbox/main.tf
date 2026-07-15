@@ -12,6 +12,13 @@ locals {
       kubernetes_groups  = []
     }
   }
+
+  # Tên CỐ ĐỊNH làm CloudFront origin. ALB (do Ingress frontend-proxy sinh) phục vụ
+  # tên này; external-dns tự tạo record trỏ về ALB. Terraform biết giá trị ngay lúc
+  # plan -> apply 1 lần, không cần dò ALB runtime, không cần toggle/commit lần 2.
+  # PHẢI khớp ingress host trong platform/charts/application/values.yaml.
+  # Dùng "origin-" (1 cấp con) để khớp cert wildcard *.nguyenductien.cloud.
+  origin_hostname = "origin-${var.subdomain}"
 }
 
 module "vpc" {
@@ -98,13 +105,31 @@ module "ecr" {
   ecr_repositories = var.ecr_repositories
 }
 
+# IRSA cho external-dns: quyền ghi record trong ĐÚNG hosted zone của subdomain.
+module "external_dns_irsa" {
+  source = "../../modules/external-dns-irsa"
+  count  = var.enable_cloudfront ? 1 : 0
+
+  project_name      = var.project_name
+  environment       = var.environment
+  oidc_provider_arn = module.eks.oidc_provider_arn
+  oidc_issuer_url   = module.eks.oidc_issuer_url
+  hosted_zone_id    = var.route53_zone_id
+}
+
+# CloudFront lấy nội dung từ ALB qua tên cố định origin-<subdomain>, không phải DNS
+# ngẫu nhiên của ALB. Record do external-dns tự tạo khi Ingress frontend-proxy lên.
+# ALB bị thay -> external-dns trỏ lại; origin không đổi, CloudFront không phải sửa.
+#
+# Lần apply đầu: record chưa tồn tại -> origin lỗi cho tới khi external-dns tạo xong
+# (thường <1 phút sau khi ALB ready). Eventual consistency, không blocking.
 module "cloudfront" {
   source = "../../modules/cloudfront"
   count  = var.enable_cloudfront ? 1 : 0
 
   project_name        = var.project_name
   environment         = var.environment
-  origin_domain_name  = var.nlb_dns_name
+  origin_domain_name  = local.origin_hostname
   acm_certificate_arn = var.acm_certificate_arn
   aliases             = [var.subdomain]
 }
