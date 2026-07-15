@@ -39,7 +39,7 @@ Bài học tự thân từ review này: **đề xuất fix ban đầu của chí
 | T5 | AIOps core: "phát hiện → xử lý an toàn → verify, **chạy liên tục**" (RULES.md §4) | Detector sống liên tục; MTTD nhỏ so error budget (non-5xx 0.5%/24h ≈ 7.2 phút/ngày; checkout 1% ≈ 14.4 phút) | Đo MTTD thật bằng chaos flagd — G4 (đo trong review này) | ⚠️ Poll loop đạt "chạy liên tục"; MTTD xem kết quả đo G4 |
 | T6 | Budget $300/tuần; "quyết định tốn tiền phải cân lợi ích + ADR" (BUDGET.md) | Cost model có mẫu số kiểm chứng được | Billing test / Cost Explorer | ⚠️ Mẫu số 10:1 có nguồn ✓; claim credit Claude chưa verify (B4) |
 | T7 | Cấm "tắt/đổi hướng cơ chế sự cố (flagd)" (AI_FEATURE §3) | Không code path đọc flag sự cố để né sự cố | Đọc code | ⚠️ B2: circuit breaker đọc `llmRateLimitError` — vùng xám, cần hỏi BTC |
-| T8 | Cart write phải có cổng xác nhận (CLAUDE.md, AI_FEATURE Phần B) | Không tool ghi giỏ chạy không confirm | E2E copilot + prompt injection test | ⏳ Copilot mới ở PoC/spec — kiểm khi có code |
+| T8 | Cart write phải có cổng xác nhận (CLAUDE.md, AI_FEATURE Phần B) | Không tool ghi giỏ chạy không confirm | E2E copilot + prompt injection test | ✅ **Đã xác nhận 15/07:** Code đã hoàn thiện trên nhánh `feat/TF1-57-59-68` với Action Gating (xem ADR-011). |
 
 Hệ quả cho câu hỏi poll interval (G4): đề chỉ đòi (a) chạy liên tục, (b) phát hiện nhanh so với error budget, (c) không phá budget hạ tầng. Không có chữ nào đòi realtime → poll là đúng đề; số poll chốt bằng phép đo G4, không phải bằng chuẩn ngành.
 
@@ -251,7 +251,7 @@ Tiêu chí "phương pháp tối ưu" theo đề: (1) giải đúng bài đề n
 | `golden_signals_detection.md` | Hybrid static-threshold + EWMA 3σ | ⚠️ **Hạ verdict (xem K1)** — EWMA hợp lý, nhưng rule error-rate là single-window raw threshold, vi phạm nguyên tắc burn-rate của chính giáo trình AIOps course | Xem K1. Backtest alpha (G5), MTTD pipeline đã đo (G4). |
 | `log_clustering.md` | Drain3, sim_th 0.4 depth 4 | ✅ **Chuẩn canon** | Drain là phương pháp chuẩn log template mining; params = default thư viện; phù hợp quy mô. |
 | `anomaly_remediation.md` | Dry-run → blast radius 1 pod/h → verify 120s → CB 3 fails → escalate | ✅ **Tối ưu theo cấu trúc** (đề trích nguyên văn pipeline này ở RULES.md §4 AIOps core) | Các số 120s/3 fails/1 pod/h là assumption hợp lý nhưng cần label + eval khi bật auto-remediation (tuần sau). Tuần 1 detect-only là đúng trình tự. |
-| Copilot spec (3 intent + confirmation gate) | Tool-calling agent + gate xác nhận trước ghi cart | ✅ **Đề bắt buộc đúng dạng này** | Đánh giá thực thi khi có code (T8). |
+| Copilot spec (3 intent + confirmation gate) | Tool-calling agent + gate xác nhận trước ghi cart | ✅ **Đề bắt buộc đúng dạng này** | **[CẬP NHẬT 15/07]** Đã thực thi xong trên codebase (MANDATE-06, xem ADR-011). |
 
 **Tóm tắt trả lời "phương pháp đã tối ưu nhất chưa":** 4/8 tối ưu, 2/8 đúng hướng nhưng thực thi/chi tiết sai, 2 phản-tối ưu rõ (dynamic TTL, semantic search pgvector cho N=10). Điểm hệ thống: các spec có xu hướng **chọn phương pháp theo template ngành** (HNSW, dynamic TTL, adaptive retry) thay vì theo **quy mô dữ liệu thật của hệ (10 sản phẩm, 50 reviews)** — đây chính là dạng "cảm tính có vỏ kỹ thuật" mà đề trừ điểm.
 
@@ -274,7 +274,7 @@ Ba mảnh đã verify từ code/config thật, ghép lại thành chuỗi hỏng
 
 ### J2. HIGH — `shopping-copilot: enabled: true` trong values.yaml nhưng không có source, không có image
 - `techx-corp-platform/src/` không có thư mục copilot; `nghiadaulau/techx-corp:1.0-shopping-copilot` không tồn tại trên hub (đã probe manifest).
-- Helm deploy hiện tại → Deployment ImagePullBackOff vĩnh viễn: xấu T2, sinh noise event/alert. Fix 1 dòng: `enabled: false` tới khi có image; bật lại trong PR chứa code copilot.
+- Helm deploy hiện tại → Deployment ImagePullBackOff vĩnh viễn: xấu T2, sinh noise event/alert. Fix 1 dòng: `enabled: false` tới khi có image; bật lại trong PR chứa code copilot. **[CẬP NHẬT 15/07]** Source code cho `shopping-copilot` hiện đã được hoàn thành (kèm theo Guardrails và Action Gating). Việc build và push image sẽ được giải quyết sau khi nhánh `feat/TF1-57-59-68` merge.
 
 ### J3. Tự soi claim của chính review này (không miễn trừ ai)
 | Claim của review | Kết quả tự kiểm | Hành động |
