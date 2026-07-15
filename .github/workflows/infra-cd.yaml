@@ -392,12 +392,16 @@ jobs:
               --timeout 10m
           fi
 
-          kubectl rollout status deployment --all \
-            --namespace "$ARGOCD_NAMESPACE" \
-            --timeout=5m
-          kubectl rollout status statefulset --all \
-            --namespace "$ARGOCD_NAMESPACE" \
-            --timeout=5m
+          for kind in deployment statefulset; do
+            while IFS= read -r workload; do
+              [ -n "$workload" ] || continue
+              kubectl rollout status "$workload" \
+                --namespace "$ARGOCD_NAMESPACE" \
+                --timeout=5m
+            done < <(kubectl get "$kind" \
+              --namespace "$ARGOCD_NAMESPACE" \
+              --output=name)
+          done
           kubectl get pods -n "$ARGOCD_NAMESPACE"
 
       - name: Apply ArgoCD Root App (App-of-Apps)
