@@ -388,10 +388,14 @@ jobs:
               --version "$ARGOCD_CHART_VERSION" \
               --set server.service.type=ClusterIP \
               --wait \
-              --timeout 5m
+              --wait-for-jobs \
+              --timeout 10m
           fi
 
-          kubectl wait --for=condition=Ready pod --all \
+          kubectl rollout status deployment --all \
+            --namespace "$ARGOCD_NAMESPACE" \
+            --timeout=5m
+          kubectl rollout status statefulset --all \
             --namespace "$ARGOCD_NAMESPACE" \
             --timeout=5m
           kubectl get pods -n "$ARGOCD_NAMESPACE"
