@@ -35,6 +35,12 @@ module "vpc" {
   single_nat_gateway   = var.single_nat_gateway
   public_subnet_tags   = var.public_subnet_tags
   private_subnet_tags  = var.private_subnet_tags
+  private_app_subnet_tags = merge(
+    var.private_app_subnet_tags,
+    {
+      "karpenter.sh/discovery" = "${var.project_name}-${var.environment}-eks"
+    }
+  )
 }
 
 module "eks" {

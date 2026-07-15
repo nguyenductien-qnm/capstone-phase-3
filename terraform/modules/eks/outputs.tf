@@ -58,3 +58,18 @@ output "ebs_csi_role_arn" {
   description = "Pod Identity IAM role ARN for the EBS CSI controller"
   value       = aws_iam_role.ebs_csi.arn
 }
+
+output "karpenter_controller_role_arn" {
+  description = "Pod Identity IAM role ARN for the Karpenter controller"
+  value       = aws_iam_role.karpenter_controller.arn
+}
+
+output "karpenter_node_role_name" {
+  description = "IAM role name used by Karpenter-managed EC2 nodes"
+  value       = aws_iam_role.karpenter_node.name
+}
+
+output "karpenter_node_instance_profile_name" {
+  description = "IAM instance profile name used by the Karpenter EC2NodeClass"
+  value       = aws_iam_instance_profile.karpenter_node.name
+}
