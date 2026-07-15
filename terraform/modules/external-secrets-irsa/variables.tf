@@ -34,3 +34,9 @@ variable "secret_arns" {
   type        = list(string)
   description = "Danh sách ARN Secrets Manager mà ESO được phép đọc (RDS/Valkey/MSK endpoint+cred)"
 }
+
+variable "kms_key_arns" {
+  type        = list(string)
+  description = "ARN các KMS key (customer-managed) đã mã hoá secret ở trên. Đọc secret cần CẢ HAI quyền: secretsmanager:GetSecretValue để lấy dữ liệu VÀ kms:Decrypt để giải mã. Secret dùng KMS key mặc định của AWS (aws/secretsmanager) thì không cần liệt kê ở đây — key mặc định cho phép mọi principal trong account giải mã."
+  default     = []
+}
