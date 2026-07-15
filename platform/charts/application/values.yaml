@@ -875,10 +875,6 @@ components:
       capabilities:
         drop:
           - ALL
-      allowPrivilegeEscalation: false
-      capabilities:
-        drop:
-          - ALL
 
   product-catalog:
     enabled: true
@@ -1038,10 +1034,6 @@ components:
       runAsUser: 33 # www-data
       runAsGroup: 33
       runAsNonRoot: true
-      allowPrivilegeEscalation: false
-      capabilities:
-        drop:
-          - ALL
       allowPrivilegeEscalation: false
       capabilities:
         drop:
@@ -1281,10 +1273,6 @@ components:
       capabilities:
         drop:
           - ALL
-      allowPrivilegeEscalation: false
-      capabilities:
-        drop:
-          - ALL
 
   llm:
     enabled: true
@@ -1394,10 +1382,6 @@ components:
       runAsUser: 999 # valkey
       runAsGroup: 1000
       runAsNonRoot: true
-      allowPrivilegeEscalation: false
-      capabilities:
-        drop:
-          - ALL
       allowPrivilegeEscalation: false
       capabilities:
         drop:
