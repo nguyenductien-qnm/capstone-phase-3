@@ -21,6 +21,7 @@ xem "Sổ đăng ký con số" cuối `05_adrs.md`.
 > Đọc spec luôn kèm phụ lục cuối file — nhiều thông số thân bài đã được sửa bằng số đo.
 
 ## Bổ trợ
+- `open-questions-w2.md` — **Chất vấn Mentor Tuần 2**: Các câu hỏi mở về an toàn AI (MANDATE-06), latency, và demo workflow.
 - `ai-data-requirements-for-cdo.md` — **gửi CDO**: nhu cầu dữ liệu, thay thế OpenSearch, trả lời 4 câu hỏi 12/07
 - `telemetry-audit.md` — TF1-51 + kết quả verify trace continuity 12/07
 - `pitch.md` — slide + roleplay W1 + phụ lục cập nhật lập luận
