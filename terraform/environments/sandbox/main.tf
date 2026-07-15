@@ -101,6 +101,7 @@ module "msk" {
   vpc_id                = module.vpc.vpc_id
   mq_subnet_ids         = values(module.vpc.private_mq_subnet_ids)
   eks_security_group_id = module.eks.cluster_security_group_id
+  kafka_version         = var.kafka_version
 }
 
 module "cloudtrail" {

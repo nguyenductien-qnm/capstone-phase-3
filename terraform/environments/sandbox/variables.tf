@@ -210,6 +210,12 @@ variable "valkey_node_type" {
   description = "Loại Node của ElastiCache Valkey (ví dụ: cache.t4g.micro)"
 }
 
+variable "kafka_version" {
+  type        = string
+  description = "Phiên bản Apache Kafka của cụm MSK"
+  default     = "3.9.0"
+}
+
 variable "valkey_num_cache_clusters" {
   type        = number
   description = "Số lượng node trong Valkey replication group"
