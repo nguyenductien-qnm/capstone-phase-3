@@ -260,3 +260,34 @@ resource "aws_db_proxy_target" "this" {
   target_group_name      = "default"
   db_instance_identifier = aws_db_instance.this.identifier
 }
+
+# Secret riêng chứa ENDPOINT database (host + proxy) cho External Secrets Operator
+# đồng bộ vào cluster. Tách khỏi db_credentials để tránh phụ thuộc vòng: aws_db_proxy
+# đã depends_on secret_version.db_credentials, nên không thể nhét proxy.endpoint vào
+# chính secret đó. Ứng dụng nên kết nối qua proxy_endpoint (pooling).
+resource "aws_secretsmanager_secret" "db_endpoint" {
+  count = var.enable_rds_proxy ? 1 : 0
+
+  name                    = "${var.project_name}-${var.environment}-rds-endpoint"
+  recovery_window_in_days = 0
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-rds-endpoint"
+    Environment = var.environment
+    Project     = var.project_name
+  }
+}
+
+resource "aws_secretsmanager_secret_version" "db_endpoint" {
+  count = var.enable_rds_proxy ? 1 : 0
+
+  secret_id = aws_secretsmanager_secret.db_endpoint[0].id
+  secret_string = jsonencode({
+    host           = aws_db_instance.this.address
+    proxy_endpoint = aws_db_proxy.this[0].endpoint
+    port           = 5432
+    username       = var.db_username
+    password       = random_password.db_password.result
+    dbname         = var.db_name
+  })
+}
