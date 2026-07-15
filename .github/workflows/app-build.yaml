@@ -1,0 +1,343 @@
+name: App Build (ECR + Trivy + Cosign + GitOps bump)
+
+# CDO-140 (build+push ECR, tag convention, immutable) + CDO-146 (Trivy + Cosign ký
+# digest) + CDO-142 (bump tag vào Git -> ArgoCD selfHeal sync).
+#
+# Deploy model: CI build -> push ECR (by digest) -> Trivy gate -> Cosign keyless ký
+# DIGEST -> yq bump components.<svc>.imageOverride.tag trong values.yaml -> commit
+# [skip ci] -> ArgoCD tự sync. KHÔNG kubectl tay.
+#
+# Tag convention: <version>-<service>-<sha>  (version = chart appVersion default.image.tag).
+# ECR: 1 repo chung ecommerce-dev-techx-corp, IMMUTABLE. Ký theo digest, không ký tag.
+#
+# 4 service team quản (có source trong techx-corp-platform/src). flagd/postgresql/
+# valkey-cart là image upstream -> KHÔNG build ở đây.
+
+on:
+  push:
+    branches: ["develop", "main"]
+    paths:
+      - "techx-corp-platform/src/cart/**"
+      - "techx-corp-platform/src/checkout/**"
+      - "techx-corp-platform/src/frontend-proxy/**"
+      - "techx-corp-platform/src/product-catalog/**"
+      - ".github/workflows/app-build.yaml"
+  pull_request:
+    branches: ["develop", "main"]
+    paths:
+      - "techx-corp-platform/src/cart/**"
+      - "techx-corp-platform/src/checkout/**"
+      - "techx-corp-platform/src/frontend-proxy/**"
+      - "techx-corp-platform/src/product-catalog/**"
+      - ".github/workflows/app-build.yaml"
+  workflow_dispatch:
+    inputs:
+      services:
+        description: "Danh sách service build (space-separated), rỗng = build tất cả"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  # KHÔNG cancel-in-progress: build đã push + bump commit không nên bị hủy giữa chừng.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  ECR_REGISTRY: ${{ vars.ECR_REGISTRY || '804372444787.dkr.ecr.us-east-1.amazonaws.com' }}
+  # 1 repo chung, service phân biệt bằng tag suffix (khớp chart _objects.tpl:73).
+  ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY || 'ecommerce-dev-techx-corp' }}
+  # version trong tag = default.image.tag của chart (values.yaml). Bump khi chart lên version.
+  IMAGE_VERSION: ${{ vars.IMAGE_VERSION || '1.0' }}
+  BUILD_CONTEXT: techx-corp-platform
+  # CI CHỈ ghi file tags tách riêng (không comment) -> yq bump không phá format
+  # values.yaml gốc. Helm/ArgoCD load file này SAU values.yaml để override tag.
+  TAGS_FILE: platform/gitops/environments/sandbox/values-image-tags.yaml
+
+jobs:
+  # ------------------------------------------------------------------ #
+  # Xác định service nào cần build. push/PR -> theo path-filter.        #
+  # dispatch -> theo input (rỗng = tất cả).                             #
+  # ------------------------------------------------------------------ #
+  detect:
+    name: Detect changed services
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+      any: ${{ steps.set.outputs.any }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Path filter
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            cart:
+              - 'techx-corp-platform/src/cart/**'
+            checkout:
+              - 'techx-corp-platform/src/checkout/**'
+            frontend-proxy:
+              - 'techx-corp-platform/src/frontend-proxy/**'
+            product-catalog:
+              - 'techx-corp-platform/src/product-catalog/**'
+
+      - name: Build matrix
+        id: set
+        env:
+          EVENT: ${{ github.event_name }}
+          DISPATCH_SERVICES: ${{ github.event.inputs.services }}
+          CART: ${{ steps.filter.outputs.cart }}
+          CHECKOUT: ${{ steps.filter.outputs.checkout }}
+          FRONTEND_PROXY: ${{ steps.filter.outputs.frontend-proxy }}
+          PRODUCT_CATALOG: ${{ steps.filter.outputs.product-catalog }}
+        run: |
+          set -euo pipefail
+
+          # Bảng service -> dockerfile (context chung = techx-corp-platform).
+          # cart là .NET: Dockerfile nằm ở src/cart/src/, khác các service khác.
+          declare -A DOCKERFILE=(
+            [cart]="src/cart/src/Dockerfile"
+            [checkout]="src/checkout/Dockerfile"
+            [frontend-proxy]="src/frontend-proxy/Dockerfile"
+            [product-catalog]="src/product-catalog/Dockerfile"
+          )
+
+          selected=()
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            if [ -n "${DISPATCH_SERVICES:-}" ]; then
+              read -ra selected <<< "$DISPATCH_SERVICES"
+            else
+              selected=(cart checkout frontend-proxy product-catalog)
+            fi
+          else
+            [ "$CART" = "true" ]            && selected+=(cart) || true
+            [ "$CHECKOUT" = "true" ]        && selected+=(checkout) || true
+            [ "$FRONTEND_PROXY" = "true" ]  && selected+=(frontend-proxy) || true
+            [ "$PRODUCT_CATALOG" = "true" ] && selected+=(product-catalog) || true
+          fi
+
+          if [ "${#selected[@]}" -eq 0 ]; then
+            echo "any=false" >> "$GITHUB_OUTPUT"
+            echo "matrix={\"include\":[]}" >> "$GITHUB_OUTPUT"
+            echo "Không service nào thay đổi."
+            exit 0
+          fi
+
+          include=""
+          for svc in "${selected[@]}"; do
+            df="${DOCKERFILE[$svc]:-}"
+            if [ -z "$df" ]; then
+              echo "::error::Service '$svc' không có trong bảng dockerfile."
+              exit 1
+            fi
+            [ -n "$include" ] && include+=","
+            include+="{\"service\":\"$svc\",\"dockerfile\":\"$df\"}"
+          done
+
+          echo "any=true" >> "$GITHUB_OUTPUT"
+          echo "matrix={\"include\":[$include]}" >> "$GITHUB_OUTPUT"
+          echo "Sẽ build: ${selected[*]}"
+
+  # ------------------------------------------------------------------ #
+  # CDO-141: Validate Helm/manifest làm GATE trước build/deploy.        #
+  # Chart không render được -> không build/push image nào (fail sớm).   #
+  # ------------------------------------------------------------------ #
+  validate-manifest:
+    name: Validate Helm manifest (deploy gate)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - name: Lint chart
+        run: >-
+          helm lint platform/charts/application
+          -f platform/gitops/environments/sandbox/values-observability.yaml
+          -f platform/gitops/environments/sandbox/values-flagd-sync.yaml
+          -f platform/gitops/environments/sandbox/values-image-tags.yaml
+      - name: Render chart (fail nếu rỗng)
+        run: |
+          set -euo pipefail
+          helm template techx-corp platform/charts/application \
+            -f platform/gitops/environments/sandbox/values-observability.yaml \
+            -f platform/gitops/environments/sandbox/values-flagd-sync.yaml \
+            -f platform/gitops/environments/sandbox/values-image-tags.yaml \
+            > /tmp/rendered.yaml
+          [ -s /tmp/rendered.yaml ] || { echo "::error::manifest rỗng"; exit 1; }
+          echo "✅ manifest OK"
+
+  # ------------------------------------------------------------------ #
+  # Build -> Trivy gate -> (nếu không PR) push by-digest + Cosign ký    #
+  # digest. Mỗi service 1 job matrix, tag riêng <version>-<svc>-<sha>.  #
+  # needs validate-manifest: gate CDO-141 phải xanh mới được build.     #
+  # ------------------------------------------------------------------ #
+  build:
+    name: Build ${{ matrix.service }}
+    needs: [detect, validate-manifest]
+    if: needs.detect.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # OIDC cho AWS + Cosign keyless (Fulcio)
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.detect.outputs.matrix) }}
+    outputs:
+      # dùng cho job bump: service -> digest. (matrix outputs gộp theo key cuối;
+      # bump job đọc lại digest từ ECR theo tag nên không phụ thuộc output này.)
+      dummy: "ok"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compute tag
+        id: meta
+        run: |
+          set -euo pipefail
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          TAG="${IMAGE_VERSION}-${{ matrix.service }}-${SHORT_SHA}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "image=${ECR_REGISTRY}/${ECR_REPOSITORY}:${TAG}" >> "$GITHUB_OUTPUT"
+          echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Configure AWS credentials
+        if: github.event_name != 'pull_request'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.TF_AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        if: github.event_name != 'pull_request'
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Install Cosign
+        if: github.event_name != 'pull_request'
+        uses: sigstore/cosign-installer@v3.5.0
+
+      # PR: build (load local) để scan, KHÔNG push. push/dispatch: build & push.
+      - name: Build image (load, for scan)
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ env.BUILD_CONTEXT }}
+          file: ${{ env.BUILD_CONTEXT }}/${{ matrix.dockerfile }}
+          load: true
+          push: false
+          tags: ${{ steps.meta.outputs.image }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+      - name: Trivy vulnerability scan (gate)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ steps.meta.outputs.image }}
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
+
+      # Chỉ push khi không phải PR. Push by-digest để ký theo digest (chuẩn immutable).
+      - name: Push image
+        id: push
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ env.BUILD_CONTEXT }}
+          file: ${{ env.BUILD_CONTEXT }}/${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.image }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+
+      - name: Cosign keyless sign (by digest)
+        if: github.event_name != 'pull_request'
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          set -euo pipefail
+          # Ký DIGEST, không ký tag: digest bất biến, tag chỉ là con trỏ.
+          REF="${ECR_REGISTRY}/${ECR_REPOSITORY}@${DIGEST}"
+          cosign sign --yes \
+            --rekor-url https://rekor.sigstore.dev \
+            --fulcio-url https://fulcio.sigstore.dev \
+            "$REF"
+          echo "✅ Signed $REF"
+
+  # ------------------------------------------------------------------ #
+  # CDO-142: bump tag vào Git -> ArgoCD selfHeal sync.                  #
+  # Chạy SAU khi mọi service build+push+ký xong, chỉ trên push (không   #
+  # PR). yq map service -> components.<svc>.imageOverride.tag trong      #
+  # FILE TAGS TÁCH RIÊNG (không comment) — map đúng key từng service,   #
+  # không sed 1 dòng, không reformat values.yaml gốc.                   #
+  # ------------------------------------------------------------------ #
+  bump:
+    name: Bump image tags (GitOps)
+    needs: [detect, build]
+    if: github.event_name == 'push' && needs.detect.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # GitHub App token: danh tính bot riêng, ephemeral (~1h), quyền fine-grained
+      # contents:write. App PHẢI nằm trong bypass list của ruleset develop để push
+      # thẳng vượt branch protection. Secrets: GITOPS_APP_ID + GITOPS_APP_PRIVATE_KEY.
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.GITOPS_APP_ID }}
+          private-key: ${{ secrets.GITOPS_APP_PRIVATE_KEY }}
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Install yq
+        uses: mikefarah/yq@v4
+
+      - name: Bump imageOverride.tag từng service
+        env:
+          MATRIX: ${{ needs.detect.outputs.matrix }}
+        run: |
+          set -euo pipefail
+          SHORT_SHA=$(git rev-parse --short HEAD)
+
+          # Duyệt service trong matrix, map -> đúng key trong file tags riêng.
+          for svc in $(echo "$MATRIX" | yq -r '.include[].service'); do
+            TAG="${IMAGE_VERSION}-${svc}-${SHORT_SHA}"
+            echo "== $svc -> $TAG =="
+            yq -i ".components.\"$svc\".imageOverride.tag = \"$TAG\"" "$TAGS_FILE"
+          done
+
+      - name: Commit & push
+        env:
+          BRANCH_NAME: ${{ github.ref_name }}
+          # Checkout đã dùng App token -> origin remote đã kèm credential đúng.
+          # Commit author = App bot (audit rõ ai bump). Push thẳng nhờ App ở bypass list.
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- "$TAGS_FILE"; then
+            echo "ℹ️ Tag không đổi, bỏ qua commit."
+            exit 0
+          fi
+          git config user.name  "${APP_SLUG}[bot]"
+          git config user.email "${APP_SLUG}[bot]@users.noreply.github.com"
+          git add "$TAGS_FILE"
+          git commit -m "ci(app): bump image tags -> $(git rev-parse --short HEAD) [skip ci]"
+          git push origin "HEAD:${BRANCH_NAME}"
+          echo "✅ Bumped & pushed lên $BRANCH_NAME — ArgoCD sẽ selfHeal sync."

@@ -69,12 +69,16 @@ default:
 resourceGovernance:
   resourceQuota:
     enabled: true
+    # MANDATE-02: raised from 4/8/8Gi/12Gi/40 after live load test (200 users) hit
+    # `limits.cpu=8` ceiling -> HPA pods rejected with FailedCreate (exceeded quota)
+    # while nodes sat ~43% idle. Sized to full HPA-max peak + headroom:
+    #   peak requests.cpu~5.35 -> 6 ; peak limits.cpu~12.65 -> 14 ; fits within 5x t3.large.
     hard:
-      requests.cpu: "4"
-      requests.memory: 8Gi
-      limits.cpu: "8"
-      limits.memory: 12Gi
-      pods: "40"
+      requests.cpu: "6"
+      requests.memory: 10Gi
+      limits.cpu: "14"
+      limits.memory: 16Gi
+      pods: "70"
   limitRange:
     enabled: true
     # default = limit mặc định khi container không khai; defaultRequest = request mặc định.
@@ -227,6 +231,8 @@ components:
     enabled: true
     useDefault:
       env: true
+    # Consumer Kafka async, KHÔNG HPA (scale nên theo lag, không phải CPU) và ngoài
+    # critical path storefront → không cần PDB/spread (gián đoạn ngắn được Kafka đệm).
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
     env:
@@ -252,8 +258,12 @@ components:
       - name: OTEL_DOTNET_AUTO_TRACES_ENTITYFRAMEWORKCORE_INSTRUMENTATION_ENABLED
         value: "false"
     resources:
+      requests:
+        cpu: 100m         # P0 right-size: OOMKilled 36 lần, .NET cần RAM cao
+        memory: 128Mi
       limits:
-        memory: 120Mi
+        cpu: 200m
+        memory: 256Mi
     initContainers:
       - name: wait-for-kafka
         image: busybox:latest
@@ -290,10 +300,40 @@ components:
 
   cart:
     enabled: true
+    imageOverride:
+      tag: "1.1-cart"           # CDO-80: image mới có gRPC health tách liveness/readiness
     useDefault:
       env: true
     service:
       port: 8080
+    # --- Reliability (CDO-34/80/29) ---
+    podDisruptionBudget:
+      maxUnavailable: 1
+    topologySpread: true
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
+    deploymentStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 0
+        maxSurge: 1
+    startupProbe:                 # .NET + chờ valkey, JIT warmup lâu hơn
+      grpc: { port: 8080, service: "readiness" }
+      periodSeconds: 5
+      failureThreshold: 30
+    readinessProbe:
+      grpc: { port: 8080, service: "readiness" }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
+    livenessProbe:
+      grpc: { port: 8080, service: "liveness" }
+      periodSeconds: 10
+      timeoutSeconds: 2
+      failureThreshold: 6
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
     env:
@@ -319,11 +359,13 @@ components:
     resources:
       requests:
         cpu: 100m         # CDO-42: cart ghi/đọc mỗi session, tải tăng theo user -> HPA
+        memory: 64Mi      # P0 right-size: thêm request, giữ limit
       limits:
+        cpu: 200m
         memory: 160Mi
     hpa:
       enabled: true
-      minReplicas: 1
+      minReplicas: 2      # có PDB (CDO-34) -> min>=2, tránh Karpenter consolidate giết pod duy nhất (INC-2)
       maxReplicas: 6      # write-heavy, tải tăng tuyến tính theo user
     initContainers:
       - name: wait-for-valkey-cart
@@ -332,10 +374,41 @@ components:
 
   checkout:
     enabled: true
+    imageOverride:
+      tag: "1.1-checkout"        # CDO-80: image mới có gRPC health tách liveness/readiness (bump từ 1.0 để atomic với probe)
     useDefault:
       env: true
     service:
       port: 8080
+    # --- Reliability (CDO-34/80/29) ---
+    # replicas do HPA quản (hpa.enabled → template tự bỏ replicas cứng, tránh fight HPA).
+    podDisruptionBudget:
+      maxUnavailable: 1           # CDO-34: luôn còn >=1 pod khi Karpenter drain node
+    topologySpread: true          # CDO-34: trải 2 pod ra khác node (ScheduleAnyway)
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        exec: { command: ["/bin/sh", "-c", "sleep 5"] }   # CDO-29: chờ endpoint propagate, không rơi request
+    deploymentStrategy:           # CDO-29: rollout không hạ pod cũ trước khi pod mới Ready
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 0
+        maxSurge: 1
+    startupProbe:                 # CDO-80: che boot chờ kafka (<=150s)
+      grpc: { port: 8080, service: "readiness" }
+      periodSeconds: 5
+      failureThreshold: 30
+    readinessProbe:               # CDO-80: gate traffic theo dependency
+      grpc: { port: 8080, service: "readiness" }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
+    livenessProbe:                # CDO-80: chỉ process sống — KHÔNG phụ thuộc kafka (Option C)
+      grpc: { port: 8080, service: "liveness" }
+      periodSeconds: 10
+      timeoutSeconds: 2
+      failureThreshold: 6
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
     env:
@@ -372,16 +445,18 @@ components:
       - name: OTEL_EXPORTER_OTLP_ENDPOINT
         value: http://$(OTEL_COLLECTOR_NAME):4317
       - name: GOMEMLIMIT
-        value: 16MiB
+        value: 96MiB      # P0 right-size: nâng cùng limit để Go dùng được RAM mới
     resources:
       requests:
-        cpu: 50m          # CDO-42: chỉ thêm CPU request, GIỮ nguyên mem limit (GOMEMLIMIT=16MiB)
+        cpu: 100m         # P0: revenue-critical, limit cũ 20Mi quá thấp
+        memory: 64Mi
       limits:
-        memory: 20Mi
+        cpu: 200m
+        memory: 128Mi
     hpa:
       enabled: true
-      minReplicas: 1
-      maxReplicas: 5      # checkout = SLO 99%, cho headroom scale
+      minReplicas: 2      # có PDB (CDO-34) + revenue-critical SLO 99% -> min>=2 (tránh INC-2)
+      maxReplicas: 5      # cho headroom scale
     initContainers:
       - name: wait-for-kafka
         image: busybox:latest
@@ -441,6 +516,8 @@ components:
     enabled: true
     useDefault:
       env: true
+    # Consumer Kafka async, KHÔNG HPA (scale nên theo lag, không phải CPU) và ngoài
+    # critical path storefront → không cần PDB/spread (gián đoạn ngắn được Kafka đệm).
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
     env:
@@ -480,6 +557,34 @@ components:
       env: true
     service:
       port: 8080
+    # --- Reliability (CDO-34/80/29) ---
+    podDisruptionBudget:
+      maxUnavailable: 1
+    topologySpread: true
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
+    deploymentStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 0
+        maxSurge: 1
+    startupProbe:                 # Next.js HTTP — không gRPC
+      httpGet: { path: /, port: 8080 }
+      periodSeconds: 5
+      failureThreshold: 24
+    readinessProbe:
+      httpGet: { path: /, port: 8080 }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
+    livenessProbe:
+      httpGet: { path: /, port: 8080 }
+      periodSeconds: 10
+      timeoutSeconds: 2
+      failureThreshold: 6
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
     env:
@@ -526,7 +631,7 @@ components:
         memory: 250Mi
     hpa:
       enabled: true
-      minReplicas: 1
+      minReplicas: 2      # có PDB (CDO-34) -> min>=2, tránh INC-2 khi node consolidate
       maxReplicas: 6
     securityContext:
       runAsUser: 1001  # nextjs
@@ -535,6 +640,8 @@ components:
 
   frontend-proxy:
     enabled: true
+    imageOverride:
+      tag: "1.0-frontend-proxy"
     useDefault:
       env: true
     service:
@@ -544,7 +651,35 @@ components:
         service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
         service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "instance"
         service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
+    # --- Reliability (CDO-34/80/29) — cửa ngõ storefront, quan trọng nhất ---
+    podDisruptionBudget:
+      maxUnavailable: 1
+    topologySpread: true
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        exec: { command: ["/bin/sh", "-c", "sleep 5"] }   # cực quan trọng cho Envoy: drain kết nối trước khi tắt
+    deploymentStrategy:           # CDO-29: zero-downtime khi rollout Envoy cho Mandate 01
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 0
+        maxSurge: 1
+    # CDO-80: Envoy config (envoy.tmpl.yaml) KHÔNG bật admin → không có /ready:10000.
+    # Dùng tcpSocket:8080 (listener chính) — Envoy bind ngay khi khởi động = process sống + listener mở.
+    # MANDATE-01 dùng image đã rebuild; digest annotation buộc rollout vì tag 1.0 được tái sử dụng.
+    readinessProbe:
+      tcpSocket: { port: 8080 }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
+    livenessProbe:
+      tcpSocket: { port: 8080 }
+      periodSeconds: 10
+      timeoutSeconds: 2
+      failureThreshold: 6
     podAnnotations:
+      mandate-01/image-index-digest: "sha256:ea6155465ee5877e570fcc412b68b2ae0fb4ef15bf3a0e2785bc12a7dd37235f"
       resource.opentelemetry.io/service.namespace: techx-corp
       io.opentelemetry.discovery.metrics/enabled: 'true'
       io.opentelemetry.discovery.metrics/scraper: httpcheck
@@ -659,7 +794,7 @@ components:
       - name: LOCUST_AUTOSTART
         value: "true"
       - name: LOCUST_BROWSER_TRAFFIC_ENABLED
-        value: "true"
+        value: "false"    # P0: HTTP thuần -> giảm RAM (browser traffic ăn ~1.2Gi ở 10 user)
       - name: PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION
         value: python
       - name: FLAGD_HOST
@@ -671,8 +806,12 @@ components:
       - name: OTEL_EXPORTER_OTLP_ENDPOINT
         value: http://$(OTEL_COLLECTOR_NAME):4317
     resources:
+      requests:
+        cpu: 200m         # P0 right-size: giảm RAM để giải phóng cho app
+        memory: 256Mi
       limits:
-        memory: 1500Mi
+        cpu: 500m
+        memory: 500Mi
 
   payment:
     enabled: true
@@ -703,10 +842,40 @@ components:
 
   product-catalog:
     enabled: true
+    imageOverride:
+      tag: "1.1-product-catalog"   # CDO-80: image mới có gRPC health tách liveness/readiness
     useDefault:
       env: true
     service:
       port: 8080
+    # --- Reliability (CDO-34/80/29) ---
+    podDisruptionBudget:
+      maxUnavailable: 1
+    topologySpread: true
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
+    deploymentStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 0
+        maxSurge: 1
+    startupProbe:                 # Go + chờ Postgres (~120s)
+      grpc: { port: 8080, service: "readiness" }
+      periodSeconds: 5
+      failureThreshold: 24
+    readinessProbe:
+      grpc: { port: 8080, service: "readiness" }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
+    livenessProbe:
+      grpc: { port: 8080, service: "liveness" }
+      periodSeconds: 10
+      timeoutSeconds: 2
+      failureThreshold: 6
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
     env:
@@ -717,7 +886,7 @@ components:
       - name: FLAGD_PORT
         value: "8013"
       - name: GOMEMLIMIT
-        value: 16MiB
+        value: 96MiB      # P0 right-size: nâng cùng limit để Go dùng được RAM mới
       - name: DB_CONNECTION_STRING
         valueFrom:
           secretKeyRef:
@@ -729,12 +898,14 @@ components:
         value: http://$(OTEL_COLLECTOR_NAME):4317
     resources:
       requests:
-        cpu: 100m         # CDO-42: read-heavy (mọi browse gọi tới) -> bottleneck -> HPA. Giữ mem limit (GOMEMLIMIT=16MiB)
+        cpu: 100m         # CDO-42: read-heavy (mọi browse gọi tới) -> bottleneck -> HPA
+        memory: 32Mi      # P0 right-size: OOMKilled 4 lần, Go runtime
       limits:
-        memory: 20Mi
+        cpu: 200m
+        memory: 128Mi
     hpa:
       enabled: true
-      minReplicas: 1
+      minReplicas: 2      # có PDB (CDO-34) -> min>=2, tránh INC-2 khi node consolidate
       maxReplicas: 6      # read-heavy bottleneck dưới flash-sale
 
   product-reviews:
@@ -917,8 +1088,12 @@ components:
       - name: IPV6_ENABLED
         value: "false"
     resources:
+      requests:
+        cpu: 50m          # P0 right-size: limit cũ 20Mi quá thấp
+        memory: 32Mi
       limits:
-        memory: 20Mi
+        cpu: 100m
+        memory: 128Mi
 
   flagd:
     enabled: true
@@ -1123,6 +1298,16 @@ components:
       runAsGroup: 1000
       runAsNonRoot: true
 
+observabilityStorage:
+  enabled: false
+  name: gp3-observability
+  reclaimPolicy: Retain
+  volumeBindingMode: WaitForFirstConsumer
+  allowVolumeExpansion: true
+  parameters:
+    type: gp3
+    encrypted: "true"
+
 opentelemetry-collector:
   enabled: true
   image:
@@ -1272,8 +1457,12 @@ jaeger:
       - name: JAEGER_GRPC_PORT
         value: "4317"
     resources:
+      requests:
+        cpu: 100m         # P0 right-size: memory storage phình
+        memory: 256Mi
       limits:
-        memory: 600Mi
+        cpu: 200m
+        memory: 1Gi
   userconfig:
     service:
       extensions: [jaeger_storage, jaeger_query, healthcheckv2]
@@ -1341,7 +1530,8 @@ prometheus:
     prometheus:
       enabled: false
   kube-state-metrics:
-    enabled: false
+    # Required by the Kubernetes scaling dashboard (Deployment/HPA/Pod/Node state).
+    enabled: true
   prometheus-node-exporter:
     enabled: false
   prometheus-pushgateway:
@@ -1395,6 +1585,8 @@ prometheus:
       servicePort: 9090
     resources:
       limits:
+        memory: 1024Mi
+      requests:
         memory: 400Mi
 
 grafana:
@@ -1446,6 +1638,13 @@ opensearch:
       value: "true"
     - name: "DISABLE_SECURITY_PLUGIN"
       value: "true"
+  # CDO-42 fix: opensearch chart mặc định requests.cpu=1 nhưng KHÔNG khai limits.cpu.
+  # LimitRange (default cpu 200m) tự bơm limit=200m < request=1 -> Pod invalid (FailedCreate).
+  # Khai tường minh cpu request/limit (nằm trong LimitRange max cpu "2") để không bị clamp.
   resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
     limits:
+      cpu: "1"
       memory: 1100Mi

@@ -1,0 +1,17 @@
+# CI-managed image tags — CHỈ CI (app-build.yaml) ghi file này, KHÔNG sửa tay.
+# Tách khỏi values.yaml gốc để bump tag không reformat/phá comment của chart.
+# Load SAU values.yaml (helm -f cuối cùng thắng) -> override imageOverride.tag.
+# Tag convention: <version>-<service>-<sha>. ArgoCD selfHeal sync khi file này đổi.
+components:
+  cart:
+    imageOverride:
+      tag: "1.1-cart"
+  checkout:
+    imageOverride:
+      tag: "1.1-checkout"
+  frontend-proxy:
+    imageOverride:
+      tag: "1.0-frontend-proxy"
+  product-catalog:
+    imageOverride:
+      tag: "1.1-product-catalog"

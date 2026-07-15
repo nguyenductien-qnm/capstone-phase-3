@@ -31,6 +31,7 @@ tfplan
 *.tfvars
 *.tfvars.json
 !terraform/environments/*/access.auto.tfvars
+!terraform/environments/sandbox/primary-capacity.tfvars
 
 # Ignore temporary logs
 *.log
@@ -47,3 +48,6 @@ _baseline-phase3/
 # Python bytecode & local artifacts (review 12/07: pycache tung bi commit o root)
 *.pyc
 *.db
+
+# CDO-83 evidence output (runtime snapshots)
+docs/templates/cdo/evidence/

@@ -90,8 +90,14 @@ builder.Services.AddOpenTelemetry()
         .AddOtlpExporter());
 builder.Services.AddGrpc();
 builder.Services.AddSingleton<readinessCheck>();
+// CDO-80 (Option C): tách liveness khỏi readiness.
+// - "liveness"  : luôn Healthy khi process sống → Valkey giật KHÔNG restart pod.
+// - "readiness" : phản ánh dependency (dùng lại readinessCheck) → giật thì kéo khỏi LB, không restart.
+// Giữ "oteldemo.CartService" cho tương thích ngược.
 builder.Services.AddGrpcHealthChecks()
-    .AddCheck<readinessCheck>("oteldemo.CartService");
+    .AddCheck<readinessCheck>("oteldemo.CartService")
+    .AddCheck("liveness", () => HealthCheckResult.Healthy())
+    .AddCheck<readinessCheck>("readiness");
 
 builder.Services.AddSingleton<HealthServiceImpl>();
 

@@ -1,7 +1,7 @@
 apiVersion: v2
 type: application
 name: techx-corp
-version: 0.40.9
+version: 0.41.0
 description: TechX Corp platform helm chart
 maintainers:
   - name: TechX Corp Platform Team

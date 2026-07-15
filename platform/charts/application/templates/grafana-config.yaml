@@ -37,6 +37,11 @@ metadata:
     {{- include "techx-corp.labels" . | nindent 4 }}
     grafana_datasource: "1"
 data:
-  {{ (.Files.Glob "grafana/provisioning/datasources/*.yaml").AsConfig | nindent 2 }}
+{{- range $path, $_ := .Files.Glob "grafana/provisioning/datasources/*.yaml" }}
+{{- if or $.Values.opensearch.enabled (ne (base $path) "opensearch.yaml") }}
+  {{ base $path }}: |-
+{{ $.Files.Get $path | indent 4 }}
+{{- end }}
+{{- end }}
 
 {{- end }}

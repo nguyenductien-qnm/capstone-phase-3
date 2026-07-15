@@ -41,6 +41,9 @@
     "autoscaling": {
       "type": "object"
     },
+    "observabilityStorage": {
+      "type": "object"
+    },
     "opentelemetry-collector": {
       "type": "object"
     },
@@ -211,10 +214,28 @@
           }
         },
         "livenessProbe": {
-          "$ref": "#/definitions/LivenessProbe"
+          "type": "object"
         },
         "readinessProbe": {
-          "$ref": "#/definitions/ReadinessProbe"
+          "type": "object"
+        },
+        "startupProbe": {
+          "type": "object"
+        },
+        "lifecycle": {
+          "type": "object"
+        },
+        "terminationGracePeriodSeconds": {
+          "type": "integer"
+        },
+        "topologySpread": {
+          "type": "boolean"
+        },
+        "podDisruptionBudget": {
+          "type": "object"
+        },
+        "deploymentStrategy": {
+          "type": "object"
         },
         "schedulingRules": {
           "$ref": "#/definitions/SchedulingRules"

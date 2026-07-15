@@ -106,6 +106,7 @@ variable "eks_control_plane_log_retention_days" {
 variable "eks_node_instance_types" {
   type        = list(string)
   description = "Các EC2 instance type cho EKS managed node group"
+  default     = ["t3.medium"]
 }
 
 variable "eks_node_capacity_type" {
@@ -129,9 +130,27 @@ variable "eks_node_scaling" {
   })
   default = {
     min_size     = 2
-    max_size     = 6
+    max_size     = 3
     desired_size = 2
   }
+}
+
+variable "eks_ops_node_subnet_key" {
+  type        = string
+  description = "Private application subnet key for the single-AZ observability node group"
+  default     = "app-2"
+}
+
+variable "eks_ops_node_instance_types" {
+  type        = list(string)
+  description = "EC2 instance types for the observability node group"
+  default     = ["m6a.large"]
+}
+
+variable "eks_ops_node_disk_size_gib" {
+  type        = number
+  description = "Encrypted gp3 root volume size for the observability node"
+  default     = 30
 }
 
 variable "eks_access_entries" {
@@ -191,6 +210,12 @@ variable "valkey_node_type" {
   description = "Loại Node của ElastiCache Valkey (ví dụ: cache.t4g.micro)"
 }
 
+variable "kafka_version" {
+  type        = string
+  description = "Phiên bản Apache Kafka của cụm MSK"
+  default     = "3.9.0"
+}
+
 variable "valkey_num_cache_clusters" {
   type        = number
   description = "Số lượng node trong Valkey replication group"
@@ -226,9 +251,5 @@ variable "rds_multi_az" {
   type        = bool
   description = "Bật/Tắt chế độ Multi-AZ cho Primary DB"
 }
-
-
-
-
 
 
