@@ -264,10 +264,8 @@ components:
       limits:
         cpu: 200m
         memory: 256Mi
-    initContainers:
-      - name: wait-for-kafka
-        image: busybox:1.38.0   # Pinned: do NOT use :latest — breaks reproducibility.
-        command: ["sh", "-c", "until nc -z -v -w30 b-1.ecommercedevmsk.61s37h.c4.kafka.us-east-1.amazonaws.com 9096; do echo waiting for kafka; sleep 2; done;"]
+    # INC-FIX: initContainer wait-for-kafka xóa (xem comment tại checkout). Accounting là
+    # Kafka consumer async — crash/restart khi broker down là acceptable, không ảnh hưởng storefront.
 
   ad:
     enabled: true
@@ -457,10 +455,12 @@ components:
       enabled: true
       minReplicas: 2      # có PDB (CDO-34) + revenue-critical SLO 99% -> min>=2 (tránh INC-2)
       maxReplicas: 5      # cho headroom scale
-    initContainers:
-      - name: wait-for-kafka
-        image: busybox:1.38.0   # Pinned: do NOT use :latest — breaks reproducibility.
-        command: ["sh", "-c", "until nc -z -v -w30 b-1.ecommercedevmsk.61s37h.c4.kafka.us-east-1.amazonaws.com 9096; do echo waiting for kafka; sleep 2; done;"]
+    # INC-FIX: initContainer wait-for-kafka đã bị xóa. Lý do:
+    # 1. Loop nc vô hạn không timeout → pod stuck mãi khi broker down (chính là nguyên nhân incident này).
+    # 2. startupProbe (failureThreshold:30 × 5s = 150s) đã đảm nhiệm vai trò chờ readiness,
+    #    bao gồm kafka connectivity check qua gRPC health endpoint của app.
+    # 3. Nếu kafka chết thật, kubelet tự restart pod sau 150s → behavior đúng hơn loop vô hạn.
+    # Ref: https://kubernetes.io/docs/concepts/workloads/pods/init-containers/#understanding-init-containers
 
   currency:
     enabled: true
@@ -546,10 +546,8 @@ components:
     resources:
       limits:
         memory: 300Mi
-    initContainers:
-      - name: wait-for-kafka
-        image: busybox:1.38.0   # Pinned: do NOT use :latest — breaks reproducibility.
-        command: ["sh", "-c", "until nc -z -v -w30 b-1.ecommercedevmsk.61s37h.c4.kafka.us-east-1.amazonaws.com 9096; do echo waiting for kafka; sleep 2; done;"]
+    # INC-FIX: initContainer wait-for-kafka xóa (xem comment tại checkout). Fraud detection là
+    # Kafka consumer async — crash/restart khi broker down là acceptable, không ảnh hưởng storefront.
 
   frontend:
     enabled: true
