@@ -153,6 +153,12 @@ variable "eks_ops_node_disk_size_gib" {
   default     = 30
 }
 
+variable "github_terraform_role_name" {
+  type        = string
+  description = "IAM role used by GitHub Actions to manage Terraform and bootstrap Kubernetes"
+  default     = "GitHubTerraformSandboxRole"
+}
+
 variable "eks_access_entries" {
   description = "EKS Access Entries cho SSO/operator/automation; dùng IAM role ARN, không dùng STS assumed-role ARN"
   type = map(object({
@@ -251,5 +257,4 @@ variable "rds_multi_az" {
   type        = bool
   description = "Bật/Tắt chế độ Multi-AZ cho Primary DB"
 }
-
 
