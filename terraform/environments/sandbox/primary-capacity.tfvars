@@ -3,7 +3,7 @@
 eks_node_instance_types = ["t3.medium"]
 
 eks_node_scaling = {
-  min_size     = 3
-  max_size     = 4
-  desired_size = 3
+  min_size     = 2
+  max_size     = 3
+  desired_size = 2
 }

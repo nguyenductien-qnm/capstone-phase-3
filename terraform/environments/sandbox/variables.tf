@@ -129,9 +129,9 @@ variable "eks_node_scaling" {
     desired_size = number
   })
   default = {
-    min_size     = 3
-    max_size     = 4
-    desired_size = 3
+    min_size     = 2
+    max_size     = 3
+    desired_size = 2
   }
 }
 
@@ -245,6 +245,5 @@ variable "rds_multi_az" {
   type        = bool
   description = "Bật/Tắt chế độ Multi-AZ cho Primary DB"
 }
-
 
 
