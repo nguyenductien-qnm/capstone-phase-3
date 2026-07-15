@@ -178,14 +178,18 @@ class AgentResult:
 
 def _run_read_tool(name: str, args: dict, user_id: str) -> str:
     if name == "search_products":
-        return tools.search_products(args.get("query", ""), args.get("category"))
+        # G2 MANDATE-06: product descriptions từ DB là dữ liệu không tin cậy — sanitize
+        raw = tools.search_products(args.get("query", ""), args.get("category"))
+        return sanitize_json_for_llm(raw)
     if name == "get_product_reviews":
         # MANDATE-06 Guardrail L1: review là dữ liệu KHÔNG tin cậy — sanitize per-field
         # trước khi đưa vào prompt (injection nhét trong review bị chặn tại đây).
         raw = tools.get_product_reviews(args.get("product_id", ""))
         return sanitize_json_for_llm(raw)
     if name == "get_cart":
-        return tools.get_cart(user_id)
+        # G2 MANDATE-06: cart item names có thể bị nhiễm injection text từ catalog
+        raw = tools.get_cart(user_id)
+        return sanitize_json_for_llm(raw)
     if name == "list_recommendations":
         return tools.list_recommendations(args.get("product_ids", []))
     return json.dumps({"error": f"Unknown tool '{name}'"})
@@ -318,6 +322,10 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
 
         stop = response.get("stopReason", "end_turn")
         blocks = response["output"]["message"].get("content", [])
+        # G5 MANDATE-06: log token consumption per turn để monitor cost
+        usage = response.get("usage", {})
+        logger.info("audit bedrock_usage model=%s input_tokens=%s output_tokens=%s",
+                    model_id, usage.get("inputTokens", "?"), usage.get("outputTokens", "?"))
 
         if stop != "tool_use":
             text = "\n".join(b["text"] for b in blocks if "text" in b)

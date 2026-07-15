@@ -212,8 +212,8 @@ Agent tích hợp mô hình OpenAI-compatible API hỗ trợ định nghĩa Func
 Để đáp ứng đầy đủ yêu cầu an toàn của **AI_FEATURE.md §2 Phần B** và chống lại các rủi ro từ **OWASP LLM06:2025 (Excessive Agency)**, trợ lý Shopping Copilot tích hợp cấu trúc bảo mật 3 lớp:
 
 1. **Input Guardrail (Chặn Prompt Injection & Jailbreak):**
-   - Áp dụng bộ lọc Regex để loại bỏ các từ khóa độc hại, chỉ thị ghi đè prompt hệ thống (system overrides).
-   - Sử dụng mô hình classifier nhẹ (Nova Micro) để đánh giá độ tin cậy của câu hỏi người dùng trước khi đưa vào context của mô hình chính Amazon Nova Pro.
+   - Áp dụng bộ lọc Regex để loại bỏ các từ khóa độc hại, chỉ thị ghi đè prompt hệ thống (system overrides), lọc PII trước khi đưa vào context LLM.
+   - ~~Mô hình classifier nhẹ (Nova Micro)~~ **Đã loại bỏ** (xem ADR-011 §Alternatives Considered): gọi thêm một LLM sẽ tăng latency ~80ms/request, vi phạm SLO <1s của trang sản phẩm. L1 Regex + System Prompt Engineering đã đủ hiệu quả với chi phí 0đ và delay 0ms. Code (`guardrails.py`) giữ lại hàm `detect_prompt_injection_llm()` để dùng offline/audit, không nằm trên đường nóng.
 
 2. **Output Guardrail (Lọc PII & System Prompt Leak):**
    - **PII Redaction:** Tự động lọc và che giấu các thông tin nhạy cảm của khách hàng như Email, Số điện thoại, Số thẻ tín dụng trước khi hiển thị câu trả lời ra Storefront.

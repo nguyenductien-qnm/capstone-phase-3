@@ -23,6 +23,8 @@ COPY ./src/shopping-copilot/demo_pb2.py demo_pb2.py
 COPY ./src/shopping-copilot/demo_pb2_grpc.py demo_pb2_grpc.py
 COPY ./src/shopping-copilot/shopping_copilot_pb2.py shopping_copilot_pb2.py
 COPY ./src/shopping-copilot/shopping_copilot_pb2_grpc.py shopping_copilot_pb2_grpc.py
+COPY ./src/shopping-copilot/guardrails.py guardrails.py
+COPY ./src/shopping-copilot/model_router.py model_router.py
 COPY ./src/shopping-copilot/tools.py tools.py
 COPY ./src/shopping-copilot/agent.py agent.py
 COPY ./src/shopping-copilot/copilot_server.py copilot_server.py

@@ -3,6 +3,7 @@ import logging
 import random
 from openfeature import api
 from openfeature.contrib.provider.flagd import FlagdProvider
+from openfeature.evaluation_context import EvaluationContext
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,7 @@ def get_routed_model(task_type: str, default_model: str) -> str:
     # The flag name is llmModelRouting.
     
     # We pass an evaluation context to differentiate routing by task_type
-    context = {"task_type": task_type}
+    context = EvaluationContext(attributes={"task_type": task_type})
     try:
         config = client.get_object_value("llmModelRouting", {}, context)
         if not config:

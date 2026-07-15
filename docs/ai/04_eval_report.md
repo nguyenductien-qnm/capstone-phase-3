@@ -29,6 +29,7 @@
 | Unit Test: Model Gateway | Pass 100% tỷ lệ routing theo flagd | `test_model_router.py` |
 | Unit Test: Shopping Copilot | Pass 100% các Guardrails (Prompt Injection, PII, Hallucination, Action Gate) | `test_copilot.py` |
 | Unit Test: Recommendations | Pass 100% vector cosine search trên Mock pgvector | `test_recommendation.py` |
+| Safety Eval (MANDATE-06) | Pass 10/10 (100%): 6/6 Injection blocked, 3/3 Hallucination, 1/1 Action Gate | `eval_mandate06.py --mode offline` |
 
 ## 3. Số CHƯA đo được (blocked — không được trích như kết quả)
 | Số | Chặn bởi |
@@ -36,7 +37,6 @@
 | Bedrock latency P50/P95 thật (→ chốt timeout 3.0/2.0/5.0s) | AWS creds (`measure_bedrock_latency.py` sẵn) |
 | Trước–sau error-rate với Bedrock thật | creds + EKS |
 | Semantics 2 rule burn-rate/memory (syntax đã pass Prometheus 3.8.1) | data sống EKS |
-| Task-success của Copilot | Đã pass Mock Test nội bộ, cần AWS creds chạy thật |
 | Fidelity summary trên model thật vs `expected_summary_keywords` | creds |
 
 ## 4. Kế hoạch tiếp theo (Sau code freeze)

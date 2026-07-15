@@ -30,6 +30,7 @@ import grpc
 
 import agent
 import tools
+from guardrails import sanitize_text   # MANDATE-06: L1 input guardrail
 import shopping_copilot_pb2 as pb
 import shopping_copilot_pb2_grpc as pb_grpc
 
@@ -80,7 +81,8 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
 
         # --- Phase 1: normal agent turn.
         session = self._sessions.setdefault(request.session_id or request.user_id, [])
-        sanitized_question = request.question
+        # MANDATE-06 L1 Input Guardrail: chặn injection + lọc PII trước khi vào LLM.
+        sanitized_question = sanitize_text(request.question)
         session.append({"role": "user", "content": [{"text": sanitized_question}]})
 
         import model_router
