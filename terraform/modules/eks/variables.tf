@@ -127,14 +127,40 @@ variable "node_taints" {
   }
 }
 
-variable "enable_core_addons" {
-  description = "Manage CoreDNS, kube-proxy, VPC CNI and Pod Identity Agent as EKS add-ons"
-  type        = bool
-  default     = true
+variable "ops_node_subnet_id" {
+  description = "Single private subnet used by the dedicated observability managed node group"
+  type        = string
+
+  validation {
+    condition     = can(regex("^subnet-[0-9a-f]+$", var.ops_node_subnet_id))
+    error_message = "ops_node_subnet_id must be a valid subnet ID."
+  }
 }
 
-variable "enable_cluster_autoscaler" {
-  description = "Create the IRSA role/policy for the Cluster Autoscaler (MANDATE-02 node autoscaling)"
+variable "ops_node_instance_types" {
+  description = "Allowed EC2 instance types for the dedicated observability managed node group"
+  type        = list(string)
+  default     = ["m6a.large"]
+
+  validation {
+    condition     = length(var.ops_node_instance_types) > 0
+    error_message = "ops_node_instance_types must contain at least one instance type."
+  }
+}
+
+variable "ops_node_disk_size_gib" {
+  description = "Encrypted gp3 root volume size for the observability node"
+  type        = number
+  default     = 30
+
+  validation {
+    condition     = var.ops_node_disk_size_gib >= 20
+    error_message = "ops_node_disk_size_gib must be at least 20 GiB."
+  }
+}
+
+variable "enable_core_addons" {
+  description = "Manage CoreDNS, kube-proxy, VPC CNI and Pod Identity Agent as EKS add-ons"
   type        = bool
   default     = true
 }
