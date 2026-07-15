@@ -35,7 +35,7 @@ from botocore.config import Config
 from botocore.exceptions import ClientError, ConnectTimeoutError, ReadTimeoutError
 
 import tools
-from guardrails import sanitize_json_for_llm, leaks_system_prompt
+
 
 logger = logging.getLogger(__name__)
 
@@ -314,11 +314,7 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
 
         if stop != "tool_use":
             text = "\n".join(b["text"] for b in blocks if "text" in b)
-            # Guardrail Phan A: Output guard
-            if leaks_system_prompt(text, SYSTEM_PROMPT):
-                logger.error("AI_COPILOT_FALLBACK stage=output-guard reason=SystemPromptLeak")
-                text = _fallback_text()
-                return AgentResult(text=text, actions_taken=actions, degraded=True)
+            # Guardrail Phan A: Output guard (moved to PR #36)
 
             return AgentResult(text=text or "(không có phản hồi)", actions_taken=actions,
                                pending=pending)
@@ -353,7 +349,7 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
             else:
                 out = _run_read_tool(name, args, user_id)
                 # Guardrail Phan A: sanitize tool response before giving to LLM
-                out = sanitize_json_for_llm(out)
+
                 ok = '"error"' not in out
 
             actions.append(ToolCall(

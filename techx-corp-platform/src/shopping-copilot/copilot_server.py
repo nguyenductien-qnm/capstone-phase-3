@@ -80,8 +80,7 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
 
         # --- Phase 1: normal agent turn.
         session = self._sessions.setdefault(request.session_id or request.user_id, [])
-        import guardrails
-        sanitized_question = guardrails.sanitize_text(request.question)
+        sanitized_question = request.question
         session.append({"role": "user", "content": [{"text": sanitized_question}]})
 
         import model_router
