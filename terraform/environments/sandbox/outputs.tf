@@ -124,8 +124,51 @@ output "eks_update_kubeconfig_command" {
   value       = "aws eks update-kubeconfig --region ${var.aws_region} --name ${module.eks.cluster_name}"
 }
 
-<<<<<<< HEAD
-=======
+output "msk_bootstrap_brokers_plaintext" {
+  description = "Connection string cho Plaintext (port 9092) của MSK"
+  value       = module.msk.bootstrap_brokers_plaintext
+}
+
+output "msk_bootstrap_brokers_tls" {
+  description = "Connection string cho TLS (port 9094) của MSK"
+  value       = module.msk.bootstrap_brokers_tls
+}
+
+output "msk_bootstrap_brokers_sasl_scram" {
+  description = "Connection string cho SASL/SCRAM (port 9096) của MSK"
+  value       = module.msk.bootstrap_brokers_sasl_scram
+}
+
+output "msk_security_group_id" {
+  description = "Security Group ID của MSK cluster"
+  value       = module.msk.msk_security_group_id
+}
+
+output "msk_secret_arn" {
+  description = "ARN của Secret Manager lưu msk credentials"
+  value       = module.msk.msk_secret_arn
+}
+
+
+
+
+
+
+output "external_secrets_irsa_role_arn" {
+  description = "ARN IAM role cho External Secrets Operator (annotate SA external-secrets/external-secrets)"
+  value       = module.external_secrets_irsa.role_arn
+}
+
+output "external_dns_irsa_role_arn" {
+  description = "ARN IAM role cho external-dns (annotate SA external-dns/external-dns)"
+  value       = var.enable_cloudfront ? module.external_dns_irsa[0].role_arn : null
+}
+
+output "cloudfront_origin_hostname" {
+  description = "Tên cố định CloudFront dùng làm origin — external-dns tạo record này trỏ về ALB của Ingress frontend-proxy"
+  value       = local.origin_hostname
+}
+
 output "eks_control_plane_log_group_name" {
   description = "CloudWatch log group containing EKS API/audit/authenticator events"
   value       = module.eks.control_plane_log_group_name
@@ -170,52 +213,3 @@ output "audit_tamper_protection_policy_arn" {
   description = "Managed policy to attach to routine operator permission sets"
   value       = module.cloudtrail.tamper_protection_policy_arn
 }
-
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
-output "msk_bootstrap_brokers_plaintext" {
-  description = "Connection string cho Plaintext (port 9092) của MSK"
-  value       = module.msk.bootstrap_brokers_plaintext
-}
-
-output "msk_bootstrap_brokers_tls" {
-  description = "Connection string cho TLS (port 9094) của MSK"
-  value       = module.msk.bootstrap_brokers_tls
-}
-
-output "msk_bootstrap_brokers_sasl_scram" {
-  description = "Connection string cho SASL/SCRAM (port 9096) của MSK"
-  value       = module.msk.bootstrap_brokers_sasl_scram
-}
-
-output "msk_security_group_id" {
-  description = "Security Group ID của MSK cluster"
-  value       = module.msk.msk_security_group_id
-}
-
-output "msk_secret_arn" {
-  description = "ARN của Secret Manager lưu msk credentials"
-  value       = module.msk.msk_secret_arn
-}
-
-
-
-
-<<<<<<< HEAD
-
-
-output "external_secrets_irsa_role_arn" {
-  description = "ARN IAM role cho External Secrets Operator (annotate SA external-secrets/external-secrets)"
-  value       = module.external_secrets_irsa.role_arn
-}
-
-output "external_dns_irsa_role_arn" {
-  description = "ARN IAM role cho external-dns (annotate SA external-dns/external-dns)"
-  value       = var.enable_cloudfront ? module.external_dns_irsa[0].role_arn : null
-}
-
-output "cloudfront_origin_hostname" {
-  description = "Tên cố định CloudFront dùng làm origin — external-dns tạo record này trỏ về ALB của Ingress frontend-proxy"
-  value       = local.origin_hostname
-}
-=======
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)

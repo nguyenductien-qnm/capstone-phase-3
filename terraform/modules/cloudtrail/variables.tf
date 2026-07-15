@@ -1,13 +1,5 @@
 variable "project_name" {
   type        = string
-<<<<<<< HEAD
-  description = "Tên dự án sử dụng cho resource tagging"
-}
-
-variable "environment" {
-  type        = string
-  description = "Môi trường triển khai (dev, staging, prod)"
-=======
   description = "Project name used for resource naming"
 }
 variable "environment" {
@@ -88,5 +80,4 @@ variable "operator_role_names" {
   type        = list(string)
   default     = []
   description = "IAM role names to attach the tamper-deny policy; keep empty for manual Identity Center attachment"
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
 }

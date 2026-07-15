@@ -1,15 +1,4 @@
 data "aws_caller_identity" "current" {}
-<<<<<<< HEAD
-
-resource "aws_s3_bucket" "cloudtrail_logs" {
-  bucket = "${var.project_name}-${var.environment}-cloudtrail-logs"
-
-  lifecycle {
-    prevent_destroy = true
-  }
-}
-
-=======
 data "aws_partition" "current" {}
 data "aws_region" "current" {}
 
@@ -134,36 +123,12 @@ resource "aws_kms_alias" "audit" {
   target_key_id = aws_kms_key.audit[0].key_id
 }
 
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
 resource "aws_s3_bucket_policy" "cloudtrail_bucket_policy" {
   bucket = aws_s3_bucket.cloudtrail_logs.id
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-<<<<<<< HEAD
-        Sid    = "AWSCloudTrailAclCheck"
-        Effect = "Allow"
-        Principal = {
-          Service = "cloudtrail.amazonaws.com"
-        }
-        Action   = "s3:GetBucketAcl"
-        Resource = aws_s3_bucket.cloudtrail_logs.arn
-      },
-      {
-        Sid    = "AWSCloudTrailWrite"
-        Effect = "Allow"
-        Principal = {
-          Service = "cloudtrail.amazonaws.com"
-        }
-        Action   = "s3:PutObject"
-        Resource = "${aws_s3_bucket.cloudtrail_logs.arn}/AWSLogs/${data.aws_caller_identity.current.account_id}/*"
-        Condition = {
-          StringEquals = {
-            "s3:x-amz-acl" = "bucket-owner-full-control"
-          }
-        }
-=======
         Sid       = "DenyInsecureTransport", Effect = "Deny", Principal = "*", Action = "s3:*",
         Resource  = [aws_s3_bucket.cloudtrail_logs.arn, "${aws_s3_bucket.cloudtrail_logs.arn}/*"],
         Condition = { Bool = { "aws:SecureTransport" = "false" } }
@@ -180,16 +145,11 @@ resource "aws_s3_bucket_policy" "cloudtrail_bucket_policy" {
           "s3:x-amz-acl"  = "bucket-owner-full-control",
           "aws:SourceArn" = "arn:${data.aws_partition.current.partition}:cloudtrail:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:trail/${local.trail_name}"
         } }
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
       }
     ]
   })
 }
 
-<<<<<<< HEAD
-resource "aws_cloudtrail" "main_trail" {
-  name                          = "${var.project_name}-${var.environment}-audit-trail"
-=======
 resource "aws_cloudwatch_log_group" "cloudtrail" {
   count             = var.enable_cloudwatch_logs ? 1 : 0
   name              = "/aws/cloudtrail/${local.trail_name}"
@@ -217,20 +177,10 @@ resource "aws_iam_role_policy" "cloudtrail_cloudwatch" {
 
 resource "aws_cloudtrail" "main_trail" {
   name                          = local.trail_name
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
   s3_bucket_name                = aws_s3_bucket.cloudtrail_logs.id
   include_global_service_events = true
   is_multi_region_trail         = true
   enable_log_file_validation    = true
-<<<<<<< HEAD
-
-  depends_on = [aws_s3_bucket_policy.cloudtrail_bucket_policy]
-
-  lifecycle {
-    prevent_destroy = true
-  }
-}
-=======
   kms_key_id                    = local.kms_key_arn
   cloud_watch_logs_group_arn    = var.enable_cloudwatch_logs ? "${aws_cloudwatch_log_group.cloudtrail[0].arn}:*" : null
   cloud_watch_logs_role_arn     = var.enable_cloudwatch_logs ? aws_iam_role.cloudtrail_cloudwatch[0].arn : null
@@ -302,4 +252,3 @@ resource "aws_iam_role_policy_attachment" "operator_tamper_protection" {
   role       = each.value
   policy_arn = aws_iam_policy.audit_log_tamper_protection.arn
 }
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)

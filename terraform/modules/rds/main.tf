@@ -260,7 +260,6 @@ resource "aws_db_proxy_target" "this" {
   target_group_name      = "default"
   db_instance_identifier = aws_db_instance.this.identifier
 }
-<<<<<<< HEAD
 
 # Secret riêng chứa ENDPOINT database (host + proxy) cho External Secrets Operator
 # đồng bộ vào cluster. Tách khỏi db_credentials để tránh phụ thuộc vòng: aws_db_proxy
@@ -292,5 +291,3 @@ resource "aws_secretsmanager_secret_version" "db_endpoint" {
     dbname         = var.db_name
   })
 }
-=======
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)

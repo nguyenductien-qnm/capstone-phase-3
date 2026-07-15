@@ -61,8 +61,6 @@ variable "control_plane_log_retention_days" {
   description = "CloudWatch retention for EKS control-plane logs"
   type        = number
   default     = 30
-<<<<<<< HEAD
-=======
 
   validation {
     condition = contains([
@@ -77,7 +75,6 @@ variable "enable_control_plane_log_kms" {
   description = "Encrypt the EKS control-plane CloudWatch log group with a customer-managed KMS key"
   type        = bool
   default     = true
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
 }
 
 variable "node_instance_types" {

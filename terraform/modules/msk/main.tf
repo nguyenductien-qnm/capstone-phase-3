@@ -31,11 +31,7 @@ resource "aws_security_group_rule" "msk_ingress_eks" {
 
 # MSK Configuration: bật auto.create.topics.enable để services tự tạo topic
 resource "aws_msk_configuration" "this" {
-<<<<<<< HEAD
   name              = "${var.project_name}-${var.environment}-msk-config-${replace(var.kafka_version, ".", "-")}"
-=======
-  name              = "${var.project_name}-${var.environment}-msk-config"
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
   kafka_versions    = [var.kafka_version]
   server_properties = <<-EOT
     auto.create.topics.enable=true
@@ -155,19 +151,15 @@ resource "aws_secretsmanager_secret" "msk_credentials" {
 
 resource "aws_secretsmanager_secret_version" "msk_credentials" {
   secret_id = aws_secretsmanager_secret.msk_credentials.id
-<<<<<<< HEAD
   # MSK SCRAM association yêu cầu secret CHỈ chứa username/password -> giữ sạch.
   # Endpoint (brokers) lưu ở secret riêng bên dưới để ESO đọc, tránh làm hỏng
   # aws_msk_scram_secret_association.
-=======
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
   secret_string = jsonencode({
     username = "msk_user"
     password = random_password.msk_password.result
   })
 }
 
-<<<<<<< HEAD
 # Secret riêng chứa endpoint MSK (brokers) cho External Secrets Operator đồng bộ
 # vào cluster. Tách khỏi SCRAM credential secret (không được thêm field ngoài
 # username/password vào secret dùng cho scram_secret_association).
@@ -189,8 +181,6 @@ resource "aws_secretsmanager_secret_version" "msk_endpoint" {
   })
 }
 
-=======
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
 # Liên kết secrets với MSK cluster
 resource "aws_msk_scram_secret_association" "this" {
   cluster_arn     = aws_msk_cluster.this.arn
@@ -200,8 +190,3 @@ resource "aws_msk_scram_secret_association" "this" {
     aws_secretsmanager_secret_version.msk_credentials
   ]
 }
-
-<<<<<<< HEAD
-=======
-
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)

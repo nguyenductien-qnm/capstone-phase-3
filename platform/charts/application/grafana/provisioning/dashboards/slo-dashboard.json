@@ -24,11 +24,7 @@
       "type": "text",
       "options": {
         "mode": "markdown",
-<<<<<<< HEAD
         "content": "### SLO Dashboard — browse → cart → checkout\n**Source:** spanmetrics (`traces_span_metrics_*`). Success = span without `STATUS_CODE_ERROR`. Window: **5m live** / **24h error budget**. **SLO targets:** checkout ≥99% · browse/cart ≥99.5% · storefront p95 < 1s"
-=======
-        "content": "### SLO Dashboard - luong ra tien (browse -> cart -> checkout)\nNguon: **spanmetrics** (`traces_span_metrics_*`). Success = span khong `STATUS_CODE_ERROR`. Cua so live 5m; error budget 24h. Nguong: checkout >=99%, browse/cart >=99.5%, storefront p95 <1s."
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
       }
     },
     {
@@ -36,11 +32,7 @@
       "id": 101,
       "type": "row",
       "collapsed": false,
-<<<<<<< HEAD
       "title": "SLI — Current (rolling 5m)",
-=======
-      "title": "SLO hien tai (rolling 5m)",
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
       "panels": []
     },
     {
@@ -48,11 +40,7 @@
       "gridPos": { "h": 6, "w": 6, "x": 0, "y": 3 },
       "id": 1,
       "type": "stat",
-<<<<<<< HEAD
       "title": "Checkout SLI (≥ 99%)",
-=======
-      "title": "Checkout success rate (SLO >= 99%)",
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
       "description": "Ty le span checkout khong loi. Nguong 99% (revenue-critical).",
       "fieldConfig": {
         "defaults": {
@@ -71,11 +59,7 @@
         "overrides": []
       },
       "options": {
-<<<<<<< HEAD
         "colorMode": "value",
-=======
-        "colorMode": "background",
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
         "graphMode": "area",
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
       },
@@ -92,11 +76,7 @@
       "gridPos": { "h": 6, "w": 6, "x": 6, "y": 3 },
       "id": 2,
       "type": "stat",
-<<<<<<< HEAD
       "title": "Browse SLI (≥ 99.5%)",
-=======
-      "title": "Browse (frontend) success (SLO >= 99.5%)",
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
       "description": "Ty le span frontend khong loi (proxy cho non-5xx browse).",
       "fieldConfig": {
         "defaults": {
@@ -115,11 +95,7 @@
         "overrides": []
       },
       "options": {
-<<<<<<< HEAD
         "colorMode": "value",
-=======
-        "colorMode": "background",
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
         "graphMode": "area",
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
       },
@@ -136,11 +112,7 @@
       "gridPos": { "h": 6, "w": 6, "x": 12, "y": 3 },
       "id": 3,
       "type": "stat",
-<<<<<<< HEAD
       "title": "Cart SLI (≥ 99.5%)",
-=======
-      "title": "Cart success rate (SLO >= 99.5%)",
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
       "fieldConfig": {
         "defaults": {
           "unit": "percent",
@@ -158,11 +130,7 @@
         "overrides": []
       },
       "options": {
-<<<<<<< HEAD
         "colorMode": "value",
-=======
-        "colorMode": "background",
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
         "graphMode": "area",
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
       },
@@ -179,13 +147,8 @@
       "gridPos": { "h": 6, "w": 6, "x": 18, "y": 3 },
       "id": 4,
       "type": "stat",
-<<<<<<< HEAD
       "title": "Storefront p95 (SLO < 1s)",
       "description": "p95 duration span frontend-proxy (Envoy edge). Nguong 1000ms.",
-=======
-      "title": "Storefront p95 latency (SLO < 1s)",
-      "description": "p95 duration span frontend-proxy (Envoy edge, low-cardinality). Nguong 1000ms.",
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
       "fieldConfig": {
         "defaults": {
           "unit": "ms",
@@ -201,11 +164,7 @@
         "overrides": []
       },
       "options": {
-<<<<<<< HEAD
         "colorMode": "value",
-=======
-        "colorMode": "background",
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
         "graphMode": "area",
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
       },
@@ -222,16 +181,11 @@
       "id": 102,
       "type": "row",
       "collapsed": false,
-<<<<<<< HEAD
       "title": "Error Budget (24h) — Checkout / Browse / Cart",
-=======
-      "title": "Error budget & burn rate (checkout/browse/cart, cua so 24h)",
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
       "panels": []
     },
     {
       "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
-<<<<<<< HEAD
       "gridPos": { "h": 7, "w": 8, "x": 0, "y": 10 },
       "id": 5,
       "type": "gauge",
@@ -242,26 +196,12 @@
           "unit": "percent",
           "min": 0,
           "max": 100,
-=======
-      "gridPos": { "h": 6, "w": 4, "x": 0, "y": 10 },
-      "id": 5,
-      "type": "stat",
-      "title": "Checkout error budget remaining (24h)",
-      "description": "100% = con nguyen 1% budget; <0 = da chay budget.",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
           "decimals": 1,
           "thresholds": {
             "mode": "absolute",
             "steps": [
               { "color": "red", "value": null },
-<<<<<<< HEAD
               { "color": "orange", "value": 25 },
-=======
-              { "color": "orange", "value": 20 },
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
               { "color": "green", "value": 50 }
             ]
           }
@@ -269,16 +209,10 @@
         "overrides": []
       },
       "options": {
-<<<<<<< HEAD
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
         "orientation": "auto",
         "showThresholdLabels": false,
         "showThresholdMarkers": true
-=======
-        "colorMode": "background",
-        "graphMode": "area",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
       },
       "targets": [
         {
@@ -290,7 +224,6 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
-<<<<<<< HEAD
       "gridPos": { "h": 7, "w": 8, "x": 8, "y": 10 },
       "id": 10,
       "type": "gauge",
@@ -301,26 +234,12 @@
           "unit": "percent",
           "min": 0,
           "max": 100,
-=======
-      "gridPos": { "h": 6, "w": 4, "x": 4, "y": 10 },
-      "id": 10,
-      "type": "stat",
-      "title": "Browse error budget remaining (24h)",
-      "description": "100% = con nguyen 0.5% budget; <0 = da chay budget.",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
           "decimals": 1,
           "thresholds": {
             "mode": "absolute",
             "steps": [
               { "color": "red", "value": null },
-<<<<<<< HEAD
               { "color": "orange", "value": 25 },
-=======
-              { "color": "orange", "value": 20 },
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
               { "color": "green", "value": 50 }
             ]
           }
@@ -328,16 +247,10 @@
         "overrides": []
       },
       "options": {
-<<<<<<< HEAD
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
         "orientation": "auto",
         "showThresholdLabels": false,
         "showThresholdMarkers": true
-=======
-        "colorMode": "background",
-        "graphMode": "area",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
       },
       "targets": [
         {
@@ -349,7 +262,6 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
-<<<<<<< HEAD
       "gridPos": { "h": 7, "w": 8, "x": 16, "y": 10 },
       "id": 11,
       "type": "gauge",
@@ -360,26 +272,12 @@
           "unit": "percent",
           "min": 0,
           "max": 100,
-=======
-      "gridPos": { "h": 6, "w": 4, "x": 8, "y": 10 },
-      "id": 11,
-      "type": "stat",
-      "title": "Cart error budget remaining (24h)",
-      "description": "100% = con nguyen 0.5% budget; <0 = da chay budget.",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
           "decimals": 1,
           "thresholds": {
             "mode": "absolute",
             "steps": [
               { "color": "red", "value": null },
-<<<<<<< HEAD
               { "color": "orange", "value": 25 },
-=======
-              { "color": "orange", "value": 20 },
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
               { "color": "green", "value": 50 }
             ]
           }
@@ -387,16 +285,10 @@
         "overrides": []
       },
       "options": {
-<<<<<<< HEAD
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
         "orientation": "auto",
         "showThresholdLabels": false,
         "showThresholdMarkers": true
-=======
-        "colorMode": "background",
-        "graphMode": "area",
-        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
       },
       "targets": [
         {
@@ -407,7 +299,6 @@
       ]
     },
     {
-<<<<<<< HEAD
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 17 },
       "id": 106,
       "type": "row",
@@ -421,13 +312,6 @@
       "id": 6,
       "type": "stat",
       "title": "Checkout Burn (1h)",
-=======
-      "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
-      "gridPos": { "h": 6, "w": 4, "x": 12, "y": 10 },
-      "id": 6,
-      "type": "stat",
-      "title": "Checkout burn rate (1h)",
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
       "description": "error_rate / 0.01. >1 = dang dot budget nhanh hon cho phep.",
       "fieldConfig": {
         "defaults": {
@@ -445,11 +329,7 @@
         "overrides": []
       },
       "options": {
-<<<<<<< HEAD
         "colorMode": "value",
-=======
-        "colorMode": "background",
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
         "graphMode": "area",
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
       },
@@ -463,7 +343,6 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
-<<<<<<< HEAD
       "gridPos": { "h": 5, "w": 4, "x": 4, "y": 18 },
       "id": 12,
       "type": "stat",
@@ -538,12 +417,6 @@
       "id": 7,
       "type": "stat",
       "title": "Request Volume (req/s)",
-=======
-      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 10 },
-      "id": 7,
-      "type": "stat",
-      "title": "Request volume (browse/cart/checkout, req/s)",
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
       "description": "De thay tai van chay trong luc drain/rollout (CDO-83).",
       "fieldConfig": {
         "defaults": { "unit": "reqps", "decimals": 1 },
@@ -563,40 +436,24 @@
       ]
     },
     {
-<<<<<<< HEAD
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 23 },
       "id": 103,
       "type": "row",
       "collapsed": false,
       "title": "Trend — SLO over Time (use during drain / rolling-restart to prove SLO holds)",
-=======
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 16 },
-      "id": 103,
-      "type": "row",
-      "collapsed": false,
-      "title": "Xu huong (dung khi drain / rolling-restart de chung minh SLO khong tut)",
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
       "panels": []
     },
     {
       "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
-<<<<<<< HEAD
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
       "id": 8,
       "type": "timeseries",
       "title": "Success Rate over Time (checkout / browse / cart)",
-=======
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 17 },
-      "id": 8,
-      "type": "timeseries",
-      "title": "Success rate theo thoi gian (checkout / frontend / cart)",
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
       "fieldConfig": {
         "defaults": {
           "unit": "percent",
           "min": 95,
           "max": 100,
-<<<<<<< HEAD
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -614,9 +471,6 @@
               "mode": "line"
             }
           }
-=======
-          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 5, "spanNulls": true }
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
         },
         "overrides": []
       },
@@ -634,11 +488,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
           "refId": "B",
-<<<<<<< HEAD
           "legendFormat": "browse (frontend)",
-=======
-          "legendFormat": "frontend (browse)",
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
           "expr": "100 * sum(rate(traces_span_metrics_calls_total{service_name=\"frontend\",span_kind=\"SPAN_KIND_SERVER\",status_code!=\"STATUS_CODE_ERROR\"}[5m])) / clamp_min(sum(rate(traces_span_metrics_calls_total{service_name=\"frontend\",span_kind=\"SPAN_KIND_SERVER\"}[5m])), 1e-9)"
         },
         {
@@ -651,7 +501,6 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
-<<<<<<< HEAD
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
       "id": 9,
       "type": "timeseries",
@@ -659,23 +508,12 @@
       "fieldConfig": {
         "defaults": {
           "unit": "ms",
-=======
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 17 },
-      "id": 9,
-      "type": "timeseries",
-      "title": "Latency p95/p99 storefront (frontend-proxy edge, ms)",
-      "fieldConfig": {
-        "defaults": {
-          "unit": "ms",
-          "custom": { "drawStyle": "line", "lineWidth": 2, "fillOpacity": 5, "spanNulls": true },
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
           "thresholds": {
             "mode": "absolute",
             "steps": [
               { "color": "green", "value": null },
               { "color": "red", "value": 1000 }
             ]
-<<<<<<< HEAD
           },
           "custom": {
             "drawStyle": "line",
@@ -685,8 +523,6 @@
             "thresholdsStyle": {
               "mode": "line"
             }
-=======
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
           }
         },
         "overrides": []
@@ -709,7 +545,6 @@
           "expr": "histogram_quantile(0.99, sum(rate(traces_span_metrics_duration_milliseconds_bucket{service_name=\"frontend-proxy\"}[5m])) by (le))"
         }
       ]
-<<<<<<< HEAD
     },
     {
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 32 },
@@ -823,8 +658,6 @@
           "expr": "sum(kube_pod_status_phase{namespace=\"techx-tf1\"}) by (phase)"
         }
       ]
-=======
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
     }
   ],
   "refresh": "10s",
@@ -836,10 +669,6 @@
   "timezone": "",
   "title": "SLO - Deploy Safety (Mandate-03)",
   "uid": "slo-deploy-safety",
-<<<<<<< HEAD
   "version": 2,
-=======
-  "version": 1,
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
   "weekStart": ""
 }

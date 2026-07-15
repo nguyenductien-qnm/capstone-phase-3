@@ -23,11 +23,7 @@ output "msk_secret_arn" {
   value       = aws_secretsmanager_secret.msk_credentials.arn
 }
 
-<<<<<<< HEAD
 output "msk_endpoint_secret_arn" {
   description = "ARN của Secret Manager lưu MSK endpoint (brokers) cho ESO"
   value       = aws_secretsmanager_secret.msk_endpoint.arn
 }
-
-=======
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)

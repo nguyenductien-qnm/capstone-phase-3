@@ -1,9 +1,6 @@
 data "aws_partition" "current" {}
-<<<<<<< HEAD
-=======
 data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
 
 locals {
   cluster_name = "${var.project_name}-${var.environment}-eks"
@@ -18,22 +15,17 @@ locals {
 resource "aws_cloudwatch_log_group" "control_plane" {
   name              = "/aws/eks/${local.cluster_name}/cluster"
   retention_in_days = var.control_plane_log_retention_days
-<<<<<<< HEAD
-=======
   kms_key_id        = var.enable_control_plane_log_kms ? aws_kms_key.control_plane_logs[0].arn : null
 
   lifecycle {
     prevent_destroy = true
   }
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
 
   tags = {
     Name = "${local.cluster_name}-control-plane"
   }
 }
 
-<<<<<<< HEAD
-=======
 resource "aws_kms_key" "control_plane_logs" {
   count                   = var.enable_control_plane_log_kms ? 1 : 0
   description             = "Encrypt EKS control-plane logs for ${local.cluster_name}"
@@ -75,7 +67,6 @@ resource "aws_kms_alias" "control_plane_logs" {
   target_key_id = aws_kms_key.control_plane_logs[0].key_id
 }
 
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
 resource "aws_iam_role" "cluster" {
   name = "${local.cluster_name}-cluster-role"
 

@@ -58,8 +58,6 @@ output "ebs_csi_role_arn" {
   description = "Pod Identity IAM role ARN for the EBS CSI controller"
   value       = aws_iam_role.ebs_csi.arn
 }
-<<<<<<< HEAD
-=======
 
 output "control_plane_log_group_name" {
   description = "CloudWatch log group containing EKS control-plane logs"
@@ -80,4 +78,3 @@ output "control_plane_log_kms_key_arn" {
   description = "KMS key ARN used by EKS control-plane logs, or null when disabled"
   value       = try(aws_kms_key.control_plane_logs[0].arn, null)
 }
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)

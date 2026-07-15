@@ -101,86 +101,6 @@ variable "eks_control_plane_log_retention_days" {
   type        = number
   description = "Retention CloudWatch cho EKS API/audit/authenticator logs"
   default     = 30
-<<<<<<< HEAD
-=======
-
-  validation {
-    condition     = contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653], var.eks_control_plane_log_retention_days)
-    error_message = "Use a CloudWatch Logs supported retention value."
-  }
-}
-
-variable "eks_enabled_cluster_log_types" {
-  type        = list(string)
-  description = "EKS control-plane log types; api, audit and authenticator are mandatory for auditability"
-  default     = ["api", "audit", "authenticator"]
-  validation {
-    condition     = alltrue([for required in ["api", "audit", "authenticator"] : contains(var.eks_enabled_cluster_log_types, required)])
-    error_message = "eks_enabled_cluster_log_types must include api, audit and authenticator."
-  }
-}
-
-variable "eks_enable_control_plane_log_kms" {
-  type        = bool
-  description = "Use a customer-managed rotating KMS key for the EKS control-plane log group"
-  default     = true
-}
-
-variable "cloudtrail_enable_kms_encryption" {
-  type        = bool
-  default     = true
-  description = "Use a customer-managed rotating KMS key for CloudTrail storage"
-}
-variable "cloudtrail_enable_cloudwatch_logs" {
-  type        = bool
-  default     = true
-  description = "Stream CloudTrail events to CloudWatch Logs for operational queries"
-}
-variable "cloudtrail_cloudwatch_log_retention_days" {
-  type        = number
-  default     = 90
-  description = "CloudWatch retention for CloudTrail events"
-}
-variable "cloudtrail_s3_retention_days" {
-  type        = number
-  default     = 2555
-  description = "Days before expiring archived CloudTrail objects"
-}
-variable "cloudtrail_s3_transition_days" {
-  type        = number
-  default     = 90
-  description = "Days before transitioning CloudTrail objects"
-}
-variable "cloudtrail_s3_transition_storage_class" {
-  type        = string
-  default     = "GLACIER_IR"
-  description = "Storage class for older CloudTrail objects"
-}
-variable "cloudtrail_enable_object_lock" {
-  type        = bool
-  default     = false
-  description = "Enable GOVERNANCE Object Lock only for a compatible/new bucket; may require migration"
-}
-variable "cloudtrail_object_lock_retention_days" {
-  type        = number
-  default     = 30
-  description = "GOVERNANCE retention when Object Lock is explicitly enabled"
-}
-variable "audit_administrator_principals" {
-  type        = list(string)
-  default     = []
-  description = "IAM principal ARNs exempted from the operator tamper deny policy"
-}
-variable "audit_break_glass_principals" {
-  type        = list(string)
-  default     = []
-  description = "Break-glass IAM principal ARNs exempted from the operator tamper deny policy"
-}
-variable "audit_operator_role_names" {
-  type        = list(string)
-  default     = []
-  description = "IAM role names to attach the tamper-deny policy; leave empty for Identity Center manual attachment"
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
 }
 
 variable "eks_node_instance_types" {
@@ -224,11 +144,7 @@ variable "eks_ops_node_subnet_key" {
 variable "eks_ops_node_instance_types" {
   type        = list(string)
   description = "EC2 instance types for the observability node group"
-<<<<<<< HEAD
   default     = ["t3.medium"]
-=======
-  default     = ["m6a.large"]
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
 }
 
 variable "eks_ops_node_disk_size_gib" {
@@ -237,15 +153,12 @@ variable "eks_ops_node_disk_size_gib" {
   default     = 30
 }
 
-<<<<<<< HEAD
 variable "github_terraform_role_name" {
   type        = string
   description = "IAM role used by GitHub Actions to manage Terraform and bootstrap Kubernetes"
   default     = "GitHubTerraformSandboxRole"
 }
 
-=======
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
 variable "eks_access_entries" {
   description = "EKS Access Entries cho SSO/operator/automation; dùng IAM role ARN, không dùng STS assumed-role ARN"
   type = map(object({
@@ -306,11 +219,7 @@ variable "valkey_node_type" {
 variable "kafka_version" {
   type        = string
   description = "Phiên bản Apache Kafka của cụm MSK"
-<<<<<<< HEAD
   default     = "3.9.x"
-=======
-  default     = "3.9.0"
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
 }
 
 variable "valkey_num_cache_clusters" {
@@ -323,15 +232,9 @@ variable "ecr_repositories" {
   description = "Danh sách tên các repositories cần khởi tạo trên ECR"
 }
 
-<<<<<<< HEAD
 variable "route53_zone_id" {
   type        = string
   description = "Route53 hosted zone ID của subdomain — external-dns được cấp quyền ghi record ĐÚNG zone này (least-privilege)"
-=======
-variable "nlb_dns_name" {
-  type        = string
-  description = "Tên miền công cộng (DNS Name) của Network Load Balancer (NLB) để làm origin"
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
 }
 
 variable "subdomain" {
@@ -354,7 +257,86 @@ variable "rds_multi_az" {
   type        = bool
   description = "Bật/Tắt chế độ Multi-AZ cho Primary DB"
 }
-<<<<<<< HEAD
 
-=======
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
+variable "eks_enabled_cluster_log_types" {
+  type        = list(string)
+  description = "EKS control-plane log types; api, audit and authenticator are mandatory for auditability"
+  default     = ["api", "audit", "authenticator"]
+
+  validation {
+    condition     = alltrue([for required in ["api", "audit", "authenticator"] : contains(var.eks_enabled_cluster_log_types, required)])
+    error_message = "eks_enabled_cluster_log_types must include api, audit and authenticator."
+  }
+}
+
+variable "eks_enable_control_plane_log_kms" {
+  type        = bool
+  description = "Use a customer-managed rotating KMS key for the EKS control-plane log group"
+  default     = true
+}
+
+variable "cloudtrail_enable_kms_encryption" {
+  type        = bool
+  default     = true
+  description = "Use a customer-managed rotating KMS key for CloudTrail storage"
+}
+
+variable "cloudtrail_enable_cloudwatch_logs" {
+  type        = bool
+  default     = true
+  description = "Stream CloudTrail events to CloudWatch Logs for operational queries"
+}
+
+variable "cloudtrail_cloudwatch_log_retention_days" {
+  type        = number
+  default     = 90
+  description = "CloudWatch retention for CloudTrail events"
+}
+
+variable "cloudtrail_s3_retention_days" {
+  type        = number
+  default     = 2555
+  description = "Days before expiring archived CloudTrail objects"
+}
+
+variable "cloudtrail_s3_transition_days" {
+  type        = number
+  default     = 90
+  description = "Days before transitioning CloudTrail objects"
+}
+
+variable "cloudtrail_s3_transition_storage_class" {
+  type        = string
+  default     = "GLACIER_IR"
+  description = "Storage class for older CloudTrail objects"
+}
+
+variable "cloudtrail_enable_object_lock" {
+  type        = bool
+  default     = false
+  description = "Enable GOVERNANCE Object Lock only for a compatible/new bucket; may require migration"
+}
+
+variable "cloudtrail_object_lock_retention_days" {
+  type        = number
+  default     = 30
+  description = "GOVERNANCE retention when Object Lock is explicitly enabled"
+}
+
+variable "audit_administrator_principals" {
+  type        = list(string)
+  default     = []
+  description = "IAM principal ARNs exempted from the operator tamper deny policy"
+}
+
+variable "audit_break_glass_principals" {
+  type        = list(string)
+  default     = []
+  description = "Break-glass IAM principal ARNs exempted from the operator tamper deny policy"
+}
+
+variable "audit_operator_role_names" {
+  type        = list(string)
+  default     = []
+  description = "IAM role names to attach the tamper-deny policy; leave empty for Identity Center manual attachment"
+}

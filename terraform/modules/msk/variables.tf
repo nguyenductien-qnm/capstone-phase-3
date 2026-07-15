@@ -38,9 +38,5 @@ variable "ebs_volume_size" {
 variable "kafka_version" {
   type        = string
   description = "Phiên bản Apache Kafka của cụm MSK"
-<<<<<<< HEAD
   default     = "3.9.x"
-=======
-  default     = "3.9.0"
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
 }

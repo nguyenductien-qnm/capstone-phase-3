@@ -178,10 +178,7 @@ jobs:
         with:
           role-to-assume: ${{ secrets.TF_AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
-<<<<<<< HEAD
-=======
           role-session-name: gha-${{ github.actor }}-${{ github.run_id }}
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
 
       - name: Materialize sandbox variables
         shell: bash
@@ -298,10 +295,7 @@ jobs:
         with:
           role-to-assume: ${{ secrets.TF_AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
-<<<<<<< HEAD
-=======
           role-session-name: gha-${{ github.actor }}-${{ github.run_id }}
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -355,10 +349,7 @@ jobs:
         with:
           role-to-assume: ${{ secrets.TF_AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
-<<<<<<< HEAD
-=======
           role-session-name: gha-${{ github.actor }}-${{ github.run_id }}
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
 
       - name: Install kubectl
         uses: azure/setup-kubectl@v4
@@ -404,7 +395,6 @@ jobs:
               --timeout 10m
           fi
 
-<<<<<<< HEAD
           for kind in deployment statefulset; do
             while IFS= read -r workload; do
               [ -n "$workload" ] || continue
@@ -415,14 +405,6 @@ jobs:
               --namespace "$ARGOCD_NAMESPACE" \
               --output=name)
           done
-=======
-          kubectl rollout status deployment --all \
-            --namespace "$ARGOCD_NAMESPACE" \
-            --timeout=5m
-          kubectl rollout status statefulset --all \
-            --namespace "$ARGOCD_NAMESPACE" \
-            --timeout=5m
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
           kubectl get pods -n "$ARGOCD_NAMESPACE"
 
       - name: Apply ArgoCD Root App (App-of-Apps)
@@ -482,10 +464,7 @@ jobs:
         with:
           role-to-assume: ${{ secrets.TF_AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
-<<<<<<< HEAD
-=======
           role-session-name: gha-${{ github.actor }}-${{ github.run_id }}
->>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
 
       - name: Install kubectl
         uses: azure/setup-kubectl@v4
