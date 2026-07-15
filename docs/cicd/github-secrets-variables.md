@@ -1,78 +1,148 @@
 # GitHub Secrets & Variables — sandbox CI/CD
 
-Tài liệu map các giá trị cấu hình lên GitHub cho 4 workflow:
-`platform-ci.yaml`, `app-build.yaml`, `infra-cd.yaml`, `infra-destroy.yaml`.
+Tài liệu map cấu hình cho `app-build.yaml`, `infra-cd.yaml` và
+`infra-destroy.yaml`. Tất cả được đặt ở **Repository scope**, không đặt dữ liệu
+trong GitHub Environment `sandbox`.
 
-> **Nguyên tắc bảo mật:** `terraform.tfvars` bị `.gitignore` chặn (dòng `*.tfvars`) —
-> **không commit**. File sandbox hiện chỉ chứa cấu hình không nhạy cảm, nên CI nạp
-> qua **Repository Variable `TFVARS_SANDBOX`**
-> (bước "Materialize sandbox variables" ghi ra `$RUNNER_TEMP/sandbox.tfvars`).
-> File `terraform.tfvars` trong repo chỉ để tham chiếu local; **nguồn thật khi
-> chạy CI là repository variable này**. Đổi tfvars → phải cập nhật lại
-> `TFVARS_SANDBOX`.
+Environment `sandbox` vẫn được job sử dụng cho deployment protection và GitHub
+OIDC subject.
 
-## 1. Repository Variables (Settings → Secrets and variables → Actions → Variables)
+## 1. Repository Variables dùng chung
 
-Không nhạy cảm. Các giá trị có ghi "bắt buộc" phải được cấu hình trước khi chạy workflow:
+| Variable | Mục đích |
+|---|---|
+| `AWS_REGION` | AWS region của workflow |
+| `EKS_CLUSTER_NAME` | Tên EKS cluster |
+| `ECR_REGISTRY` | ECR registry của application |
+| `ECR_REPOSITORY` | ECR repository của application |
+| `IMAGE_VERSION` | Prefix version của image tag |
+| `TF_AWS_ROLE_ARN` | ARN IAM role mà GitHub Actions assume bằng OIDC |
+| `GITOPS_APP_ID` | App ID của GitHub App dùng để bump image tag |
 
-| Variable | Giá trị (khớp tfvars/hạ tầng hiện tại) | Dùng ở |
-|---|---|---|
-| `AWS_REGION` | `us-east-1` | tất cả |
-| `EKS_CLUSTER_NAME` | `ecommerce-dev-eks` | infra-cd, infra-destroy |
-| `ECR_REGISTRY` | `804372444787.dkr.ecr.us-east-1.amazonaws.com` | app-build |
-| `ECR_REPOSITORY` | `ecommerce-dev-techx-corp` | app-build |
-| `IMAGE_VERSION` | `1.0` | app-build |
-| `TFVARS_SANDBOX` | Toàn bộ nội dung `terraform/environments/sandbox/terraform.tfvars` | infra-cd, infra-destroy; bắt buộc |
-| `TF_AWS_ROLE_ARN` | ARN IAM role OIDC của GitHub Actions | app-build, infra-cd, infra-destroy; bắt buộc |
-| `GITOPS_APP_ID` | App ID của GitHub App bot bump tag | app-build job `bump`; bắt buộc |
+ARN, account ID, region, cluster name và GitHub App ID không phải secret.
 
-Trong giai đoạn chuyển đổi, workflow tạm fallback về Repository Secret
-`GITOPS_APP_ID` nếu Repository Variable cùng tên chưa được tạo. Sau khi set variable,
-xóa secret cũ để hoàn tất migration.
+## 2. Repository Variables cho Terraform
 
-## 2. Repository Secrets (Settings → Secrets and variables → Actions → Secrets)
+Mỗi Terraform input là một Repository Variable riêng. Quy ước mapping:
+
+```text
+Repository Variable TF_VAR_VPC_CIDR
+               -> env TF_VAR_vpc_cidr
+               -> Terraform variable vpc_cidr
+```
+
+String lưu dưới dạng text thuần. Boolean/number lưu dưới dạng literal. List/map
+lưu dưới dạng JSON hoặc biểu thức HCL hợp lệ.
+
+### Network
+
+```text
+TF_VAR_AWS_REGION
+TF_VAR_PROJECT_NAME
+TF_VAR_ENVIRONMENT
+TF_VAR_VPC_CIDR
+TF_VAR_PUBLIC_SUBNETS
+TF_VAR_PRIVATE_APP_SUBNETS
+TF_VAR_PRIVATE_DATA_SUBNETS
+TF_VAR_PRIVATE_MQ_SUBNETS
+TF_VAR_ENABLE_NAT_GATEWAY
+TF_VAR_SINGLE_NAT_GATEWAY
+TF_VAR_PUBLIC_SUBNET_TAGS
+TF_VAR_PRIVATE_SUBNET_TAGS
+```
+
+### EKS
+
+```text
+TF_VAR_EKS_CLUSTER_VERSION
+TF_VAR_EKS_NODE_CAPACITY_TYPE
+TF_VAR_EKS_ENDPOINT_PUBLIC_ACCESS
+TF_VAR_EKS_PUBLIC_ACCESS_CIDRS
+TF_VAR_EKS_CONTROL_PLANE_LOG_RETENTION_DAYS
+TF_VAR_EKS_ACCESS_ENTRIES
+```
+
+`eks_node_instance_types` và `eks_node_scaling` không đặt ở GitHub Variables.
+Source of truth của hai biến này là file version-controlled
+`terraform/environments/sandbox/primary-capacity.tfvars`.
+
+Các input EKS optional còn lại dùng default trong `variables.tf` nếu không được
+override.
+
+### RDS, MSK, Valkey và ECR
+
+```text
+TF_VAR_DB_NAME
+TF_VAR_DB_USERNAME
+TF_VAR_RDS_INSTANCE_CLASS
+TF_VAR_RDS_ALLOCATED_STORAGE
+TF_VAR_ENABLE_READ_REPLICA
+TF_VAR_REPLICA_INSTANCE_CLASS
+TF_VAR_ENABLE_RDS_PROXY
+TF_VAR_RDS_MULTI_AZ
+TF_VAR_KAFKA_VERSION
+TF_VAR_VALKEY_NODE_TYPE
+TF_VAR_VALKEY_NUM_CACHE_CLUSTERS
+TF_VAR_ECR_REPOSITORIES
+```
+
+### DNS và CloudFront
+
+```text
+TF_VAR_ROUTE53_ZONE_ID
+TF_VAR_SUBDOMAIN
+TF_VAR_ACM_CERTIFICATE_ARN
+TF_VAR_ENABLE_CLOUDFRONT
+```
+
+## 3. Repository Secrets
 
 Chỉ giữ dữ liệu bí mật thực sự:
 
-| Secret | Nội dung | Ghi chú |
-|---|---|---|
-| `GITOPS_APP_PRIVATE_KEY` | Private key (.pem) của GitHub App đó | dán nguyên khối PEM |
+| Secret | Nội dung |
+|---|---|
+| `GITOPS_APP_PRIVATE_KEY` | Private key PEM của GitHub App |
 
-> `GITHUB_TOKEN` (dùng ở `secret-scan`/gitleaks) là token tự động của Actions —
-> **không cần tạo**.
+`GITHUB_TOKEN` do GitHub Actions tự tạo, không cần cấu hình thủ công.
 
-## 3. Giá trị `TFVARS_SANDBOX`
+Không đưa password, token, AWS access key hoặc private key vào Repository
+Variables. Password RDS/Valkey được Terraform sinh và lưu trong AWS Secrets
+Manager, không truyền qua GitHub Actions.
 
-Copy **nguyên văn** nội dung file `terraform/environments/sandbox/terraform.tfvars`
-vào Repository Variable. ARN, domain, CIDR, instance type và username không phải secret.
-Không đưa password, token, access key hoặc private key vào biến này.
+## 4. Source of truth
 
-Environment `sandbox` vẫn được workflow sử dụng cho deployment protection và OIDC
-subject, nhưng không lưu variable/secret ở scope Environment.
+```text
+Terraform configuration  -> individual Repository Variables TF_VAR_*
+Primary node capacity    -> primary-capacity.tfvars trong Git
+Optional defaults        -> variables.tf
+Sensitive credential    -> Repository Secrets / AWS Secrets Manager
+```
 
-## 4. Set nhanh bằng `gh` CLI (chạy trên máy có gh + đã `gh auth login`)
+Workflow không còn đọc `TFVARS_SANDBOX` và không tạo file
+`$RUNNER_TEMP/sandbox.tfvars`.
+
+## 5. Hoàn tất migration
+
+Chỉ chạy cleanup sau khi workflow mới đã merge và Terraform plan thành công:
 
 ```bash
 REPO="nguyenductien-qnm/capstone-phase-3"
-TFVARS="terraform/environments/sandbox/terraform.tfvars"
 
-# --- Variables (không nhạy cảm) ---
-gh variable set AWS_REGION       --repo "$REPO" --body "us-east-1"
-gh variable set EKS_CLUSTER_NAME --repo "$REPO" --body "ecommerce-dev-eks"
-gh variable set ECR_REGISTRY     --repo "$REPO" --body "804372444787.dkr.ecr.us-east-1.amazonaws.com"
-gh variable set ECR_REPOSITORY   --repo "$REPO" --body "ecommerce-dev-techx-corp"
-gh variable set IMAGE_VERSION    --repo "$REPO" --body "1.0"
-gh variable set TF_AWS_ROLE_ARN  --repo "$REPO" --body "arn:aws:iam::804372444787:role/GitHubTerraformSandboxRole"
-gh variable set GITOPS_APP_ID    --repo "$REPO" --body "<app-id>"
-gh variable set TFVARS_SANDBOX   --repo "$REPO" < "$TFVARS"
+# Biến nguyên-file cũ không còn được dùng.
+gh variable delete TFVARS_SANDBOX --repo "$REPO"
+gh secret delete TFVARS_SANDBOX --repo "$REPO"
 
-# --- Repository secret (nhạy cảm) ---
-gh secret set GITOPS_APP_PRIVATE_KEY --repo "$REPO" < path/to/gitops-app.private-key.pem
+# ARN đã chuyển thành Repository Variable TF_AWS_ROLE_ARN.
+gh secret delete TF_AWS_ROLE_ARN --repo "$REPO" --env sandbox
+
+# Sau khi tạo Repository Variable GITOPS_APP_ID từ GitHub App Settings:
+gh secret delete GITOPS_APP_ID --repo "$REPO"
 ```
 
-## 5. Kiểm tra sau khi set
+Kiểm tra tên cấu hình mà không in giá trị:
 
 ```bash
-gh variable list --repo "$REPO"
-gh secret list   --repo "$REPO"
+gh variable list --repo "$REPO" --json name --jq '.[].name'
+gh secret list --repo "$REPO"
+gh secret list --repo "$REPO" --env sandbox
 ```
