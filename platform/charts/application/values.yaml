@@ -259,15 +259,20 @@ components:
         value: "false"
     resources:
       requests:
-        cpu: 100m         # P0 right-size: OOMKilled 36 lần, .NET cần RAM cao
+        cpu: 100m # P0 right-size: OOMKilled 36 lần, .NET cần RAM cao
         memory: 128Mi
       limits:
         cpu: 200m
         memory: 256Mi
     initContainers:
       - name: wait-for-kafka
-        image: busybox:1.38.0   # Pinned: do NOT use :latest — breaks reproducibility.
-        command: ["sh", "-c", "until nc -z -v -w30 b-1.ecommercedevmsk.61s37h.c4.kafka.us-east-1.amazonaws.com 9096; do echo waiting for kafka; sleep 2; done;"]
+        image: busybox:1.38.0 # Pinned: do NOT use :latest — breaks reproducibility.
+        command:
+          [
+            "sh",
+            "-c",
+            "until nc -z -v -w30 b-1.ecommercedevmsk.61s37h.c4.kafka.us-east-1.amazonaws.com 9096; do echo waiting for kafka; sleep 2; done;",
+          ]
 
   ad:
     enabled: true
@@ -290,7 +295,7 @@ components:
         value: otlp
     resources:
       requests:
-        cpu: 50m          # CDO-42: cần cho HPA CPU-utilization
+        cpu: 50m # CDO-42: cần cho HPA CPU-utilization
       limits:
         memory: 300Mi
     hpa:
@@ -301,7 +306,7 @@ components:
   cart:
     enabled: true
     imageOverride:
-      tag: "1.1-cart"           # CDO-80: image mới có gRPC health tách liveness/readiness
+      tag: "1.1-cart" # CDO-80: image mới có gRPC health tách liveness/readiness
     useDefault:
       env: true
     service:
@@ -319,7 +324,7 @@ components:
       rollingUpdate:
         maxUnavailable: 0
         maxSurge: 1
-    startupProbe:                 # .NET + chờ valkey, JIT warmup lâu hơn
+    startupProbe: # .NET + chờ valkey, JIT warmup lâu hơn
       grpc: { port: 8080, service: "readiness" }
       periodSeconds: 5
       failureThreshold: 30
@@ -358,24 +363,29 @@ components:
         value: http://$(OTEL_COLLECTOR_NAME):4317
     resources:
       requests:
-        cpu: 100m         # CDO-42: cart ghi/đọc mỗi session, tải tăng theo user -> HPA
-        memory: 64Mi      # P0 right-size: thêm request, giữ limit
+        cpu: 100m # CDO-42: cart ghi/đọc mỗi session, tải tăng theo user -> HPA
+        memory: 64Mi # P0 right-size: thêm request, giữ limit
       limits:
         cpu: 200m
         memory: 160Mi
     hpa:
       enabled: true
-      minReplicas: 2      # có PDB (CDO-34) -> min>=2, tránh Karpenter consolidate giết pod duy nhất (INC-2)
-      maxReplicas: 6      # write-heavy, tải tăng tuyến tính theo user
+      minReplicas: 2 # có PDB (CDO-34) -> min>=2, tránh Karpenter consolidate giết pod duy nhất (INC-2)
+      maxReplicas: 6 # write-heavy, tải tăng tuyến tính theo user
     initContainers:
       - name: wait-for-valkey-cart
-        image: busybox:1.38.0   # Pinned: do NOT use :latest — breaks reproducibility.
-        command: ["sh", "-c", "until nc -z -v -w30 master.ecommerce-dev-valkey.7ylfic.use1.cache.amazonaws.com 6379; do echo waiting for valkey-cart; sleep 2; done;"]
+        image: busybox:1.38.0 # Pinned: do NOT use :latest — breaks reproducibility.
+        command:
+          [
+            "sh",
+            "-c",
+            "until nc -z -v -w30 master.ecommerce-dev-valkey.7ylfic.use1.cache.amazonaws.com 6379; do echo waiting for valkey-cart; sleep 2; done;",
+          ]
 
   checkout:
     enabled: true
     imageOverride:
-      tag: "1.1-checkout"        # CDO-80: image mới có gRPC health tách liveness/readiness (bump từ 1.0 để atomic với probe)
+      tag: "1.1-checkout" # CDO-80: image mới có gRPC health tách liveness/readiness (bump từ 1.0 để atomic với probe)
     useDefault:
       env: true
     service:
@@ -383,28 +393,28 @@ components:
     # --- Reliability (CDO-34/80/29) ---
     # replicas do HPA quản (hpa.enabled → template tự bỏ replicas cứng, tránh fight HPA).
     podDisruptionBudget:
-      maxUnavailable: 1           # CDO-34: luôn còn >=1 pod khi Karpenter drain node
-    topologySpread: true          # CDO-34: trải 2 pod ra khác node (ScheduleAnyway)
+      maxUnavailable: 1 # CDO-34: luôn còn >=1 pod khi Karpenter drain node
+    topologySpread: true # CDO-34: trải 2 pod ra khác node (ScheduleAnyway)
     terminationGracePeriodSeconds: 30
     lifecycle:
       preStop:
-        exec: { command: ["/bin/sh", "-c", "sleep 5"] }   # CDO-29: chờ endpoint propagate, không rơi request
-    deploymentStrategy:           # CDO-29: rollout không hạ pod cũ trước khi pod mới Ready
+        exec: { command: ["/bin/sh", "-c", "sleep 5"] } # CDO-29: chờ endpoint propagate, không rơi request
+    deploymentStrategy: # CDO-29: rollout không hạ pod cũ trước khi pod mới Ready
       type: RollingUpdate
       rollingUpdate:
         maxUnavailable: 0
         maxSurge: 1
-    startupProbe:                 # CDO-80: che boot chờ kafka (<=150s)
+    startupProbe: # CDO-80: che boot chờ kafka (<=150s)
       grpc: { port: 8080, service: "readiness" }
       periodSeconds: 5
       failureThreshold: 30
-    readinessProbe:               # CDO-80: gate traffic theo dependency
+    readinessProbe: # CDO-80: gate traffic theo dependency
       grpc: { port: 8080, service: "readiness" }
       periodSeconds: 5
       timeoutSeconds: 2
       failureThreshold: 3
       successThreshold: 1
-    livenessProbe:                # CDO-80: chỉ process sống — KHÔNG phụ thuộc kafka (Option C)
+    livenessProbe: # CDO-80: chỉ process sống — KHÔNG phụ thuộc kafka (Option C)
       grpc: { port: 8080, service: "liveness" }
       periodSeconds: 10
       timeoutSeconds: 2
@@ -445,22 +455,27 @@ components:
       - name: OTEL_EXPORTER_OTLP_ENDPOINT
         value: http://$(OTEL_COLLECTOR_NAME):4317
       - name: GOMEMLIMIT
-        value: 96MiB      # P0 right-size: nâng cùng limit để Go dùng được RAM mới
+        value: 96MiB # P0 right-size: nâng cùng limit để Go dùng được RAM mới
     resources:
       requests:
-        cpu: 100m         # P0: revenue-critical, limit cũ 20Mi quá thấp
+        cpu: 100m # P0: revenue-critical, limit cũ 20Mi quá thấp
         memory: 64Mi
       limits:
         cpu: 200m
         memory: 128Mi
     hpa:
       enabled: true
-      minReplicas: 2      # có PDB (CDO-34) + revenue-critical SLO 99% -> min>=2 (tránh INC-2)
-      maxReplicas: 5      # cho headroom scale
+      minReplicas: 2 # có PDB (CDO-34) + revenue-critical SLO 99% -> min>=2 (tránh INC-2)
+      maxReplicas: 5 # cho headroom scale
     initContainers:
       - name: wait-for-kafka
-        image: busybox:1.38.0   # Pinned: do NOT use :latest — breaks reproducibility.
-        command: ["sh", "-c", "until nc -z -v -w30 b-1.ecommercedevmsk.61s37h.c4.kafka.us-east-1.amazonaws.com 9096; do echo waiting for kafka; sleep 2; done;"]
+        image: busybox:1.38.0 # Pinned: do NOT use :latest — breaks reproducibility.
+        command:
+          [
+            "sh",
+            "-c",
+            "until nc -z -v -w30 b-1.ecommercedevmsk.61s37h.c4.kafka.us-east-1.amazonaws.com 9096; do echo waiting for kafka; sleep 2; done;",
+          ]
 
   currency:
     enabled: true
@@ -481,7 +496,7 @@ components:
         value: "false"
     resources:
       requests:
-        cpu: 50m          # CDO-42: cần cho HPA CPU-utilization
+        cpu: 50m # CDO-42: cần cho HPA CPU-utilization
       limits:
         memory: 20Mi
     hpa:
@@ -548,8 +563,13 @@ components:
         memory: 300Mi
     initContainers:
       - name: wait-for-kafka
-        image: busybox:1.38.0   # Pinned: do NOT use :latest — breaks reproducibility.
-        command: ["sh", "-c", "until nc -z -v -w30 b-1.ecommercedevmsk.61s37h.c4.kafka.us-east-1.amazonaws.com 9096; do echo waiting for kafka; sleep 2; done;"]
+        image: busybox:1.38.0 # Pinned: do NOT use :latest — breaks reproducibility.
+        command:
+          [
+            "sh",
+            "-c",
+            "until nc -z -v -w30 b-1.ecommercedevmsk.61s37h.c4.kafka.us-east-1.amazonaws.com 9096; do echo waiting for kafka; sleep 2; done;",
+          ]
 
   frontend:
     enabled: true
@@ -570,7 +590,7 @@ components:
       rollingUpdate:
         maxUnavailable: 0
         maxSurge: 1
-    startupProbe:                 # Next.js HTTP — không gRPC
+    startupProbe: # Next.js HTTP — không gRPC
       httpGet: { path: /, port: 8080 }
       periodSeconds: 5
       failureThreshold: 24
@@ -623,18 +643,18 @@ components:
       - name: WEB_OTEL_SERVICE_NAME
         value: frontend-web
       - name: PUBLIC_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
-        value: http://localhost:8080/otlp-http/v1/traces             # This expects users to use `kubectl port-forward ...`
+        value: http://localhost:8080/otlp-http/v1/traces # This expects users to use `kubectl port-forward ...`
     resources:
       requests:
-        cpu: 100m         # CDO-42: frontend Next.js, hot-path browse -> HPA
+        cpu: 100m # CDO-42: frontend Next.js, hot-path browse -> HPA
       limits:
         memory: 250Mi
     hpa:
       enabled: true
-      minReplicas: 2      # có PDB (CDO-34) -> min>=2, tránh INC-2 khi node consolidate
+      minReplicas: 2 # có PDB (CDO-34) -> min>=2, tránh INC-2 khi node consolidate
       maxReplicas: 6
     securityContext:
-      runAsUser: 1001  # nextjs
+      runAsUser: 1001 # nextjs
       runAsGroup: 1001
       runAsNonRoot: true
 
@@ -646,11 +666,21 @@ components:
       env: true
     service:
       port: 8080
-      type: LoadBalancer
+      type: ClusterIP
+    ingress:
+      enabled: true
+      ingressClassName: alb
       annotations:
-        service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
-        service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "instance"
-        service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
+        alb.ingress.kubernetes.io/scheme: internet-facing
+        alb.ingress.kubernetes.io/target-type: ip
+        alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:us-east-1:804372444787:certificate/58a4ee05-8248-4e70-bc30-f7dfe47e0720"
+        alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+      hosts:
+        - host: "ecommerce.nguyenductien.cloud"
+          paths:
+            - path: /
+              pathType: Prefix
+              port: 8080
     # --- Reliability (CDO-34/80/29) — cửa ngõ storefront, quan trọng nhất ---
     podDisruptionBudget:
       maxUnavailable: 1
@@ -658,8 +688,8 @@ components:
     terminationGracePeriodSeconds: 30
     lifecycle:
       preStop:
-        exec: { command: ["/bin/sh", "-c", "sleep 5"] }   # cực quan trọng cho Envoy: drain kết nối trước khi tắt
-    deploymentStrategy:           # CDO-29: zero-downtime khi rollout Envoy cho Mandate 01
+        exec: { command: ["/bin/sh", "-c", "sleep 5"] } # cực quan trọng cho Envoy: drain kết nối trước khi tắt
+    deploymentStrategy: # CDO-29: zero-downtime khi rollout Envoy cho Mandate 01
       type: RollingUpdate
       rollingUpdate:
         maxUnavailable: 0
@@ -681,11 +711,11 @@ components:
     podAnnotations:
       mandate-01/image-index-digest: "sha256:ea6155465ee5877e570fcc412b68b2ae0fb4ef15bf3a0e2785bc12a7dd37235f"
       resource.opentelemetry.io/service.namespace: techx-corp
-      io.opentelemetry.discovery.metrics/enabled: 'true'
+      io.opentelemetry.discovery.metrics/enabled: "true"
       io.opentelemetry.discovery.metrics/scraper: httpcheck
       io.opentelemetry.discovery.metrics/config: |
-          targets:
-            - endpoint: "http://`endpoint`"
+        targets:
+          - endpoint: "http://`endpoint`"
     env:
       - name: ENVOY_PORT
         value: "8080"
@@ -733,15 +763,15 @@ components:
         value: "50051"
     resources:
       requests:
-        cpu: 100m         # CDO-42: Envoy edge, mọi traffic đi qua -> scale sớm nhất
+        cpu: 100m # CDO-42: Envoy edge, mọi traffic đi qua -> scale sớm nhất
       limits:
         memory: 65Mi
     hpa:
       enabled: true
-      minReplicas: 2      # edge duy nhất sau NLB -> giữ 2 cho HA (khớp PDB CDO-34)
+      minReplicas: 2 # edge duy nhất sau NLB -> giữ 2 cho HA (khớp PDB CDO-34)
       maxReplicas: 6
     securityContext:
-      runAsUser: 101  # envoy
+      runAsUser: 101 # envoy
       runAsGroup: 101
       runAsNonRoot: true
 
@@ -753,12 +783,12 @@ components:
       port: 8081
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
-      io.opentelemetry.discovery.metrics/enabled: 'true'
+      io.opentelemetry.discovery.metrics/enabled: "true"
       io.opentelemetry.discovery.metrics/scraper: nginx
       io.opentelemetry.discovery.metrics/config: |
-          endpoint: "http://`endpoint`/status"
-          collection_interval: "10s"
-          timeout: "20s"
+        endpoint: "http://`endpoint`/status"
+        collection_interval: "10s"
+        timeout: "20s"
     env:
       - name: IMAGE_PROVIDER_PORT
         value: "8081"
@@ -794,7 +824,7 @@ components:
       - name: LOCUST_AUTOSTART
         value: "true"
       - name: LOCUST_BROWSER_TRAFFIC_ENABLED
-        value: "false"    # P0: HTTP thuần -> giảm RAM (browser traffic ăn ~1.2Gi ở 10 user)
+        value: "false" # P0: HTTP thuần -> giảm RAM (browser traffic ăn ~1.2Gi ở 10 user)
       - name: PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION
         value: python
       - name: FLAGD_HOST
@@ -807,7 +837,7 @@ components:
         value: http://$(OTEL_COLLECTOR_NAME):4317
     resources:
       requests:
-        cpu: 200m         # P0 right-size: giảm RAM để giải phóng cho app
+        cpu: 200m # P0 right-size: giảm RAM để giải phóng cho app
         memory: 256Mi
       limits:
         cpu: 500m
@@ -836,14 +866,14 @@ components:
       limits:
         memory: 140Mi
     securityContext:
-      runAsUser: 1000  # node
+      runAsUser: 1000 # node
       runAsGroup: 1000
       runAsNonRoot: true
 
   product-catalog:
     enabled: true
     imageOverride:
-      tag: "1.1-product-catalog"   # CDO-80: image mới có gRPC health tách liveness/readiness
+      tag: "1.1-product-catalog" # CDO-80: image mới có gRPC health tách liveness/readiness
     useDefault:
       env: true
     service:
@@ -861,7 +891,7 @@ components:
       rollingUpdate:
         maxUnavailable: 0
         maxSurge: 1
-    startupProbe:                 # Go + chờ Postgres (~120s)
+    startupProbe: # Go + chờ Postgres (~120s)
       grpc: { port: 8080, service: "readiness" }
       periodSeconds: 5
       failureThreshold: 24
@@ -886,7 +916,7 @@ components:
       - name: FLAGD_PORT
         value: "8013"
       - name: GOMEMLIMIT
-        value: 96MiB      # P0 right-size: nâng cùng limit để Go dùng được RAM mới
+        value: 96MiB # P0 right-size: nâng cùng limit để Go dùng được RAM mới
       - name: DB_CONNECTION_STRING
         valueFrom:
           secretKeyRef:
@@ -898,15 +928,15 @@ components:
         value: http://$(OTEL_COLLECTOR_NAME):4317
     resources:
       requests:
-        cpu: 100m         # CDO-42: read-heavy (mọi browse gọi tới) -> bottleneck -> HPA
-        memory: 32Mi      # P0 right-size: OOMKilled 4 lần, Go runtime
+        cpu: 100m # CDO-42: read-heavy (mọi browse gọi tới) -> bottleneck -> HPA
+        memory: 32Mi # P0 right-size: OOMKilled 4 lần, Go runtime
       limits:
         cpu: 200m
         memory: 128Mi
     hpa:
       enabled: true
-      minReplicas: 2      # có PDB (CDO-34) -> min>=2, tránh INC-2 khi node consolidate
-      maxReplicas: 6      # read-heavy bottleneck dưới flash-sale
+      minReplicas: 2 # có PDB (CDO-34) -> min>=2, tránh INC-2 khi node consolidate
+      maxReplicas: 6 # read-heavy bottleneck dưới flash-sale
 
   product-reviews:
     enabled: true
@@ -988,7 +1018,7 @@ components:
       limits:
         memory: 40Mi
     securityContext:
-      runAsUser: 33  # www-data
+      runAsUser: 33 # www-data
       runAsGroup: 33
       runAsNonRoot: true
 
@@ -1017,16 +1047,16 @@ components:
         value: http://$(OTEL_COLLECTOR_NAME):4317
     resources:
       requests:
-        cpu: 100m         # CDO-42: gọi mỗi lần render trang -> HPA
+        cpu: 100m # CDO-42: gọi mỗi lần render trang -> HPA
       limits:
-        memory: 500Mi            # This is high to enable supporting the recommendationCache feature flag use case
+        memory: 500Mi # This is high to enable supporting the recommendationCache feature flag use case
     hpa:
       enabled: true
       minReplicas: 1
       maxReplicas: 4
 
   shopping-copilot:
-    enabled: false  # no source/image yet (review J2) - re-enable in the PR that ships copilot code
+    enabled: false # no source/image yet (review J2) - re-enable in the PR that ships copilot code
     useDefault:
       env: true
     service:
@@ -1089,7 +1119,7 @@ components:
         value: "false"
     resources:
       requests:
-        cpu: 50m          # P0 right-size: limit cũ 20Mi quá thấp
+        cpu: 50m # P0 right-size: limit cũ 20Mi quá thấp
         memory: 32Mi
       limits:
         cpu: 100m
@@ -1158,8 +1188,13 @@ components:
             mountPath: /app/data
     initContainers:
       - name: init-config
-        image: busybox:1.38.0   # Pinned: was untagged (defaults to :latest).
-        command: ["sh", "-c", "cp /config-ro/demo.flagd.json /config-rw/demo.flagd.json && cat /config-rw/demo.flagd.json"]
+        image: busybox:1.38.0 # Pinned: was untagged (defaults to :latest).
+        command:
+          [
+            "sh",
+            "-c",
+            "cp /config-ro/demo.flagd.json /config-rw/demo.flagd.json && cat /config-rw/demo.flagd.json",
+          ]
         volumeMounts:
           - mountPath: /config-ro
             name: config-ro
@@ -1199,7 +1234,7 @@ components:
       limits:
         memory: 700Mi
     securityContext:
-      runAsUser: 1000  # appuser
+      runAsUser: 1000 # appuser
       runAsGroup: 1000
       runAsNonRoot: true
 
@@ -1229,7 +1264,7 @@ components:
       port: 5432
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
-      io.opentelemetry.discovery.metrics/enabled: 'true'
+      io.opentelemetry.discovery.metrics/enabled: "true"
       io.opentelemetry.discovery.metrics/scraper: postgresql
       io.opentelemetry.discovery.metrics/config: |
         username: root
@@ -1285,7 +1320,7 @@ components:
         value: 6379
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
-      io.opentelemetry.discovery.metrics/enabled: 'true'
+      io.opentelemetry.discovery.metrics/enabled: "true"
       io.opentelemetry.discovery.metrics/scraper: redis
       io.opentelemetry.discovery.metrics/config: |
         username: valkey
@@ -1294,7 +1329,7 @@ components:
       limits:
         memory: 20Mi
     securityContext:
-      runAsUser: 999  # valkey
+      runAsUser: 999 # valkey
       runAsGroup: 1000
       runAsNonRoot: true
 
@@ -1394,20 +1429,20 @@ opentelemetry-collector:
               - span.kind == SPAN_KIND_SERVER and resource.attributes["service.name"] == "frontend" and span.attributes["http.route"] == nil
             statements:
               # Workaround for Next.js high cardinality span name issue: https://github.com/vercel/next.js/issues/54694
-              - set(span.attributes["http.route"], "/api/cart") where IsMatch(span.attributes["http.target"], "\\/api\\/cart")  # e.g. # /api/cart
-              - set(span.attributes["http.route"], "/api/checkout") where IsMatch(span.attributes["http.target"], "\\/api\\/checkout")  # e.g. # /api/checkout
-              - set(span.attributes["http.route"], "/api/products/{productId}") where IsMatch(span.attributes["http.target"], "\\/api\\/products\\/.*")  # e.g. /api/products/1YMWWN1N4O
-              - set(span.attributes["http.route"], "/api/recommendations") where IsMatch(span.attributes["http.target"], "\\/api\\/recommendations")  # e.g. # /api/recommendations?productIds=...
-              - set(span.attributes["http.route"], "/api/data") where IsMatch(span.attributes["http.target"], "\\/api\\/data.*")  # e.g. # " /api/data?contextKeys=telescopes" or /api/data/?contextKeys=cameras
+              - set(span.attributes["http.route"], "/api/cart") where IsMatch(span.attributes["http.target"], "\\/api\\/cart") # e.g. # /api/cart
+              - set(span.attributes["http.route"], "/api/checkout") where IsMatch(span.attributes["http.target"], "\\/api\\/checkout") # e.g. # /api/checkout
+              - set(span.attributes["http.route"], "/api/products/{productId}") where IsMatch(span.attributes["http.target"], "\\/api\\/products\\/.*") # e.g. /api/products/1YMWWN1N4O
+              - set(span.attributes["http.route"], "/api/recommendations") where IsMatch(span.attributes["http.target"], "\\/api\\/recommendations") # e.g. # /api/recommendations?productIds=...
+              - set(span.attributes["http.route"], "/api/data") where IsMatch(span.attributes["http.target"], "\\/api\\/data.*") # e.g. # " /api/data?contextKeys=telescopes" or /api/data/?contextKeys=cameras
           - context: span
             statements:
               # SANITIZE ALL SPAN NAMES TO PREVENT CARDINALITY EXPLOSION
               - set_semconv_span_name("1.37.0", "unsanitized_span_name")
       resource:
         attributes:
-        - key: service.instance.id
-          from_attribute: k8s.pod.uid
-          action: insert
+          - key: service.instance.id
+            from_attribute: k8s.pod.uid
+            action: insert
 
     connectors:
       spanmetrics: {}
@@ -1415,7 +1450,8 @@ opentelemetry-collector:
     service:
       pipelines:
         traces:
-          processors: [memory_limiter, resourcedetection, resource, transform, batch]
+          processors:
+            [memory_limiter, resourcedetection, resource, transform, batch]
           exporters: [otlp/jaeger, debug, spanmetrics]
         metrics:
           receivers: [otlp, kafkametrics, spanmetrics]
@@ -1458,7 +1494,7 @@ jaeger:
         value: "4317"
     resources:
       requests:
-        cpu: 100m         # P0 right-size: memory storage phình
+        cpu: 100m # P0 right-size: memory storage phình
         memory: 256Mi
       limits:
         cpu: 200m
