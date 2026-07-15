@@ -10,7 +10,8 @@
 | `product-reviews` (AI summary path) | Pod in-cluster, gRPC `:3551` | Amazon RDS PostgreSQL 16.14 `reviews.productreviews` (50 dòng), `catalog.products` (10 dòng); Bedrock API; flagd | Amazon ElastiCache Valkey (≤10 key, mỗi key ~1KB JSON) | **Không** — chỉ *phát* log/trace/metric qua OTel collector như mọi service khác |
 | `aiops/detector` | 1 pod nhỏ (poll loop) | Prometheus (3 rule PromQL) + **OpenSearch (5 rule log)** | Webhook Slack/Discord (alert) | **Có — consumer OpenSearch duy nhất của nhóm AI** |
 | `aiops/log_clustering` (Drain3) | CronJob batch | Log text thô (hiện đọc qua OpenSearch) | Template/cluster report | **Có** — chỉ cần đọc raw lines theo khoảng thời gian |
-| Shopping Copilot (tuần 2+) | Pod mới | `product-catalog`, `product-reviews`, `cart` qua gRPC; Bedrock | — | **Không** |
+| `shopping-copilot` | Pod in-cluster, gRPC `:50051` | `product-catalog`, `product-reviews`, `cart` qua gRPC; Bedrock API; flagd (`llmModelRouting`) | — | **Không** |
+| `recommendation` | Pod in-cluster, gRPC `:8080` | PostgreSQL (`catalog` schema với `pgvector`), flagd (`aiRecommendationsEnabled`) | — | **Không** |
 
 Kết luận nhanh cho CDO: **toàn bộ phụ thuộc OpenSearch của tầng AI nằm gọn trong 2 tool AIOps, qua đúng 2 kiểu truy vấn** — không có phụ thuộc ẩn.
 
@@ -100,10 +101,11 @@ Có dùng — đúng 2 consumer: `aiops/detector` (5 rule log, phrase-count cử
 | Flags (flagd) | product-reviews, copilot | `llmReviewsFallbackEnabled`, `llmReviewsCacheEnabled` (+ cờ sự cố BTC) | ✅ |
 
 **Q3. Requirement service để deploy AI (Bedrock, AgentCore...)?**
-- **Bedrock runtime** (`bedrock-runtime`, us-east-1): models `amazon.nova-lite-v1:0`, `nova-micro-v1:0` (reviews), `nova-pro-v1:0` (copilot W2). **Cần CDO cấp IAM `bedrock:InvokeModel`** qua IRSA cho serviceAccount `product-reviews` (sau này thêm `shopping-copilot`) hoặc node role — **đang thiếu, là blocker deploy thật duy nhất từ phía hạ tầng.**
-- **KHÔNG cần**: AgentCore/Bedrock Agents (copilot tự dựng tool-calling qua Converse API — zero managed-agent cost), Knowledge Bases/OpenSearch Serverless (đã loại — catalog 10 sản phẩm, xem `03_specs/semantic_search.md` phụ lục), GPU/SageMaker.
-- Env/flag mới cho chart: xem bảng trong `../shared/integration-contracts/product-reviews-integration.md` phụ lục 12/07 (cần CDO re-sign).
+- **Bedrock runtime** (`bedrock-runtime`, us-east-1): models `amazon.nova-lite-v1:0`, `nova-micro-v1:0` (reviews), `nova-pro-v1:0` (copilot W2). **Cần CDO cấp IAM `bedrock:InvokeModel`** qua IRSA cho serviceAccount `product-reviews` và `shopping-copilot` hoặc node role.
+- **KHÔNG cần**: AgentCore/Bedrock Agents (copilot tự dựng tool-calling qua Converse API — zero managed-agent cost), Knowledge Bases/OpenSearch Serverless (đã loại — xem `03_specs/semantic_search.md`).
+- **PostgreSQL pgvector**: Cấp quyền `CREATE EXTENSION vector` cho schema `catalog` để service `recommendation` thực thi tìm kiếm vector cosine similarity.
 - Copilot W2: pod mới gRPC `:50051`, envoy route + cluster đã có trong `envoy.tmpl.yaml`; chart để `enabled: false` tới khi có image.
+- Recommendation W2: pod mới gRPC `:8080`, sử dụng `pgvector` và `flagd`.
 
 **Q4. Chỉnh lại structure code bên AI — ĐÃ LÀM (12/07):**
 - Root repo: 6 file copilot PoC + `database.db` rải ở root → gom về **`copilot-poc/`** (kèm README); `__pycache__` bị commit → gỡ khỏi git + `.gitignore` thêm `__pycache__/`, `*.pyc`, `*.db`.
