@@ -569,11 +569,15 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                     else:
                         raise Exception(f'Received unexpected tool call request: {tool_name}')
 
+                    decoded_json = json.loads(sanitize_json_for_llm(function_response))
+                    if not isinstance(decoded_json, dict):
+                        decoded_json = {"reviews": decoded_json}
+
                     tool_results.append({
                         "toolUseId": tool_use_id,
                         # Guardrail Phan A: tool result (review/catalog) la du lieu khong tin cay —
                         # loc PII + prompt-injection per-field truoc khi vao prompt, giu JSON hop le.
-                        "content": [{"json": json.loads(sanitize_json_for_llm(function_response))}],
+                        "content": [{"json": decoded_json}],
                     })
 
                 llm_inaccurate_response = check_feature_flag("llmInaccurateResponse")
@@ -613,7 +617,8 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                 try:
                     final_response = invoke_bedrock_converse_with_fallback(
                         messages=messages,
-                        system_prompt=system_prompt
+                        system_prompt=system_prompt,
+                        tool_config={"tools": tools}
                     )
                     result = final_response["output"]["message"]["content"][0]["text"]
                 except Exception as e:
