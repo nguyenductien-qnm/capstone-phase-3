@@ -16,6 +16,8 @@ spec:
     helm:
       values: |
         clusterName: ecommerce-dev-eks
+        region: us-east-1
+        vpcId: vpc-06d4c34ec03f55c6d
         serviceAccount:
           create: true
           name: aws-load-balancer-controller
