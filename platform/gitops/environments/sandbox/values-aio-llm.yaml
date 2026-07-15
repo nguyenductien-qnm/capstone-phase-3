@@ -5,7 +5,7 @@ components:
       tag: "1.0-product-reviews"
     envOverrides:
       - name: AWS_REGION
-        value: "us-east-1"
+        value: "ap-southeast-2"
       - name: LLM_MOCK_ENABLED
         value: "false"
       - name: LLM_REVIEWS_MAIN_MODEL
