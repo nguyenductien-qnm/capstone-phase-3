@@ -26,6 +26,9 @@ spec:
           name: karpenter
           annotations: {}  # Bỏ trống vì dùng Pod Identity Association ở IAM
         controller:
+          env:
+            - name: AWS_DEFAULT_REGION
+              value: "us-east-1"
           resources:
             requests:
               cpu: 100m
