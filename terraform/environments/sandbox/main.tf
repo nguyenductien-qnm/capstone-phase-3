@@ -1,3 +1,26 @@
+data "aws_iam_role" "github_terraform" {
+  name = var.github_terraform_role_name
+}
+
+locals {
+  github_terraform_access_entry = {
+    github_terraform = {
+      principal_arn      = data.aws_iam_role.github_terraform.arn
+      access_policy_name = "AmazonEKSClusterAdminPolicy"
+      access_scope_type  = "cluster"
+      namespaces         = []
+      kubernetes_groups  = []
+    }
+  }
+
+  # Tên CỐ ĐỊNH làm CloudFront origin. ALB (do Ingress frontend-proxy sinh) phục vụ
+  # tên này; external-dns tự tạo record trỏ về ALB. Terraform biết giá trị ngay lúc
+  # plan -> apply 1 lần, không cần dò ALB runtime, không cần toggle/commit lần 2.
+  # PHẢI khớp ingress host trong platform/charts/application/values.yaml.
+  # Dùng "origin-" (1 cấp con) để khớp cert wildcard *.nguyenductien.cloud.
+  origin_hostname = "origin-${var.subdomain}"
+}
+
 module "vpc" {
   source = "../../modules/vpc"
 
@@ -36,7 +59,7 @@ module "eks" {
   ops_node_instance_types = var.eks_ops_node_instance_types
   ops_node_disk_size_gib  = var.eks_ops_node_disk_size_gib
 
-  access_entries = var.eks_access_entries
+  access_entries = merge(var.eks_access_entries, local.github_terraform_access_entry)
 }
 
 module "rds" {
@@ -82,13 +105,31 @@ module "ecr" {
   ecr_repositories = var.ecr_repositories
 }
 
+# IRSA cho external-dns: quyền ghi record trong ĐÚNG hosted zone của subdomain.
+module "external_dns_irsa" {
+  source = "../../modules/external-dns-irsa"
+  count  = var.enable_cloudfront ? 1 : 0
+
+  project_name      = var.project_name
+  environment       = var.environment
+  oidc_provider_arn = module.eks.oidc_provider_arn
+  oidc_issuer_url   = module.eks.oidc_issuer_url
+  hosted_zone_id    = var.route53_zone_id
+}
+
+# CloudFront lấy nội dung từ ALB qua tên cố định origin-<subdomain>, không phải DNS
+# ngẫu nhiên của ALB. Record do external-dns tự tạo khi Ingress frontend-proxy lên.
+# ALB bị thay -> external-dns trỏ lại; origin không đổi, CloudFront không phải sửa.
+#
+# Lần apply đầu: record chưa tồn tại -> origin lỗi cho tới khi external-dns tạo xong
+# (thường <1 phút sau khi ALB ready). Eventual consistency, không blocking.
 module "cloudfront" {
   source = "../../modules/cloudfront"
   count  = var.enable_cloudfront ? 1 : 0
 
   project_name        = var.project_name
   environment         = var.environment
-  origin_domain_name  = var.nlb_dns_name
+  origin_domain_name  = local.origin_hostname
   acm_certificate_arn = var.acm_certificate_arn
   aliases             = [var.subdomain]
 }
@@ -101,6 +142,7 @@ module "msk" {
   vpc_id                = module.vpc.vpc_id
   mq_subnet_ids         = values(module.vpc.private_mq_subnet_ids)
   eks_security_group_id = module.eks.cluster_security_group_id
+  kafka_version         = var.kafka_version
 }
 
 module "cost_guard_automation" {
@@ -135,4 +177,23 @@ module "cloudtrail" {
 
   project_name = var.project_name
   environment  = var.environment
+}
+
+# IRSA role cho External Secrets Operator đọc endpoint/credential từ Secrets Manager
+# (RDS/Valkey/MSK) và đồng bộ vào cluster. Least-privilege: chỉ đúng các secret ARN.
+module "external_secrets_irsa" {
+  source = "../../modules/external-secrets-irsa"
+
+  project_name      = var.project_name
+  environment       = var.environment
+  oidc_provider_arn = module.eks.oidc_provider_arn
+  oidc_issuer_url   = module.eks.oidc_issuer_url
+
+  secret_arns = [
+    module.rds.db_secret_arn,
+    module.rds.db_endpoint_secret_arn,
+    module.elasticache.secret_arn,
+    module.msk.msk_secret_arn,
+    module.msk.msk_endpoint_secret_arn,
+  ]
 }

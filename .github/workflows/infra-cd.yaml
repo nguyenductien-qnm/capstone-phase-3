@@ -205,7 +205,10 @@ jobs:
         id: plan
         run: |
           set +e
-          terraform plan -no-color -input=false -lock-timeout="$TF_LOCK_TIMEOUT" -var-file="$RUNNER_TEMP/sandbox.tfvars" -detailed-exitcode -out=tfplan
+          terraform plan -no-color -input=false -lock-timeout="$TF_LOCK_TIMEOUT" \
+            -var-file="$RUNNER_TEMP/sandbox.tfvars" \
+            -var-file="primary-capacity.tfvars" \
+            -detailed-exitcode -out=tfplan
           PLAN_EXIT=$?
           set -e
           if [ "$PLAN_EXIT" -eq 1 ]; then
@@ -385,12 +388,20 @@ jobs:
               --version "$ARGOCD_CHART_VERSION" \
               --set server.service.type=ClusterIP \
               --wait \
-              --timeout 5m
+              --wait-for-jobs \
+              --timeout 10m
           fi
 
-          kubectl wait --for=condition=Ready pod --all \
-            --namespace "$ARGOCD_NAMESPACE" \
-            --timeout=5m
+          for kind in deployment statefulset; do
+            while IFS= read -r workload; do
+              [ -n "$workload" ] || continue
+              kubectl rollout status "$workload" \
+                --namespace "$ARGOCD_NAMESPACE" \
+                --timeout=5m
+            done < <(kubectl get "$kind" \
+              --namespace "$ARGOCD_NAMESPACE" \
+              --output=name)
+          done
           kubectl get pods -n "$ARGOCD_NAMESPACE"
 
       - name: Apply ArgoCD Root App (App-of-Apps)
@@ -420,3 +431,63 @@ jobs:
           kubectl get pods -n "$ARGOCD_NAMESPACE"
           echo "=== ArgoCD Applications ==="
           kubectl get applications -n "$ARGOCD_NAMESPACE" || true
+
+  # ================================================================== #
+  # CDO-143: Smoke test hot-path sau deploy.                           #
+  # Chạy SAU bootstrap-argocd — ArgoCD đã sync app. Chờ ArgoCD Root    #
+  # App Healthy rồi test luồng browse -> cart -> checkout qua          #
+  # frontend-proxy (port-forward, không cần NLB public). Đỏ = chặn.    #
+  # ================================================================== #
+  smoke-test:
+    name: Smoke test hot-path
+    needs: bootstrap-argocd
+    if: needs.bootstrap-argocd.result == 'success'
+    runs-on: ubuntu-latest
+    environment: sandbox
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      ARGOCD_NAMESPACE: argocd
+      APP_NAMESPACE: techx-tf1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.TF_AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: "v1.30.0"
+
+      - name: Update kubeconfig (token MỚI)
+        run: |
+          aws eks update-kubeconfig --name "$CLUSTER_NAME" --region "$AWS_REGION"
+          kubectl cluster-info
+
+      # ArgoCD selfHeal là bất đồng bộ — chờ Root App (App-of-Apps) Synced+Healthy
+      # trước khi smoke, tránh test trúng lúc app chưa kịp sync (false negative).
+      - name: Chờ ArgoCD Applications Healthy
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 30); do
+            not_ready=$(kubectl get applications -n "$ARGOCD_NAMESPACE" \
+              -o jsonpath='{range .items[*]}{.metadata.name}={.status.sync.status}/{.status.health.status} {end}' 2>/dev/null \
+              | tr ' ' '\n' | grep -vE '=Synced/Healthy$' | grep -v '^$' || true)
+            if [ -z "$not_ready" ]; then
+              echo "✅ Tất cả ArgoCD Applications Synced/Healthy"
+              break
+            fi
+            echo "[$i/30] Chờ app sync: $not_ready"
+            sleep 10
+          done
+
+      - name: Smoke hot-path (browse -> cart -> checkout)
+        run: bash scripts/validate/smoke-test-hotpath.sh

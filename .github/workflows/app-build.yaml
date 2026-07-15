@@ -144,12 +144,40 @@ jobs:
           echo "Sẽ build: ${selected[*]}"
 
   # ------------------------------------------------------------------ #
+  # CDO-141: Validate Helm/manifest làm GATE trước build/deploy.        #
+  # Chart không render được -> không build/push image nào (fail sớm).   #
+  # ------------------------------------------------------------------ #
+  validate-manifest:
+    name: Validate Helm manifest (deploy gate)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - name: Lint chart
+        run: >-
+          helm lint platform/charts/application
+          -f platform/gitops/environments/sandbox/values-observability.yaml
+          -f platform/gitops/environments/sandbox/values-flagd-sync.yaml
+          -f platform/gitops/environments/sandbox/values-image-tags.yaml
+      - name: Render chart (fail nếu rỗng)
+        run: |
+          set -euo pipefail
+          helm template techx-corp platform/charts/application \
+            -f platform/gitops/environments/sandbox/values-observability.yaml \
+            -f platform/gitops/environments/sandbox/values-flagd-sync.yaml \
+            -f platform/gitops/environments/sandbox/values-image-tags.yaml \
+            > /tmp/rendered.yaml
+          [ -s /tmp/rendered.yaml ] || { echo "::error::manifest rỗng"; exit 1; }
+          echo "✅ manifest OK"
+
+  # ------------------------------------------------------------------ #
   # Build -> Trivy gate -> (nếu không PR) push by-digest + Cosign ký    #
   # digest. Mỗi service 1 job matrix, tag riêng <version>-<svc>-<sha>.  #
+  # needs validate-manifest: gate CDO-141 phải xanh mới được build.     #
   # ------------------------------------------------------------------ #
   build:
     name: Build ${{ matrix.service }}
-    needs: detect
+    needs: [detect, validate-manifest]
     if: needs.detect.outputs.any == 'true'
     runs-on: ubuntu-latest
     permissions:

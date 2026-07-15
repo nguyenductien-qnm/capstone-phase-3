@@ -12,7 +12,6 @@ locals {
 # SNS Topics cho Budget Alarms
 resource "aws_sns_topic" "budget_alarms_80" {
   name              = "${local.cost_guard_name}-budget-alarms-80"
-  kms_master_key_id = "alias/aws/sns"
 
   tags = merge(
     local.common_tags,
@@ -24,7 +23,6 @@ resource "aws_sns_topic" "budget_alarms_80" {
 
 resource "aws_sns_topic" "budget_alarms_95" {
   name              = "${local.cost_guard_name}-budget-alarms-95"
-  kms_master_key_id = "alias/aws/sns"
 
   tags = merge(
     local.common_tags,
@@ -94,11 +92,14 @@ resource "aws_iam_role_policy" "lambda_eks_policy" {
       {
         Effect = "Allow"
         Action = [
+          "eks:DescribeCluster",
+          "eks:UpdateClusterConfig",
+          "eks:AccessKubernetesApi",
           "eks:DescribeNodegroup",
           "eks:ListNodegroups",
           "eks:UpdateNodegroupConfig"
         ]
-        Resource = var.eks_cluster_arn
+        Resource = "*"
       },
       {
         Effect = "Allow"
@@ -106,7 +107,7 @@ resource "aws_iam_role_policy" "lambda_eks_policy" {
           "autoscaling:SetDesiredCapacity",
           "autoscaling:DescribeAutoScalingGroups"
         ]
-        Resource = "arn:${data.aws_partition.current.partition}:autoscaling:*:${var.account_id}:autoScalingGroup:*:autoScalingGroupName/*"
+        Resource = "*"
       }
     ]
   })
@@ -267,6 +268,45 @@ resource "aws_sns_topic_subscription" "lambda_cost_guard_95" {
   topic_arn = aws_sns_topic.budget_alarms_95.arn
   protocol  = "lambda"
   endpoint  = aws_lambda_function.cost_guard.arn
+}
+
+# SNS Topic Policies to allow AWS Budgets to publish alerts
+resource "aws_sns_topic_policy" "budget_alarms_80_policy" {
+  arn = aws_sns_topic.budget_alarms_80.arn
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "AllowBudgetsToPublish"
+        Effect = "Allow"
+        Principal = {
+          Service = "budgets.amazonaws.com"
+        }
+        Action   = "SNS:Publish"
+        Resource = aws_sns_topic.budget_alarms_80.arn
+      }
+    ]
+  })
+}
+
+resource "aws_sns_topic_policy" "budget_alarms_95_policy" {
+  arn = aws_sns_topic.budget_alarms_95.arn
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "AllowBudgetsToPublish"
+        Effect = "Allow"
+        Principal = {
+          Service = "budgets.amazonaws.com"
+        }
+        Action   = "SNS:Publish"
+        Resource = aws_sns_topic.budget_alarms_95.arn
+      }
+    ]
+  })
 }
 
 # Custom budget periods

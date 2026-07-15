@@ -46,7 +46,7 @@ spec:
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: {{ .topologySpreadWhenUnsatisfiable | default "DoNotSchedule" }}   # CDO-34: DoNotSchedule (hard) — ép 2 pod critical ra khác node để mất-node không sập cả service. An toàn vì cluster >=3 node ổn định + có Cluster Autoscaler (ADR-REL-003) bù node khi Pending. Override "ScheduleAnyway" per-component nếu cần nới.
+          whenUnsatisfiable: {{ .topologySpreadWhenUnsatisfiable | default "DoNotSchedule" }}   # CDO-34: DoNotSchedule (hard) — ép 2 pod critical ra khác node để mất-node không sập cả service. Sandbox giữ baseline 2 primary node và pre-scale lên 3; override "ScheduleAnyway" per-component nếu cần nới.
           labelSelector:
             matchLabels:
               {{- include "techx-corp.selectorLabels" . | nindent 14 }}
@@ -164,6 +164,9 @@ spec:
       {{- if .initContainers }}
       initContainers:
         {{- tpl (toYaml .initContainers) . | nindent 8 }}
+        {{- range .initContainers }}
+        {{- include "techx-corp.validateNoLatest" (list .image (printf "%s/initContainer/%s" $.name .name)) }}
+        {{- end }}
       {{- end}}
       volumes:
         {{- range .mountedConfigMaps }}
