@@ -51,3 +51,4 @@ _baseline-phase3/
 
 # CDO-83 evidence output (runtime snapshots)
 docs/templates/cdo/evidence/
+docs/cdo09/cost-reliability-assessment.md
