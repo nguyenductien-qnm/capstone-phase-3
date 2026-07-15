@@ -151,9 +151,33 @@ resource "aws_secretsmanager_secret" "msk_credentials" {
 
 resource "aws_secretsmanager_secret_version" "msk_credentials" {
   secret_id = aws_secretsmanager_secret.msk_credentials.id
+  # MSK SCRAM association yêu cầu secret CHỈ chứa username/password -> giữ sạch.
+  # Endpoint (brokers) lưu ở secret riêng bên dưới để ESO đọc, tránh làm hỏng
+  # aws_msk_scram_secret_association.
   secret_string = jsonencode({
     username = "msk_user"
     password = random_password.msk_password.result
+  })
+}
+
+# Secret riêng chứa endpoint MSK (brokers) cho External Secrets Operator đồng bộ
+# vào cluster. Tách khỏi SCRAM credential secret (không được thêm field ngoài
+# username/password vào secret dùng cho scram_secret_association).
+resource "aws_secretsmanager_secret" "msk_endpoint" {
+  name                    = "${var.project_name}-${var.environment}-msk-endpoint"
+  recovery_window_in_days = 0
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-msk-endpoint"
+    Environment = var.environment
+    Project     = var.project_name
+  }
+}
+
+resource "aws_secretsmanager_secret_version" "msk_endpoint" {
+  secret_id = aws_secretsmanager_secret.msk_endpoint.id
+  secret_string = jsonencode({
+    brokers_sasl_scram = aws_msk_cluster.this.bootstrap_brokers_sasl_scram
   })
 }
 

@@ -104,6 +104,11 @@ output "eks_oidc_provider_arn" {
   value       = module.eks.oidc_provider_arn
 }
 
+output "external_secrets_irsa_role_arn" {
+  description = "ARN IAM role IRSA để annotate ServiceAccount External Secrets Operator"
+  value       = module.external_secrets_irsa.role_arn
+}
+
 output "eks_node_group_name" {
   description = "Tên EKS managed node group chính"
   value       = module.eks.node_group_name
@@ -147,6 +152,16 @@ output "msk_security_group_id" {
 output "msk_secret_arn" {
   description = "ARN của Secret Manager lưu msk credentials"
   value       = module.msk.msk_secret_arn
+}
+
+output "external_dns_irsa_role_arn" {
+  description = "ARN IAM role cho external-dns (annotate ServiceAccount external-dns/external-dns)"
+  value       = var.enable_cloudfront ? module.external_dns_irsa[0].role_arn : null
+}
+
+output "cloudfront_origin_hostname" {
+  description = "Hostname cố định làm CloudFront origin — external-dns tạo record này trỏ về NLB frontend-proxy"
+  value       = local.origin_hostname
 }
 
 

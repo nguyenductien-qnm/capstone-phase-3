@@ -23,3 +23,8 @@ output "msk_secret_arn" {
   value       = aws_secretsmanager_secret.msk_credentials.arn
 }
 
+output "msk_endpoint_secret_arn" {
+  description = "ARN của Secret Manager lưu MSK endpoint (brokers) cho ESO"
+  value       = aws_secretsmanager_secret.msk_endpoint.arn
+}
+

@@ -12,6 +12,11 @@ locals {
       kubernetes_groups  = []
     }
   }
+
+  # Tên cố định làm CloudFront origin. external-dns tạo record này trỏ về NLB của
+  # frontend-proxy; giá trị biết trước lúc plan nên không cần dò NLB runtime.
+  # Phải khớp annotation external-dns.alpha.kubernetes.io/hostname trong values chart.
+  origin_hostname = "origin.${var.subdomain}"
 }
 
 module "vpc" {
@@ -98,13 +103,35 @@ module "ecr" {
   ecr_repositories = var.ecr_repositories
 }
 
+# IRSA cho external-dns: quyền ghi record trong ĐÚNG hosted zone của subdomain.
+module "external_dns_irsa" {
+  source = "../../modules/external-dns-irsa"
+  count  = var.enable_cloudfront ? 1 : 0
+
+  project_name      = var.project_name
+  environment       = var.environment
+  oidc_provider_arn = module.eks.oidc_provider_arn
+  oidc_issuer_url   = module.eks.oidc_issuer_url
+  hosted_zone_id    = var.route53_zone_id
+}
+
+# CloudFront origin dùng tên CỐ ĐỊNH do ta tự đặt (origin.<subdomain>), không phải
+# DNS ngẫu nhiên của NLB. Terraform biết giá trị này ngay lúc plan -> apply 1 lần,
+# không cần data source dò NLB, không cần toggle, không cần commit lần 2.
+#
+# Record được external-dns (chạy trong cluster) tự tạo/cập nhật khi Service
+# frontend-proxy sinh ra NLB, nhờ annotation external-dns.alpha.kubernetes.io/hostname.
+# NLB bị thay (recreate/blue-green) -> external-dns tự trỏ lại; origin không đổi.
+#
+# Lần apply đầu: record chưa tồn tại -> origin lỗi cho tới khi external-dns tạo xong
+# (thường <1 phút sau khi NLB ready). Eventual consistency, không blocking.
 module "cloudfront" {
   source = "../../modules/cloudfront"
   count  = var.enable_cloudfront ? 1 : 0
 
   project_name        = var.project_name
   environment         = var.environment
-  origin_domain_name  = var.nlb_dns_name
+  origin_domain_name  = local.origin_hostname
   acm_certificate_arn = var.acm_certificate_arn
   aliases             = [var.subdomain]
 }
@@ -125,4 +152,23 @@ module "cloudtrail" {
 
   project_name = var.project_name
   environment  = var.environment
+}
+
+# IRSA role cho External Secrets Operator đọc endpoint/credential từ Secrets Manager
+# (RDS/Valkey/MSK) và đồng bộ vào cluster. Least-privilege: chỉ đúng các secret ARN.
+module "external_secrets_irsa" {
+  source = "../../modules/external-secrets-irsa"
+
+  project_name      = var.project_name
+  environment       = var.environment
+  oidc_provider_arn = module.eks.oidc_provider_arn
+  oidc_issuer_url   = module.eks.oidc_issuer_url
+
+  secret_arns = [
+    module.rds.db_secret_arn,
+    module.rds.db_endpoint_secret_arn,
+    module.elasticache.secret_arn,
+    module.msk.msk_secret_arn,
+    module.msk.msk_endpoint_secret_arn,
+  ]
 }
