@@ -169,4 +169,11 @@ module "external_secrets_irsa" {
     module.msk.msk_secret_arn,
     module.msk.msk_endpoint_secret_arn,
   ]
+
+  # Secret MSK mã hoá bằng KMS key riêng của module msk -> ESO cần kms:Decrypt trên
+  # key này, nếu không sẽ lỗi "AccessDeniedException: Access to KMS is not allowed".
+  # RDS/Valkey dùng key mặc định aws/secretsmanager nên không cần liệt kê.
+  kms_key_arns = [
+    module.msk.kms_key_arn,
+  ]
 }
