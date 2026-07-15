@@ -76,7 +76,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.TF_AWS_ROLE_ARN }}
+          role-to-assume: ${{ vars.TF_AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Install kubectl
@@ -161,13 +161,13 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.TF_AWS_ROLE_ARN }}
+          role-to-assume: ${{ vars.TF_AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Materialize sandbox variables
         shell: bash
         env:
-          TFVARS_SANDBOX: ${{ secrets.TFVARS_SANDBOX }}
+          TFVARS_SANDBOX: ${{ vars.TFVARS_SANDBOX }}
         run: |
           set -euo pipefail
           if [ -z "$TFVARS_SANDBOX" ]; then
