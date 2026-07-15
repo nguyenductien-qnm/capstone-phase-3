@@ -247,6 +247,7 @@ components:
     resources:
       requests:
         cpu: 50m          # CDO-42: cần cho HPA CPU-utilization
+        memory: 128Mi     # Mandate 5: bắt buộc đủ 4 field requests/limits
       limits:
         cpu: 200m
         memory: 300Mi
@@ -462,6 +463,7 @@ components:
     resources:
       requests:
         cpu: 50m          # CDO-42: cần cho HPA CPU-utilization
+        memory: 16Mi      # Mandate 5: bắt buộc đủ 4 field requests/limits
       limits:
         cpu: 100m
         memory: 20Mi
@@ -618,6 +620,7 @@ components:
     resources:
       requests:
         cpu: 100m         # CDO-42: frontend Next.js, hot-path browse -> HPA
+        memory: 128Mi     # Mandate 5: bắt buộc đủ 4 field requests/limits
       limits:
         cpu: 200m
         memory: 250Mi
@@ -751,6 +754,7 @@ components:
     resources:
       requests:
         cpu: 100m # CDO-42: Envoy edge, mọi traffic đi qua -> scale sớm nhất
+        memory: 48Mi # Mandate 5: bắt buộc đủ 4 field requests/limits
       limits:
         cpu: 200m
         memory: 65Mi
@@ -1069,7 +1073,9 @@ components:
     resources:
       requests:
         cpu: 100m # CDO-42: gọi mỗi lần render trang -> HPA
+        memory: 128Mi # Mandate 5: bắt buộc đủ 4 field requests/limits
       limits:
+        cpu: 200m # Mandate 5: bắt buộc đủ 4 field requests/limits
         memory: 500Mi # This is high to enable supporting the recommendationCache feature flag use case
     hpa:
       enabled: true
