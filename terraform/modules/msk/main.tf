@@ -31,7 +31,7 @@ resource "aws_security_group_rule" "msk_ingress_eks" {
 
 # MSK Configuration: bật auto.create.topics.enable để services tự tạo topic
 resource "aws_msk_configuration" "this" {
-  name              = "${var.project_name}-${var.environment}-msk-config"
+  name              = "${var.project_name}-${var.environment}-msk-config-${replace(var.kafka_version, ".", "-")}"
   kafka_versions    = [var.kafka_version]
   server_properties = <<-EOT
     auto.create.topics.enable=true
@@ -166,5 +166,4 @@ resource "aws_msk_scram_secret_association" "this" {
     aws_secretsmanager_secret_version.msk_credentials
   ]
 }
-
 

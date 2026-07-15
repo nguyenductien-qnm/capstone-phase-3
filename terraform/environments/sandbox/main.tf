@@ -1,3 +1,19 @@
+data "aws_iam_role" "github_terraform" {
+  name = var.github_terraform_role_name
+}
+
+locals {
+  github_terraform_access_entry = {
+    github_terraform = {
+      principal_arn      = data.aws_iam_role.github_terraform.arn
+      access_policy_name = "AmazonEKSClusterAdminPolicy"
+      access_scope_type  = "cluster"
+      namespaces         = []
+      kubernetes_groups  = []
+    }
+  }
+}
+
 module "vpc" {
   source = "../../modules/vpc"
 
@@ -36,7 +52,7 @@ module "eks" {
   ops_node_instance_types = var.eks_ops_node_instance_types
   ops_node_disk_size_gib  = var.eks_ops_node_disk_size_gib
 
-  access_entries = var.eks_access_entries
+  access_entries = merge(var.eks_access_entries, local.github_terraform_access_entry)
 }
 
 module "rds" {
