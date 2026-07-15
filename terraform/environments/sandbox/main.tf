@@ -134,6 +134,24 @@ module "cloudfront" {
   aliases             = [var.subdomain]
 }
 
+# Cửa vào cho người dùng: <subdomain> -> CloudFront. Thiếu record này thì tên miền
+# không phân giải được và request không bao giờ tới CloudFront -- aliases ở module
+# chỉ dạy CloudFront CHẤP NHẬN Host header, nó không tạo DNS.
+# external-dns không tạo hộ: nó chỉ quản host khai trong Ingress (origin-<subdomain>).
+resource "aws_route53_record" "cloudfront_alias" {
+  count = var.enable_cloudfront ? 1 : 0
+
+  zone_id = var.route53_zone_id
+  name    = var.subdomain
+  type    = "A"
+
+  alias {
+    name                   = module.cloudfront[0].cloudfront_domain_name
+    zone_id                = module.cloudfront[0].cloudfront_hosted_zone_id
+    evaluate_target_health = false
+  }
+}
+
 module "msk" {
   source = "../../modules/msk"
 
