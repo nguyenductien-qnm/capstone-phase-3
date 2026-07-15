@@ -1,0 +1,28 @@
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
+metadata:
+  name: default
+  namespace: kube-system
+spec:
+  amiFamily: AL2023
+  amiSelectorTerms:
+    - alias: al2023@latest
+  role: ecommerce-dev-eks-karpenter-node  # Khớp aws_iam_role.karpenter_node name trong module EKS
+  subnetSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: ecommerce-dev-eks
+  securityGroupSelectorTerms:
+    - tags:
+        karpenter.sh/discovery: ecommerce-dev-eks
+  blockDeviceMappings:
+    - deviceName: /dev/xvda
+      ebs:
+        volumeSize: 30Gi
+        volumeType: gp3
+        encrypted: true
+        deleteOnTermination: true
+  tags:
+    Project: ecommerce
+    Environment: dev
+    Owner: CDO-09
+    ManagedBy: Karpenter
