@@ -18,6 +18,7 @@ output "db_proxy_endpoint" {
   value       = var.enable_rds_proxy ? aws_db_proxy.this[0].endpoint : null
 }
 
+<<<<<<< HEAD
 output "db_secret_arn" {
   description = "ARN Secret credentials DB (dùng cho RDS Proxy auth)"
   value       = var.enable_rds_proxy ? aws_secretsmanager_secret.db_credentials[0].arn : null
@@ -28,6 +29,8 @@ output "db_endpoint_secret_arn" {
   value       = var.enable_rds_proxy ? aws_secretsmanager_secret.db_endpoint[0].arn : null
 }
 
+=======
+>>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
 output "db_password" {
   description = "Mật khẩu quản trị database (sensitive)"
   value       = random_password.db_password.result

@@ -213,6 +213,10 @@ jobs:
         with:
           role-to-assume: ${{ secrets.TF_AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+<<<<<<< HEAD
+=======
+          role-session-name: gha-${{ github.actor }}-${{ github.run_id }}
+>>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
 
       - name: Login to Amazon ECR
         if: github.event_name != 'pull_request'

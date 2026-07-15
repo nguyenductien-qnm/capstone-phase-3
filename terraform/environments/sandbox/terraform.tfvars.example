@@ -70,7 +70,13 @@ eks_ops_node_disk_size_gib  = 30
 eks_endpoint_public_access = true
 eks_public_access_cidrs    = ["0.0.0.0/0"]   # Giới hạn lại IP thực tế nếu cần
 
+<<<<<<< HEAD
 eks_control_plane_log_retention_days = 7
+=======
+eks_enabled_cluster_log_types           = ["api", "audit", "authenticator"]
+eks_control_plane_log_retention_days    = 30
+eks_enable_control_plane_log_kms        = true
+>>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
 
 # Dùng IAM Role ARN (từ IAM Console), không dùng STS assumed-role ARN
 eks_access_entries = {
@@ -116,11 +122,40 @@ ecr_repositories = ["<REPO_NAME>"]   # vd: ["techx-corp"]
 # Cấu hình CloudFront & Custom Domain
 # ============================================================
 
+<<<<<<< HEAD
 # CloudFront origin = origin-<subdomain>, record do external-dns tự tạo trỏ về ALB
 # của Ingress frontend-proxy. Không cần điền DNS của LB thủ công.
 route53_zone_id = "<ROUTE53_ZONE_ID>"   # vd: Z0648007EUNFYEFE8XC4
+=======
+# Cập nhật sau khi NLB được tạo thành công
+nlb_dns_name = "<NLB_DNS_NAME>"   # vd: xxx.elb.us-east-1.amazonaws.com
+>>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
 
 subdomain           = "<SUBDOMAIN>"           # vd: ecommerce.yourdomain.com
 acm_certificate_arn = "arn:aws:acm:us-east-1:<ACCOUNT_ID>:certificate/<CERT_ID>"
 
 enable_cloudfront = true
+<<<<<<< HEAD
+=======
+
+# ============================================================
+# Audit trail (CDO-46/CDO-105/CDO-106)
+# ============================================================
+cloudtrail_enable_kms_encryption         = true
+cloudtrail_enable_cloudwatch_logs        = true
+cloudtrail_cloudwatch_log_retention_days = 90
+cloudtrail_s3_transition_days             = 90
+cloudtrail_s3_transition_storage_class    = "GLACIER_IR"
+cloudtrail_s3_retention_days              = 2555
+
+# Existing buckets cannot safely gain Object Lock without migration/replacement.
+# Keep false in sandbox unless a reviewed plan proves the bucket is compatible.
+cloudtrail_enable_object_lock         = false
+cloudtrail_object_lock_retention_days = 30
+
+# ARN patterns only; no account IDs are committed. Identity Center permission sets
+# normally attach the output policy manually, so operator role names stay empty.
+audit_administrator_principals = []
+audit_break_glass_principals    = []
+audit_operator_role_names       = []
+>>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)

@@ -58,9 +58,12 @@
     },
     "opensearch": {
       "type": "object"
+<<<<<<< HEAD
     },
     "externalSecrets": {
       "type": "object"
+=======
+>>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
     }
   },
   "required": [

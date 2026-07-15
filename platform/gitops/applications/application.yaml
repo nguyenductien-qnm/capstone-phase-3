@@ -20,7 +20,10 @@ spec:
       valueFiles:
         - ../../gitops/environments/sandbox/values-flagd-sync.yaml
         - ../../gitops/environments/sandbox/values-ops-observability.yaml
+<<<<<<< HEAD
         - ../../gitops/environments/sandbox/values-external-secrets.yaml
+=======
+>>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
         # CI-managed image tags (app-build.yaml bump) — load CUỐI để override tag.
         - ../../gitops/environments/sandbox/values-image-tags.yaml
 

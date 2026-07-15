@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 data "aws_iam_role" "github_terraform" {
   name = var.github_terraform_role_name
 }
@@ -21,6 +22,8 @@ locals {
   origin_hostname = "origin-${var.subdomain}"
 }
 
+=======
+>>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
 module "vpc" {
   source = "../../modules/vpc"
 
@@ -48,7 +51,13 @@ module "eks" {
   endpoint_public_access = var.eks_endpoint_public_access
   public_access_cidrs    = var.eks_public_access_cidrs
 
+<<<<<<< HEAD
   control_plane_log_retention_days = var.eks_control_plane_log_retention_days
+=======
+  enabled_cluster_log_types        = var.eks_enabled_cluster_log_types
+  control_plane_log_retention_days = var.eks_control_plane_log_retention_days
+  enable_control_plane_log_kms     = var.eks_enable_control_plane_log_kms
+>>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
 
   node_instance_types = var.eks_node_instance_types
   node_capacity_type  = var.eks_node_capacity_type
@@ -59,7 +68,11 @@ module "eks" {
   ops_node_instance_types = var.eks_ops_node_instance_types
   ops_node_disk_size_gib  = var.eks_ops_node_disk_size_gib
 
+<<<<<<< HEAD
   access_entries = merge(var.eks_access_entries, local.github_terraform_access_entry)
+=======
+  access_entries = var.eks_access_entries
+>>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
 }
 
 module "rds" {
@@ -105,6 +118,7 @@ module "ecr" {
   ecr_repositories = var.ecr_repositories
 }
 
+<<<<<<< HEAD
 # IRSA cho external-dns: quyền ghi record trong ĐÚNG hosted zone của subdomain.
 module "external_dns_irsa" {
   source = "../../modules/external-dns-irsa"
@@ -123,13 +137,19 @@ module "external_dns_irsa" {
 #
 # Lần apply đầu: record chưa tồn tại -> origin lỗi cho tới khi external-dns tạo xong
 # (thường <1 phút sau khi ALB ready). Eventual consistency, không blocking.
+=======
+>>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
 module "cloudfront" {
   source = "../../modules/cloudfront"
   count  = var.enable_cloudfront ? 1 : 0
 
   project_name        = var.project_name
   environment         = var.environment
+<<<<<<< HEAD
   origin_domain_name  = local.origin_hostname
+=======
+  origin_domain_name  = var.nlb_dns_name
+>>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
   acm_certificate_arn = var.acm_certificate_arn
   aliases             = [var.subdomain]
 }
@@ -150,6 +170,7 @@ module "cloudtrail" {
 
   project_name = var.project_name
   environment  = var.environment
+<<<<<<< HEAD
 }
 
 # IRSA role cho External Secrets Operator đọc endpoint/credential từ Secrets Manager
@@ -169,4 +190,18 @@ module "external_secrets_irsa" {
     module.msk.msk_secret_arn,
     module.msk.msk_endpoint_secret_arn,
   ]
+=======
+
+  enable_kms_encryption          = var.cloudtrail_enable_kms_encryption
+  enable_cloudwatch_logs         = var.cloudtrail_enable_cloudwatch_logs
+  cloudwatch_log_retention_days  = var.cloudtrail_cloudwatch_log_retention_days
+  s3_retention_days              = var.cloudtrail_s3_retention_days
+  s3_transition_days             = var.cloudtrail_s3_transition_days
+  s3_transition_storage_class    = var.cloudtrail_s3_transition_storage_class
+  enable_object_lock             = var.cloudtrail_enable_object_lock
+  object_lock_retention_days     = var.cloudtrail_object_lock_retention_days
+  audit_administrator_principals = var.audit_administrator_principals
+  break_glass_principals         = var.audit_break_glass_principals
+  operator_role_names            = var.audit_operator_role_names
+>>>>>>> 57ab1fa (feat(audit): implement CDO-46 CDO-105 CDO-106 auditability)
 }
