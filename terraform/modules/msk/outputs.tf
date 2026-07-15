@@ -23,3 +23,13 @@ output "msk_secret_arn" {
   value       = aws_secretsmanager_secret.msk_credentials.arn
 }
 
+output "msk_endpoint_secret_arn" {
+  description = "ARN của Secret Manager lưu MSK endpoint (brokers) cho ESO"
+  value       = aws_secretsmanager_secret.msk_endpoint.arn
+}
+
+
+output "kms_key_arn" {
+  description = "ARN của KMS key mã hoá secret SCRAM — ESO cần kms:Decrypt trên key này để đọc được secret"
+  value       = aws_kms_key.msk.arn
+}

@@ -1,0 +1,73 @@
+# external-dns — tự tạo/cập nhật Route53 record trỏ về ALB do AWS LB Controller
+# sinh cho Ingress frontend-proxy, để CloudFront origin dùng tên CỐ ĐỊNH
+# (origin.ecommerce.nguyenductien.cloud) thay vì DNS ngẫu nhiên của ALB.
+# Nhờ vậy Terraform biết origin ngay lúc plan -> apply 1 lần, bỏ được 2-pass.
+# ALB bị thay (recreate/blue-green) -> external-dns tự trỏ lại; origin không đổi.
+#
+# Luồng: Ingress(host: origin.*) -> ALB Controller tạo ALB -> external-dns đọc
+# Ingress -> tạo record origin.* -> ALB -> CloudFront (alias ecommerce.*) lấy
+# nội dung từ origin.*. CloudFront giữ tên chính, ALB giữ tên origin -> không tranh nhau.
+#
+# IRSA: SA external-dns được annotate role ecommerce-dev-external-dns (tạo bởi
+# module terraform external-dns-irsa; tên role cố định theo pattern
+# <project>-<env>-external-dns). Quyền ghi giới hạn ĐÚNG zone nguyenductien.cloud.
+# Quản lý qua ArgoCD (App-of-Apps: root-app recurse platform/gitops/applications/).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: external-dns
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://kubernetes-sigs.github.io/external-dns/
+    chart: external-dns
+    targetRevision: 1.15.0
+    helm:
+      values: |
+        provider:
+          name: aws
+        env:
+          - name: AWS_DEFAULT_REGION
+            value: us-east-1
+        serviceAccount:
+          create: true
+          name: external-dns
+          annotations:
+            eks.amazonaws.com/role-arn: arn:aws:iam::804372444787:role/ecommerce-dev-external-dns
+        # Chỉ quản lý zone của dự án — tránh đụng record ngoài phạm vi.
+        domainFilters:
+          - nguyenductien.cloud
+        zoneIdFilters:
+          - Z0648007EUNFYEFE8XC4
+        # Đọc Ingress: frontend-proxy dùng ALB Ingress (không phải Service LoadBalancer),
+        # external-dns lấy host trong ingress.spec.rules + địa chỉ ALB ở ingress.status.
+        sources:
+          - ingress
+        # TXT registry: đánh dấu record do instance này sở hữu -> không xoá nhầm
+        # record người khác tạo tay. owner phải duy nhất theo cluster.
+        registry: txt
+        txtOwnerId: ecommerce-dev-eks
+        txtPrefix: _extdns.
+        # upsert-only: KHÔNG xoá record khi Service biến mất (an toàn cho sandbox;
+        # tránh CloudFront origin mất record do một lần sync lỗi).
+        policy: upsert-only
+        interval: 1m
+        resources:
+          requests:
+            cpu: 25m
+            memory: 64Mi
+          limits:
+            memory: 128Mi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: external-dns
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

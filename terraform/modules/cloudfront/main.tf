@@ -27,9 +27,21 @@ resource "aws_cloudfront_distribution" "this" {
     cached_methods   = ["GET", "HEAD"]
     target_origin_id = local.origin_id
 
+    # KHÔNG forward Host: headers = ["*"] giữ nguyên Host của khách
+    # (ecommerce.*) khi gọi origin -> ALB không có rule cho tên đó -> 404.
+    # Bỏ "*" để CloudFront tự set Host = origin-ecommerce.* -> khớp rule Ingress.
+    # Liệt kê tường minh header cần cho app động; Host cố tình vắng mặt.
     forwarded_values {
       query_string = true
-      headers      = ["*"] # Forward toàn bộ headers (Host, Auth...) để EKS xử lý
+      headers = [
+        "Authorization",
+        "Origin",
+        "Accept",
+        "Accept-Language",
+        "Content-Type",
+        "Referer",
+        "CloudFront-Forwarded-Proto",
+      ]
 
       cookies {
         forward = "all"
