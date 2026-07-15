@@ -34,7 +34,18 @@ default:
     affinity: {}
     tolerations: []
   # Default securityContext for all components
-  securityContext: {}
+  # Default securityContext for all components
+  securityContext:
+    allowPrivilegeEscalation: false
+    runAsNonRoot: true
+    capabilities:
+      drop:
+        - ALL
+  # Default podSecurityContext for all components
+  podSecurityContext:
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
 
 serviceAccount:
   # Specifies whether a service account should be created
@@ -201,11 +212,11 @@ components:
         value: "false"
     resources:
       requests:
-        cpu: 100m         # P0 right-size: OOMKilled 36 lần, .NET cần RAM cao
-        memory: 128Mi
+        cpu: 10m
+        memory: 32Mi
       limits:
-        cpu: 200m
-        memory: 256Mi
+        cpu: 100m
+        memory: 120Mi
     initContainers:
       - name: wait-for-kafka
         image: busybox:1.38.0   # Pinned: do NOT use :latest — breaks reproducibility.
@@ -239,10 +250,19 @@ components:
         value: otlp
     resources:
       requests:
-        cpu: 50m          # CDO-42: cần cho HPA CPU-utilization
+        cpu: 10m
+        memory: 32Mi
       limits:
+        cpu: 100m
         memory: 300Mi
-
+    securityContext:
+      runAsUser: 1000
+      runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+      readOnlyRootFilesystem: true
   cart:
     enabled: true
     imageOverride:
@@ -303,10 +323,10 @@ components:
         value: http://$(OTEL_COLLECTOR_NAME):4317
     resources:
       requests:
-        cpu: 100m         # CDO-42: cart ghi/đọc mỗi session, tải tăng theo user -> HPA
-        memory: 64Mi      # P0 right-size: thêm request, giữ limit
+        cpu: 10m
+        memory: 32Mi
       limits:
-        cpu: 200m
+        cpu: 100m
         memory: 160Mi
     hpa:
       enabled: true
@@ -400,11 +420,11 @@ components:
         value: 96MiB      # P0 right-size: nâng cùng limit để Go dùng được RAM mới
     resources:
       requests:
-        cpu: 100m         # P0: revenue-critical, limit cũ 20Mi quá thấp
-        memory: 64Mi
+        cpu: 10m
+        memory: 32Mi
       limits:
-        cpu: 200m
-        memory: 128Mi
+        cpu: 100m
+        memory: 20Mi
     hpa:
       enabled: true
       minReplicas: 2      # có PDB (CDO-34) + revenue-critical SLO 99% -> min>=2 (tránh INC-2)
@@ -440,8 +460,10 @@ components:
         value: "false"
     resources:
       requests:
-        cpu: 50m          # CDO-42: cần cho HPA CPU-utilization
+        cpu: 10m
+        memory: 32Mi
       limits:
+        cpu: 100m
         memory: 20Mi
     hpa:
       enabled: true
@@ -468,9 +490,12 @@ components:
       - name: FLAGD_PORT
         value: "8013"
     resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
       limits:
+        cpu: 100m
         memory: 100Mi
-
   fraud-detection:
     enabled: true
     useDefault:
@@ -503,7 +528,11 @@ components:
       - name: OTEL_INSTRUMENTATION_MESSAGING_EXPERIMENTAL_RECEIVE_TELEMETRY_ENABLED
         value: "true"
     resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
       limits:
+        cpu: 100m
         memory: 300Mi
     initContainers:
       - name: wait-for-kafka
@@ -592,8 +621,10 @@ components:
         value: http://localhost:8080/otlp-http/v1/traces             # This expects users to use `kubectl port-forward ...`
     resources:
       requests:
-        cpu: 100m         # CDO-42: frontend Next.js, hot-path browse -> HPA
+        cpu: 20m
+        memory: 64Mi
       limits:
+        cpu: 200m
         memory: 250Mi
     hpa:
       enabled: true
@@ -703,8 +734,10 @@ components:
         value: "50051"
     resources:
       requests:
-        cpu: 100m         # CDO-42: Envoy edge, mọi traffic đi qua -> scale sớm nhất
+        cpu: 20m
+        memory: 64Mi
       limits:
+        cpu: 200m
         memory: 65Mi
     hpa:
       enabled: true
@@ -741,9 +774,12 @@ components:
       - name: OTEL_COLLECTOR_HOST
         value: $(OTEL_COLLECTOR_NAME)
     resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
       limits:
+        cpu: 100m
         memory: 50Mi
-
   load-generator:
     enabled: true
     useDefault:
@@ -781,12 +817,11 @@ components:
         value: http://$(OTEL_COLLECTOR_NAME):4317
     resources:
       requests:
-        cpu: 200m         # P0 right-size: giảm RAM để giải phóng cho app
-        memory: 256Mi
+        cpu: 50m
+        memory: 128Mi
       limits:
         cpu: 500m
-        memory: 500Mi
-
+        memory: 1500Mi
   payment:
     enabled: true
     useDefault:
@@ -807,12 +842,20 @@ components:
       - name: IPV6_ENABLED
         value: "false"
     resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
       limits:
+        cpu: 100m
         memory: 140Mi
     securityContext:
       runAsUser: 1000  # node
       runAsGroup: 1000
       runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
       allowPrivilegeEscalation: false
       capabilities:
         drop:
@@ -876,11 +919,11 @@ components:
         value: http://$(OTEL_COLLECTOR_NAME):4317
     resources:
       requests:
-        cpu: 100m         # CDO-42: read-heavy (mọi browse gọi tới) -> bottleneck -> HPA
-        memory: 32Mi      # P0 right-size: OOMKilled 4 lần, Go runtime
+        cpu: 10m
+        memory: 32Mi
       limits:
-        cpu: 200m
-        memory: 128Mi
+        cpu: 100m
+        memory: 20Mi
     hpa:
       enabled: true
       minReplicas: 2      # có PDB (CDO-34) -> min>=2, tránh INC-2 khi node consolidate
@@ -963,12 +1006,20 @@ components:
       - name: IPV6_ENABLED
         value: "false"
     resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
       limits:
+        cpu: 100m
         memory: 40Mi
     securityContext:
       runAsUser: 33  # www-data
       runAsGroup: 33
       runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
       allowPrivilegeEscalation: false
       capabilities:
         drop:
@@ -999,9 +1050,11 @@ components:
         value: http://$(OTEL_COLLECTOR_NAME):4317
     resources:
       requests:
-        cpu: 100m         # CDO-42: gọi mỗi lần render trang -> HPA
+        cpu: 10m
+        memory: 32Mi
       limits:
-        memory: 500Mi            # This is high to enable supporting the recommendationCache feature flag use case
+        cpu: 100m
+        memory: 500Mi
     hpa:
       enabled: true
       minReplicas: 1
@@ -1046,12 +1099,11 @@ components:
         value: http://$(OTEL_COLLECTOR_NAME):4317
     resources:
       requests:
-        cpu: 200m
-        memory: 256Mi
+        cpu: 10m
+        memory: 32Mi
       limits:
-        cpu: 1000m
-        memory: 1024Mi
-
+        cpu: 100m
+        memory: 100Mi
   shipping:
     enabled: true
     useDefault:
@@ -1071,12 +1123,11 @@ components:
         value: "false"
     resources:
       requests:
-        cpu: 50m          # P0 right-size: limit cũ 20Mi quá thấp
+        cpu: 10m
         memory: 32Mi
       limits:
         cpu: 100m
-        memory: 128Mi
-
+        memory: 20Mi
   flagd:
     enabled: true
     imageOverride:
@@ -1100,7 +1151,11 @@ components:
       - name: GOMEMLIMIT
         value: 60MiB
     resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
       limits:
+        cpu: 100m
         memory: 75Mi
     command:
       - "/flagd-build"
@@ -1185,12 +1240,20 @@ components:
       - name: KAFKA_CONTROLLER_QUORUM_VOTERS
         value: 1@kafka:9093
     resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
       limits:
-        memory: 700Mi
+        cpu: 100m
+        memory: 100Mi
     securityContext:
       runAsUser: 1000  # appuser
       runAsGroup: 1000
       runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
       allowPrivilegeEscalation: false
       capabilities:
         drop:
@@ -1209,6 +1272,13 @@ components:
         value: flagd
       - name: FLAGD_PORT
         value: "8013"
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
 
   postgresql:
     enabled: false
@@ -1258,9 +1328,12 @@ components:
         mountPath: /docker-entrypoint-initdb.d
         existingConfigMap: postgresql-init
     resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
       limits:
+        cpu: 100m
         memory: 100Mi
-
   valkey-cart:
     enabled: false
     useDefault:
@@ -1284,12 +1357,20 @@ components:
         username: valkey
         collection_interval: 10s
     resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
       limits:
-        memory: 20Mi
+        cpu: 100m
+        memory: 100Mi
     securityContext:
       runAsUser: 999  # valkey
       runAsGroup: 1000
       runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
       allowPrivilegeEscalation: false
       capabilities:
         drop:
@@ -1455,11 +1536,11 @@ jaeger:
         value: "4317"
     resources:
       requests:
-        cpu: 100m         # P0 right-size: memory storage phình
-        memory: 256Mi
+        cpu: 10m
+        memory: 32Mi
       limits:
-        cpu: 200m
-        memory: 1Gi
+        cpu: 100m
+        memory: 100Mi
   userconfig:
     service:
       extensions: [jaeger_storage, jaeger_query, healthcheckv2]
@@ -1581,11 +1662,12 @@ prometheus:
     service:
       servicePort: 9090
     resources:
-      limits:
-        memory: 1024Mi
       requests:
-        memory: 400Mi
-
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 100Mi
 grafana:
   enabled: true
   fullnameOverride: grafana
@@ -1612,9 +1694,12 @@ grafana:
     datasources:
       enabled: true
     resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
       limits:
-        cpu: 150m
-        memory: 256Mi
+        cpu: 100m
+        memory: 100Mi
   resources:
     limits:
       memory: 300Mi
