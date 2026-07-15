@@ -82,3 +82,22 @@ Create the name of the service account to use
 {{- default "default" .serviceAccount.name }}
 {{- end }}
 {{- end }}
+
+{{/*
+Validate that an image string is pinned (has a tag that is not :latest).
+Usage: include "techx-corp.validateNoLatest" (list "image-string" "context-name")
+Fails helm template if any image uses :latest or has no tag.
+*/}}
+{{- define "techx-corp.validateNoLatest" -}}
+{{- $image := index . 0 -}}
+{{- $context := index . 1 -}}
+{{- if not $image -}}
+  {{- fail (printf "VALIDATION FAIL: %s has an empty image reference" $context) -}}
+{{- end -}}
+{{- if hasSuffix ":latest" $image -}}
+  {{- fail (printf "VALIDATION FAIL: %s uses :latest tag: %s" $context $image) -}}
+{{- end -}}
+{{- if not (contains ":" $image) -}}
+  {{- fail (printf "VALIDATION FAIL: %s has no tag (defaults to :latest): %s" $context $image) -}}
+{{- end -}}
+{{- end -}}
