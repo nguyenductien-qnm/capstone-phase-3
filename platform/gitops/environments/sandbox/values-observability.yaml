@@ -1,8 +1,21 @@
 # Observability dùng chung: bật 5 subchart, tắt TẤT CẢ app component.
 opentelemetry-collector: { enabled: true }
 jaeger: { enabled: true }
-prometheus: { enabled: true }
-grafana: { enabled: true }
+prometheus:
+  enabled: true
+  # Expose Deployment/HPA/Pod/Node state metrics for the scaling dashboard.
+  kube-state-metrics:
+    enabled: true
+grafana:
+  enabled: true
+  # P0: grafana v13 OOMKilled ở 300Mi (restart 16 lần) → nâng limit chống OOM
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      cpu: 300m
+      memory: 768Mi
 opensearch: { enabled: true }
 
 components:

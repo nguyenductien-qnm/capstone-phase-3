@@ -1,3 +1,19 @@
+data "aws_iam_role" "github_terraform" {
+  name = var.github_terraform_role_name
+}
+
+locals {
+  github_terraform_access_entry = {
+    github_terraform = {
+      principal_arn      = data.aws_iam_role.github_terraform.arn
+      access_policy_name = "AmazonEKSClusterAdminPolicy"
+      access_scope_type  = "cluster"
+      namespaces         = []
+      kubernetes_groups  = []
+    }
+  }
+}
+
 module "vpc" {
   source = "../../modules/vpc"
 
@@ -32,7 +48,11 @@ module "eks" {
   node_disk_size_gib  = var.eks_node_disk_size_gib
   node_scaling        = var.eks_node_scaling
 
-  access_entries = var.eks_access_entries
+  ops_node_subnet_id      = module.vpc.private_app_subnet_ids[var.eks_ops_node_subnet_key]
+  ops_node_instance_types = var.eks_ops_node_instance_types
+  ops_node_disk_size_gib  = var.eks_ops_node_disk_size_gib
+
+  access_entries = merge(var.eks_access_entries, local.github_terraform_access_entry)
 }
 
 module "rds" {
@@ -97,5 +117,12 @@ module "msk" {
   vpc_id                = module.vpc.vpc_id
   mq_subnet_ids         = values(module.vpc.private_mq_subnet_ids)
   eks_security_group_id = module.eks.cluster_security_group_id
+  kafka_version         = var.kafka_version
 }
 
+module "cloudtrail" {
+  source = "../../modules/cloudtrail"
+
+  project_name = var.project_name
+  environment  = var.environment
+}

@@ -28,8 +28,8 @@ import demo_pb2
 import demo_pb2_grpc
 from grpc_health.v1 import health_pb2
 from grpc_health.v1 import health_pb2_grpc
-from database import fetch_product_reviews, fetch_product_reviews_from_db, fetch_avg_product_review_score_from_db
-from guardrails import sanitize_json_for_llm, leaks_system_prompt
+from database import fetch_product_reviews, fetch_product_reviews_from_db, fetch_avg_product_review_score_from_db, fetch_reviews_fingerprint
+from guardrails import sanitize_json_for_llm, leaks_system_prompt, redact_pii, detect_prompt_injection_llm
 
 from openfeature import api
 from openfeature.contrib.provider.flagd import FlagdProvider
@@ -144,6 +144,9 @@ tools = [
 
 
 class ProductReviewService(demo_pb2_grpc.ProductReviewServiceServicer):
+    def __init__(self):
+        self.is_serving = True
+
     def GetProductReviews(self, request, context):
         logger.info(f"Receive GetProductReviews for product id:{request.product_id}")
         product_reviews = get_product_reviews(request.product_id)
@@ -163,8 +166,9 @@ class ProductReviewService(demo_pb2_grpc.ProductReviewServiceServicer):
         return ai_assistant_response
 
     def Check(self, request, context):
-        return health_pb2.HealthCheckResponse(
-            status=health_pb2.HealthCheckResponse.SERVING)
+        if self.is_serving:
+            return health_pb2.HealthCheckResponse(status=health_pb2.HealthCheckResponse.SERVING)
+        return health_pb2.HealthCheckResponse(status=health_pb2.HealthCheckResponse.NOT_SERVING)
 
     def Watch(self, request, context):
         return health_pb2.HealthCheckResponse(
@@ -417,8 +421,18 @@ def get_ai_assistant_response(request_product_id, question, context=None):
             except Exception as e:
                 logger.error(f"Error checking gRPC deadline: {e}")
 
-        cache_key = f"reviews:summary:{request_product_id}:{model_ver}:{prompt_ver}"
-        llm_reviews_cache_enabled = check_feature_flag("llmReviewsCacheEnabled")
+        # Content-addressed cache key (chuan the gioi: Rails cache_key / HTTP ETag).
+        # Nhung fingerprint noi dung review vao key -> review doi la key doi la MISS tu nhien,
+        # ZERO staleness window. TTL 7d chi con la GC backstop (don key fingerprint cu),
+        # KHONG con vai tro chong outdate. Thay hoan toan dynamic-TTL da go.
+        # Fail-open: loi fingerprint -> skip cache call nay (an toan hon serve summary co the cu).
+        try:
+            content_fp = fetch_reviews_fingerprint(request_product_id)
+        except Exception as e:
+            logger.error(f"Reviews fingerprint error (skip cache this call): {e}")
+            content_fp = None
+        cache_key = f"reviews:summary:{request_product_id}:{model_ver}:{prompt_ver}:{content_fp}"
+        llm_reviews_cache_enabled = check_feature_flag("llmReviewsCacheEnabled") and content_fp is not None
         logger.info(f"llmReviewsCacheEnabled feature flag: {llm_reviews_cache_enabled}")
 
         # Check Valkey Cache
@@ -537,6 +551,15 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                         function_response = fetch_product_reviews(
                             product_id=tool_input.get("product_id")
                         )
+                        # --- INPUT GUARDRAIL (Lớp 1: always-on, deterministic, per-field) ---
+                        function_response = sanitize_json_for_llm(function_response)
+                        logger.info(f"[Guardrail L1] review sanitized for product_id={tool_input.get('product_id')}")
+                        # --- INPUT GUARDRAIL (Lớp 2: optional LLM-judge, sau feature flag) ---
+                        if check_feature_flag("llmGuardrailLlmJudge"):
+                            if detect_prompt_injection_llm(get_bedrock_primary_client(), function_response):
+                                logger.warning(f"[Guardrail L2] LLM-judge malicious for product_id={tool_input.get('product_id')}. Blocking.")
+                                function_response = json.dumps({"error": "Content blocked by security guardrail."})
+                        # -----------------------------------------------------------------------
                         logger.info(f"Function response for fetch_product_reviews: '{function_response}'")
                     elif tool_name == "fetch_product_info":
                         function_response = fetch_product_info(
@@ -606,7 +629,8 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                 text_parts = [b["text"] for b in content_blocks if "text" in b]
                 result = "\n".join(text_parts) if text_parts else ""
 
-            # Guardrail Phan A: output guard — chan lo system prompt ra khach.
+            # Guardrail Phan A: output guard — chặn lộ system prompt + redact PII khỏi khách.
+            result = redact_pii(result)
             if leaks_system_prompt(result, SYSTEM_PROMPT):
                 logger.error("AI_SUMMARY_FALLBACK stage=output-guard reason=SystemPromptLeak")
                 result = MOCK_SUMMARY_VI
@@ -727,6 +751,19 @@ if __name__ == "__main__":
     # Start server
     port = must_map_env('PRODUCT_REVIEWS_PORT')
     server.add_insecure_port(f'[::]:{port}')
+
+    # MANDATE-03: Graceful Shutdown — mark NOT_SERVING on SIGTERM so LB stops
+    # sending traffic before the process actually stops (grace=10s drain window).
+    import signal
+    def handle_sigterm(signum, frame):
+        logger.info("Received SIGTERM, marking NOT_SERVING and initiating graceful shutdown...")
+        service.is_serving = False
+        server.stop(grace=10)
+
+    signal.signal(signal.SIGTERM, handle_sigterm)
+    signal.signal(signal.SIGINT, handle_sigterm)
+
     server.start()
     logger.info(f'Product reviews service started, listening on port {port}')
     server.wait_for_termination()
+    logger.info("Server stopped.")

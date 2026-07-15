@@ -21,7 +21,7 @@ Confirmation gate cho cart-write (bắt buộc theo đề); guardrail prompt-inj
 PostgreSQL read-only (10 sản phẩm / 50 reviews — đo từ DB); Valkey cache 10 key, TTL phẳng 7d, versioned key theo model env + prompt hash (`03_specs/valkey_caching.md`).
 
 ## AIOps engine
-Detector poll 30s (MTTD max 35.4s đo được), 12 rule (`aiops/detector/rules.yaml`); Drain3 clustering (`aiops/log_clustering/`, sim_th chờ chốt sau masking — grid 12/07: 0.3); remediation W1 detect-only (`03_specs/anomaly_remediation.md`).
+Detector poll 30s (MTTD max 35.4s đo được), 13 rule (`aiops/detector/rules.yaml`); Drain3 clustering (`aiops/log_clustering/`, sim_th chờ chốt sau masking — grid 12/07: 0.3); remediation W1 detect-only (`03_specs/anomaly_remediation.md`).
 
 ## Mở rộng (đề xuất, chưa build)
 `03_specs/semantic_search.md` (DEFERRED — N=10), `03_specs/ai_recommendations.md`, `03_specs/model_gateway_ab_testing.md`.

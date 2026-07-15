@@ -39,7 +39,22 @@ output "node_group_name" {
   value       = aws_eks_node_group.this.node_group_name
 }
 
+output "primary_autoscaling_group_name" {
+  description = "Auto Scaling group backing the primary managed node group"
+  value       = aws_eks_node_group.this.resources[0].autoscaling_groups[0].name
+}
+
+output "ops_node_group_name" {
+  description = "Dedicated observability managed node group name"
+  value       = aws_eks_node_group.ops.node_group_name
+}
+
 output "node_role_arn" {
   description = "Managed node group IAM role ARN"
   value       = aws_iam_role.node.arn
+}
+
+output "ebs_csi_role_arn" {
+  description = "Pod Identity IAM role ARN for the EBS CSI controller"
+  value       = aws_iam_role.ebs_csi.arn
 }

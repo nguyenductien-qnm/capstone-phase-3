@@ -2,7 +2,7 @@
 
 Mỗi câu kèm bối cảnh 1 dòng + phương án để người trả lời chọn nhanh. Đánh dấu ✍️ = cần câu trả lời trước khi nhóm AI làm tiếp việc tương ứng.
 
-## A. Hỏi CDO — valkey-cart (J1, CRITICAL — code CDO, SLO checkout của chung)
+## A. Hỏi CDO — valkey-cart (J1, CRITICAL — TTL cart đã KHÔI PHỤC 60m tạm thời 13/07 để an toàn, chờ CDO chốt hướng cuối — code CDO, SLO checkout của chung)
 
 Bối cảnh: `volatile-lru` được thêm **không kèm `--maxmemory`** (policy không chạy); TTL cart đã gỡ; limit container 20Mi → cart tích vô hạn → nguy cơ kubelet OOMKill = mất toàn bộ giỏ đang sống = đánh checkout ≥99%.
 

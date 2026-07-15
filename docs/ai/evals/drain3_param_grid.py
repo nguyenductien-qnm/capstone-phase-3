@@ -28,7 +28,7 @@ def _mask_rules():
         (r"\b\d+\.\d+\b", "FLOAT"),
         (r"\b\d+\b", "NUM"),
     ]
-    return [MaskingInstruction(regex_pattern=p, mask_with=m) for p, m in pats]
+    return [MaskingInstruction(pattern=p, mask_with=m) for p, m in pats]
 
 KNOWN_ERRORS = ["Rate limit reached", "OOMKilled", "too many clients",
                 "no such host", "Caught Exception"]
