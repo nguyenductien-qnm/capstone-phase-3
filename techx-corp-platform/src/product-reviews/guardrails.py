@@ -74,17 +74,52 @@ def redact_pii(text: str) -> str:
     return text
 
 
+def _build_prompt_keywords(system_prompt: str, n: int = 5, min_len: int = 20) -> list[str]:
+    """Trích ~n phrase không trùng nhau từ system_prompt ở nhiều vị trí khác nhau
+    (đầu/giữa/cuối) để tạo keyword-set khó bypass hơn 40-char prefix.
+
+    Chỉ lấy phrase từ các từ hoàn chỉnh (không cắt giữa từ), bỏ qua dấu câu đơn lẻ.
+    Không hardcode — derive hoàn toàn từ system_prompt thật.
+    """
+    words = system_prompt.split()
+    if not words:
+        return []
+
+    # Chia system_prompt thành n đoạn đều nhau → lấy 1 phrase/đoạn
+    total = len(words)
+    chunk = max(1, total // n)
+    keywords = []
+    for i in range(n):
+        start = i * chunk
+        end = min(start + chunk, total)
+        segment = " ".join(words[start:end])
+        # Lấy đoạn min_len ký tự từ giữa segment (tránh lấy toàn bộ)
+        mid = max(0, (len(segment) - min_len) // 2)
+        phrase = segment[mid: mid + min_len * 2].strip()
+        if len(phrase) >= min_len:
+            keywords.append(phrase.lower())
+    return keywords
+
+
 def leaks_system_prompt(output_text: str, system_prompt: str) -> bool:
-    """Output guard: chặn trả lời chứa nội dung system prompt (>= 40 ký tự đầu trùng khớp).
-    Derive từ system_prompt thật — không hardcode phrase."""
+    """Output guard: phát hiện output LLM có chứa nội dung system prompt.
+
+    Dùng keyword-set (nhiều phrase từ nhiều vị trí khác nhau trong prompt)
+    thay vì chỉ kiểm 40 ký tự đầu — khó bypass hơn qua direct/middle/end leak.
+    Không bắt được paraphrase/dịch (đó là nhiệm vụ của L2 LLM-judge, optional).
+    """
     if not output_text or not system_prompt:
         return False
-    # So sánh 40 ký tự đầu của system_prompt với output (case-insensitive)
-    fingerprint = system_prompt[:40].lower()
-    if fingerprint in output_text.lower():
-        logger.warning("System prompt leakage detected in output.")
-        return True
+
+    out_lower = output_text.lower()
+    keywords = _build_prompt_keywords(system_prompt)
+
+    for kw in keywords:
+        if kw in out_lower:
+            logger.warning("System prompt leakage detected in output (matched phrase: %r…)", kw[:30])
+            return True
     return False
+
 
 
 # ---------------------------------------------------------------------------
