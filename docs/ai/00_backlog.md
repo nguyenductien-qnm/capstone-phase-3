@@ -90,9 +90,9 @@ Các tính năng nâng cao để cạnh tranh top, triển khai Tuần 2-3 (sau 
 ## Ghi chú đồng bộ 14/07/2026
 - **Mandate mới từ BTC** (`_baseline-phase3/mandates/`): MANDATE-03 (bảo trì không downtime, hạn 16/07), MANDATE-05 (runtime hardening: non-root/pin image/limits + admission policy, hạn 17/07), **MANDATE-06 (AI trust & safety, hạn 18/07 — trụ AIE: mentor tự bắn injection + câu hỏi ngoài review, phải chặn/fallback; ADR ký tên; eval tái tạo được)**. MANDATE-04 chỉ áp TF4.
 - **Trạng thái Jira (Cập nhật từ API Jira chiều 14/07):** 
-  - **TF1-57:** Backlog (deferred theo W2 plan, description đã khớp title + reopen conditions).
-  - **TF1-59:** In Progress - Implement ShoppingCopilotServiceServicer (đã code xong trên PR #47, chờ merge).
-  - **TF1-61:** Done - Guardrail prompt-injection / PII / lộ system prompt (hiện tại = 0).
+  - **TF1-57:** Done - Tích hợp A/B Testing Model Router hoàn tất.
+  - **TF1-59:** Done - Implement ShoppingCopilotServiceServicer hoàn chỉnh, bao gồm cả Action Gate.
+  - **TF1-61:** Done - Guardrail prompt-injection / PII / lộ system prompt (đã tích hợp vào `shopping-copilot`).
   - **TF1-68:** In Progress - Chốt ADR-003 valkey với CDO: maxmemory + tách instance.
   - **TF1-74:** Done - Copilot end-to-end: confirmation gate + guardrail + injection eval trên agent thật (Đã xử lý MANDATE-06 bằng ADR-011 và eval_mandate06.py).
   - *Ngoài ra còn các task W2 mới từ TF1-62 đến TF1-80 cho AIOps và deploy EKS thật.*

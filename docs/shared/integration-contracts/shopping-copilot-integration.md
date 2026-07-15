@@ -90,5 +90,26 @@ Các cập nhật liên quan tới triển khai AWS Bedrock và A/B Testing:
    - Cần đảm bảo có biến `AWS_REGION` (vd: `us-east-1`).
    - Cần biến `AWS_BEDROCK_MODEL` hoặc để Router tự điều phối. Các biến cũ `LLM_BASE_URL` và `OPENAI_API_KEY` chỉ giữ lại làm Fallback nếu sử dụng chế độ Mock.
 
+---
 
+## 5. Phụ lục 14/07/2026 — Action Gate & AI Safety (MANDATE-06)
 
+Để ngăn chặn Copilot tự ý thực hiện các hành động thay đổi dữ liệu (Excessive Agency), chúng tôi đã thiết lập **Action Gate (Xác nhận 2 bước)**. Đội Frontend / CDO cần cập nhật tích hợp để xử lý JSON response từ Agent:
+
+1. **Khi User ra lệnh "Thêm vào giỏ hàng"**:
+   - Copilot sẽ KHÔNG gọi trực tiếp `CartService`.
+   - Copilot sẽ trả về Frontend một JSON Object yêu cầu xác nhận:
+     ```json
+     {
+       "action": "add_item_to_cart",
+       "status": "pending_confirmation",
+       "confirmation_token": "token-12345",
+       "item_id": "product-uuid",
+       "quantity": 1
+     }
+     ```
+2. **Nhiệm vụ của Frontend**:
+   - Bắt được JSON này -> Hiển thị nút bấm (VD: "Xác nhận thêm vào giỏ").
+   - Khi khách hàng bấm xác nhận, gọi một HTTP request mới kèm `confirmation_token` (hoặc gửi lại vào khung chat) để báo cho Copilot biết đã cấp quyền thực thi.
+
+Vui lòng cấu hình UI xử lý kịp thời để luồng thêm vào giỏ hàng của Agent không bị kẹt.

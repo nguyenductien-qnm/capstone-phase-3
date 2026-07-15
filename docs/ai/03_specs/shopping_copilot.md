@@ -1,5 +1,9 @@
 # Shopping Copilot Agent Specification
 
+> **Trạng thái:** Implemented  
+> **Ngày:** 2026-07-14  
+> **ADR liên quan:** ADR-006, ADR-011 (AI Safety & Guardrails)
+
 Dịch vụ **Shopping Copilot** là một AI Agent thông minh hỗ trợ người dùng mua sắm trực tiếp trên storefront của TechX Corp. Agent có khả năng gọi các công cụ (tool calling) để tra cứu danh mục sản phẩm, quản lý giỏ hàng, và lấy dữ liệu đánh giá sản phẩm nhằm đưa ra phản hồi chính xác và hữu ích nhất cho khách hàng.
 
 ---
