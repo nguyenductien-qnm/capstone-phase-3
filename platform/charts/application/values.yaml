@@ -250,10 +250,10 @@ components:
         value: otlp
     resources:
       requests:
-        cpu: 10m
-        memory: 32Mi
+        cpu: 50m          # CDO-42: cần cho HPA CPU-utilization
+        memory: 128Mi
       limits:
-        cpu: 100m
+        cpu: 200m
         memory: 300Mi
     securityContext:
       runAsUser: 1000
@@ -460,8 +460,8 @@ components:
         value: "false"
     resources:
       requests:
-        cpu: 10m
-        memory: 32Mi
+        cpu: 50m          # CDO-42: cần cho HPA CPU-utilization
+        memory: 16Mi
       limits:
         cpu: 100m
         memory: 20Mi
@@ -491,8 +491,8 @@ components:
         value: "8013"
     resources:
       requests:
-        cpu: 10m
-        memory: 32Mi
+        cpu: 50m
+        memory: 64Mi
       limits:
         cpu: 100m
         memory: 100Mi
@@ -529,10 +529,10 @@ components:
         value: "true"
     resources:
       requests:
-        cpu: 10m
-        memory: 32Mi
+        cpu: 50m
+        memory: 128Mi
       limits:
-        cpu: 100m
+        cpu: 150m
         memory: 300Mi
     initContainers:
       - name: wait-for-kafka
@@ -621,8 +621,8 @@ components:
         value: http://localhost:8080/otlp-http/v1/traces             # This expects users to use `kubectl port-forward ...`
     resources:
       requests:
-        cpu: 20m
-        memory: 64Mi
+        cpu: 100m         # CDO-42: frontend Next.js, hot-path browse -> HPA
+        memory: 128Mi
       limits:
         cpu: 200m
         memory: 250Mi
@@ -734,8 +734,8 @@ components:
         value: "50051"
     resources:
       requests:
-        cpu: 20m
-        memory: 64Mi
+        cpu: 100m         # CDO-42: Envoy edge, mọi traffic đi qua -> scale sớm nhất
+        memory: 48Mi
       limits:
         cpu: 200m
         memory: 65Mi
@@ -775,7 +775,7 @@ components:
         value: $(OTEL_COLLECTOR_NAME)
     resources:
       requests:
-        cpu: 10m
+        cpu: 50m
         memory: 32Mi
       limits:
         cpu: 100m
@@ -843,8 +843,8 @@ components:
         value: "false"
     resources:
       requests:
-        cpu: 10m
-        memory: 32Mi
+        cpu: 50m
+        memory: 64Mi
       limits:
         cpu: 100m
         memory: 140Mi
@@ -1007,7 +1007,7 @@ components:
         value: "false"
     resources:
       requests:
-        cpu: 10m
+        cpu: 50m
         memory: 32Mi
       limits:
         cpu: 100m
@@ -1050,11 +1050,11 @@ components:
         value: http://$(OTEL_COLLECTOR_NAME):4317
     resources:
       requests:
-        cpu: 10m
-        memory: 32Mi
+        cpu: 100m         # CDO-42: gọi mỗi lần render trang -> HPA
+        memory: 128Mi
       limits:
-        cpu: 100m
-        memory: 500Mi
+        cpu: 200m
+        memory: 500Mi            # This is high to enable supporting the recommendationCache feature flag use case
     hpa:
       enabled: true
       minReplicas: 1
