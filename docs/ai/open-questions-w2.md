@@ -39,3 +39,24 @@ Tài liệu tổng hợp các câu hỏi mở, giả định vận hành hoặc 
 * **Câu hỏi:** Mentor mong đợi cơ chế tự động này hoạt động ở cấp độ nào:
   - **(a)** Chặn ngay lập tức ở CI/CD pipeline (ví dụ: `conftest` quét helm chart trước khi apply)?
   - **(b)** Chặn ở mức Cluster Admission Webhook (Kyverno từ chối deploy thật và hiển thị thông báo lỗi kubectl)?
+
+---
+
+## 4. VẬN HÀNH PRODUCTION: Rủi ro Log Pipeline & OpenSearch (AIOps)
+
+### Q6 — Chỉ số Ingest Lag và Thời gian trễ Log dưới tải cao (Flash Sale)
+* **Bối cảnh:** Dưới tải cực đại của đợt Flash Sale (200+ users), luồng logs đi qua: `Pod -> OTel Collector -> Kafka -> Log Forwarder -> OpenSearch` thường bị trễ (Ingest Lag tăng từ ~2s lên nhiều phút do nghẽn I/O). Bộ detector của nhóm quét logs định kỳ mỗi 30s sẽ bị sai lệch vì lúc quét log lỗi chưa kịp ghi vào OpenSearch index.
+* **Câu hỏi:** Mentor đánh giá chỉ số **MTTD (Mean Time to Detect)** dựa trên thời điểm log thực tế sinh ra tại Pod (timestamp trong body log) hay dựa trên thời điểm log xuất hiện trên OpenSearch index? Nhóm có được phép tăng `lookback_window` (ví dụ từ 5 phút lên 10-15 phút) để bù đắp Ingest Lag mà không bị trừ điểm không?
+
+### Q7 — Vấn đề "Log thưa" (Sparse Logs) gây lọt sự cố (False Negatives)
+* **Bối cảnh:** Một số sự cố chí mạng như lỗi kết nối Database (`db-pool-exhaustion`) hay lỗi phân giải tên miền (`dns-resolution-error`) có thể chỉ xuất hiện 1 hoặc 2 dòng log thưa thớt trước khi Pod crash hoàn toàn. Nếu cấu hình mặc định yêu cầu `min_count=3` dòng lỗi trong cửa sổ 5 phút để kích hoạt alert, detector chắc chắn sẽ bị **lọt sự cố (False Negative)**.
+* **Câu hỏi:** Mentor mong đợi các rule alert được cấu hình động dựa trên mức độ nghiêm trọng của log (ví dụ: lỗi DNS/OOM chỉ cần `min_count=1` là alert ngay, còn các lỗi HTTP 5xx bình thường mới cần `min_count >= 3`) hay bắt buộc áp dụng chung một benchmark cố định?
+
+### Q8 — Quản lý vòng đời dữ liệu OpenSearch (Index Lifecycle Management - ILM) để giảm cost
+* **Bối cảnh:** Theo **MANDATE-02**, ngân sách hạ tầng bị giới hạn cực kỳ ngặt nghèo ($300/tuần cho toàn cụm EKS). OpenSearch là dịch vụ cực kỳ ngốn tài nguyên (chiếm >30% RAM/CPU và EBS storage của cụm).
+* **Câu hỏi chất vấn CDO & Mentor:** Nhóm AI có được phép cấu hình chính sách tự động xóa logs (Purge Policy/ILM) cũ sau 24h hoặc 48h để tiết kiệm chi phí EBS không? Có quy định bắt buộc lưu trữ logs tối thiểu bao nhiêu ngày cho mục đích audit của hệ thống không?
+
+### Q9 — Rủi ro "Silent Failure" khi Log Pipeline bị đứt
+* **Bối cảnh:** Nếu đường truyền từ OTel Collector lên OpenSearch bị đứt, detector sẽ hoàn toàn im lặng (vì không thấy dòng log lỗi nào ghi nhận), dẫn đến việc hệ thống sập nhưng không có cảnh báo nào được gửi đi.
+* **Câu hỏi:** Mentor có yêu cầu thiết lập **Heartbeat / Rate-of-change Alert** (giám sát lưu lượng log sống liên tục, nếu đột ngột về 0 dòng/phút $\rightarrow$ cảnh báo đứt pipeline) để tính điểm Operational Excellence không?
+
