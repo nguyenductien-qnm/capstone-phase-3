@@ -237,7 +237,10 @@ components:
       resource.opentelemetry.io/service.namespace: techx-corp
     env:
       - name: KAFKA_ADDR
-        value: b-1.ecommercedevmsk.61s37h.c4.kafka.us-east-1.amazonaws.com:9096,b-2.ecommercedevmsk.61s37h.c4.kafka.us-east-1.amazonaws.com:9096
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: brokers_sasl_scram
       - name: KAFKA_USER
         valueFrom:
           secretKeyRef:
@@ -267,12 +270,14 @@ components:
     initContainers:
       - name: wait-for-kafka
         image: busybox:1.38.0 # Pinned: do NOT use :latest — breaks reproducibility.
-        command:
-          [
-            "sh",
-            "-c",
-            "until nc -z -v -w30 b-1.ecommercedevmsk.61s37h.c4.kafka.us-east-1.amazonaws.com 9096; do echo waiting for kafka; sleep 2; done;",
-          ]
+        env:
+          - name: KAFKA_ADDR
+            valueFrom:
+              secretKeyRef:
+                name: msk-secret
+                key: brokers_sasl_scram
+        # KAFKA_ADDR = "host1:port,host2:port" -> lấy broker đầu, tách host/port cho nc.
+        command: ["sh", "-c", "BROKER=$(echo \"$KAFKA_ADDR\" | cut -d, -f1); HOST=$(echo \"$BROKER\" | cut -d: -f1); PORT=$(echo \"$BROKER\" | cut -d: -f2); until nc -z -v -w30 \"$HOST\" \"$PORT\"; do echo waiting for kafka; sleep 2; done;"]
 
   ad:
     enabled: true
@@ -347,7 +352,10 @@ components:
       - name: ASPNETCORE_URLS
         value: http://*:$(CART_PORT)
       - name: VALKEY_ADDR
-        value: master.ecommerce-dev-valkey.7ylfic.use1.cache.amazonaws.com:6379
+        valueFrom:
+          secretKeyRef:
+            name: valkey-secret
+            key: address
       - name: VALKEY_TLS
         value: "true"
       - name: VALKEY_AUTH_TOKEN
@@ -375,12 +383,14 @@ components:
     initContainers:
       - name: wait-for-valkey-cart
         image: busybox:1.38.0 # Pinned: do NOT use :latest — breaks reproducibility.
-        command:
-          [
-            "sh",
-            "-c",
-            "until nc -z -v -w30 master.ecommerce-dev-valkey.7ylfic.use1.cache.amazonaws.com 6379; do echo waiting for valkey-cart; sleep 2; done;",
-          ]
+        env:
+          - name: VALKEY_ADDR
+            valueFrom:
+              secretKeyRef:
+                name: valkey-secret
+                key: address
+        # VALKEY_ADDR = "host:port" -> tách cho nc.
+        command: ["sh", "-c", "HOST=$(echo \"$VALKEY_ADDR\" | cut -d: -f1); PORT=$(echo \"$VALKEY_ADDR\" | cut -d: -f2); until nc -z -v -w30 \"$HOST\" \"$PORT\"; do echo waiting for valkey-cart; sleep 2; done;"]
 
   checkout:
     enabled: true
@@ -437,7 +447,10 @@ components:
       - name: SHIPPING_ADDR
         value: http://shipping:8080
       - name: KAFKA_ADDR
-        value: b-1.ecommercedevmsk.61s37h.c4.kafka.us-east-1.amazonaws.com:9096,b-2.ecommercedevmsk.61s37h.c4.kafka.us-east-1.amazonaws.com:9096
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: brokers_sasl_scram
       - name: KAFKA_USER
         valueFrom:
           secretKeyRef:
@@ -470,12 +483,14 @@ components:
     initContainers:
       - name: wait-for-kafka
         image: busybox:1.38.0 # Pinned: do NOT use :latest — breaks reproducibility.
-        command:
-          [
-            "sh",
-            "-c",
-            "until nc -z -v -w30 b-1.ecommercedevmsk.61s37h.c4.kafka.us-east-1.amazonaws.com 9096; do echo waiting for kafka; sleep 2; done;",
-          ]
+        env:
+          - name: KAFKA_ADDR
+            valueFrom:
+              secretKeyRef:
+                name: msk-secret
+                key: brokers_sasl_scram
+        # KAFKA_ADDR = "host1:port,host2:port" -> lấy broker đầu, tách host/port cho nc.
+        command: ["sh", "-c", "BROKER=$(echo \"$KAFKA_ADDR\" | cut -d, -f1); HOST=$(echo \"$BROKER\" | cut -d: -f1); PORT=$(echo \"$BROKER\" | cut -d: -f2); until nc -z -v -w30 \"$HOST\" \"$PORT\"; do echo waiting for kafka; sleep 2; done;"]
 
   currency:
     enabled: true
@@ -537,7 +552,10 @@ components:
       resource.opentelemetry.io/service.namespace: techx-corp
     env:
       - name: KAFKA_ADDR
-        value: b-1.ecommercedevmsk.61s37h.c4.kafka.us-east-1.amazonaws.com:9096,b-2.ecommercedevmsk.61s37h.c4.kafka.us-east-1.amazonaws.com:9096
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: brokers_sasl_scram
       - name: KAFKA_USER
         valueFrom:
           secretKeyRef:
@@ -564,12 +582,14 @@ components:
     initContainers:
       - name: wait-for-kafka
         image: busybox:1.38.0 # Pinned: do NOT use :latest — breaks reproducibility.
-        command:
-          [
-            "sh",
-            "-c",
-            "until nc -z -v -w30 b-1.ecommercedevmsk.61s37h.c4.kafka.us-east-1.amazonaws.com 9096; do echo waiting for kafka; sleep 2; done;",
-          ]
+        env:
+          - name: KAFKA_ADDR
+            valueFrom:
+              secretKeyRef:
+                name: msk-secret
+                key: brokers_sasl_scram
+        # KAFKA_ADDR = "host1:port,host2:port" -> lấy broker đầu, tách host/port cho nc.
+        command: ["sh", "-c", "BROKER=$(echo \"$KAFKA_ADDR\" | cut -d, -f1); HOST=$(echo \"$BROKER\" | cut -d: -f1); PORT=$(echo \"$BROKER\" | cut -d: -f2); until nc -z -v -w30 \"$HOST\" \"$PORT\"; do echo waiting for kafka; sleep 2; done;"]
 
   frontend:
     enabled: true
@@ -979,7 +999,10 @@ components:
       - name: OTEL_EXPORTER_OTLP_ENDPOINT
         value: http://$(OTEL_COLLECTOR_NAME):4317
       - name: VALKEY_ADDR
-        value: master.ecommerce-dev-valkey.7ylfic.use1.cache.amazonaws.com:6379
+        valueFrom:
+          secretKeyRef:
+            name: valkey-secret
+            key: address
       - name: VALKEY_TLS
         value: "true"
       - name: VALKEY_AUTH_TOKEN

@@ -126,3 +126,22 @@ module "cloudtrail" {
   project_name = var.project_name
   environment  = var.environment
 }
+
+# IRSA role cho External Secrets Operator đọc endpoint/credential từ Secrets Manager
+# (RDS/Valkey/MSK) và đồng bộ vào cluster. Least-privilege: chỉ đúng các secret ARN.
+module "external_secrets_irsa" {
+  source = "../../modules/external-secrets-irsa"
+
+  project_name      = var.project_name
+  environment       = var.environment
+  oidc_provider_arn = module.eks.oidc_provider_arn
+  oidc_issuer_url   = module.eks.oidc_issuer_url
+
+  secret_arns = [
+    module.rds.db_secret_arn,
+    module.rds.db_endpoint_secret_arn,
+    module.elasticache.secret_arn,
+    module.msk.msk_secret_arn,
+    module.msk.msk_endpoint_secret_arn,
+  ]
+}

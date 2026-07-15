@@ -153,3 +153,8 @@ output "msk_secret_arn" {
 
 
 
+
+output "external_secrets_irsa_role_arn" {
+  description = "ARN IAM role cho External Secrets Operator (annotate SA external-secrets/external-secrets)"
+  value       = module.external_secrets_irsa.role_arn
+}
