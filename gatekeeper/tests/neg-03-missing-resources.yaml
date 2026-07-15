@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: neg-missing-resources
+  namespace: techx-tf1
+spec:
+  containers:
+    - name: neg-missing-resources
+      image: public.ecr.aws/docker/library/nginx:1.27
+      securityContext:
+        runAsUser: 1000
+        runAsNonRoot: true
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+      # Vi phạm: Không khai báo limits/requests cho CPU/Memory

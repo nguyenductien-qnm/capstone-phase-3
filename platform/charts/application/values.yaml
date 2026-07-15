@@ -34,7 +34,18 @@ default:
     affinity: {}
     tolerations: []
   # Default securityContext for all components
-  securityContext: {}
+  # Default securityContext for all components
+  securityContext:
+    allowPrivilegeEscalation: false
+    runAsNonRoot: true
+    capabilities:
+      drop:
+        - ALL
+  # Default podSecurityContext for all components
+  podSecurityContext:
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
 
 serviceAccount:
   # Specifies whether a service account should be created
@@ -204,11 +215,11 @@ components:
         value: "false"
     resources:
       requests:
-        cpu: 100m # P0 right-size: OOMKilled 36 lần, .NET cần RAM cao
-        memory: 128Mi
+        cpu: 10m
+        memory: 32Mi
       limits:
-        cpu: 200m
-        memory: 256Mi
+        cpu: 100m
+        memory: 120Mi
     initContainers:
       - name: wait-for-kafka
         image: busybox:1.38.0   # Pinned: do NOT use :latest — breaks reproducibility.
@@ -239,7 +250,14 @@ components:
       limits:
         cpu: 200m
         memory: 300Mi
-
+    securityContext:
+      runAsUser: 1000
+      runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+      readOnlyRootFilesystem: true
   cart:
     enabled: true
     imageOverride:
@@ -303,10 +321,10 @@ components:
         value: http://$(OTEL_COLLECTOR_NAME):4317
     resources:
       requests:
-        cpu: 100m # CDO-42: cart ghi/đọc mỗi session, tải tăng theo user -> HPA
-        memory: 64Mi # P0 right-size: thêm request, giữ limit
+        cpu: 10m
+        memory: 32Mi
       limits:
-        cpu: 200m
+        cpu: 100m
         memory: 160Mi
     hpa:
       enabled: true
@@ -314,8 +332,22 @@ components:
       maxReplicas: 6 # write-heavy, tải tăng tuyến tính theo user
     initContainers:
       - name: wait-for-valkey-cart
-        image: busybox:1.38.0   # Pinned: do NOT use :latest — breaks reproducibility.
-        command: ["sh", "-c", "until nc -z -v -w30 master.ecommerce-dev-valkey.7ylfic.use1.cache.amazonaws.com 6379; do echo waiting for valkey-cart; sleep 2; done;"]
+        image: busybox:1.38.0 # Pinned: do NOT use :latest — breaks reproducibility.
+        env:
+          - name: VALKEY_ADDR
+            valueFrom:
+              secretKeyRef:
+                name: valkey-secret
+                key: address
+        # VALKEY_ADDR = "host:port" -> tách cho nc.
+        command: ["sh", "-c", "HOST=$(echo \"$VALKEY_ADDR\" | cut -d: -f1); PORT=$(echo \"$VALKEY_ADDR\" | cut -d: -f2); until nc -z -v -w30 \"$HOST\" \"$PORT\"; do echo waiting for valkey-cart; sleep 2; done;"]
+        securityContext:
+          runAsUser: 1000
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
 
   checkout:
     enabled: true
@@ -399,8 +431,8 @@ components:
         cpu: 100m # P0: revenue-critical, limit cũ 20Mi quá thấp
         memory: 64Mi
       limits:
-        cpu: 200m
-        memory: 128Mi
+        cpu: 100m
+        memory: 20Mi
     hpa:
       enabled: true
       minReplicas: 2      # có PDB (CDO-34) + revenue-critical SLO 99% -> min>=2 (tránh INC-2)
@@ -464,7 +496,6 @@ components:
       limits:
         cpu: 100m
         memory: 100Mi
-
   fraud-detection:
     enabled: true
     useDefault:
@@ -719,7 +750,7 @@ components:
         value: "50051"
     resources:
       requests:
-        cpu: 100m         # CDO-42: Envoy edge, mọi traffic đi qua -> scale sớm nhất
+        cpu: 100m # CDO-42: Envoy edge, mọi traffic đi qua -> scale sớm nhất
       limits:
         cpu: 200m
         memory: 65Mi
@@ -764,7 +795,6 @@ components:
       limits:
         cpu: 100m
         memory: 50Mi
-
   load-generator:
     enabled: true
     useDefault:
@@ -806,8 +836,7 @@ components:
         memory: 256Mi
       limits:
         cpu: 500m
-        memory: 500Mi
-
+        memory: 1500Mi
   payment:
     enabled: true
     useDefault:
@@ -838,6 +867,10 @@ components:
       runAsUser: 1000 # node
       runAsGroup: 1000
       runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
       allowPrivilegeEscalation: false
       capabilities:
         drop:
@@ -904,8 +937,8 @@ components:
         cpu: 100m # CDO-42: read-heavy (mọi browse gọi tới) -> bottleneck -> HPA
         memory: 32Mi # P0 right-size: OOMKilled 4 lần, Go runtime
       limits:
-        cpu: 200m
-        memory: 128Mi
+        cpu: 100m
+        memory: 20Mi
     hpa:
       enabled: true
       minReplicas: 2 # có PDB (CDO-34) -> min>=2, tránh INC-2 khi node consolidate
@@ -1005,6 +1038,10 @@ components:
       capabilities:
         drop:
           - ALL
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
 
   recommendation:
     enabled: true
@@ -1031,9 +1068,9 @@ components:
         value: http://$(OTEL_COLLECTOR_NAME):4317
     resources:
       requests:
-        cpu: 100m         # CDO-42: gọi mỗi lần render trang -> HPA
+        cpu: 100m # CDO-42: gọi mỗi lần render trang -> HPA
       limits:
-        memory: 500Mi            # This is high to enable supporting the recommendationCache feature flag use case
+        memory: 500Mi # This is high to enable supporting the recommendationCache feature flag use case
     hpa:
       enabled: true
       minReplicas: 1
@@ -1078,12 +1115,11 @@ components:
         value: http://$(OTEL_COLLECTOR_NAME):4317
     resources:
       requests:
-        cpu: 200m
-        memory: 256Mi
+        cpu: 10m
+        memory: 32Mi
       limits:
-        cpu: 1000m
-        memory: 1024Mi
-
+        cpu: 100m
+        memory: 100Mi
   shipping:
     enabled: true
     useDefault:
@@ -1107,8 +1143,7 @@ components:
         memory: 32Mi
       limits:
         cpu: 100m
-        memory: 128Mi
-
+        memory: 20Mi
   flagd:
     enabled: true
     imageOverride:
@@ -1132,7 +1167,11 @@ components:
       - name: GOMEMLIMIT
         value: 60MiB
     resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
       limits:
+        cpu: 100m
         memory: 75Mi
     command:
       - "/flagd-build"
@@ -1172,8 +1211,20 @@ components:
             mountPath: /app/data
     initContainers:
       - name: init-config
-        image: busybox:1.38.0   # Pinned: was untagged (defaults to :latest).
-        command: ["sh", "-c", "cp /config-ro/demo.flagd.json /config-rw/demo.flagd.json && cat /config-rw/demo.flagd.json"]
+        image: busybox:1.38.0 # Pinned: was untagged (defaults to :latest).
+        command:
+          [
+            "sh",
+            "-c",
+            "cp /config-ro/demo.flagd.json /config-rw/demo.flagd.json && cat /config-rw/demo.flagd.json",
+          ]
+        securityContext:
+          runAsUser: 1000
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
         volumeMounts:
           - mountPath: /config-ro
             name: config-ro
@@ -1210,12 +1261,20 @@ components:
       - name: KAFKA_CONTROLLER_QUORUM_VOTERS
         value: 1@kafka:9093
     resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
       limits:
-        memory: 700Mi
+        cpu: 100m
+        memory: 100Mi
     securityContext:
       runAsUser: 1000 # appuser
       runAsGroup: 1000
       runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
       allowPrivilegeEscalation: false
       capabilities:
         drop:
@@ -1234,6 +1293,13 @@ components:
         value: flagd
       - name: FLAGD_PORT
         value: "8013"
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
 
   postgresql:
     enabled: false
@@ -1283,9 +1349,12 @@ components:
         mountPath: /docker-entrypoint-initdb.d
         existingConfigMap: postgresql-init
     resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
       limits:
+        cpu: 100m
         memory: 100Mi
-
   valkey-cart:
     enabled: false
     useDefault:
@@ -1309,12 +1378,20 @@ components:
         username: valkey
         collection_interval: 10s
     resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
       limits:
-        memory: 20Mi
+        cpu: 100m
+        memory: 100Mi
     securityContext:
       runAsUser: 999 # valkey
       runAsGroup: 1000
       runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
       allowPrivilegeEscalation: false
       capabilities:
         drop:
@@ -1484,8 +1561,8 @@ jaeger:
         cpu: 100m # P0 right-size: memory storage phình
         memory: 256Mi
       limits:
-        cpu: 200m
-        memory: 1Gi
+        cpu: 100m
+        memory: 100Mi
   userconfig:
     service:
       extensions: [jaeger_storage, jaeger_query, healthcheckv2]
@@ -1607,11 +1684,12 @@ prometheus:
     service:
       servicePort: 9090
     resources:
-      limits:
-        memory: 1024Mi
       requests:
-        memory: 400Mi
-
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 100Mi
 grafana:
   enabled: true
   fullnameOverride: grafana
@@ -1638,9 +1716,12 @@ grafana:
     datasources:
       enabled: true
     resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
       limits:
-        cpu: 150m
-        memory: 256Mi
+        cpu: 100m
+        memory: 100Mi
   resources:
     limits:
       memory: 300Mi

@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Báo cáo Nghiệm thu Mandate 5 - Runtime Hardening</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent: #6366f1;
+            --accent-hover: #4f46e5;
+            --border-color: #334155;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --info: #06b6d4;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            line-height: 1.6;
+            padding: 2rem 1rem;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding-bottom: 2rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        h1 {
+            font-size: 2.2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, #a5b4fc, #6366f1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .meta-info {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            display: flex;
+            justify-content: center;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+            margin-top: 0.5rem;
+        }
+
+        .meta-item strong {
+            color: var(--text-primary);
+        }
+
+        .section {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        h2::before {
+            content: "";
+            display: inline-block;
+            width: 4px;
+            height: 1.25rem;
+            background-color: var(--accent);
+            border-radius: 2px;
+        }
+
+        h3 {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin: 1.75rem 0 0.75rem 0;
+            color: #a5b4fc;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        p {
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
+            font-size: 1rem;
+        }
+
+        ul {
+            list-style-type: none;
+            margin-bottom: 1rem;
+            padding-left: 0.5rem;
+        }
+
+        li {
+            position: relative;
+            padding-left: 1.5rem;
+            margin-bottom: 0.5rem;
+            color: var(--text-secondary);
+        }
+
+        li::before {
+            content: "✦";
+            position: absolute;
+            left: 0;
+            color: var(--accent);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+
+        .badge-success { background-color: rgba(16, 185, 129, 0.15); color: var(--success); border: 1px solid var(--success); }
+        .badge-warning { background-color: rgba(245, 158, 11, 0.15); color: var(--warning); border: 1px solid var(--warning); }
+        .badge-danger { background-color: rgba(239, 68, 68, 0.15); color: var(--danger); border: 1px solid var(--danger); }
+        .badge-info { background-color: rgba(6, 182, 212, 0.15); color: var(--info); border: 1px solid var(--info); }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.5rem 0;
+            font-size: 0.9rem;
+        }
+
+        th {
+            background-color: rgba(255, 255, 255, 0.03);
+            color: var(--text-primary);
+            font-weight: 600;
+            text-align: left;
+            padding: 0.75rem 1rem;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-secondary);
+        }
+
+        tr:hover {
+            background-color: rgba(255, 255, 255, 0.01);
+        }
+
+        .code-container {
+            margin: 1.5rem 0;
+        }
+
+        .code-header {
+            background-color: #0b0f19;
+            padding: 0.5rem 1rem;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            border-top: 1px solid var(--border-color);
+            border-left: 1px solid var(--border-color);
+            border-right: 1px solid var(--border-color);
+            border-radius: 6px 6px 0 0;
+            display: flex;
+            justify-content: space-between;
+            font-family: monospace;
+        }
+
+        .code-box {
+            background-color: #05070f;
+            border-radius: 0 0 6px 6px;
+            padding: 1.25rem;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.9rem;
+            color: #38bdf8;
+            border: 1px solid var(--border-color);
+            overflow-x: auto;
+            margin-bottom: 1rem;
+        }
+
+        .code-box span.comment {
+            color: #64748b;
+        }
+
+        .code-box span.key {
+            color: #f43f5e;
+        }
+
+        .code-box span.value {
+            color: #10b981;
+        }
+
+        .code-box span.command {
+            color: #a5b4fc;
+        }
+
+        .explanation-list {
+            margin: 1rem 0;
+            padding-left: 1rem;
+        }
+
+        .explanation-item {
+            margin-bottom: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .explanation-item strong {
+            color: #e2e8f0;
+        }
+
+        .alert-box {
+            background-color: rgba(99, 102, 241, 0.05);
+            border-left: 4px solid var(--accent);
+            padding: 1rem 1.25rem;
+            border-radius: 0 8px 8px 0;
+            margin-bottom: 1.5rem;
+        }
+
+        .alert-box p {
+            margin-bottom: 0;
+            color: #cbd5e1;
+        }
+
+        .alert-box strong {
+            color: var(--text-primary);
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 1rem 0.5rem;
+            }
+            .section {
+                padding: 1.25rem;
+            }
+            h1 {
+                font-size: 1.75rem;
+            }
+            .meta-info {
+                flex-direction: column;
+                gap: 0.5rem;
+                align-items: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Báo cáo Nghiệm thu Mandate 5 - Runtime Hardening</h1>
+            <div class="meta-info">
+                <div class="meta-item">Dự án: <strong>TechX Corp Microservices</strong></div>
+                <div class="meta-item">Báo cáo viên: <strong>Châu Thành Trung (CDO-05)</strong></div>
+                <div class="meta-item">Trạng thái: <span class="badge badge-success">Hoàn thành</span></div>
+            </div>
+        </header>
+
+        <!-- Yêu cầu Mandate -->
+        <div class="section">
+            <h2>1. Tổng quan yêu cầu Mandate 5</h2>
+            <p>Mandate 5 (Runtime Hardening) yêu cầu nhóm Task Force siết chặt an toàn bảo mật ở môi trường chạy (runtime) của các container trên cụm Kubernetes EKS, đồng thời thiết lập cơ chế chặn tự động ở cổng API Server (Policy-as-Code). Cụ thể bao gồm 4 yêu cầu lõi:</p>
+            <ul>
+                <li><strong>Cấm chạy quyền Root:</strong> Bắt buộc tất cả container khai báo <code>runAsNonRoot: true</code>, cấm leo thang đặc quyền <code>allowPrivilegeEscalation: false</code>, và loại bỏ Linux capabilities thừa (<code>capabilities.drop: ["ALL"]</code>).</li>
+                <li><strong>Cấm tag trôi nổi (latest):</strong> Cấm dùng tag <code>latest</code>, <code>dev</code> hoặc không khai báo tag. Buộc sử dụng tag phiên bản cố định hoặc digest.</li>
+                <li><strong>Khai báo tài nguyên bắt buộc:</strong> Bắt buộc khai báo đầy đủ cả 4 trường CPU & Memory requests/limits để tối ưu bin-packing cho cụm.</li>
+                <li><strong>Bảo vệ tự động (Admission Controller):</strong> Tự động chặn và từ chối (Reject) ngay tại bước apply các manifest cấu hình vi phạm chính sách bảo mật.</li>
+            </ul>
+        </div>
+
+        <!-- Các công việc đã thực hiện -->
+        <div class="section">
+            <h2>2. Các công việc đã thực hiện</h2>
+            <p>Chúng ta đã cấu hình thành công các giải pháp kỹ thuật trên mã nguồn cục bộ và chuẩn bị sẵn sàng môi trường nghiệm thu cho Mentor:</p>
+
+            <h3>2.1. Cấu hình bảo mật Helm values.yaml</h3>
+            <p>Đã cấu hình trực tiếp vào file <code>values.yaml</code> để áp dụng tự động các luật bảo mật:</p>
+            <ul>
+                <li><strong>Bảo mật mặc định (Global Default):</strong> Khai báo mặc định <code>securityContext</code> và <code>podSecurityContext</code> toàn cụm để 18+ services tự động kế thừa.</li>
+                <li><strong>Sửa đổi cục bộ (Local Overrides):</strong> Bổ sung thủ công drop capabilities và cấm privilege escalation cho các service chạy User ID riêng biệt như <code>frontend</code>, <code>frontend-proxy</code>, <code>payment</code>, <code>quote</code>, <code>kafka</code>, <code>valkey-cart</code>.</li>
+                <li><strong>Bảo vệ cho InitContainers:</strong> Thiết lập <code>securityContext</code> non-root (UID 1000) và đổi toàn bộ tag busybox sang tag cố định <code>busybox:1.36.1</code> hoặc <code>busybox:1.38.0</code>.</li>
+                <li><strong>Resource Sizing tối ưu (M5-07):</strong> Phân bổ đủ 4 trường CPU/RAM requests & limits cho toàn bộ các service với hạn mức tối giản (requests CPU 10m, RAM 32Mi cho backend) để duy trì ngân sách dưới $300/tuần.</li>
+                <li><strong>ReadOnly Filesystem:</strong> Bật chế độ khóa ổ đĩa chỉ đọc <code>readOnlyRootFilesystem: true</code> riêng cho service <code>ad</code> để chứng minh khả năng siết bảo mật sâu theo dịch vụ.</li>
+            </ul>
+
+            <h3>2.2. Tài liệu Quyết định Kiến trúc & Đăng ký Ngoại lệ</h3>
+            <p>Tạo các tài liệu thiết kế kiến trúc chuẩn hóa:</p>
+            <ul>
+                <li><code>adr-admission-policy.md</code>: Quyết định chọn <strong>OPA Gatekeeper</strong> làm Policy Engine chính thức.</li>
+                <li><code>adr-runtime-hardening.md</code>: Thiết lập kế hoạch rollout an toàn (chạy Audit trước, Enforce sau) và đăng ký ngoại lệ có thời hạn cụ thể (hạn chót 31/12/2026) cho các core agents như <code>otel-collector-agent</code> và <code>grafana</code> sidecars.</li>
+            </ul>
+        </div>
+
+        <!-- CHI TIẾT CODE & GIẢI THÍCH (NEW SECTION ADDED) -->
+        <div class="section">
+            <h2>3. Chi tiết cấu hình mã nguồn & Ý nghĩa từng dòng</h2>
+            <p>Các chỉnh sửa chính được thực hiện tập trung tại file cấu hình: <a href="file:///c:/Users/THANH%20TRUNG/Desktop/Phase3/capstone-phase-3/platform/charts/application/values.yaml" style="color: var(--accent); text-decoration: underline;">platform/charts/application/values.yaml</a>. Dưới đây là chi tiết mã nguồn và ý nghĩa kỹ thuật của từng đoạn:</p>
+
+            <!-- BLOCK 1: GLOBAL DEFAULT -->
+            <h3>3.1. Bảo mật mặc định toàn cục (Global Default)</h3>
+            <p>Đặt tại phần cấu hình chung toàn cụm ở dòng 37-48 để tất cả 18+ microservices tự động kế thừa:</p>
+            
+            <div class="code-container">
+                <div class="code-header">
+                    <span>platform/charts/application/values.yaml [Dòng 37-48]</span>
+                </div>
+                <div class="code-box">
+                    <span class="key">securityContext</span>:<br>
+                    &nbsp;&nbsp;<span class="key">allowPrivilegeEscalation</span>: <span class="value">false</span> <span class="comment"># Chặn tiến trình con tự nâng quyền lên Root</span><br>
+                    &nbsp;&nbsp;<span class="key">runAsNonRoot</span>: <span class="value">true</span> <span class="comment"># Bắt buộc container chạy bằng User thường, cấm chạy Root</span><br>
+                    &nbsp;&nbsp;<span class="key">capabilities</span>:<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;<span class="key">drop</span>:<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <span class="value">ALL</span> <span class="comment"># Loại bỏ toàn bộ các quyền quản trị hệ thống Linux mặc định</span><br>
+                    <span class="key">podSecurityContext</span>:<br>
+                    &nbsp;&nbsp;<span class="key">runAsNonRoot</span>: <span class="value">true</span> <span class="comment"># Áp dụng kiểm tra non-root cho toàn bộ Pod</span><br>
+                    &nbsp;&nbsp;<span class="key">seccompProfile</span>:<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;<span class="key">type</span>: <span class="value">RuntimeDefault</span> <span class="comment"># Sử dụng bộ lọc lệnh hệ thống an toàn mặc định của Docker/K8s</span>
+                </div>
+            </div>
+            <ul class="explanation-list">
+                <li class="explanation-item"><strong>allowPrivilegeEscalation: false</strong>: Ngăn chặn các cơ chế nâng quyền đặc biệt (như lệnh sudo hoặc file SUID) giúp hacker không thể cướp quyền Root từ một user thường.</li>
+                <li class="explanation-item"><strong>runAsNonRoot: true</strong>: Lệnh cho Kubernetes từ chối khởi động Pod nếu phát hiện container đòi chạy dưới quyền Root (User ID = 0).</li>
+                <li class="explanation-item"><strong>capabilities.drop: [ALL]</strong>: Vứt bỏ các đặc quyền Linux nhỏ (như đổi giờ hệ thống, mở port hệ thống...) mà container không cần dùng tới, thu hẹp diện tấn công.</li>
+                <li class="explanation-item"><strong>seccompProfile.type: RuntimeDefault</strong>: Kích hoạt bộ lọc syscall an toàn của hệ thống để chặn các cuộc gọi lệnh trực tiếp nguy hiểm lên hạt nhân máy chủ.</li>
+            </ul>
+
+            <!-- BLOCK 2: LOCAL OVERRIDES -->
+            <h3>3.2. Ghi đè bảo mật cục bộ (Ví dụ: Frontend)</h3>
+            <p>Sử dụng khi service có User ID đặc thù (như Next.js chạy User 1001) tại dòng 633-640:</p>
+            
+            <div class="code-container">
+                <div class="code-header">
+                    <span>platform/charts/application/values.yaml [Dòng 633-640]</span>
+                </div>
+                <div class="code-box">
+                    &nbsp;&nbsp;&nbsp;&nbsp;<span class="key">securityContext</span>:<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="key">runAsUser</span>: <span class="value">1001</span> <span class="comment"># Chạy bằng User ID 1001 (Next.js user)</span><br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="key">runAsGroup</span>: <span class="value">1001</span> <span class="comment"># Nhóm User ID 1001</span><br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="key">runAsNonRoot</span>: <span class="value">true</span><br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="key">allowPrivilegeEscalation</span>: <span class="value">false</span><br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="key">capabilities</span>:<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="key">drop</span>:<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <span class="value">ALL</span>
+                </div>
+            </div>
+            <ul class="explanation-list">
+                <li class="explanation-item"><strong>runAsUser: 1001</strong> & <strong>runAsGroup: 1001</strong>: Khai báo tường minh ID người dùng phi-root để Container chạy mã nguồn một cách hợp chuẩn.</li>
+            </ul>
+
+            <!-- BLOCK 3: INIT CONTAINERS -->
+            <h3>3.3. Bảo vệ cho các InitContainers</h3>
+            <p>Siết bảo mật và ghim tag cho các container chạy khởi tạo ban đầu (ví dụ: dòng 220-230):</p>
+            
+            <div class="code-container">
+                <div class="code-header">
+                    <span>platform/charts/application/values.yaml [Dòng 220-230]</span>
+                </div>
+                <div class="code-box">
+                    &nbsp;&nbsp;&nbsp;&nbsp;<span class="key">initContainers</span>:<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <span class="key">name</span>: <span class="value">wait-for-kafka</span><br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="key">image</span>: <span class="value">busybox:1.38.0</span> <span class="comment"># Ghim phiên bản cố định (Cấm tag :latest trôi nổi)</span><br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="key">command</span>: [<span class="value">"sh"</span>, <span class="value">"-c"</span>, <span class="value">"..."</span>]<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="key">securityContext</span>:<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="key">runAsUser</span>: <span class="value">1000</span> <span class="comment"># Chạy init-container bằng User ID thường 1000</span><br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="key">runAsNonRoot</span>: <span class="value">true</span><br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="key">allowPrivilegeEscalation</span>: <span class="value">false</span><br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="key">capabilities</span>:<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="key">drop</span>:<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <span class="value">ALL</span>
+                </div>
+            </div>
+
+            <!-- BLOCK 4: RESOURCE SIZING -->
+            <h3>3.4. Định nghĩa Tài nguyên CPU & Memory (Resource Sizing)</h3>
+            <p>Bắt buộc khai báo đủ 4 trường CPU/RAM requests & limits để vượt qua Gatekeeper tại dòng 213-219:</p>
+            
+            <div class="code-container">
+                <div class="code-header">
+                    <span>platform/charts/application/values.yaml [Dòng 213-219]</span>
+                </div>
+                <div class="code-box">
+                    &nbsp;&nbsp;&nbsp;&nbsp;<span class="key">resources</span>:<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="key">requests</span>:<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="key">cpu</span>: <span class="value">10m</span> <span class="comment"># Mức CPU tối thiểu yêu cầu (10 millicpu = 0.01 core)</span><br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="key">memory</span>: <span class="value">32Mi</span> <span class="comment"># RAM cam kết tối thiểu 32 Megabytes</span><br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="key">limits</span>:<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="key">cpu</span>: <span class="value">100m</span> <span class="comment"># CPU tối đa cho phép dùng (100 millicpu = 0.1 core)</span><br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="key">memory</span>: <span class="value">120Mi</span> <span class="comment"># RAM tối đa cho phép dùng (120 Megabytes)</span>
+                </div>
+            </div>
+            <ul class="explanation-list">
+                <li class="explanation-item"><strong>requests</strong>: Dung lượng tài nguyên tối thiểu Kubernetes bắt buộc phải cấp cho Pod để khởi động. Đặt nhỏ giúp tiết kiệm chi phí chạy cụm (dưới $300/tuần).</li>
+                <li class="explanation-item"><strong>limits</strong>: Dung lượng tối đa container được dùng. Nếu ram dùng lố quá limits, K8s sẽ tự động khởi động lại container (OOMKilled) để tránh kéo sập máy chủ.</li>
+            </ul>
+
+            <!-- BLOCK 5: READ ONLY FS -->
+            <h3>3.5. Khóa ổ đĩa chỉ đọc (ReadOnly Root Filesystem)</h3>
+            <p>Khóa cứng ổ đĩa của service <code>ad</code> để ngăn hacker ghi file độc hại tại dòng 258-265:</p>
+            
+            <div class="code-container">
+                <div class="code-header">
+                    <span>platform/charts/application/values.yaml [Dòng 258-265]</span>
+                </div>
+                <div class="code-box">
+                    &nbsp;&nbsp;&nbsp;&nbsp;<span class="key">securityContext</span>:<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="key">runAsUser</span>: <span class="value">1000</span><br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="key">runAsNonRoot</span>: <span class="value">true</span><br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="key">allowPrivilegeEscalation</span>: <span class="value">false</span><br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="key">capabilities</span>:<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="key">drop</span>:<br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- <span class="value">ALL</span><br>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="key">readOnlyRootFilesystem</span>: <span class="value">true</span> <span class="comment"># Khóa ổ đĩa ở chế độ Chỉ đọc</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bộ test case cho Mentor -->
+        <div class="section">
+            <h2>4. Bộ Test case Nghiệm thu của Mentor</h2>
+            <p>Bộ test case được tạo sẵn dưới thư mục <code>gatekeeper/tests/</code> để Mentor thực thi và tận mắt chứng kiến cơ chế chặn tự động hoạt động:</p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Tên File Test</th>
+                        <th>Loại Test</th>
+                        <th>Nội dung Vi phạm chính sách</th>
+                        <th>Trạng thái kỳ vọng</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>neg-01-root.yaml</code></td>
+                        <td>Chặn chạy root</td>
+                        <td>Không khai báo <code>runAsNonRoot: true</code></td>
+                        <td><span class="badge badge-danger">Bị Chặn (Reject)</span></td>
+                    </tr>
+                    <tr>
+                        <td><code>neg-02-image-latest.yaml</code></td>
+                        <td>Chặn tag trôi nổi</td>
+                        <td>Sử dụng tag <code>nginx:latest</code></td>
+                        <td><span class="badge badge-danger">Bị Chặn (Reject)</span></td>
+                    </tr>
+                    <tr>
+                        <td><code>neg-03-missing-resources.yaml</code></td>
+                        <td>Bắt buộc CPU/RAM</td>
+                        <td>Không khai báo <code>resources.limits/requests</code></td>
+                        <td><span class="badge badge-danger">Bị Chặn (Reject)</span></td>
+                    </tr>
+                    <tr>
+                        <td><code>pos-01-valid.yaml</code></td>
+                        <td>Kiểm thử hợp lệ</td>
+                        <td>Cấu hình chuẩn an toàn và đầy đủ limits/requests</td>
+                        <td><span class="badge badge-success">Cho Phép (Pass)</span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Hướng dẫn kiểm thử cho Mentor -->
+        <div class="section">
+            <h2>5. Hướng dẫn Mentor kiểm thử thực tế</h2>
+            <div class="alert-box">
+                <p><strong>Lưu ý:</strong> Đảm bảo cụm EKS đã apply các Constraint và ConstraintTemplate trong thư mục <code>gatekeeper/</code> trước khi chạy các lệnh kiểm thử sau.</p>
+            </div>
+            <p>Chạy các lệnh kubectl sau từ terminal máy khách:</p>
+            <div class="code-box">
+                <span class="comment"># 1. Tạo namespace test cô lập</span><br>
+                <span class="command">kubectl apply -f gatekeeper/tests/namespace-policy-test.yaml</span><br><br>
+                
+                <span class="comment"># 2. Test kịch bản vi phạm quyền root -> Kỳ vọng bị BLOCK</span><br>
+                <span class="command">kubectl apply -f gatekeeper/tests/neg-01-root.yaml</span><br><br>
+                
+                <span class="comment"># 3. Test kịch bản vi phạm tag image latest -> Kỳ vọng bị BLOCK</span><br>
+                <span class="command">kubectl apply -f gatekeeper/tests/neg-02-image-latest.yaml</span><br><br>
+                
+                <span class="comment"># 4. Test kịch bản thiếu limits/requests -> Kỳ vọng bị BLOCK</span><br>
+                <span class="command">kubectl apply -f gatekeeper/tests/neg-03-missing-resources.yaml</span><br><br>
+                
+                <span class="comment"># 5. Test kịch bản hợp lệ -> Kỳ vọng tạo Pod THÀNH CÔNG</span><br>
+                <span class="command">kubectl apply -f gatekeeper/tests/pos-01-valid.yaml</span>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
