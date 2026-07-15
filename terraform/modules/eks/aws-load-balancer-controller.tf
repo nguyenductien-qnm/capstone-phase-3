@@ -1,6 +1,6 @@
 # IAM Policy cho AWS Load Balancer Controller
 resource "aws_iam_policy" "aws_load_balancer_controller" {
-  name        = "${var.cluster_name}-aws-load-balancer-controller-policy"
+  name        = "${var.project_name}-${var.environment}-eks-aws-load-balancer-controller-policy"
   path        = "/"
   description = "IAM Policy cho AWS Load Balancer Controller trong EKS"
   policy      = file("${path.module}/aws-load-balancer-controller-policy.json")
@@ -8,7 +8,7 @@ resource "aws_iam_policy" "aws_load_balancer_controller" {
 
 # IAM Role sử dụng EKS Pod Identity trust policy
 resource "aws_iam_role" "aws_load_balancer_controller" {
-  name = "${var.cluster_name}-aws-load-balancer-controller-role"
+  name = "${var.project_name}-${var.environment}-eks-aws-load-balancer-controller-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
