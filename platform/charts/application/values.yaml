@@ -695,8 +695,15 @@ components:
         alb.ingress.kubernetes.io/target-type: ip
         alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:us-east-1:804372444787:certificate/58a4ee05-8248-4e70-bc30-f7dfe47e0720"
         alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+      # ALB phục vụ tên ORIGIN, không phải tên chính. CloudFront giữ tên chính
+      # (ecommerce.nguyenductien.cloud) và lấy nội dung từ đây -> hai bên không
+      # tranh nhau một tên miền.
+      # external-dns đọc host này + địa chỉ ALB ở ingress.status -> tự tạo record.
+      # PHẢI khớp local.origin_hostname trong terraform/environments/sandbox/main.tf.
+      # Tên 1 cấp con để khớp cert wildcard *.nguyenductien.cloud (wildcard KHÔNG
+      # cover 2 cấp: origin.ecommerce.* sẽ lỗi TLS).
       hosts:
-        - host: "ecommerce.nguyenductien.cloud"
+        - host: "origin-ecommerce.nguyenductien.cloud"
           paths:
             - path: /
               pathType: Prefix

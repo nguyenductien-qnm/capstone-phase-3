@@ -158,3 +158,13 @@ output "external_secrets_irsa_role_arn" {
   description = "ARN IAM role cho External Secrets Operator (annotate SA external-secrets/external-secrets)"
   value       = module.external_secrets_irsa.role_arn
 }
+
+output "external_dns_irsa_role_arn" {
+  description = "ARN IAM role cho external-dns (annotate SA external-dns/external-dns)"
+  value       = var.enable_cloudfront ? module.external_dns_irsa[0].role_arn : null
+}
+
+output "cloudfront_origin_hostname" {
+  description = "Tên cố định CloudFront dùng làm origin — external-dns tạo record này trỏ về ALB của Ingress frontend-proxy"
+  value       = local.origin_hostname
+}
