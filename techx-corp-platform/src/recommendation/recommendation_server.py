@@ -45,6 +45,12 @@ cached_ids = []
 first_run = True
 
 class RecommendationService(demo_pb2_grpc.RecommendationServiceServicer):
+    \"\"\"Recommendation Service.
+
+    Provides AI-driven product recommendations based on product embeddings stored in PostgreSQL (pgvector).
+    Includes a feature flag (aiRecommendationsEnabled) to fallback to random recommendations if disabled or if
+    the database is unavailable.
+    \"\"\"
     def ListRecommendations(self, request, context):
         prod_list = get_product_list(request.product_ids)
         span = trace.get_current_span()
@@ -85,6 +91,12 @@ def get_product_list(request_product_ids):
             return _get_random_recommendations(request_product_ids_list, max_responses)
 
 def _get_ai_recommendations(input_product_ids, max_results=5):
+    \"\"\"Retrieve AI-based recommendations using pgvector.
+
+    Connects to the database and calculates the average embedding of the input products.
+    It then queries the top `max_results` products ordered by cosine distance (`<=>`) to the average embedding.
+    Falls back to random recommendations if the connection fails or no results are found.
+    \"\"\"
     span = trace.get_current_span()
     db_connection_str = os.environ.get('DB_CONNECTION_STRING')
     if not db_connection_str:

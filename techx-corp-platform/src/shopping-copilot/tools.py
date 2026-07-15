@@ -3,10 +3,11 @@
 Each function is a *tool* the LLM may call. They wrap the real downstream
 microservices over gRPC:
 
-    search_products      -> ProductCatalogService.SearchProducts
-    get_product_reviews  -> ProductReviewService.GetProductReviews
-    get_cart             -> CartService.GetCart
-    add_item_to_cart     -> CartService.AddItem   (write; gated, see agent.py)
+    search_products        -> ProductCatalogService.SearchProducts
+    get_product_reviews    -> ProductReviewService.GetProductReviews
+    get_cart               -> CartService.GetCart
+    add_item_to_cart       -> CartService.AddItem   (write; gated, see agent.py)
+    list_recommendations   -> RecommendationService.ListRecommendations
 
 Design rules (w4-agentic-rag):
 - Fail LOUD. A failed RPC returns an explicit ``{"error": ...}`` payload, never

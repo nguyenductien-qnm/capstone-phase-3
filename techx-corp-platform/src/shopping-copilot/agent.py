@@ -41,6 +41,9 @@ logger = logging.getLogger(__name__)
 
 MAX_TOOL_CALLS = 5
 
+# SYSTEM_PROMPT contains the core instructions for the Shopping Copilot.
+# It embeds a static CATALOG to enable fast, offline semantic search without
+# requiring an external vector database for basic product queries.
 SYSTEM_PROMPT = """Bạn là Shopping Copilot của TechX Corp — cửa hàng thiết bị thiên văn.
 Nhiệm vụ: giúp khách tìm sản phẩm, đọc review, xem/ thêm giỏ hàng.
 
