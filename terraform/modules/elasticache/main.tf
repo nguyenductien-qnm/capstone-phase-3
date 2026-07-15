@@ -85,5 +85,7 @@ resource "aws_secretsmanager_secret_version" "valkey_credentials" {
     auth_token = random_password.valkey_auth.result
     endpoint   = aws_elasticache_replication_group.this.primary_endpoint_address
     port       = 6379
+    # address = host:port — container dùng trực tiếp cho VALKEY_ADDR (khớp format cũ).
+    address = "${aws_elasticache_replication_group.this.primary_endpoint_address}:6379"
   })
 }

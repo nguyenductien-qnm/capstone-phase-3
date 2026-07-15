@@ -58,6 +58,9 @@
     },
     "opensearch": {
       "type": "object"
+    },
+    "externalSecrets": {
+      "type": "object"
     }
   },
   "required": [

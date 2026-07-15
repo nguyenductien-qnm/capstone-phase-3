@@ -116,8 +116,9 @@ ecr_repositories = ["<REPO_NAME>"]   # vd: ["techx-corp"]
 # Cấu hình CloudFront & Custom Domain
 # ============================================================
 
-# Cập nhật sau khi NLB được tạo thành công
-nlb_dns_name = "<NLB_DNS_NAME>"   # vd: xxx.elb.us-east-1.amazonaws.com
+# CloudFront origin = origin-<subdomain>, record do external-dns tự tạo trỏ về ALB
+# của Ingress frontend-proxy. Không cần điền DNS của LB thủ công.
+route53_zone_id = "<ROUTE53_ZONE_ID>"   # vd: Z0648007EUNFYEFE8XC4
 
 subdomain           = "<SUBDOMAIN>"           # vd: ecommerce.yourdomain.com
 acm_certificate_arn = "arn:aws:acm:us-east-1:<ACCOUNT_ID>:certificate/<CERT_ID>"
