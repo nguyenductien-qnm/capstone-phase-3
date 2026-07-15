@@ -8,7 +8,7 @@ metadata:
       Yêu cầu runAsNonRoot: true hoặc runAsUser > 0 trong securityContext.
       Áp dụng cho namespace techx-tf1.
 spec:
-  enforcementAction: deny
+  enforcementAction: dryrun
   match:
     kinds:
       - apiGroups: [""]

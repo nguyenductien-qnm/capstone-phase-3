@@ -224,6 +224,13 @@ components:
       - name: wait-for-kafka
         image: busybox:1.38.0   # Pinned: do NOT use :latest — breaks reproducibility.
         command: ["sh", "-c", "until nc -z -v -w30 b-1.ecommercedevmsk.61s37h.c4.kafka.us-east-1.amazonaws.com 9096; do echo waiting for kafka; sleep 2; done;"]
+        securityContext:
+          runAsUser: 1000
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
 
   ad:
     enabled: true
@@ -442,6 +449,13 @@ components:
       - name: wait-for-kafka
         image: busybox:1.38.0   # Pinned: do NOT use :latest — breaks reproducibility.
         command: ["sh", "-c", "until nc -z -v -w30 b-1.ecommercedevmsk.61s37h.c4.kafka.us-east-1.amazonaws.com 9096; do echo waiting for kafka; sleep 2; done;"]
+        securityContext:
+          runAsUser: 1000
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
 
   currency:
     enabled: true
@@ -543,6 +557,13 @@ components:
       - name: wait-for-kafka
         image: busybox:1.38.0   # Pinned: do NOT use :latest — breaks reproducibility.
         command: ["sh", "-c", "until nc -z -v -w30 b-1.ecommercedevmsk.61s37h.c4.kafka.us-east-1.amazonaws.com 9096; do echo waiting for kafka; sleep 2; done;"]
+        securityContext:
+          runAsUser: 1000
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
 
   frontend:
     enabled: true

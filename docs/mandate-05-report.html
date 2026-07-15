@@ -506,6 +506,83 @@
                 <span class="command">kubectl apply -f gatekeeper/tests/pos-01-valid.yaml</span>
             </div>
         </div>
+
+        <!-- LIVE EKS AUDIT SECTION -->
+        <div class="section">
+            <h2>5. Kết quả Audit thật từ EKS Cluster</h2>
+            <p style="color:var(--text-secondary)">Dữ liệu lấy trực tiếp từ cụm EKS <code>ecommerce-dev-eks</code> bằng lệnh <code>kubectl get pods -n techx-tf1 -o json</code> vào ngày 16/07/2026. Đây là trạng thái <strong>Pod cũ đang chạy</strong> — trước khi ArgoCD sync code đã hardening.</p>
+
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin:1.5rem 0">
+                <div style="background:var(--card-bg);border:1px solid var(--border-color);border-radius:12px;padding:1.5rem;text-align:center">
+                    <div style="font-size:2.5rem;font-weight:700;color:var(--danger)">33</div>
+                    <div style="color:var(--text-secondary);margin-top:.5rem">Container vi phạm</div>
+                </div>
+                <div style="background:var(--card-bg);border:1px solid var(--border-color);border-radius:12px;padding:1.5rem;text-align:center">
+                    <div style="font-size:2.5rem;font-weight:700;color:var(--success)">5</div>
+                    <div style="color:var(--text-secondary);margin-top:.5rem">Container đạt chuẩn</div>
+                </div>
+                <div style="background:var(--card-bg);border:1px solid var(--border-color);border-radius:12px;padding:1.5rem;text-align:center">
+                    <div style="font-size:2.5rem;font-weight:700;color:var(--info)">38</div>
+                    <div style="color:var(--text-secondary);margin-top:.5rem">Tổng số container</div>
+                </div>
+            </div>
+
+            <h3 style="color:var(--warning);margin:2rem 0 1rem">⚠️ Nhóm 1: Custom Services — Vi phạm do Pod cũ (sẽ tự sạch sau Helm rollout)</h3>
+            <p style="color:var(--text-secondary);margin-bottom:1rem">Toàn bộ các service dưới đây đã được sửa trong <code>values.yaml</code>. Sau khi ArgoCD sync, Pod mới sẽ được tạo với đầy đủ <code>securityContext</code> và sẽ <strong>Pass</strong> tất cả Constraint. Hiện tại giữ <code>enforcementAction: dryrun</code> để Pod cũ tiếp tục chạy không gián đoạn.</p>
+            <table>
+                <thead><tr><th>Pod</th><th>Container</th><th>Vi phạm phát hiện</th><th>Trạng thái trong code mới</th></tr></thead>
+                <tbody>
+                    <tr><td>accounting-*</td><td>accounting</td><td>runAsNonRoot, allowPrivEsc, drop ALL caps</td><td style="color:var(--success)">✅ Đã sửa trong values.yaml</td></tr>
+                    <tr><td>ad-*</td><td>ad</td><td>runAsNonRoot, allowPrivEsc, drop ALL caps</td><td style="color:var(--success)">✅ Đã sửa trong values.yaml</td></tr>
+                    <tr><td>cart-* (×2)</td><td>cart + wait-for-valkey-cart</td><td>runAsNonRoot, allowPrivEsc, drop ALL caps</td><td style="color:var(--success)">✅ Đã sửa trong values.yaml</td></tr>
+                    <tr><td>checkout-* (×2)</td><td>checkout</td><td>runAsNonRoot, allowPrivEsc, drop ALL caps</td><td style="color:var(--success)">✅ Đã sửa trong values.yaml</td></tr>
+                    <tr><td>currency-*</td><td>currency</td><td>runAsNonRoot, allowPrivEsc, drop ALL caps</td><td style="color:var(--success)">✅ Đã sửa trong values.yaml</td></tr>
+                    <tr><td>email-*</td><td>email</td><td>runAsNonRoot, allowPrivEsc, drop ALL caps</td><td style="color:var(--success)">✅ Đã sửa trong values.yaml</td></tr>
+                    <tr><td>flagd-*</td><td>flagd + init-config</td><td>runAsNonRoot, allowPrivEsc, drop ALL caps</td><td style="color:var(--success)">✅ Đã sửa trong values.yaml</td></tr>
+                    <tr><td>fraud-detection-*</td><td>fraud-detection</td><td>runAsNonRoot, allowPrivEsc, drop ALL caps</td><td style="color:var(--success)">✅ Đã sửa trong values.yaml</td></tr>
+                    <tr><td>frontend-* (×2)</td><td>frontend</td><td>allowPrivEsc, drop ALL caps</td><td style="color:var(--success)">✅ Đã sửa trong values.yaml</td></tr>
+                    <tr><td>frontend-proxy-* (×2)</td><td>frontend-proxy</td><td>allowPrivEsc, drop ALL caps</td><td style="color:var(--success)">✅ Đã sửa trong values.yaml</td></tr>
+                    <tr><td>image-provider-*</td><td>image-provider</td><td>runAsNonRoot, allowPrivEsc, drop ALL caps</td><td style="color:var(--success)">✅ Đã sửa trong values.yaml</td></tr>
+                    <tr><td>llm-*</td><td>llm</td><td>runAsNonRoot, allowPrivEsc, drop ALL caps</td><td style="color:var(--success)">✅ Đã sửa trong values.yaml</td></tr>
+                    <tr><td>load-generator-*</td><td>load-generator</td><td>runAsNonRoot, allowPrivEsc, drop ALL caps</td><td style="color:var(--success)">✅ Đã sửa trong values.yaml</td></tr>
+                    <tr><td>payment-*</td><td>payment</td><td>allowPrivEsc, drop ALL caps</td><td style="color:var(--success)">✅ Đã sửa trong values.yaml</td></tr>
+                    <tr><td>product-catalog-* (×2)</td><td>product-catalog</td><td>runAsNonRoot, allowPrivEsc, drop ALL caps</td><td style="color:var(--success)">✅ Đã sửa trong values.yaml</td></tr>
+                    <tr><td>product-reviews-*</td><td>product-reviews</td><td>runAsNonRoot, allowPrivEsc, drop ALL caps</td><td style="color:var(--success)">✅ Đã sửa trong values.yaml</td></tr>
+                    <tr><td>quote-*</td><td>quote</td><td>allowPrivEsc, drop ALL caps</td><td style="color:var(--success)">✅ Đã sửa trong values.yaml</td></tr>
+                    <tr><td>recommendation-*</td><td>recommendation</td><td>runAsNonRoot, allowPrivEsc, drop ALL caps</td><td style="color:var(--success)">✅ Đã sửa trong values.yaml</td></tr>
+                    <tr><td>shipping-*</td><td>shipping</td><td>runAsNonRoot, allowPrivEsc, drop ALL caps</td><td style="color:var(--success)">✅ Đã sửa trong values.yaml</td></tr>
+                </tbody>
+            </table>
+
+            <h3 style="color:var(--danger);margin:2rem 0 1rem">🔴 Nhóm 2: Third-party Services — Ngoại lệ được chấp thuận (Exception)</h3>
+            <p style="color:var(--text-secondary);margin-bottom:1rem">Các service dưới đây là <strong>third-party Helm chart</strong>, không thuộc phạm vi code của team. Việc thay đổi securityContext của chúng cần được thực hiện qua upstream chart hoặc Helm values riêng của từng chart. Đã ghi nhận vào <strong>Exception Register</strong> trong ADR.</p>
+            <table>
+                <thead><tr><th>Pod</th><th>Container</th><th>Vi phạm</th><th>Lý do ngoại lệ</th></tr></thead>
+                <tbody>
+                    <tr><td>jaeger-*</td><td>jaeger</td><td>allowPrivEsc, drop ALL caps</td><td>Third-party: jaegertracing/jaeger chart</td></tr>
+                    <tr><td>prometheus-*</td><td>prometheus-server</td><td>allowPrivEsc, drop ALL caps</td><td>Third-party: prometheus-community chart</td></tr>
+                    <tr><td>otel-collector-agent-* (×4)</td><td>opentelemetry-collector</td><td>runAsNonRoot, allowPrivEsc, drop ALL caps</td><td>Third-party: opentelemetry-collector chart</td></tr>
+                </tbody>
+            </table>
+
+            <h3 style="color:var(--success);margin:2rem 0 1rem">✅ Nhóm 3: Đã đạt chuẩn</h3>
+            <table>
+                <thead><tr><th>Pod</th><th>Container</th><th>Kết quả</th></tr></thead>
+                <tbody>
+                    <tr><td>grafana-*</td><td>grafana-sc-alerts, grafana-sc-dashboard, grafana-sc-datasources, grafana</td><td style="color:var(--success)">✅ Pass</td></tr>
+                    <tr><td>techx-corp-kube-state-metrics-*</td><td>kube-state-metrics</td><td style="color:var(--success)">✅ Pass</td></tr>
+                </tbody>
+            </table>
+
+            <div style="background:rgba(99,102,241,0.1);border:1px solid var(--accent);border-radius:12px;padding:1.5rem;margin-top:2rem">
+                <h4 style="color:var(--accent);margin:0 0 1rem">📋 Kế hoạch xử lý (Rollout Plan)</h4>
+                <div style="color:var(--text-secondary);line-height:2">
+                    <strong style="color:var(--text-primary)">Phase 1 — Hiện tại (dryrun):</strong> Gatekeeper chỉ ghi nhận vi phạm, không chặn. Pod cũ tiếp tục chạy bình thường.<br>
+                    <strong style="color:var(--text-primary)">Phase 2 — Sau khi ArgoCD sync:</strong> Pod mới được tạo từ <code>values.yaml</code> đã hardening → Pass tất cả Constraint.<br>
+                    <strong style="color:var(--text-primary)">Phase 3 — Chuyển sang deny:</strong> Khi <code>totalViolations = 0</code> cho toàn bộ custom services → đổi <code>enforcementAction: deny</code>.
+                </div>
+            </div>
+        </div>
     </div>
 </body>
 </html>

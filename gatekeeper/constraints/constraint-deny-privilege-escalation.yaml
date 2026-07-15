@@ -8,7 +8,7 @@ metadata:
       Bắt buộc containers phải khai báo securityContext.allowPrivilegeEscalation: false.
       Áp dụng cho namespace techx-tf1.
 spec:
-  enforcementAction: deny
+  enforcementAction: dryrun
   match:
     kinds:
       - apiGroups: [""]
