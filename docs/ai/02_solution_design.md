@@ -8,7 +8,7 @@
 ```
 storefront ──► frontend-proxy(Envoy) ──► product-reviews ──► Bedrock Nova Lite ──fallback──► Nova Micro ──► mock summary
                      │                        │  ▲cache Valkey (10 key, TTL 7d, versioned)
-                     └─► shopping-copilot(:50051, tuần 2) ──► Nova Pro ──► catalog/reviews/cart gRPC (cart: confirmation gate)
+                     └─► shopping-copilot(:50051) ──► Nova Pro ──► catalog/reviews/cart gRPC (cart: confirmation gate)
 observability: OTel → Prometheus/OpenSearch/Jaeger ──► aiops-detector (poll 30s, 13 rule) ──► webhook alert
                                                     └─► Drain3 log clustering (CronJob)
 ```

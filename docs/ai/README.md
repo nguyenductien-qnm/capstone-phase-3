@@ -11,12 +11,12 @@ xem "Sổ đăng ký con số" cuối `05_adrs.md`.
 | 01 Requirements | `01_requirements.md` | W1 — success criteria có trạng thái đo |
 | 02 Solution Design | `02_solution_design.md` | W1 — kèm phương án đã loại |
 | 03 AI Engine Spec | `03_specs/` (9 file, xem dưới) | Phân mảnh theo chủ đề — mỗi spec có "Phụ lục kiểm chứng 12/07" |
-| 04 Eval Report | `04_eval_report.md` | Skeleton W1 + số đã đo; full W2 |
-| 05 ADRs | `05_adrs.md` | ADR-001→010 + Phụ lục kiểm chứng + Sổ đăng ký con số + xác nhận mentor 12/07 |
-| 06 Contracts | `contracts/` | copilot ✓; product-reviews có phụ lục đề xuất re-sign 12/07 |
+| 04 Eval Report | `04_eval_report.md` | Đã đo Eval cho cả Copilot và Reviews |
+| 05 ADRs | `05_adrs.md` | ADR-001→011 + Phụ lục kiểm chứng + Sổ đăng ký con số |
+| 06 Contracts | `contracts/` | copilot ✓; product-reviews ✓ |
 
 ## Specs (`03_specs/`) — index: `03_ai_engine_spec.md`
-`fallback_retry` · `valkey_caching` · `semantic_search` (deferred) · `shopping_copilot` ·
+`fallback_retry` · `valkey_caching` · `semantic_search` (pgvector) · `shopping_copilot` (Đã có code thật) ·
 `golden_signals_detection` · `log_clustering` · `anomaly_remediation` · `ai_recommendations` · `model_gateway_ab_testing`
 > Đọc spec luôn kèm phụ lục cuối file — nhiều thông số thân bài đã được sửa bằng số đo.
 

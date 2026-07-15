@@ -158,3 +158,8 @@
 2. **Số latency trình bày:** "2.5s" chưa đo — theo Artificial Analysis (TTFT 1.04s, 175.7 tok/s), luồng tóm tắt 2 vòng converse ≈ **4.4s điển hình** khi chưa cache; giá trị cache vẫn nguyên (→ <50ms) nhưng con số trước-cache phải nói là ước từ benchmark, chờ đo thật trên Bedrock (script `docs/ai/evals/measure_bedrock_latency.py` sẵn, cần AWS creds).
 3. **Số AIOps có evidence mới cho slide 5:** MTTD đo thật (chaos flagd, 5 vòng): **max 35.4s với poll 30s** — dưới 1 phút như ADR-007 hứa, tiêu ~0.5% error budget/ngày. Nguồn: `docs/ai/evals/measure_detection_pipeline.py`.
 
+# PHỤ LỤC CẬP NHẬT 15/07/2026 — Kết thúc Tuần 2 (Code Freeze)
+Tất cả các tính năng "chưa cắm vào code, sẽ làm ở Tuần 2" **đã được triển khai hoàn tất trên nhánh `feat/TF1-57-59-68`**:
+1. **Shopping Copilot**: Đã hoàn tất 3 intent, tích hợp Guardrails (PII, Prompt Injection, Hallucination) và cơ chế Action Gate (MANDATE-06). Đã viết Unit Test và Evals đầy đủ (MOCK mode).
+2. **Model Gateway**: Đã hoàn thiện chức năng A/B Testing, chia luồng % traffic dựa trên flagd OpenFeature.
+3. **AI Recommendations**: Thành công thay thế random mock bằng tính năng Semantic Search thật thông qua `pgvector` và Cosine Similarity trên PostgreSQL (hạng mục Đua Top xuất sắc).
