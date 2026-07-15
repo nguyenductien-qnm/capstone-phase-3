@@ -60,3 +60,24 @@ Tài liệu tổng hợp các câu hỏi mở, giả định vận hành hoặc 
 * **Bối cảnh:** Nếu đường truyền từ OTel Collector lên OpenSearch bị đứt, detector sẽ hoàn toàn im lặng (vì không thấy dòng log lỗi nào ghi nhận), dẫn đến việc hệ thống sập nhưng không có cảnh báo nào được gửi đi.
 * **Câu hỏi:** Mentor có yêu cầu thiết lập **Heartbeat / Rate-of-change Alert** (giám sát lưu lượng log sống liên tục, nếu đột ngột về 0 dòng/phút $\rightarrow$ cảnh báo đứt pipeline) để tính điểm Operational Excellence không?
 
+---
+
+## 5. NÂNG CAO AIE & AIOPS (Đua Top & Kiến thức chuyên sâu)
+
+### Q10 — [AIE] Dynamic Model Routing dựa trên Độ phức tạp đầu vào
+* **Bối cảnh:** Hiện tại Model Router của nhóm đang chạy A/B testing theo tỷ lệ phần trăm tĩnh thông qua OpenFeature/flagd. Tuy nhiên, để tối ưu hóa chi phí (MANDATE-02) và giảm độ trễ, nhóm có thể tự động chuyển hướng câu hỏi: câu hỏi ngắn, đơn giản sẽ định tuyến sang model siêu rẻ và nhanh (`amazon.nova-lite-v1:0` hoặc `nova-micro-v1:0`), còn các câu hỏi so sánh phức tạp hoặc có nguy cơ injection cao mới đưa lên model đắt (`amazon.nova-pro-v1:0`).
+* **Câu hỏi:** Mentor có đánh giá cao phương án **Định tuyến mô hình động (Dynamic Complexity Routing)** này không, hay chỉ cần hoàn thành A/B testing theo tỷ lệ phần trăm là đủ?
+
+### Q11 — [AIE] Thiết lập Hard Budget Gate ở mức Application
+* **Bối cảnh:** Khi chạy production, rủi ro hacker spam API hoặc mã nguồn rơi vào vòng lặp LLM vô hạn (infinite agent loop) có thể làm cạn kiệt credit AWS rất nhanh. 
+* **Câu hỏi:** Mentor có khuyến khích thiết lập một **Hard Budget Gate** ngay trong code server (nếu tổng chi phí token tích lũy của service trong 1 giờ vượt quá $5, hệ thống tự ngắt kết nối Bedrock và trả về degraded mode local) như một cơ chế phòng vệ tài chính chủ động không?
+
+### Q12 — [AIOps] Multi-Window Burn-Rate Alerting chống báo động giả (False Positives)
+* **Bối cảnh:** Nếu cấu hình alert dựa trên một ngưỡng lỗi tĩnh (ví dụ: HTTP 5xx > 2% trong 5 phút), hệ thống sẽ rất dễ bị kích hoạt cảnh báo giả khi có một vài request lỗi ngẫu nhiên trong thời gian ngắn (flakiness). Chuẩn công nghiệp SRE khuyến nghị dùng **MWMT (Multi-Window Multi-Threshold) Burn-Rate Alerting** (chỉ alert khi error budget bị tiêu thụ nhanh ở cả cửa sổ ngắn 5m và cửa sổ dài 1h).
+* **Câu hỏi:** Mentor có chấm điểm cộng cho việc thiết lập cảnh báo chuẩn SRE Multi-Window Burn-rate trên Prometheus/Grafana không, hay chỉ cần các cảnh báo tĩnh đơn giản?
+
+### Q13 — [AIOps] Khống chế vùng ảnh hưởng (Blast Radius Control) của Auto-Remediation
+* **Bối cảnh:** Vòng lặp tự động khắc phục sự cố (Auto-remediation closed-loop) rất nguy hiểm khi gặp lỗi cascading (lỗi dây chuyền). Ví dụ, nếu database bị sập, auto-remediation có thể liên tục gửi lệnh restart pod $\rightarrow$ làm nghẽn EKS control plane và làm sập luôn các dịch vụ khỏe mạnh khác.
+* **Câu hỏi:** Mentor có yêu cầu bắt buộc thiết lập cơ chế khống chế **Blast Radius** (ví dụ: tối đa chỉ restart 1 pod/lần, không restart nếu tỷ lệ lỗi toàn cụm > 50%, có nút tắt khẩn cấp Manual Bypass) trong kịch bản tự động khắc phục sự cố không?
+
+
