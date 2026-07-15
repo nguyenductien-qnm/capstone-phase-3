@@ -290,8 +290,12 @@ services:
       - FLAGD_PORT
       - FLAGD_UI_HOST
       - FLAGD_UI_PORT
+      - SHOPPING_COPILOT_HOST
+      - SHOPPING_COPILOT_PORT
     depends_on:
       frontend:
+        condition: service_started
+      shopping-copilot:
         condition: service_started
       load-generator:
         condition: service_started
@@ -418,6 +422,7 @@ services:
       - FLAGD_PORT
       - PRODUCT_CATALOG_PORT
       - PRODUCT_CATALOG_RELOAD_INTERVAL
+      - DB_CONNECTION_STRING=postgres://otelu:otelp@${POSTGRES_HOST}/${POSTGRES_DB}?sslmode=disable
       - GOMEMLIMIT=16MiB
       - OTEL_EXPORTER_OTLP_ENDPOINT
       - OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE
@@ -426,6 +431,8 @@ services:
     volumes:
       - ./src/product-catalog/products:/usr/src/app/products
     depends_on:
+      postgresql:
+        condition: service_started
       otel-collector:
         condition: service_started
     logging: *logging
@@ -458,6 +465,9 @@ services:
       - DB_CONNECTION_STRING=host=${POSTGRES_HOST} user=otelu password=otelp dbname=${POSTGRES_DB}
       - AWS_REGION
       - AWS_BEDROCK_MODEL
+      - LLM_BASE_URL
+      - LLM_HOST
+      - LLM_PORT
       - OPENAI_API_KEY
       - PRODUCT_CATALOG_ADDR
     depends_on:
@@ -466,6 +476,53 @@ services:
       llm:
         condition: service_started
       postgresql:
+        condition: service_started
+      otel-collector:
+        condition: service_started
+    logging: *logging
+
+  # Shopping Copilot service
+  shopping-copilot:
+    image: ${IMAGE_NAME}:${DEMO_VERSION}-shopping-copilot
+    container_name: shopping-copilot
+    build:
+      context: ./
+      dockerfile: ${SHOPPING_COPILOT_DOCKERFILE}
+      cache_from:
+        - ${IMAGE_NAME}:${IMAGE_VERSION}-shopping-copilot
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1024M
+        reservations:
+          cpus: "0.2"
+          memory: 256M
+    restart: unless-stopped
+    ports:
+      - "${SHOPPING_COPILOT_PORT}"
+    environment:
+      - SHOPPING_COPILOT_PORT
+      - OTEL_PYTHON_LOG_CORRELATION=true
+      - OTEL_EXPORTER_OTLP_ENDPOINT
+      - OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE
+      - OTEL_RESOURCE_ATTRIBUTES
+      - OTEL_SERVICE_NAME=shopping-copilot
+      - PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
+      - LLM_BASE_URL
+      - OPENAI_API_KEY
+      - LLM_MODEL
+      - PRODUCT_CATALOG_ADDR
+      - PRODUCT_REVIEWS_ADDR
+      - CART_ADDR
+      - FLAGD_HOST
+      - FLAGD_PORT
+    depends_on:
+      product-catalog:
+        condition: service_started
+      product-reviews:
+        condition: service_started
+      cart:
         condition: service_started
       otel-collector:
         condition: service_started
@@ -619,6 +676,25 @@ services:
       - FLAGD_PORT
     ports:
       - "${LLM_PORT}"
+    logging: *logging
+
+  # Postgresql used by Product Catalog and Product Reviews services
+  postgresql:
+    image: ${POSTGRES_IMAGE}
+    container_name: postgresql
+    deploy:
+      resources:
+        limits:
+          memory: 80M
+    restart: unless-stopped
+    ports:
+      - ${POSTGRES_PORT}
+    environment:
+      - POSTGRES_USER=root
+      - POSTGRES_PASSWORD
+      - POSTGRES_DB
+    volumes:
+      - ./src/postgresql/init.sql:/docker-entrypoint-initdb.d/init.sql
     logging: *logging
 
   # Valkey used by Cart service

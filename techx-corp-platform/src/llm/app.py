@@ -10,6 +10,7 @@ import random
 import re
 import os
 import logging
+import unicodedata
 
 from openfeature import api
 from openfeature.contrib.provider.flagd import FlagdProvider
@@ -83,6 +84,180 @@ def parse_product_id(last_message):
 
     raise ValueError("product ID not found in input message")
 
+def normalize_text(value):
+    normalized = unicodedata.normalize("NFD", value or "")
+    without_marks = "".join(ch for ch in normalized if unicodedata.category(ch) != "Mn")
+    return without_marks.lower()
+
+def tool_names(tools):
+    names = set()
+    for tool in tools or []:
+        name = tool.get("function", {}).get("name")
+        if name:
+            names.add(name)
+    return names
+
+def is_shopping_copilot_request(tools):
+    names = tool_names(tools)
+    return bool({"search_products", "get_product_reviews", "get_cart", "add_to_cart"} & names)
+
+def latest_user_question(messages):
+    for message in reversed(messages):
+        if message.get("role") == "user":
+            content = message.get("content", "")
+            match = re.search(r"Question:\s*(.*)", content, re.DOTALL)
+            return (match.group(1) if match else content).strip()
+    return ""
+
+def extract_shopping_product_id(question):
+    match = re.search(r"\b[A-Z0-9]{10}\b", question or "")
+    return match.group(0) if match else None
+
+def extract_shopping_quantity(question):
+    normalized = normalize_text(question)
+    patterns = [
+        r"(?:quantity|qty|so luong|sl)\s*[:=]?\s*(\d+)",
+        r"\b(\d+)\s*(?:x|cai|chiec|sp|san pham)\b",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, normalized)
+        if match:
+            return max(1, min(int(match.group(1)), 99))
+    return 1
+
+def shopping_query(question):
+    normalized = normalize_text(question)
+    synonym_queries = [
+        ("kinh thien van", "telescope"),
+        ("telescope", "telescope"),
+        ("explorascope", "telescope"),
+        ("ong nhom", "binoculars"),
+        ("binocular", "binoculars"),
+        ("may anh", "camera"),
+        ("camera", "camera"),
+        ("tai nghe", "headphones"),
+        ("headphone", "headphones"),
+        ("dong ho", "watch"),
+        ("watch", "watch"),
+        ("ba lo", "backpack"),
+        ("backpack", "backpack"),
+    ]
+    for needle, query in synonym_queries:
+        if needle in normalized:
+            return query
+    return question.strip()
+
+def build_tool_call_response(model, messages, tool_name, arguments):
+    tool_args = json.dumps(arguments)
+    app.logger.info(f"Processing a Shopping Copilot tool call: '{tool_name}' with args: '{tool_args}'")
+    response = {
+        "id": f"chatcmpl-mock-{int(time.time())}",
+        "object": "chat.completion",
+        "created": int(time.time()),
+        "model": model,
+        "choices": [{
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": "requesting a tool call",
+                "tool_calls": [{
+                    "id": "call",
+                    "type": "function",
+                    "function": {
+                        "name": tool_name,
+                        "arguments": tool_args
+                    }
+                }]
+            },
+            "finish_reason": "tool_calls"
+        }],
+        "usage": {
+            "prompt_tokens": sum(len(m.get("content", "").split()) for m in messages),
+            "completion_tokens": "0",
+            "total_tokens": sum(len(m.get("content", "").split()) for m in messages)
+        }
+    }
+    return jsonify(response)
+
+def summarize_tool_content(tool_name, content):
+    try:
+        data = json.loads(content or "{}")
+    except json.JSONDecodeError:
+        return "I could not parse the tool result."
+
+    if tool_name == "search_products":
+        products = data.get("products", [])
+        if not products:
+            return "I could not find matching products in the live catalog."
+        names = [f"{product.get('name')} ({product.get('id')})" for product in products[:3]]
+        return "I found these products in the live catalog: " + "; ".join(names)
+
+    if tool_name in ("get_product_reviews", "fetch_product_reviews"):
+        product = data.get("product", {})
+        reviews = data.get("reviews", [])
+        product_name = product.get("name") or product.get("id") or "This product"
+        average = data.get("average_score") or "n/a"
+        return f"{product_name} has average review score {average}/5 from {len(reviews)} live review(s)."
+
+    if tool_name == "get_cart":
+        items = data.get("items", [])
+        if not items:
+            return "Your cart is empty."
+        item_text = ", ".join(f"{item.get('product_id')} x {item.get('quantity')}" for item in items)
+        return f"Your cart contains: {item_text}."
+
+    return "I processed the tool result."
+
+def handle_shopping_copilot(model, messages, tools):
+    last = messages[-1]
+    if last.get("role") == "tool":
+        return build_response(
+            model,
+            messages,
+            summarize_tool_content(last.get("name"), last.get("content")),
+        )
+
+    question = latest_user_question(messages)
+    normalized = normalize_text(question)
+    forbidden_terms = (
+        "checkout", "place order", "ship order", "empty cart", "delete cart",
+        "xoa gio", "xoa het gio", "thanh toan", "dat hang", "giao hang",
+    )
+    if any(term in normalized for term in forbidden_terms):
+        return build_response(
+            model,
+            messages,
+            "I can help search products, review products, view carts, and prepare add-to-cart confirmations, but I will not checkout or delete carts.",
+        )
+
+    product_id = extract_shopping_product_id(question)
+    query = shopping_query(question)
+
+    add_terms = ("add to cart", "them vao gio", "them gio", "cho vao gio", "bo vao gio", "mua")
+    add_to_cart_intent = (
+        any(term in normalized for term in add_terms)
+        or ("them" in normalized and "gio" in normalized)
+        or ("add" in normalized and "cart" in normalized)
+    )
+    if add_to_cart_intent:
+        arguments = {"quantity": extract_shopping_quantity(question)}
+        if product_id:
+            arguments["product_id"] = product_id
+        else:
+            arguments["query"] = query
+        return build_tool_call_response(model, messages, "add_to_cart", arguments)
+
+    cart_terms = ("cart", "gio hang", "gio")
+    if any(term in normalized for term in cart_terms):
+        return build_tool_call_response(model, messages, "get_cart", {})
+
+    review_terms = ("review", "reviews", "danh gia", "nhan xet", "rating", "sao")
+    if any(term in normalized for term in review_terms):
+        arguments = {"product_id": product_id} if product_id else {"query": query}
+        return build_tool_call_response(model, messages, "get_product_reviews", arguments)
+
+    return build_tool_call_response(model, messages, "search_products", {"query": query})
+
 @app.route('/v1/chat/completions', methods=['POST'])
 def chat_completions():
     data = request.json
@@ -96,6 +271,9 @@ def chat_completions():
     last_message = messages[-1]["content"]
 
     app.logger.info(f"last_message is: '{last_message}'")
+
+    if tools is not None and is_shopping_copilot_request(tools):
+        return handle_shopping_copilot(model, messages, tools)
 
     if 'What age(s) is this recommended for?' in last_message:
         response_text = 'This product is recommended for ages 7 and above.'

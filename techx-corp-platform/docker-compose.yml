@@ -366,8 +366,12 @@ services:
       - FLAGD_PORT
       - FLAGD_UI_HOST
       - FLAGD_UI_PORT
+      - SHOPPING_COPILOT_HOST
+      - SHOPPING_COPILOT_PORT
     depends_on:
       frontend:
+        condition: service_started
+      shopping-copilot:
         condition: service_started
       load-generator:
         condition: service_started
@@ -553,6 +557,53 @@ services:
       llm:
         condition: service_started
       postgresql:
+        condition: service_started
+      otel-collector:
+        condition: service_started
+    logging: *logging
+
+  # Shopping Copilot service
+  shopping-copilot:
+    image: ${IMAGE_NAME}:${DEMO_VERSION}-shopping-copilot
+    container_name: shopping-copilot
+    build:
+      context: ./
+      dockerfile: ${SHOPPING_COPILOT_DOCKERFILE}
+      cache_from:
+        - ${IMAGE_NAME}:${IMAGE_VERSION}-shopping-copilot
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1024M
+        reservations:
+          cpus: "0.2"
+          memory: 256M
+    restart: unless-stopped
+    ports:
+      - "${SHOPPING_COPILOT_PORT}"
+    environment:
+      - SHOPPING_COPILOT_PORT
+      - OTEL_PYTHON_LOG_CORRELATION=true
+      - OTEL_EXPORTER_OTLP_ENDPOINT
+      - OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE
+      - OTEL_RESOURCE_ATTRIBUTES
+      - OTEL_SERVICE_NAME=shopping-copilot
+      - PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
+      - LLM_BASE_URL
+      - OPENAI_API_KEY
+      - LLM_MODEL
+      - PRODUCT_CATALOG_ADDR
+      - PRODUCT_REVIEWS_ADDR
+      - CART_ADDR
+      - FLAGD_HOST
+      - FLAGD_PORT
+    depends_on:
+      product-catalog:
+        condition: service_started
+      product-reviews:
+        condition: service_started
+      cart:
         condition: service_started
       otel-collector:
         condition: service_started
