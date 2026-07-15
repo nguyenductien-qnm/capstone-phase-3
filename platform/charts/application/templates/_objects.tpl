@@ -47,6 +47,7 @@ spec:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
           whenUnsatisfiable: {{ .topologySpreadWhenUnsatisfiable | default "DoNotSchedule" }}   # CDO-34: DoNotSchedule (hard) — ép 2 pod critical ra khác node để mất-node không sập cả service. Sandbox giữ baseline 2 primary node và pre-scale lên 3; override "ScheduleAnyway" per-component nếu cần nới.
+          nodeTaintsPolicy: Honor   # INC-FIX: Exclude tainted nodes khỏi domain count. Default Ignore khiến node-obs (tainted dedicated=observability:NoSchedule) bị đếm là 1 domain → skew 1,1,0 → pod mới → skew 2 > maxSkew 1 → deadlock. Ref: https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/#nodestaintspolicy
           labelSelector:
             matchLabels:
               {{- include "techx-corp.selectorLabels" . | nindent 14 }}

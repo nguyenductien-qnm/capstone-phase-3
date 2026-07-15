@@ -232,9 +232,9 @@ variable "ecr_repositories" {
   description = "Danh sách tên các repositories cần khởi tạo trên ECR"
 }
 
-variable "nlb_dns_name" {
+variable "route53_zone_id" {
   type        = string
-  description = "Tên miền công cộng (DNS Name) của Network Load Balancer (NLB) để làm origin"
+  description = "Route53 hosted zone ID của subdomain — external-dns được cấp quyền ghi record ĐÚNG zone này (least-privilege)"
 }
 
 variable "subdomain" {
