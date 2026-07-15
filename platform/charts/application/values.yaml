@@ -961,6 +961,10 @@ components:
         value: us-east-1
       - name: AWS_BEDROCK_MODEL
         value: amazon.nova-lite-v1:0
+      - name: LLM_REVIEWS_TIMEOUT
+        value: "4.0"
+      - name: LLM_REVIEWS_FALLBACK_TIMEOUT
+        value: "2.0"
       - name: LLM_HOST
         value: llm
       - name: LLM_PORT
@@ -1087,6 +1091,16 @@ components:
         value: techx-llm
       - name: OPENAI_API_KEY
         value: dummy
+      - name: AWS_REGION
+        value: us-east-1
+      - name: LLM_COPILOT_MAIN_MODEL
+        value: amazon.nova-pro-v1:0
+      - name: LLM_COPILOT_FALLBACK_MODEL
+        value: amazon.nova-lite-v1:0
+      - name: LLM_COPILOT_TIMEOUT
+        value: "5.7"
+      - name: LLM_COPILOT_FALLBACK_TIMEOUT
+        value: "2.5"
       - name: PRODUCT_CATALOG_ADDR
         value: product-catalog:8080
       - name: CART_ADDR

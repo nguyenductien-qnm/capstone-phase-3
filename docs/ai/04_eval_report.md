@@ -1,4 +1,4 @@
-# 04 — Eval Report (Nhóm AI / AIO03) — skeleton W1, số đo tính đến 12/07
+# 04 — Eval Report (Nhóm AI / AIO03) — số đo tính đến 15/07
 
 > **Evidence tier (mentor chốt 12/07):** số đo trên **docker compose local = evidence TẠM (được chấp nhận)**;
 > W2 chạy lại toàn bộ script trên EKS để nâng thành evidence chính thức. Mỗi bảng số dưới giữ nhãn nguồn.
@@ -26,11 +26,11 @@
 | Drain3 sim_th | **0.3 trội 0.4/0.5/0.6** cả 4 tiêu chí; depth vô cảm → code default 0.3 | drain3_param_grid.py (masking: `MASK=1`) |
 | Fallback ladder runtime | "Fallback routing triggered" ×5; "CB OPENED after 3 failures" | docker logs (compose) |
 | FP 15 phút tải thường | 2 FP config (latency rule match flagd — đã vá filter) + 2 TP sai nhãn (đã vá marker) | detector run |
+| Bedrock latency P50/P95 thật | Reviews Lite 1.571/3.969s; Reviews Micro 1.578/1.938s; Copilot Pro 4.086/5.688s; Copilot Lite 1.907/2.468s | measure_bedrock_latency.py (`us-east-2`; `us-east-1` blocked by OperationNotAllowed for current SSO role) |
 
 ## 3. Số CHƯA đo được (blocked — không được trích như kết quả)
 | Số | Chặn bởi |
 |---|---|
-| Bedrock latency P50/P95 thật (→ chốt timeout 3.0/2.0/5.0s) | AWS creds (`measure_bedrock_latency.py` sẵn) |
 | Trước–sau error-rate với Bedrock thật | creds + EKS |
 | Semantics 2 rule burn-rate/memory (syntax đã pass Prometheus 3.8.1) | data sống EKS |
 | Task-success của Copilot | code copilot (harness hiện chấm MOCK — cấm trích) |

@@ -6,8 +6,8 @@
 ## Model & routing
 | Tác vụ | Primary | Fallback | Timeout/call | Spec |
 |---|---|---|---|---|
-| Reviews summary | `amazon.nova-lite-v1:0` | `nova-micro` → mock | 3.0s / 2.0s | `03_specs/fallback_retry.md` |
-| Shopping Copilot (W2) | `amazon.nova-pro-v1:0` | `nova-lite` → thông báo lỗi | 5.0s / 3.0s | `03_specs/shopping_copilot.md` |
+| Reviews summary | `amazon.nova-lite-v1:0` | `nova-micro` → mock | 4.0s / 2.0s | `03_specs/fallback_retry.md` |
+| Shopping Copilot (W2) | `amazon.nova-pro-v1:0` | `nova-lite` → thông báo lỗi | 5.7s / 2.5s | `03_specs/shopping_copilot.md` |
 
 Inference params: `INFERENCE_CONFIG` trong `product_reviews_server.py` (maxTokens 1024 = trần chống runaway; temp 0.1 = bám nguồn; topP 0.9 — justification trong code + Sổ đăng ký con số ở `05_adrs.md`).
 
