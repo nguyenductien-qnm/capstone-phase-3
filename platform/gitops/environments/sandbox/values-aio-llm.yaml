@@ -1,11 +1,14 @@
 # AIO: cắm LLM thật thay mock (envOverrides = upsert, không xoá env khác).
-# Secret llm-api-key tạo trước: kubectl -n techx-<aio> create secret generic llm-api-key --from-literal=key=<REAL_KEY>
 components:
   product-reviews:
+    imageOverride:
+      tag: "1.0-product-reviews"
     envOverrides:
-      - name: LLM_BASE_URL
-        value: https://api.openai.com/v1        # hoặc Bedrock-compatible gateway
-      - name: LLM_MODEL
-        value: gpt-4o-mini
-      - name: OPENAI_API_KEY
-        valueFrom: { secretKeyRef: { name: llm-api-key, key: key } }
+      - name: AWS_REGION
+        value: "us-east-1"
+      - name: LLM_MOCK_ENABLED
+        value: "false"
+      - name: LLM_REVIEWS_MAIN_MODEL
+        value: "amazon.nova-lite-v1:0"
+      - name: LLM_REVIEWS_FALLBACK_MODEL
+        value: "amazon.nova-micro-v1:0"
