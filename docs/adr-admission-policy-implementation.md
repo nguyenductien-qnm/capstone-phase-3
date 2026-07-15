@@ -126,71 +126,99 @@ Convention tag CI pipeline hiện tại (`<version>-<service>`, vd `1.1-checkout
 
 ## 6. M5-15 — Mentor Negative Test Package
 
+> **Cập nhật 15/07/2026**: test package đặt tại **`tests/gatekeeper/`** (không phải
+> `gatekeeper/tests/` như bản trước). Bỏ `namespace-policy-test.yaml`: cả 5 Constraint chỉ
+> `match.namespaces: [techx-tf1]`, nên apply bad pod vào namespace test riêng sẽ PASS oan
+> (false negative). Bad pod nhắm thẳng `techx-tf1` — deny tại admission nghĩa là **không có
+> object nào được tạo**, an toàn cho namespace prod, không cần cleanup. Mở rộng từ 3 lên
+> **5 negative test** để mỗi policy đang deny có đúng 1 bằng chứng reject.
+
 ### 6.1. Files đã chuẩn bị
 
-| File | Loại | Vi phạm |
-|---|---|---|
-| `gatekeeper/tests/namespace-policy-test.yaml` | Namespace | — (namespace test riêng biệt) |
-| `gatekeeper/tests/neg-01-root.yaml` | Bad Pod | Không có `runAsNonRoot: true` |
-| `gatekeeper/tests/neg-02-image-latest.yaml` | Bad Pod | Image `nginx:latest` |
-| `gatekeeper/tests/neg-03-missing-resources.yaml` | Bad Pod | Không khai báo `resources` |
-| `gatekeeper/tests/pos-01-valid.yaml` | Good Pod | Hợp lệ toàn bộ — phải PASS |
+Mỗi file negative vi phạm **đúng 1 luật** (các field còn lại hợp lệ) để deny message chỉ rõ luật nào bắn.
+
+| File | Loại | Vi phạm | Constraint chặn |
+|---|---|---|---|
+| `tests/gatekeeper/neg-01-root.yaml` | Bad Pod | `runAsUser: 0` | `run-as-non-root` |
+| `tests/gatekeeper/neg-02-image-latest.yaml` | Bad Pod | Image `nginx:latest` | `deny-floating-image-tag` |
+| `tests/gatekeeper/neg-03-missing-resources.yaml` | Bad Pod | Không khai báo `resources` | `require-cpu-memory-limits-requests` |
+| `tests/gatekeeper/neg-04-privilege-escalation.yaml` | Bad Pod | `allowPrivilegeEscalation: true` | `deny-privilege-escalation` |
+| `tests/gatekeeper/neg-05-added-capabilities.yaml` | Bad Pod | `capabilities.add: [SYS_ADMIN]` | `deny-dangerous-capabilities` |
+| `tests/gatekeeper/pos-01-valid.yaml` | Good Pod | Hợp lệ cả 5 luật — phải PASS | — |
+| `tests/gatekeeper/README.md` | Hướng dẫn | Lệnh chạy + expected deny message chi tiết | — |
 
 ### 6.2. Commands Mentor Thực hiện
 
 ```bash
+# Bước 0: Xác nhận Gatekeeper controller đang chạy
+kubectl get pods -n gatekeeper-system
+
 # Bước 1: Apply ConstraintTemplates (định nghĩa luật)
 kubectl apply -f gatekeeper/ConstraintTemplate/
 
-# Bước 2: Apply Constraints (bật enforce)
+# Bước 2: Apply Constraints (bật enforce); xác nhận đủ 5 constraint
 kubectl apply -f gatekeeper/constraints/
+kubectl get constraints
 
-# Bước 3: Negative tests — expect REJECT
-kubectl apply -f gatekeeper/tests/neg-01-root.yaml
-kubectl apply -f gatekeeper/tests/neg-02-image-latest.yaml
-kubectl apply -f gatekeeper/tests/neg-03-missing-resources.yaml
+# Bước 3: Negative tests — TỪNG LỆNH expect "Error from server (Forbidden)"
+kubectl apply -f tests/gatekeeper/neg-01-root.yaml
+kubectl apply -f tests/gatekeeper/neg-02-image-latest.yaml
+kubectl apply -f tests/gatekeeper/neg-03-missing-resources.yaml
+kubectl apply -f tests/gatekeeper/neg-04-privilege-escalation.yaml
+kubectl apply -f tests/gatekeeper/neg-05-added-capabilities.yaml
 
-# Bước 4: Positive test — expect PASS
-kubectl apply --dry-run=server -f gatekeeper/tests/pos-01-valid.yaml
+# Bước 4: Positive test — expect PASS (server dry-run, không tạo pod thật)
+kubectl apply --dry-run=server -f tests/gatekeeper/pos-01-valid.yaml
+
+# Bước 5: Xác nhận cluster không còn workload vi phạm (audit của Gatekeeper)
+kubectl get constraints   # kỳ vọng TOTAL-VIOLATIONS = 0 ở cả 5 dòng
 ```
 
 ### 6.3. Expected Deny Messages
 
-**neg-01-root.yaml** — vi phạm `runAsNonRoot`:
+Nguyên văn theo Rego trong `gatekeeper/ConstraintTemplate/` của repo này (prefix
+`Error from server (Forbidden): admission webhook "validation.gatekeeper.sh" denied the request:`
+ở mọi message, lược bớt bên dưới cho gọn):
+
+**neg-01-root.yaml** — chạy root (`runAsUser: 0`):
 ```
-Error from server (Forbidden): admission webhook "validation.gatekeeper.sh" denied the request:
-[run-as-non-root] Container neg-root is attempting to run without a required
-securityContext/runAsNonRoot or securityContext/runAsUser != 0
+[run-as-non-root] Container neg-root is attempting to run as disallowed user 0.
+Allowed runAsUser: {"rule": "MustRunAsNonRoot"}
 ```
 
-**neg-02-image-latest.yaml** — vi phạm image tag:
+**neg-02-image-latest.yaml** — tag di động:
 ```
-Error from server (Forbidden): admission webhook "validation.gatekeeper.sh" denied the request:
-[deny-floating-image-tag] container <app> uses a disallowed tag <nginx:latest>;
+[deny-floating-image-tag] container <neg-latest> uses a disallowed tag <nginx:latest>;
 disallowed tags are ["latest", "dev", "master", "main", "stable", "edge"]
 ```
 
-**neg-03-missing-resources.yaml** — vi phạm resources:
+**neg-03-missing-resources.yaml** — thiếu resources (ra 2 dòng: limits + requests):
 ```
-Error from server (Forbidden): admission webhook "validation.gatekeeper.sh" denied the request:
-[require-cpu-memory-limits-requests] container <app> does not have <{"cpu", "memory"}> limits defined
-container <app> does not have <{"cpu", "memory"}> requests defined
+[require-cpu-memory-limits-requests] container <neg-noresources> does not have <{"cpu", "memory"}> limits defined
+[require-cpu-memory-limits-requests] container <neg-noresources> does not have <{"cpu", "memory"}> requests defined
+```
+
+**neg-04-privilege-escalation.yaml** — cho phép leo thang đặc quyền:
+```
+[deny-privilege-escalation] Privilege escalation container is not allowed: neg-privesc
+```
+
+**neg-05-added-capabilities.yaml** — add capability nguy hiểm:
+```
+[deny-dangerous-capabilities] Container <neg-caps> đang add capabilities không được phép: {"SYS_ADMIN"}.
+Chỉ được phép: ["NET_BIND_SERVICE"]
 ```
 
 **pos-01-valid.yaml** — manifest hợp lệ:
 ```
-pod/pos-valid created
+pod/pos-01-valid created (server dry run)
 ```
 
-### 6.4. Cleanup Commands
+### 6.4. Cleanup
 
-```bash
-# Xóa pod test (nếu pos-01 đã apply thật)
-kubectl delete pod pos-valid -n techx-tf1 --ignore-not-found
-
-# Xóa toàn bộ nếu dùng namespace riêng
-kubectl delete ns policy-test
-```
+**Không cần cleanup.** Bad pod bị từ chối tại admission → không object nào được tạo.
+Positive test chạy `--dry-run=server` → cũng không tạo pod thật. Namespace `techx-tf1`
+không bị ảnh hưởng bởi bất kỳ bước test nào.
 
 ---
 

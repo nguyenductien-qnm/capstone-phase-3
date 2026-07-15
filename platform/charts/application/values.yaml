@@ -240,7 +240,9 @@ components:
     resources:
       requests:
         cpu: 50m          # CDO-42: cần cho HPA CPU-utilization
+        memory: 128Mi
       limits:
+        cpu: 200m
         memory: 300Mi
 
   cart:
@@ -441,7 +443,9 @@ components:
     resources:
       requests:
         cpu: 50m          # CDO-42: cần cho HPA CPU-utilization
+        memory: 16Mi
       limits:
+        cpu: 100m
         memory: 20Mi
     hpa:
       enabled: true
@@ -468,7 +472,11 @@ components:
       - name: FLAGD_PORT
         value: "8013"
     resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
       limits:
+        cpu: 100m
         memory: 100Mi
 
   fraud-detection:
@@ -503,7 +511,11 @@ components:
       - name: OTEL_INSTRUMENTATION_MESSAGING_EXPERIMENTAL_RECEIVE_TELEMETRY_ENABLED
         value: "true"
     resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
       limits:
+        cpu: 150m
         memory: 300Mi
     initContainers:
       - name: wait-for-kafka
@@ -593,7 +605,9 @@ components:
     resources:
       requests:
         cpu: 100m         # CDO-42: frontend Next.js, hot-path browse -> HPA
+        memory: 128Mi
       limits:
+        cpu: 200m
         memory: 250Mi
     hpa:
       enabled: true
@@ -704,7 +718,9 @@ components:
     resources:
       requests:
         cpu: 100m         # CDO-42: Envoy edge, mọi traffic đi qua -> scale sớm nhất
+        memory: 48Mi
       limits:
+        cpu: 200m
         memory: 65Mi
     hpa:
       enabled: true
@@ -741,7 +757,11 @@ components:
       - name: OTEL_COLLECTOR_HOST
         value: $(OTEL_COLLECTOR_NAME)
     resources:
+      requests:
+        cpu: 50m
+        memory: 32Mi
       limits:
+        cpu: 100m
         memory: 50Mi
 
   load-generator:
@@ -807,7 +827,11 @@ components:
       - name: IPV6_ENABLED
         value: "false"
     resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
       limits:
+        cpu: 100m
         memory: 140Mi
     securityContext:
       runAsUser: 1000  # node
@@ -963,7 +987,11 @@ components:
       - name: IPV6_ENABLED
         value: "false"
     resources:
+      requests:
+        cpu: 50m
+        memory: 32Mi
       limits:
+        cpu: 100m
         memory: 40Mi
     securityContext:
       runAsUser: 33  # www-data
@@ -1000,7 +1028,9 @@ components:
     resources:
       requests:
         cpu: 100m         # CDO-42: gọi mỗi lần render trang -> HPA
+        memory: 128Mi
       limits:
+        cpu: 200m
         memory: 500Mi            # This is high to enable supporting the recommendationCache feature flag use case
     hpa:
       enabled: true
