@@ -213,7 +213,7 @@ variable "valkey_node_type" {
 variable "kafka_version" {
   type        = string
   description = "Phiên bản Apache Kafka của cụm MSK"
-  default     = "3.9.0"
+  default     = "3.9.x"
 }
 
 variable "valkey_num_cache_clusters" {
