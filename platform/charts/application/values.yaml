@@ -702,6 +702,10 @@ components:
       # PHẢI khớp local.origin_hostname trong terraform/environments/sandbox/main.tf.
       # Tên 1 cấp con để khớp cert wildcard *.nguyenductien.cloud (wildcard KHÔNG
       # cover 2 cấp: origin.ecommerce.* sẽ lỗi TLS).
+      # ĐỪNG thêm ecommerce.nguyenductien.cloud vào đây: external-dns (sources:
+      # ingress, policy: upsert-only) sẽ tạo record ecommerce -> ALB, ghi đè alias
+      # trỏ CloudFront -> khách đi thẳng ALB, bỏ qua CDN. upsert-only không xoá
+      # record, nên gỡ host ra cũng không tự khôi phục -> phải sửa tay.
       hosts:
         - host: "origin-ecommerce.nguyenductien.cloud"
           paths:
