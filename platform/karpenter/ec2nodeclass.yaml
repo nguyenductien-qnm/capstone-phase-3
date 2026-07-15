@@ -5,6 +5,8 @@ metadata:
   namespace: kube-system
 spec:
   amiFamily: AL2023
+  amiSelectorTerms:
+    - alias: al2023@latest
   role: ecommerce-dev-eks-karpenter-node  # Khớp aws_iam_role.karpenter_node name trong module EKS
   subnetSelectorTerms:
     - tags:
