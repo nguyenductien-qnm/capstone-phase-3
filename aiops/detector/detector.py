@@ -93,8 +93,19 @@ def eval_metric_rule(rule, prom):
                 method_str.append(f"Static (val={value:.4f} > th={threshold})")
             if dynamic_fired:
                 method_str.append(f"3-Sigma (val={value:.4f} > th_dev={dynamic_threshold:.4f}, mean={sum(history[:-1])/len(history[:-1]):.4f})")
-            
-            msg = f"{rule['summary']} | service={svc} | Detected by: {', '.join(method_str)}"
+
+            # Headline theo LOP phat hien (review 16/07: alert cart 6ms tung mang
+            # headline "p95 > 1s" cua lop static du chi lop 3-sigma keu -> gay hieu nham).
+            # - static keu (co/khong kem 3-sigma): dung summary (vi pham nguong SLO that)
+            # - CHI 3-sigma keu: dung summary_dynamic (lech baseline, CHUA cham nguong)
+            if static_fired:
+                headline = rule["summary"]
+            else:
+                headline = rule.get(
+                    "summary_dynamic",
+                    f"Lệch bất thường so với baseline của chính service (CHƯA chạm ngưỡng {threshold})",
+                )
+            msg = f"{headline} | service={svc} | Detected by: {', '.join(method_str)}"
             alerts.append((dedup_key, msg))
             
     return alerts
@@ -112,9 +123,9 @@ def eval_log_rule(rule, osc):
 
     if count >= rule.get("min_count", 1):
         dedup_key = rule["id"]
-        msg = f"{rule['summary']} | so log khop={count} trong {rule.get('window_minutes', 5)}m"
+        msg = f"{rule['summary']} | số log khớp={count} trong {rule.get('window_minutes', 5)}m"
         if sample:
-            msg += f"\n  vi du log: {str(sample)[:200]}"
+            msg += f"\n  ví dụ log: {str(sample)[:200]}"
         alerts.append((dedup_key, msg))
     return alerts
 
