@@ -14,6 +14,10 @@ RUN python -m venv venv && \
 
 FROM docker.io/library/python:3.12-alpine3.22
 
+# Vá CVE ở package hệ thống của base image (vd CVE-2026-45447 libssl3/libcrypto3).
+# Base image tag không đổi nhưng repo alpine đã có bản vá -> upgrade lúc build.
+RUN apk upgrade --no-cache
+
 COPY --from=build-venv /venv/ /venv/
 
 WORKDIR /app

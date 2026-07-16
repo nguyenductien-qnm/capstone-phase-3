@@ -121,9 +121,9 @@ class TestFallbackRetry(unittest.TestCase):
         self.assertTrue("Không thể tạo tóm tắt" in res.response or "Không thể" in res.response or "tham khảo" in res.response)
 
     def test_scenario_4_dynamic_deadline_fail_fast(self):
-        """4. Dynamic Deadlines Flow: remaining time < 3.0s, fails fast without Bedrock calls."""
+        """4. Dynamic Deadlines Flow: remaining time < fallback timeout, fails fast without Bedrock calls."""
         mock_context = MagicMock()
-        mock_context.time_remaining.return_value = 2.5 # Less than 3s
+        mock_context.time_remaining.return_value = 1.5 # Less than fallback timeout (2s)
 
         res = product_reviews_server.get_ai_assistant_response("PROD123", "Tóm tắt review", context=mock_context)
         self.assertTrue("Không thể tạo tóm tắt" in res.response or "Không thể" in res.response or "tham khảo" in res.response)

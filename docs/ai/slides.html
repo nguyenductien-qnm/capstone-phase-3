@@ -330,8 +330,8 @@ tr:last-child td { border-bottom: none; }
       <div class="card">
         <h3>ADR-004: Định Tuyến Lai &amp; Fallback</h3>
         <ul class="bullet-list" style="margin-top: 10px;">
-          <li>Tác vụ Reviews: **Nova Lite** -> Fallback: **Nova Micro** | Timeout: **2.0s**.</li>
-          <li>Tác vụ Copilot: **Amazon Nova Pro** -> Fallback: **Amazon Nova Lite** | Timeout: **5.0s**.</li>
+          <li>Tác vụ Reviews: **Nova Lite** -> Fallback: **Nova Micro** | Timeout: **4.0s / 2.0s** theo P95 đo thật.</li>
+          <li>Tác vụ Copilot: **Amazon Nova Pro** -> Fallback: **Amazon Nova Lite** | Timeout: **5.7s / 2.5s** theo P95 đo thật.</li>
           <li>Mã lỗi kích hoạt fallback: 429 (rate-limit), 500 (server error), timeout.</li>
           <li>Đặc tính: rẻ ~50× Claude Sonnet ($0.06/$0.24 vs $3/$15 per 1M token) — &lt;0.4% trần $300/tuần ở mọi mức tải. <em>(Sửa 12/07: bỏ claim cấn trừ credit — chưa verify với loại credit BTC; nhóm đã chốt không dùng Claude.)</em></li>
         </ul>

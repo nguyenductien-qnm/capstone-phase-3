@@ -223,7 +223,22 @@ components:
     initContainers:
       - name: wait-for-kafka
         image: busybox:1.38.0   # Pinned: do NOT use :latest — breaks reproducibility.
-        command: ["sh", "-c", "until nc -z -v -w30 b-1.ecommercedevmsk.61s37h.c4.kafka.us-east-1.amazonaws.com 9096; do echo waiting for kafka; sleep 2; done;"]
+        # Broker lấy từ msk-secret (ESO sync từ Secrets Manager) — KHÔNG hardcode:
+        # MSK tạo lại thì AWS cấp ID mới, hostname cũ chết DNS -> init loop vô hạn.
+        env:
+          - name: KAFKA_ADDR
+            valueFrom:
+              secretKeyRef:
+                name: msk-secret
+                key: brokers_sasl_scram
+        command:
+          - sh
+          - -c
+          - |
+            # brokers_sasl_scram = "host1:9096,host2:9096" -> lấy broker đầu tiên
+            broker=$(echo "$KAFKA_ADDR" | cut -d, -f1)
+            host=${broker%:*}; port=${broker##*:}
+            until nc -z -v -w30 "$host" "$port"; do echo waiting for kafka; sleep 2; done
         securityContext:
           runAsUser: 1000
           runAsNonRoot: true
@@ -448,7 +463,22 @@ components:
     initContainers:
       - name: wait-for-kafka
         image: busybox:1.38.0   # Pinned: do NOT use :latest — breaks reproducibility.
-        command: ["sh", "-c", "until nc -z -v -w30 b-1.ecommercedevmsk.61s37h.c4.kafka.us-east-1.amazonaws.com 9096; do echo waiting for kafka; sleep 2; done;"]
+        # Broker lấy từ msk-secret (ESO sync từ Secrets Manager) — KHÔNG hardcode:
+        # MSK tạo lại thì AWS cấp ID mới, hostname cũ chết DNS -> init loop vô hạn.
+        env:
+          - name: KAFKA_ADDR
+            valueFrom:
+              secretKeyRef:
+                name: msk-secret
+                key: brokers_sasl_scram
+        command:
+          - sh
+          - -c
+          - |
+            # brokers_sasl_scram = "host1:9096,host2:9096" -> lấy broker đầu tiên
+            broker=$(echo "$KAFKA_ADDR" | cut -d, -f1)
+            host=${broker%:*}; port=${broker##*:}
+            until nc -z -v -w30 "$host" "$port"; do echo waiting for kafka; sleep 2; done
         securityContext:
           runAsUser: 1000
           runAsNonRoot: true
@@ -556,7 +586,22 @@ components:
     initContainers:
       - name: wait-for-kafka
         image: busybox:1.38.0   # Pinned: do NOT use :latest — breaks reproducibility.
-        command: ["sh", "-c", "until nc -z -v -w30 b-1.ecommercedevmsk.61s37h.c4.kafka.us-east-1.amazonaws.com 9096; do echo waiting for kafka; sleep 2; done;"]
+        # Broker lấy từ msk-secret (ESO sync từ Secrets Manager) — KHÔNG hardcode:
+        # MSK tạo lại thì AWS cấp ID mới, hostname cũ chết DNS -> init loop vô hạn.
+        env:
+          - name: KAFKA_ADDR
+            valueFrom:
+              secretKeyRef:
+                name: msk-secret
+                key: brokers_sasl_scram
+        command:
+          - sh
+          - -c
+          - |
+            # brokers_sasl_scram = "host1:9096,host2:9096" -> lấy broker đầu tiên
+            broker=$(echo "$KAFKA_ADDR" | cut -d, -f1)
+            host=${broker%:*}; port=${broker##*:}
+            until nc -z -v -w30 "$host" "$port"; do echo waiting for kafka; sleep 2; done
         securityContext:
           runAsUser: 1000
           runAsNonRoot: true
@@ -980,6 +1025,10 @@ components:
         value: us-east-1
       - name: AWS_BEDROCK_MODEL
         value: amazon.nova-lite-v1:0
+      - name: LLM_REVIEWS_TIMEOUT
+        value: "4.0"
+      - name: LLM_REVIEWS_FALLBACK_TIMEOUT
+        value: "2.0"
       - name: LLM_HOST
         value: llm
       - name: LLM_PORT
@@ -1116,6 +1165,16 @@ components:
         value: techx-llm
       - name: OPENAI_API_KEY
         value: dummy
+      - name: AWS_REGION
+        value: us-east-1
+      - name: LLM_COPILOT_MAIN_MODEL
+        value: amazon.nova-pro-v1:0
+      - name: LLM_COPILOT_FALLBACK_MODEL
+        value: amazon.nova-lite-v1:0
+      - name: LLM_COPILOT_TIMEOUT
+        value: "5.7"
+      - name: LLM_COPILOT_FALLBACK_TIMEOUT
+        value: "2.5"
       - name: PRODUCT_CATALOG_ADDR
         value: product-catalog:8080
       - name: CART_ADDR
