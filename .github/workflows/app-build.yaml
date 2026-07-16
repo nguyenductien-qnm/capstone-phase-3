@@ -414,5 +414,20 @@ jobs:
           git config user.email "${APP_SLUG}[bot]@users.noreply.github.com"
           git add "$TAGS_FILE"
           git commit -m "ci(app): bump image tags -> $(git rev-parse --short HEAD) [skip ci]"
-          git push origin "HEAD:${BRANCH_NAME}"
-          echo "✅ Bumped & pushed lên $BRANCH_NAME — ArgoCD sẽ selfHeal sync."
+
+          # Job này checkout branch lúc bắt đầu run rồi build vài phút mới push. Merge
+          # tiếp theo trong khoảng đó làm branch tiến lên -> push non-fast-forward bị
+          # từ chối (đúng: push thẳng sẽ nuốt mất commit của run kia). Rebase rồi thử
+          # lại: mỗi run chỉ sửa key của service mình trong TAGS_FILE nên không đụng
+          # nhau, chỉ là cùng chạm một file.
+          for attempt in 1 2 3 4 5; do
+            if git push origin "HEAD:${BRANCH_NAME}"; then
+              echo "✅ Bumped & pushed lên $BRANCH_NAME — ArgoCD sẽ selfHeal sync."
+              exit 0
+            fi
+            echo "⚠️ Push bị từ chối (lần $attempt) — có commit mới trên $BRANCH_NAME, rebase rồi thử lại."
+            git pull --rebase origin "$BRANCH_NAME"
+          done
+
+          echo "::error::Push thất bại sau 5 lần rebase — $BRANCH_NAME đang bị ghi quá nhanh."
+          exit 1

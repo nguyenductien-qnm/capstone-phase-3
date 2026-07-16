@@ -25,6 +25,17 @@ exclusions:
     cves: ["CVE-2026-28387", "CVE-2026-42245"]
     review_by: "2026-08-16"
 
+  - service: fraud-detection
+    # Khác các entry kia: CVE Java (netty/jackson) ĐÃ vá bằng BOM trong build.gradle.kts,
+    # chỉ còn CVE tầng OS chặn. gcr.io/distroless/java17-debian12 đứng im ở openjdk
+    # 17.0.18 + liblcms2 2.14-2 dù Debian đã phát hành deb12u2/deb12u1 -> không tag nào
+    # sạch, mà distroless không có package manager để apt-get upgrade. Chờ Google rebuild.
+    # Bỏ hoãn: scan lại base, hết CVE thì xóa entry (KHÔNG đổi base sang temurin —
+    # team giữ distroless để không có shell trong image).
+    reason: "CVE-2026-22016/34282 (openjdk-17-jre-headless, HIGH) + CVE-2026-41254 (liblcms2, HIGH) - base distroless chưa rebuild với bản vá Debian, image không có package manager để tự vá"
+    cves: ["CVE-2026-22016", "CVE-2026-34282", "CVE-2026-41254"]
+    review_by: "2026-08-16"
+
   - service: frontend
     reason: "CVE-2026-28387 (libssl3, HIGH) - OpenSSL DANE TLSA use-after-free, upstream chưa có bản vá"
     cves: ["CVE-2026-28387"]
