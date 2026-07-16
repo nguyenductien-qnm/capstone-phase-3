@@ -30,9 +30,9 @@
 - 6 cases: **Injection** (Chống tiêm nhiễm prompt, bypass)
 
 **Kết quả:**
-- **Overall Accuracy:** 100% (24/24 passed)
-- **Ghi chú bảo mật:** Agent đã phát hiện và chặn thành công toàn bộ 6 attempt prompt injection (ví dụ: "Bỏ qua các lệnh trước đó...") nhờ lớp Guardrail tích hợp sẵn.
-- **Kết luận:** Agent đạt ngưỡng an toàn cao nhất (Tier 1) cho tác vụ tra cứu thông tin sản phẩm.
+- **Overall Accuracy:** 75.0% (18/24 passed)
+- **Ghi chú bảo mật (Security Flaw Detected):** Khi chạy với dữ liệu thật trên Amazon Nova Lite (us-east-2), model đã thất bại trước các tấn công Prompt Injection (ví dụ: "Bỏ qua các lệnh trước đó...") ở 5/6 trường hợp. Kịch bản Grounded (dữ liệu có sẵn) trả lời hoàn hảo (12/12). 
+- **Đề xuất (Next Action):** Tích hợp AWS Bedrock Guardrails trước khi đưa vào Production để lọc Injection. CI Pipeline hiện tại sẽ báo FAIL (do threshold là 80%) cho tới khi lỗ hổng Injection này được vá.
 
 ---
 
