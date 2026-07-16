@@ -50,7 +50,7 @@ sequenceDiagram
 
 | Thành phần | Vai trò & Trách nhiệm | Lựa chọn Công nghệ | Lý do lựa chọn & Tối ưu hóa |
 |---|---|---|---|
-| **Caching Store** | Lưu trữ tạm thời các bản tóm tắt review dưới định dạng JSON để tránh gọi LLM nhiều lần | **Valkey (Redis-compatible)** | - Tương thích giao thức Redis, tốc độ đọc/ghi in-memory cực nhanh (< 2ms).<br>- **Tối ưu hóa chi phí:** Tận dụng cụm `valkey-cart:6379` sẵn có chạy trong cluster EKS của nhóm CDO, không phát sinh chi phí duy trì cụm cache độc lập. *(Lưu ý: con số "~$30/tuần" chỉ áp dụng cho phương án **ElastiCache managed** — xem ADR-001 Option A. Một pod Valkey thứ hai in-cluster gần như không tốn thêm chi phí; xem đính chính ở ADR-003 Option 2.)* |
+| **Caching Store** | Lưu trữ tạm thời các bản tóm tắt review dưới định dạng JSON để tránh gọi LLM nhiều lần | **Valkey (Redis-compatible)** | - Tương thích giao thức Redis, tốc độ đọc/ghi in-memory cực nhanh (< 2ms).<br>- **Tối ưu hóa chi phí:** Dùng chung backend cache với cart của CDO, không duy trì cụm cache độc lập. **[CẬP NHẬT 14/07]** backend đã là **ElastiCache Valkey managed** (CDO migrate, `terraform/modules/elasticache/`) thay cho pod `valkey-cart` in-cluster — xem mục 3.2 Trạng thái 14/07. *(Lưu ý lịch sử: con số "~$30/tuần" trước đây áp cho phương án ElastiCache managed — xem ADR-001 Option A — nay chính là phương án đang chạy, chi phí do CDO quản trong trần budget.)* |
 | **Reviews Service** | Tiếp nhận yêu cầu, kiểm tra feature flag, thực hiện kiểm tra cache, gọi LLM khi cache miss và cập nhật cache | **Python (gRPC Service)** | Service `product-reviews` hiện tại viết bằng Python, dễ dàng tích hợp thư viện `redis-py` hoặc `valkey` client. |
 | **Feature Flag Server** | Cung cấp cờ tắt/bật bypass cache động thời gian thực | **OpenFeature / Flagd** | Có sẵn trong kiến trúc hạ tầng, cho phép tắt cache ngay lập tức khi phát hiện lỗi dữ liệu mà không cần restart/redeploy service. |
 
@@ -79,7 +79,8 @@ sequenceDiagram
 - **Eviction Policy (Chính sách giải phóng bộ nhớ) & Giải pháp Bảo vệ Giỏ hàng (Option 1):**
   - Cấu hình eviction policy của cụm Valkey là `volatile-lru`.
   - Để tránh việc giỏ hàng (khi đó còn TTL mặc định 60m trong code) bị xóa nhầm khi RAM đầy, nhóm đã **loại bỏ hoàn toàn TTL của giỏ hàng trong code C# (`ValkeyCartStore.cs`)**. Khi không có TTL, key giỏ hàng trở thành key vĩnh viễn (non-volatile) và được Valkey bảo vệ an toàn 100% khỏi cơ chế tự động eviction.
-  - **Trạng thái 13/07:** ⏪ **TTL cart KHÔI PHỤC 60m (baseline)** — ADR-003 chưa chốt, review J1 chỉ ra gỡ TTL + volatile-lru-không-maxmemory = nguy cơ OOMKill mất giỏ (checkout SLO). Giữ TTL an toàn cho tới khi CDO chốt hướng (maxmemory + tách instance). `ValkeyCartStore.cs:177,205` đã bật lại `KeyExpireAsync(60m)`.
+  - **Trạng thái 13/07:** ⏪ **TTL cart KHÔI PHỤC 60m (baseline)** — ADR-003 chưa chốt, review J1 chỉ ra gỡ TTL + volatile-lru-không-maxmemory = nguy cơ OOMKill mất giỏ (checkout SLO). Giữ TTL an toàn cho tới khi CDO chốt hướng (maxmemory + tách instance). `ValkeyCartStore.cs:188,216` đã bật lại `KeyExpireAsync(60m)`.
+  - **Trạng thái 14/07:** ✅ **J1 đóng — backend cache chuyển sang ElastiCache Valkey managed** (CDO migrate: `terraform/modules/elasticache/`, TLS + auth token, failover; pod `valkey-cart` in-cluster đã `enabled: false`). Kịch bản OOMKill theo cgroup 20Mi không còn; `maxmemory-policy` theo parameter group mặc định của ElastiCache (`volatile-lru`, chờ CDO xác nhận khi co-sign). TTL cart 60m giữ nguyên. Chi tiết: ADR-003 addendum 14/07 trong `05_adrs.md`; tracked TF1-68.
   - Thiết lập một **background CronJob** chạy lúc 2h sáng hàng ngày để chủ động quét dọn (`SCAN`) các giỏ hàng rác đã quá 30 ngày không có hoạt động, tránh làm rò rỉ và nghẽn bộ nhớ.
 
 

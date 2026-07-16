@@ -7,10 +7,11 @@
 
 | Service | Chạy ở đâu | Đọc | Ghi | Đụng OpenSearch? |
 |---|---|---|---|---|
-| `product-reviews` (AI summary path) | Pod in-cluster, gRPC `:3551` | PostgreSQL `reviews.productreviews` (50 dòng), `catalog.products` (10 dòng); Bedrock API; flagd | Valkey cache (≤10 key, mỗi key ~1KB JSON) | **Không** — chỉ *phát* log/trace/metric qua OTel collector như mọi service khác |
+| `product-reviews` (AI summary path) | Pod in-cluster, gRPC `:3551` | Amazon RDS PostgreSQL 16.14 `reviews.productreviews` (50 dòng), `catalog.products` (10 dòng); Bedrock API; flagd | Amazon ElastiCache Valkey (≤10 key, mỗi key ~1KB JSON) | **Không** — chỉ *phát* log/trace/metric qua OTel collector như mọi service khác |
 | `aiops/detector` | 1 pod nhỏ (poll loop) | Prometheus (3 rule PromQL) + **OpenSearch (5 rule log)** | Webhook Slack/Discord (alert) | **Có — consumer OpenSearch duy nhất của nhóm AI** |
 | `aiops/log_clustering` (Drain3) | CronJob batch | Log text thô (hiện đọc qua OpenSearch) | Template/cluster report | **Có** — chỉ cần đọc raw lines theo khoảng thời gian |
-| Shopping Copilot (tuần 2+) | Pod mới | `product-catalog`, `product-reviews`, `cart` qua gRPC; Bedrock | — | **Không** |
+| `shopping-copilot` | Pod in-cluster, gRPC `:50051` | `product-catalog`, `product-reviews`, `cart` qua gRPC; Bedrock API; flagd (`llmModelRouting`) | — | **Không** |
+| `recommendation` | Pod in-cluster, gRPC `:8080` | PostgreSQL (`catalog` schema với `pgvector`), flagd (`aiRecommendationsEnabled`) | — | **Không** |
 
 Kết luận nhanh cho CDO: **toàn bộ phụ thuộc OpenSearch của tầng AI nằm gọn trong 2 tool AIOps, qua đúng 2 kiểu truy vấn** — không có phụ thuộc ẩn.
 
@@ -37,7 +38,8 @@ Kiểu 2 — đọc batch raw lines theo khoảng thời gian (Drain3, 1 lần/c
 - Dashboard riêng (đã dùng Grafana).
 - Realtime/streaming: **không cần** — vì sao: MTTD = ingest lag (2.1s, đo) + gom min_count + offset poll (≤30s); stream chỉ xoá được vế poll (~15–30s) mà không bỏ được logic cửa sổ 5 phút, trong khi MTTD hiện tại (max 35.4s) đã pass target 2 phút với biên 3.4× — đổi 1 consumer service chạy 24/7 (state, reconnect, thêm điểm hỏng, thêm RAM trong trần $300) lấy ~30s không có giá trị theo đề. Poll stateless, 0.08% duty (đo).
 - Retention dài: **detection chỉ cần 5 phút dữ liệu** — không phải ý kiến: mọi rule log trong `rules.yaml` query đúng `now-5m`, detector không bao giờ đọc cũ hơn. RCA lookback 24–72h là trần thực tế vì: SLO đo rolling **24h** (SLO.md) → mọi câu hỏi vỡ-SLO chỉ cần 24h; Ops Review tuần dùng metrics tổng hợp Prometheus (giữ riêng), không cần raw log; kịch bản xa nhất là sự cố tối thứ 6 đào lại sáng thứ 2 ≈ 60h → trần 72h. Thứ giữ lâu là kết luận (postmortem/ADR/template), không phải raw log. Tiền: 220MB/ngày × 3d ≈ 660MB vs 30d ≈ 6.6GB — gấp 10 storage cho dữ liệu không ai mở. **Phạm vi: 3 ngày đủ cho nhu cầu AI** — nhu cầu audit/compliance của CDO (nếu có) cộng riêng.
-- Vector search (đề xuất semantic search pgvector đã bị review đánh giá là thừa với catalog 10 sản phẩm — `03_specs/semantic_search.md` (banner DEFERRED + phụ lục)).
+- Data list/get product (API hiện tại đủ cho intent "chi tiết sản phẩm").
+- Vector search: **[YÊU CẦU QUAN TRỌNG]** CDO cần bật `CREATE EXTENSION vector;` trên RDS 16.14 và cấp bảng `product_embeddings`. AI sẽ dùng pgvector để thực hiện Semantic Search đạt chuẩn Enterprise.
 
 ### 2.3 Volume & độ trễ (số đo)
 
@@ -99,10 +101,11 @@ Có dùng — đúng 2 consumer: `aiops/detector` (5 rule log, phrase-count cử
 | Flags (flagd) | product-reviews, copilot | `llmReviewsFallbackEnabled`, `llmReviewsCacheEnabled` (+ cờ sự cố BTC) | ✅ |
 
 **Q3. Requirement service để deploy AI (Bedrock, AgentCore...)?**
-- **Bedrock runtime** (`bedrock-runtime`, us-east-1): models `amazon.nova-lite-v1:0`, `nova-micro-v1:0` (reviews), `nova-pro-v1:0` (copilot W2). **Cần CDO cấp IAM `bedrock:InvokeModel`** qua IRSA cho serviceAccount `product-reviews` (sau này thêm `shopping-copilot`) hoặc node role — **đang thiếu, là blocker deploy thật duy nhất từ phía hạ tầng.**
-- **KHÔNG cần**: AgentCore/Bedrock Agents (copilot tự dựng tool-calling qua Converse API — zero managed-agent cost), Knowledge Bases/OpenSearch Serverless (đã loại — catalog 10 sản phẩm, xem `03_specs/semantic_search.md` phụ lục), GPU/SageMaker.
-- Env/flag mới cho chart: xem bảng trong `../shared/integration-contracts/product-reviews-integration.md` phụ lục 12/07 (cần CDO re-sign).
+- **Bedrock runtime** (`bedrock-runtime`, us-east-1): models `amazon.nova-lite-v1:0`, `nova-micro-v1:0` (reviews), `nova-pro-v1:0` (copilot W2). **Cần CDO cấp IAM `bedrock:InvokeModel`** qua IRSA cho serviceAccount `product-reviews` và `shopping-copilot` hoặc node role.
+- **KHÔNG cần**: AgentCore/Bedrock Agents (copilot tự dựng tool-calling qua Converse API — zero managed-agent cost), Knowledge Bases/OpenSearch Serverless (đã loại — xem `03_specs/semantic_search.md`).
+- **PostgreSQL pgvector**: Cấp quyền `CREATE EXTENSION vector` cho schema `catalog` để service `recommendation` thực thi tìm kiếm vector cosine similarity.
 - Copilot W2: pod mới gRPC `:50051`, envoy route + cluster đã có trong `envoy.tmpl.yaml`; chart để `enabled: false` tới khi có image.
+- Recommendation W2: pod mới gRPC `:8080`, sử dụng `pgvector` và `flagd`.
 
 **Q4. Chỉnh lại structure code bên AI — ĐÃ LÀM (12/07):**
 - Root repo: 6 file copilot PoC + `database.db` rải ở root → gom về **`copilot-poc/`** (kèm README); `__pycache__` bị commit → gỡ khỏi git + `.gitignore` thêm `__pycache__/`, `*.pyc`, `*.db`.
@@ -119,7 +122,7 @@ Requirement AI cực nhỏ → OS không cần config mặc định: 1 node, hea
 **Bước 2 — chỉ khi bóp vẫn vượt: Loki song song 24h, so táo-với-táo.**
 Loki index label-only (RAM/EBS thấp hơn full-text), OTLP native (collector thêm `otlphttp`), detector ~50 dòng adapter. Chạy song song OS-đã-bóp 24h, đo cùng lúc RAM/CPU/EBS + script MTTD/ingest của AI trên cả hai. **Chọn Loki chỉ khi rẻ hơn đủ bù migration.** (VictoriaLogs = dự phòng nhẹ hơn, ecosystem non hơn.)
 
-**Bước 3 — vector store: KHÔNG đụng bây giờ.** DEFERRED (catalog 10 sản phẩm); loại khỏi phép so tuần này. Khi thật làm semantic search (scale >~500) mới mở, cân pgvector (PostgreSQL sẵn có) trước.
+**Bước 3 — Vector store: LÀM NGAY (Áp dụng pgvector).** Quyết định cũ đã bị lật lại. Yêu cầu tích hợp pgvector vào RDS để chạy Semantic Search chuẩn Enterprise.
 
 **Ai làm gì:** AI xong phần mình (requirement + script + cam kết không lock-in). CDO chạy bước 1→2, cần AI cấp gì thì AI hỗ trợ. AI không chọn backend — trụ cost là của CDO.
 
@@ -141,7 +144,7 @@ Requirement của tầng AI với log backend (đo được, không phải ý mu
 
 **Nguyên tắc 2 — TÁCH log storage khỏi vector store, giải riêng từng cái.**
 - **Vế log storage (bài toán HIỆN TẠI, cần chốt tuần này):** chỉ là 2 requirement (a)(b) ở trên. Vector search **KHÔNG thuộc vế này** — đừng gom vào để "chọn OpenSearch cho tiện cả hai".
-- **Vế vector store (bài toán TƯƠNG LAI, chưa tồn tại):** semantic search hiện **DEFERRED** — catalog 10 sản phẩm, intent tìm-sản-phẩm giải bằng catalog-in-prompt, chưa cần vector store nào (xem `03_specs/semantic_search.md`). Khi nào thật sự làm semantic search (trigger: catalog scale >~500) mới mở vế này, và lúc đó cân pgvector (đã có PostgreSQL) vs OpenSearch Vector vs khác — **quyết riêng, bằng requirement của lúc đó.**
+- **Vế vector store (Bài toán HIỆN TẠI):** Semantic search chính thức áp dụng **pgvector** trên PostgreSQL (xem `03_specs/semantic_search.md`). Phương án catalog-in-prompt bị loại bỏ. Yêu cầu CDO hỗ trợ cấp quyền chạy `pgvector` trên RDS để đảm bảo kiến trúc đạt chuẩn Well-Architected.
 - **Chỉ hợp nhất SAU khi cả hai vế finalize độc lập:** nếu lúc đó thấy một service làm tốt cả hai với cost thấp hơn 2 service riêng thì mới gộp. Không gộp trước vì "cho tiện" — đó là cách sinh ra over-provisioning.
 
 **Hệ quả cụ thể cho quyết định OpenSearch tuần này:**
