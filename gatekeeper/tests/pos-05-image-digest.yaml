@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pos-image-digest
+  namespace: techx-tf1
+spec:
+  containers:
+    - name: pos-image-digest
+      # Hợp lệ: dùng image digest cố định thay cho tag (không phải floating tag)
+      image: public.ecr.aws/docker/library/nginx@sha256:0000000000000000000000000000000000000000000000000000000000000000
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          cpu: 100m
+          memory: 128Mi
+      securityContext:
+        runAsUser: 1000
+        runAsNonRoot: true
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+# Kỳ vọng: deny-floating-image-tag -> PASS (digest chứa ":" nên không rơi vào nhánh "no tag",
+#          và không khớp bất kỳ tag cấm nào).
+# Lưu ý: digest ở trên chỉ để test policy, KHÔNG phải digest thật để chạy container.
