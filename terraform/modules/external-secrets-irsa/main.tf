@@ -55,6 +55,20 @@ data "aws_iam_policy_document" "read_secrets" {
     # có thể chưa tồn tại khi enable_rds_proxy=false).
     resources = compact(var.secret_arns)
   }
+
+  # Đọc secret cần HAI quyền: secretsmanager:GetSecretValue để lấy dữ liệu, và
+  # kms:Decrypt để giải mã. Secret của MSK được mã hoá bằng KMS key RIÊNG (module
+  # msk tự tạo aws_kms_key.msk) — key riêng không tự cho ai cả, phải cấp tường minh.
+  # RDS/Valkey dùng key mặc định aws/secretsmanager (cho phép mọi principal trong
+  # account) nên không cần liệt kê -> chỉ msk-secret lỗi "Access to KMS is not allowed".
+  dynamic "statement" {
+    for_each = length(compact(var.kms_key_arns)) > 0 ? [1] : []
+    content {
+      effect    = "Allow"
+      actions   = ["kms:Decrypt"]
+      resources = compact(var.kms_key_arns)
+    }
+  }
 }
 
 resource "aws_iam_role_policy" "read_secrets" {

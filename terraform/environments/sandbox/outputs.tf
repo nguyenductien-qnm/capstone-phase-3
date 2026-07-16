@@ -119,6 +119,21 @@ output "eks_ebs_csi_role_arn" {
   value       = module.eks.ebs_csi_role_arn
 }
 
+output "eks_karpenter_controller_role_arn" {
+  description = "Pod Identity IAM role cho Karpenter controller"
+  value       = module.eks.karpenter_controller_role_arn
+}
+
+output "eks_karpenter_node_role_name" {
+  description = "IAM role name cho Karpenter-managed EC2 nodes"
+  value       = module.eks.karpenter_node_role_name
+}
+
+output "eks_karpenter_node_instance_profile_name" {
+  description = "Instance profile name cho Karpenter EC2NodeClass"
+  value       = module.eks.karpenter_node_instance_profile_name
+}
+
 output "eks_update_kubeconfig_command" {
   description = "Lệnh cấu hình kubectl sau khi đăng nhập AWS SSO"
   value       = "aws eks update-kubeconfig --region ${var.aws_region} --name ${module.eks.cluster_name}"

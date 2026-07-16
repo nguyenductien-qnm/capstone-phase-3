@@ -55,7 +55,8 @@ resource "aws_subnet" "private_app" {
       Project                           = var.project_name
       "kubernetes.io/role/internal-elb" = "1"
     },
-    var.private_subnet_tags
+    var.private_subnet_tags,
+    var.private_app_subnet_tags
   )
 }
 
