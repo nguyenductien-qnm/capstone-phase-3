@@ -26,7 +26,7 @@ components:
       tag: 1.0-accounting-cd0ee9b
   product-reviews:
     imageOverride:
-      tag: 1.0-product-reviews-cd0ee9b
+      tag: 1.0-product-reviews-1158bb8
   llm:
     imageOverride:
       tag: 1.0-llm-cd0ee9b
