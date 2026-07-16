@@ -137,7 +137,8 @@
   >
   > *Quyết định đầu tiên (ADR-004): chuyển toàn bộ sang Amazon Nova. Với giá rẻ ~50×, chi phí xuống **$9.66/tuần không cache, dưới $1/tuần có cache — dưới 0.4% trần $300**. Điểm mạnh: lập luận này đứng vững **bằng giá niêm yết, không cần giả định gì về credit** — dù account có credit AWS hay không, con số vẫn không đáng kể so với trần. Nếu Nova đủ điều kiện credit thì càng rẻ thêm, nhưng chúng tôi không dựng cam kết trên đó.*
   >
-  > *Quyết định thứ hai — Valkey Caching (ADR-001) — tái sử dụng cụm `valkey-cart` sẵn có của CDO nên chi phí hạ tầng phát sinh ~$0. Tôi xin nói thẳng để không thổi phồng: sau khi chuyển sang Nova, token chỉ còn ~$9.66/tuần ngay cả khi không cache. Cache kéo xuống dưới $1/tuần, **nhưng đó không phải lý do chính đáng để làm cache** — lý do chính đáng là latency (~2–4s xuống dưới 50ms), câu chuyện của PM. Với ngài, cam kết gọn: **tầng AI tốn dưới 0.4% trần chi phí, phần còn lại nguyên vẹn cho compute của CDO.**"*
+  > *(Ghi chú 14/07 — cập nhật trước khi pitch lại: backend cache giờ là **ElastiCache Valkey managed** do CDO vận hành, không còn pod `valkey-cart` in-cluster; luận điểm "AI không phát sinh chi phí hạ tầng cache riêng" vẫn đứng — nhóm AI dùng chung instance của CDO.)*
+  > *Quyết định thứ hai — Valkey Caching (ADR-001) — tái sử dụng hạ tầng cache sẵn có của CDO nên chi phí hạ tầng phát sinh ~$0. Tôi xin nói thẳng để không thổi phồng: sau khi chuyển sang Nova, token chỉ còn ~$9.66/tuần ngay cả khi không cache. Cache kéo xuống dưới $1/tuần, **nhưng đó không phải lý do chính đáng để làm cache** — lý do chính đáng là latency (~2–4s xuống dưới 50ms), câu chuyện của PM. Với ngài, cam kết gọn: **tầng AI tốn dưới 0.4% trần chi phí, phần còn lại nguyên vẹn cho compute của CDO.**"*
 
 ### 👤 3. SRE Lead: "Rủi ro kỹ thuật là gì? Nhỡ code của các bạn làm sập hệ thống hoặc gây lỗi dây chuyền thì sao?"
 * **Lập luận bảo vệ:**
@@ -157,3 +158,8 @@
 2. **Số latency trình bày:** "2.5s" chưa đo — theo Artificial Analysis (TTFT 1.04s, 175.7 tok/s), luồng tóm tắt 2 vòng converse ≈ **4.4s điển hình** khi chưa cache; giá trị cache vẫn nguyên (→ <50ms) nhưng con số trước-cache phải nói là ước từ benchmark, chờ đo thật trên Bedrock (script `docs/ai/evals/measure_bedrock_latency.py` sẵn, cần AWS creds).
 3. **Số AIOps có evidence mới cho slide 5:** MTTD đo thật (chaos flagd, 5 vòng): **max 35.4s với poll 30s** — dưới 1 phút như ADR-007 hứa, tiêu ~0.5% error budget/ngày. Nguồn: `docs/ai/evals/measure_detection_pipeline.py`.
 
+# PHỤ LỤC CẬP NHẬT 15/07/2026 — Kết thúc Tuần 2 (Code Freeze)
+Tất cả các tính năng "chưa cắm vào code, sẽ làm ở Tuần 2" **đã được triển khai hoàn tất trên nhánh `feat/TF1-57-59-68`**:
+1. **Shopping Copilot**: Đã hoàn tất 3 intent, tích hợp Guardrails (PII, Prompt Injection, Hallucination) và cơ chế Action Gate (MANDATE-06). Đã viết Unit Test và Evals đầy đủ (MOCK mode).
+2. **Model Gateway**: Đã hoàn thiện chức năng A/B Testing, chia luồng % traffic dựa trên flagd OpenFeature.
+3. **AI Recommendations**: Thành công thay thế random mock bằng tính năng Semantic Search thật thông qua `pgvector` và Cosine Similarity trên PostgreSQL (hạng mục Đua Top xuất sắc).

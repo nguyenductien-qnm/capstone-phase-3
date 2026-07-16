@@ -199,11 +199,14 @@ rules:
     type: metric
     severity: warning
     summary: "DRAFT K4: container memory > 85% limit trong 10m - nguy co OOMKill (valkey-cart/J1, INC-2)"
+    # Label `namespace` o day la NAMESPACE K8S (techx-tf1 tren EKS - xem
+    # platform/gitops/applications/application.yaml:31), KHONG phai service_namespace
+    # cua OTel (techx-corp). Hai label khac nguon, dung nham la rule cau 0 series.
     query: >-
       max by (container) (
-        avg_over_time(container_memory_working_set_bytes{namespace="techx-corp"}[10m])
+        avg_over_time(container_memory_working_set_bytes{namespace="techx-tf1"}[10m])
         /
-        clamp_min(kube_pod_container_resource_limits{namespace="techx-corp", resource="memory"}, 1)
+        clamp_min(kube_pod_container_resource_limits{namespace="techx-tf1", resource="memory"}, 1)
       )
     op: gt
     threshold: 0.85
@@ -217,7 +220,8 @@ rules:
     # ten metric `kafka_consumer_group_lag` la GIA DINH, PHAI verify tren Prometheus EKS + kafka exporter
     # truoc khi tin (TF1-71). Giu DRAFT, khong bat production cho toi khi verify.
     summary: "DRAFT: Kafka consumer lag > 1000 msg trong 10m - consumer tut hau, don hang xu ly cham"
+    # namespace = namespace K8s (techx-tf1), cung ly do voi rule memory-saturation-high.
     query: >-
-      max by (group) (avg_over_time(kafka_consumer_group_lag{namespace="techx-corp"}[10m]))
+      max by (group) (avg_over_time(kafka_consumer_group_lag{namespace="techx-tf1"}[10m]))
     op: gt
     threshold: 1000

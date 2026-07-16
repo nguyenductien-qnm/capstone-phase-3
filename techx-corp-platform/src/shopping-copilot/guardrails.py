@@ -81,7 +81,9 @@ def _build_prompt_keywords(system_prompt: str, n: int = 5, min_len: int = 20) ->
     Chỉ lấy phrase từ các từ hoàn chỉnh (không cắt giữa từ), bỏ qua dấu câu đơn lẻ.
     Không hardcode — derive hoàn toàn từ system_prompt thật.
     """
-    words = system_prompt.split()
+    # Normalization: Clean punctuation to avoid mismatch on different dashes/dashes removal
+    cleaned_prompt = re.sub(r'[^\w\s]', ' ', system_prompt.lower())
+    words = cleaned_prompt.split()
     if not words:
         return []
 
@@ -89,6 +91,12 @@ def _build_prompt_keywords(system_prompt: str, n: int = 5, min_len: int = 20) ->
     total = len(words)
     chunk = max(1, total // n)
     keywords = []
+
+    # Luôn thêm 10 từ đầu tiên của prompt làm signature (nhận diện leak dòng giới thiệu đầu tiên)
+    first_phrase = " ".join(words[:10]).strip()
+    if len(first_phrase) >= min_len:
+        keywords.append(first_phrase)
+
     for i in range(n):
         start = i * chunk
         end = min(start + chunk, total)
@@ -97,7 +105,7 @@ def _build_prompt_keywords(system_prompt: str, n: int = 5, min_len: int = 20) ->
         mid = max(0, (len(segment) - min_len) // 2)
         phrase = segment[mid: mid + min_len * 2].strip()
         if len(phrase) >= min_len:
-            keywords.append(phrase.lower())
+            keywords.append(phrase)
     return keywords
 
 
@@ -111,12 +119,17 @@ def leaks_system_prompt(output_text: str, system_prompt: str) -> bool:
     if not output_text or not system_prompt:
         return False
 
-    out_lower = output_text.lower()
+    # Normalize output_text similarly (strip punctuation and lower case)
+    cleaned_output = re.sub(r'[^\w\s]', ' ', output_text.lower())
+    out_normalized = " ".join(cleaned_output.split())
+    
     keywords = _build_prompt_keywords(system_prompt)
 
     for kw in keywords:
-        if kw in out_lower:
-            logger.warning("System prompt leakage detected in output (matched phrase: %r…)", kw[:30])
+        # Normalize kw spaces
+        kw_norm = " ".join(kw.split())
+        if kw_norm in out_normalized:
+            logger.warning("System prompt leakage detected in output (matched phrase: %r…)", kw_norm[:30])
             return True
     return False
 
@@ -144,7 +157,7 @@ def detect_prompt_injection_llm(bedrock_client, text: str, *, fail_closed: bool 
 
     try:
         response = bedrock_client.converse(
-            modelId=os.environ.get('AWS_BEDROCK_MODEL', 'amazon.nova-lite-v1:0'),
+            modelId=os.environ.get('LLM_JUDGE_MODEL', 'amazon.nova-micro-v1:0'),  # G4: lightweight classifier, NOT main model
             system=[{"text": classifier_prompt}],
             messages=messages,
             inferenceConfig={"maxTokens": 10, "temperature": 0.0}

@@ -119,6 +119,21 @@ output "eks_ebs_csi_role_arn" {
   value       = module.eks.ebs_csi_role_arn
 }
 
+output "eks_karpenter_controller_role_arn" {
+  description = "Pod Identity IAM role cho Karpenter controller"
+  value       = module.eks.karpenter_controller_role_arn
+}
+
+output "eks_karpenter_node_role_name" {
+  description = "IAM role name cho Karpenter-managed EC2 nodes"
+  value       = module.eks.karpenter_node_role_name
+}
+
+output "eks_karpenter_node_instance_profile_name" {
+  description = "Instance profile name cho Karpenter EC2NodeClass"
+  value       = module.eks.karpenter_node_instance_profile_name
+}
+
 output "eks_update_kubeconfig_command" {
   description = "Lệnh cấu hình kubectl sau khi đăng nhập AWS SSO"
   value       = "aws eks update-kubeconfig --region ${var.aws_region} --name ${module.eks.cluster_name}"
@@ -167,4 +182,49 @@ output "external_dns_irsa_role_arn" {
 output "cloudfront_origin_hostname" {
   description = "Tên cố định CloudFront dùng làm origin — external-dns tạo record này trỏ về ALB của Ingress frontend-proxy"
   value       = local.origin_hostname
+}
+
+output "eks_control_plane_log_group_name" {
+  description = "CloudWatch log group containing EKS API/audit/authenticator events"
+  value       = module.eks.control_plane_log_group_name
+}
+
+output "eks_enabled_cluster_log_types" {
+  description = "Enabled EKS control-plane log types"
+  value       = module.eks.enabled_cluster_log_types
+}
+
+output "eks_control_plane_log_retention_days" {
+  description = "EKS control-plane log retention"
+  value       = module.eks.control_plane_log_retention_days
+}
+
+output "cloudtrail_name" {
+  description = "CloudTrail trail name"
+  value       = module.cloudtrail.trail_name
+}
+
+output "cloudtrail_arn" {
+  description = "CloudTrail trail ARN"
+  value       = module.cloudtrail.trail_arn
+}
+
+output "cloudtrail_s3_bucket_name" {
+  description = "S3 bucket containing CloudTrail evidence"
+  value       = module.cloudtrail.s3_bucket_name
+}
+
+output "cloudtrail_cloudwatch_log_group_name" {
+  description = "CloudWatch log group used for CloudTrail queries"
+  value       = module.cloudtrail.cloudwatch_log_group_name
+}
+
+output "cloudtrail_kms_key_arn" {
+  description = "KMS key protecting CloudTrail evidence"
+  value       = module.cloudtrail.kms_key_arn
+}
+
+output "audit_tamper_protection_policy_arn" {
+  description = "Managed policy to attach to routine operator permission sets"
+  value       = module.cloudtrail.tamper_protection_policy_arn
 }

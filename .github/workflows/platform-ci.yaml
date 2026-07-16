@@ -80,12 +80,14 @@ jobs:
           helm lint platform/charts/application
           -f platform/gitops/environments/sandbox/values-observability.yaml
           -f platform/gitops/environments/sandbox/values-flagd-sync.yaml
+          -f platform/gitops/environments/sandbox/values-external-secrets.yaml
           -f platform/gitops/environments/sandbox/values-image-tags.yaml
       - name: Render application chart
         run: >-
           helm template techx-corp platform/charts/application
           -f platform/gitops/environments/sandbox/values-observability.yaml
           -f platform/gitops/environments/sandbox/values-flagd-sync.yaml
+          -f platform/gitops/environments/sandbox/values-external-secrets.yaml
           -f platform/gitops/environments/sandbox/values-image-tags.yaml
           > /tmp/techx-corp-rendered.yaml
       - name: Fail nếu manifest rỗng

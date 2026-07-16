@@ -35,7 +35,7 @@
 ---
 
 ## ADR-REL-003 - Cluster Autoscaler trên Managed Node Group (hoãn Karpenter)
-> Trạng thái: Chấp nhận
+> Trạng thái: Bị thay thế bởi ADR-REL-005 (CDO-99)
 - **Ngày:** 2026-07-14
 - **Người ký:** Phong (Rel Eng #1) · Kien (đồng quyết định)
 - **Trụ:** Reliability + Cost
@@ -46,6 +46,7 @@
 - **Ảnh hưởng SLO:** Node kịp cấp khi pod Pending → giữ SLO dưới flash-sale; PDB (CDO-34) chống breach lúc node churn/scale-down.
 - **Rollback:** `enable_cluster_autoscaler=false` (gỡ IRSA) + xoá ArgoCD app cluster-autoscaler; MNG về desired tĩnh.
 - **Hệ quả:** ✅ node co giãn tự động theo tải, cost theo tải · ⚠️ CA chậm hơn Karpenter; cần theo dõi để cân nhắc migrate sau.
+- **Forward link:** Xem ADR-REL-005 thay thế cơ chế Cluster Autoscaler bằng Karpenter.
 
 ---
 
@@ -65,6 +66,26 @@
 - **Ảnh hưởng SLO:** Hết SPOF giỏ hàng → giữ cart ≥99.5%. Residual risk: failover blip vài giây khi mất primary (nằm trong cart error budget 0.5%; cart có readiness gate + HPA min=2 + retry). Single-primary write là đặc tính chấp nhận của ElastiCache (không multi-master).
 - **Rollback:** trỏ `VALKEY_ADDR` về endpoint cũ / bật lại valkey in-cluster; `multi_az_enabled=false` (chỉ là flag).
 - **Hệ quả:** ✅ SPOF giỏ hàng đã gỡ, HA managed cross-AZ · ⚠️ bật MultiAZ cần `terraform apply` có thể gây 1 lần failover ngắn → làm ngoài giờ cao điểm, KHÔNG sát demo. Cross-ref: SG valkey mở `0.0.0.0/0:6379` (CACHE.md:32) là vấn đề **security (Directive #1)**, tracked riêng — không thuộc ADR này.
+
+---
+
+## ADR-REL-005 - Triển khai Karpenter coexist-first cho Worker Nodes (CDO-99)
+> Trạng thái: Chấp nhận
+- **Ngày:** 2026-07-15
+- **Người ký:** Phong (Rel Eng #1) · Kien (đồng quyết định)
+- **Trụ:** Reliability + Cost
+- **Bối cảnh:** ADR-REL-003 quyết định cài Cluster Autoscaler nhưng sau đó MNG đã chuyển sang scheduled scaling (2->3->2) để demonstrate baseline tĩnh. Dưới flash-sale Mandate-02 (200 user), tải có thể vượt baseline này bất kỳ lúc nào, cần cơ chế autoscaling thực sự tự động co giãn. Karpenter fit hơn vì node stateless hoàn toàn (RDS/Valkey đã tách), giúp bin-packing tốt hơn và scale-up nhanh (~30s, gọi trực tiếp EC2 Fleet API, không qua ASG).
+- **Quyết định:** 
+  1. Cấu hình Karpenter IAM bằng EKS Pod Identity (aws_eks_pod_identity_association) thay vì IRSA để đồng nhất với các controller mới.
+  2. Tạo Karpenter Node Role (`ecommerce-dev-eks-karpenter-node`) + Instance Profile + EKS Access Entry (`EC2_LINUX`) để node tự join cluster.
+  3. Deploy Karpenter Controller qua ArgoCD Helm chart `public.ecr.aws/karpenter/karpenter` (targetRevision: 1.0.1) trong `kube-system`.
+  4. Cấu hình NodePool `default` chạy On-Demand duy nhất, giới hạn CPU tối đa `8` và instance types `2` hoặc `4` vCPU để kiểm soát chi phí. Consolidation set `WhenEmpty` để tránh node churn.
+  5. Giữ nguyên MNG primary + ASG schedule hiện tại làm static fallback. Karpenter chỉ provision node phụ khi HPA tạo pod Pending vượt quá năng lực MNG.
+- **Phương án khác đã cân:** A) Khôi phục Cluster Autoscaler (loại: scale thô theo node group, cấu hình tĩnh hơn). B) Bật Spot ngay lập tức (loại: cần SQS queue + EventBridge rules để handle Spot interruption, tăng rủi ro SLO lúc đầu, lùi lại Phase 3).
+- **Cost Δ:** $0 trực tiếp; Karpenter chỉ launch node khi tải tăng và tự thu hồi node trống → tối ưu hóa chi phí thực tế. Trần CPU limit = 8 khống chế chi phí tối đa ~$40/tuần.
+- **Ảnh hưởng SLO:** Node up nhanh khi pod Pending → giữ SLO checkout >=99% / cart >=99.5%. Consolidation chỉ kích hoạt khi node trống (`WhenEmpty`) → giảm thiểu tối đa rủi ro pod bị evict gây latency/error blips.
+- **Rollback:** Xóa các ArgoCD application `karpenter` + `karpenter-nodepool`; disable resource trong terraform. Workload tự động schedule về MNG primary.
+- **Hệ quả:** ✅ Node co giãn nhanh theo nhu cầu pod, cost tối ưu theo tải thực · ⚠️ Cần theo dõi logs/events của Karpenter và chuẩn bị SQS/EventBridge nếu muốn nâng cấp Spot ở Phase 3.
 
 ---
 

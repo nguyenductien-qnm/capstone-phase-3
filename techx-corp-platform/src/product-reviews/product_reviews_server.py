@@ -41,6 +41,9 @@ from metrics import (
 # OpenAI
 from openai import OpenAI
 
+# Model Router
+from model_router import ModelRouter
+
 import boto3
 from botocore.exceptions import ClientError, ReadTimeoutError, ConnectTimeoutError, BotoCoreError
 from botocore.config import Config
@@ -168,6 +171,9 @@ class ProductReviewService(demo_pb2_grpc.ProductReviewServiceServicer):
         ai_assistant_response = get_ai_assistant_response(request.product_id, request.question, context=context)
 
         return ai_assistant_response
+
+    def __init__(self):
+        self.is_serving = True
 
     def Check(self, request, context):
         # INC-3: Readiness-gating span — record exact moment service becomes ready
@@ -332,12 +338,13 @@ def invoke_bedrock_converse_with_fallback(messages, system_prompt, tool_config=N
     - Exponential backoff with full jitter is applied on retryable errors.
     - Prompt caching enabled to reduce token reuse cost.
     """
-    main_model = os.environ.get('LLM_REVIEWS_MAIN_MODEL', os.environ.get('AWS_BEDROCK_MODEL', 'arn:aws:bedrock:us-east-1:804372444787:application-inference-profile/krbq2wsgp11t'))
+    router = ModelRouter()
+    main_model = os.environ.get('LLM_REVIEWS_MAIN_MODEL', router.get_main_model())
     fallback_model = os.environ.get('LLM_REVIEWS_FALLBACK_MODEL', 'amazon.nova-micro-v1:0')
     max_retries = int(os.environ.get('LLM_REVIEWS_MAX_RETRIES', '2'))
     fallback_max_retries = int(os.environ.get('LLM_REVIEWS_FALLBACK_RETRIES', '1'))
     
-    fallback_enabled = check_feature_flag("llmReviewsFallbackEnabled")
+    fallback_enabled = check_feature_flag("llmReviewsFallbackEnabled", default=True)
     prompt_caching_enabled = check_feature_flag("llmPromptCachingEnabled")
 
     # Lớp 5: Circuit Breaker theo lỗi quan sát được (review B2)
@@ -510,7 +517,7 @@ def get_ai_assistant_response(request_product_id, question, context=None):
             logger.error(f"Reviews fingerprint error (skip cache this call): {e}")
             content_fp = None
         cache_key = f"reviews:summary:{request_product_id}:{model_ver}:{prompt_ver}:{content_fp}"
-        llm_reviews_cache_enabled = check_feature_flag("llmReviewsCacheEnabled") and content_fp is not None
+        llm_reviews_cache_enabled = check_feature_flag("llmReviewsCacheEnabled", default=True) and content_fp is not None
         logger.info(f"llmReviewsCacheEnabled feature flag: {llm_reviews_cache_enabled}")
 
         # Check Valkey Cache
@@ -755,10 +762,10 @@ def must_map_env(key: str):
         raise Exception(f'{key} environment variable must be set')
     return value
 
-def check_feature_flag(flag_name: str):
+def check_feature_flag(flag_name: str, default: bool = False):
     # Initialize OpenFeature
     client = api.get_client()
-    return client.get_boolean_value(flag_name, False)
+    return client.get_boolean_value(flag_name, default)
 
 if __name__ == "__main__":
     service_name = must_map_env('OTEL_SERVICE_NAME')
@@ -829,13 +836,13 @@ if __name__ == "__main__":
     # Start server
     port = must_map_env('PRODUCT_REVIEWS_PORT')
     server.add_insecure_port(f'[::]:{port}')
-
     # MANDATE-03: Graceful Shutdown — mark NOT_SERVING on SIGTERM so LB stops
     # sending traffic before the process actually stops (grace=10s drain window).
     import signal
     def handle_sigterm(signum, frame):
         logger.info("Received SIGTERM, marking NOT_SERVING and initiating graceful shutdown...")
         service.is_serving = False
+
         server.stop(grace=10)
 
     signal.signal(signal.SIGTERM, handle_sigterm)
