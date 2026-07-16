@@ -210,6 +210,9 @@ jobs:
     needs: [detect, validate-manifest]
     if: needs.detect.outputs.any == 'true'
     runs-on: ubuntu-latest
+    # Trust policy của GitHubTerraformSandboxRole khóa sub bằng StringEquals:
+    #   repo:<org>/<repo>:environment:sandbox
+    environment: sandbox
     permissions:
       contents: read
       id-token: write # OIDC cho AWS + Cosign keyless (Fulcio)
