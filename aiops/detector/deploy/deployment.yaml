@@ -54,9 +54,13 @@ spec:
               value: "http://prometheus:9090"
             - name: OPENSEARCH_URL
               value: "http://opensearch:9200"
+            # Alerter moi (PR #61) doc AIOPS_SLACK_WEBHOOK_CRITICAL/INFO (2 kenh theo
+            # 03_specs/aiops_notification_integration.md). Ten bien co chu SLACK nhung
+            # nhan ca Discord webhook URL - provider tu detect tu URL (kenh team = Discord).
+            # INFO khong set -> moi severity don ve kenh critical.
             # optional: thieu secret thi pod van chay, alerter fallback provider=stdout
             # (alert van thay duoc qua kubectl logs). Tao secret + rollout restart de bat webhook.
-            - name: ALERT_WEBHOOK_URL
+            - name: AIOPS_SLACK_WEBHOOK_CRITICAL
               valueFrom:
                 secretKeyRef:
                   name: aiops-alert
