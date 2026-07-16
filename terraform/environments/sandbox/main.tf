@@ -195,3 +195,21 @@ module "external_secrets_irsa" {
     module.msk.kms_key_arn,
   ]
 }
+
+# IRSA role for AI workloads that call Amazon Bedrock runtime.
+# ArgoCD deploys this chart as release techx-corp in namespace techx-tf1,
+# so the generated ServiceAccount is techx-tf1/techx-corp.
+module "ai_bedrock_irsa" {
+  source = "../../modules/bedrock-irsa"
+
+  project_name      = var.project_name
+  environment       = var.environment
+  aws_region        = var.aws_region
+  oidc_provider_arn = module.eks.oidc_provider_arn
+  oidc_issuer_url   = module.eks.oidc_issuer_url
+
+  service_account_namespace = var.ai_bedrock_service_account_namespace
+  service_account_name      = var.ai_bedrock_service_account_name
+
+  foundation_model_ids = var.ai_bedrock_foundation_model_ids
+}
