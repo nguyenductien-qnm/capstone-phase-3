@@ -390,3 +390,34 @@ Tính năng AI (như tóm tắt review, shopping copilot) hiển thị trực ti
 - Hệ thống an toàn tuyệt đối trước nguy cơ AI tự checkout.
 - Đạt 100% yêu cầu MANDATE-06 của Ban Tổ Chức.
 - Các API Frontend và App cần được cập nhật để xử lý `confirmation_token` khi nhận phản hồi từ AI Copilot.
+
+---
+
+# ADR-012: Phương pháp Anomaly Detection & Baseline cho AIOps Detector (MANDATE-07 #7a)
+
+- **Trạng thái:** Chấp nhận (Accepted)
+- **Ngày:** 2026-07-16
+- **Người ký:** Nhóm AI (AIO03) — Task Force 1 · Soạn thảo: Thanh Pham Huu Tien (owner TF1-53/TF1-62)
+- **Trụ:** AI (AIOps) / Reliability / Operational Excellence
+- **Task:** TF1-53 (detector W1) · TF1-62 (deploy EKS) · MANDATE-07 `#7a`
+
+## Context
+MANDATE-07 yêu cầu hệ thống tự phát hiện bất thường trên nhiều tín hiệu (sàn = univariate: mỗi service × 1 tín hiệu có baseline + luật riêng), cảnh báo theo mức ảnh hưởng, không spam. Detector (`aiops/detector/`) đã chạy liên tục trên EKS (ns `techx-tf1`, image `1.1-aiops-detector`), poll Prometheus + backend log mỗi 30s, alert về Discord.
+
+## Decision — phương pháp phát hiện lai (hybrid), 2 lớp cho metric + 1 lớp log
+
+1. **Lớp static SLO-anchored:** ngưỡng tĩnh lấy TRỰC TIẾP từ SLO hợp đồng (`onboarding/SLO.md`), không phải số tự chọn — vd checkout 5xx >1%, storefront 5xx >0.5%, p95 >1s. Lý do: vi phạm SLO là sự cố theo định nghĩa, alert không cần baseline "học".
+2. **Lớp dynamic 3-sigma:** mỗi `rule × service` giữ rolling window 30 mẫu (~15 phút @ poll 30s, cần ≥5 mẫu mới kích hoạt); alert khi giá trị vượt `mean + 3σ` của chính service đó → bắt suy thoái CHƯA chạm SLO + tự thích nghi baseline per-service (yêu cầu "biết thế nào là bình thường" của đề). 3σ ≈ 0.3% FP theo SPC chuẩn.
+3. **Lớp log (5 rule):** đếm phrase/marker máy (`AI_SUMMARY_FALLBACK`, OOMKilled, NXDOMAIN, pool exhaustion, 429) trong cửa sổ 5–10m; `min_count=1` cho lớp sự cố hiếm-nghiêm-trọng (nguyên tắc K2: recall dominates — bỏ lọt = 0 điểm).
+4. **Chống spam:** dedup key `rule×service` + cooldown 600s; poll 30s chọn theo SỐ ĐO: MTTD max 35.4s (chaos 5 vòng), vùng hợp lệ [10s,60s] suy từ error budget, chi phí query 5ms — bảng sensitivity trong `03_specs/golden_signals_detection.md` Phụ lục 3.
+
+## Alternatives considered
+- **EWMA α=0.2 (spec TF1-49 gốc):** phản ứng có trọng số theo thời gian, tốt hơn rolling-mean với drift chậm. CHƯA thay vì cần backtest trên ≥24h dữ liệu Prometheus EKS thật để chọn α có căn cứ (kế hoạch `#7b`, TF1-71); rolling 3σ hiện tại cùng họ SPC, đơn giản, đủ cho sàn univariate của đề. → Defer sang #7b, không phải reject.
+- **Chỉ ngưỡng tĩnh:** mù với suy thoái dưới ngưỡng (slow burn 0.4%/ngày đốt 80% budget không kêu). → Loại, nhưng giữ làm lớp 1.
+- **Realtime stream consumer:** mua được ~15–30s MTTD bằng cả một service chạy 24/7 (state, reconnect, RAM trong trần $300) trong khi poll 30s đã pass target ≤2 phút với biên 3.4×. → Loại (trade-off sai).
+- **Multi-window burn-rate (SRE workbook):** ĐÚNG chuẩn hơn cho error budget — đã có rule DRAFT `error-budget-burn-fast` (14.4× ở cả 5m và 1h), chờ verify semantics trên EKS vì compose không sinh được 5xx thật. → Nâng cấp có kế hoạch ở #7b, không phát minh lại ngưỡng.
+
+## Consequences
+- 13 rule config-driven (`rules.yaml`), thêm tín hiệu không sửa code; mỗi con số có nhãn đo/assumption trong "Sổ đăng ký con số" (05_adrs).
+- Trả giá: rolling-mean nhớ ngắn (~15 phút) → baseline "bình thường" theo giờ-trong-ngày chưa mô hình hoá; chấp nhận ở W2, đánh giá lại sau FP-run 24h (TF1-71).
+- Phụ thuộc mở: backend log trên EKS chưa tồn tại (collector logs pipeline chỉ export debug) → 5 rule log + Drain3 tạm mù trên production; đã escalate CDO (quyết định thay OpenSearch), detector tự hồi phục khi backend lên, không cần redeploy.
