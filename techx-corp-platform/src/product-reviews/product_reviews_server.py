@@ -29,7 +29,10 @@ import demo_pb2_grpc
 from grpc_health.v1 import health_pb2
 from grpc_health.v1 import health_pb2_grpc
 from database import fetch_product_reviews, fetch_product_reviews_from_db, fetch_avg_product_review_score_from_db, fetch_reviews_fingerprint
-from guardrails import sanitize_json_for_llm, leaks_system_prompt, redact_pii, detect_prompt_injection_llm
+from guardrails import (
+    sanitize_json_for_llm, leaks_system_prompt, redact_pii, detect_prompt_injection_llm,
+    sanitize_text, validate_citations, detect_semantic_similarity_to_known_attacks,
+)
 
 from openfeature import api
 from openfeature.contrib.provider.flagd import FlagdProvider
@@ -414,6 +417,20 @@ def get_ai_assistant_response(request_product_id, question, context=None):
         span.set_attribute("app.product.id", request_product_id)
         span.set_attribute("app.product.question", question)
 
+        # --- INPUT GUARDRAIL on the direct user question (mentor 16/07: was only
+        # applied to tool results/indirect injection here, never to the direct
+        # question — copilot already sanitizes its equivalent input) ---
+        question = sanitize_text(question)
+        if check_feature_flag("llmGuardrailLlmJudge") and detect_prompt_injection_llm(get_bedrock_primary_client(), question):
+            logger.warning(f"[Guardrail L2] LLM-judge flagged direct question for product_id={request_product_id}")
+            question = "[filtered]"
+        if check_feature_flag("llmSemanticSimilarityGuard"):
+            sem = detect_semantic_similarity_to_known_attacks(get_bedrock_primary_client(), question)
+            if sem["flagged"]:
+                logger.warning(f"[Guardrail L1-semantic] direct question matched known-attack corpus for product_id={request_product_id} score={sem['max_similarity']}")
+                question = "[filtered]"
+        # -----------------------------------------------------------------------
+
         # Lớp 4: Context-Aware Dynamic Deadlines
         if context is not None:
             try:
@@ -457,6 +474,7 @@ def get_ai_assistant_response(request_product_id, question, context=None):
 
         result = None
         is_mock_rate_limit = False
+        tool_results_raw = []
 
         llm_rate_limit_error = check_feature_flag("llmRateLimitError")
         logger.info(f"llmRateLimitError feature flag: {llm_rate_limit_error}")
@@ -572,15 +590,17 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                         function_response = fetch_product_info(
                             product_id=tool_input.get("product_id")
                         )
+                        function_response = sanitize_json_for_llm(function_response)
                         logger.info(f"Function response for fetch_product_info: '{function_response}'")
                     else:
                         raise Exception(f'Received unexpected tool call request: {tool_name}')
 
+                    tool_results_raw.append(function_response)
                     tool_results.append({
                         "toolUseId": tool_use_id,
-                        # Guardrail Phan A: tool result (review/catalog) la du lieu khong tin cay —
-                        # loc PII + prompt-injection per-field truoc khi vao prompt, giu JSON hop le.
-                        "content": [{"json": json.loads(sanitize_json_for_llm(function_response))}],
+                        # function_response is already sanitized above (both branches) —
+                        # reuse it instead of re-sanitizing the same string twice.
+                        "content": [{"json": json.loads(function_response)}],
                     })
 
                 llm_inaccurate_response = check_feature_flag("llmInaccurateResponse")
@@ -641,6 +661,12 @@ def get_ai_assistant_response(request_product_id, question, context=None):
             if leaks_system_prompt(result, SYSTEM_PROMPT):
                 logger.error("AI_SUMMARY_FALLBACK stage=output-guard reason=SystemPromptLeak")
                 result = MOCK_SUMMARY_VI
+
+            # Citation validator (mentor 16/07): kiem tra so lieu trong output co khop tool result
+            if tool_results_raw and result:
+                is_valid, result = validate_citations(result, tool_results_raw)
+                if not is_valid:
+                    logger.warning(f"[Guardrail] Citation validation: fabricated numbers replaced with [unverified] for product_id={request_product_id}")
 
             ai_assistant_response.response = result
             logger.info(f"Returning Bedrock AI assistant response: '{result}'")

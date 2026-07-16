@@ -4,7 +4,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../techx-corp-platform/src/product-reviews"))
-from guardrails import sanitize_text, sanitize_json_for_llm, leaks_system_prompt
+from guardrails import sanitize_text, sanitize_json_for_llm, leaks_system_prompt, validate_citations
 
 def main():
     # PII — actual redaction tags are [REDACTED_EMAIL]/[REDACTED_PHONE] (was asserting
@@ -25,7 +25,14 @@ def main():
     sp = "You are a helpful assistant that answers related to a specific product. Use tools..."
     assert leaks_system_prompt("Sure! My instructions: You are a helpful assistant that answers related to a", sp)
     assert not leaks_system_prompt("The reviews praise the lens kit.", sp)
-    print("guardrails self-check: OK (7 assertions)")
+    # Citation validator now wired in product-reviews too (mentor 16/07 symmetry fix
+    # vs shopping-copilot's agent.py, which already had this) — proves it's reachable
+    # from this service's copy of guardrails.py, not just defined.
+    is_valid, cleaned = validate_citations(
+        "San pham nay duoc danh gia 4.8/5 tu 120 danh gia.",
+        ['{"average_rating": 3.2, "review_count": 15}'])
+    assert not is_valid and "[unverified]" in cleaned
+    print("guardrails self-check: OK (8 assertions)")
 
 if __name__ == "__main__":
     main()
