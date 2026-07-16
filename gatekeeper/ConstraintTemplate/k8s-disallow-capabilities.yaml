@@ -60,22 +60,24 @@ spec:
           not is_exempt(container)
           has_disallowed_add(container)
           added := {cap | cap := container.securityContext.capabilities.add[_]}
-          allowed := {cap | cap := input.parameters.allowedCapabilities[_]}
+          allowed_caps := object.get(object.get(input, "parameters", {}), "allowedCapabilities", [])
+          allowed := {cap | cap := allowed_caps[_]}
           disallowed := added - allowed
           msg := sprintf(
             "Container <%v> đang add capabilities không được phép: %v. Chỉ được phép: %v",
-            [container.name, disallowed, input.parameters.allowedCapabilities]
+            [container.name, disallowed, allowed_caps]
           )
         }
 
         dropped_all(container) {
           drops := {cap | cap := container.securityContext.capabilities.drop[_]}
-          "ALL" in drops
+          drops["ALL"]
         }
 
         has_disallowed_add(container) {
           added := {cap | cap := container.securityContext.capabilities.add[_]}
-          allowed := {cap | cap := input.parameters.allowedCapabilities[_]}
+          allowed_caps := object.get(object.get(input, "parameters", {}), "allowedCapabilities", [])
+          allowed := {cap | cap := allowed_caps[_]}
           disallowed := added - allowed
           count(disallowed) > 0
         }
