@@ -1,15 +1,22 @@
-# TF1-53 [AIOps-W1-T5] - deploy detector chay lien tuc in-cluster (Tuan 2).
-# Tuan 1: chay local bang `python detector.py`. Manifest nay de san cho buoc dong goi.
+# TF1-62 [AIOps-W2] - deploy detector chay lien tuc tren EKS (namespace techx-tf1).
 #
-# Truoc khi apply:
-#   kubectl -n <ns> create secret generic aiops-alert \
+# Truoc khi apply (1 lan duy nhat):
+#   kubectl -n techx-tf1 create secret generic aiops-alert \
 #     --from-literal=webhook=<slack-or-discord-webhook-url>
 #
-#   kubectl -n <ns> apply -f deployment.yaml
+#   kubectl -n techx-tf1 apply -f deployment.yaml
+#
+# Build + push image (tu repo root, chay tren may co quyen ECR):
+#   aws ecr get-login-password --region us-east-1 | docker login --username AWS \
+#     --password-stdin 804372444787.dkr.ecr.us-east-1.amazonaws.com
+#   docker buildx build --platform linux/amd64 \
+#     -t 804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.1-aiops-detector \
+#     --push aiops/detector
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: aiops-detector
+  namespace: techx-tf1
   labels:
     app: aiops-detector
     team: aio03
@@ -23,19 +30,42 @@ spec:
       labels:
         app: aiops-detector
     spec:
+      # MANDATE-05: non-root, khong leo thang dac quyen, drop het capability.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: aiops-detector
-          image: <ECR>/techx-corp:1.0-aiops-detector   # build tu Dockerfile roi push ECR cua TF
+          # MANDATE-05: pin tag co dinh, khong dung tag troi (:latest).
+          image: 804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.1-aiops-detector
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
           env:
+            # Ten service theo fullnameOverride trong platform/charts/application/values.yaml
+            # (prometheus:1587, opensearch:1674) - detector chay cung namespace techx-tf1.
             - name: PROM_URL
               value: "http://prometheus:9090"
             - name: OPENSEARCH_URL
               value: "http://opensearch:9200"
-            - name: ALERT_WEBHOOK_URL
+            # Alerter moi (PR #61) doc AIOPS_SLACK_WEBHOOK_CRITICAL/INFO (2 kenh theo
+            # 03_specs/aiops_notification_integration.md). Ten bien co chu SLACK nhung
+            # nhan ca Discord webhook URL - provider tu detect tu URL (kenh team = Discord).
+            # INFO khong set -> moi severity don ve kenh critical.
+            # optional: thieu secret thi pod van chay, alerter fallback provider=stdout
+            # (alert van thay duoc qua kubectl logs). Tao secret + rollout restart de bat webhook.
+            - name: AIOPS_SLACK_WEBHOOK_CRITICAL
               valueFrom:
                 secretKeyRef:
                   name: aiops-alert
                   key: webhook
+                  optional: true
           resources:
             requests: { cpu: "50m", memory: "64Mi" }
             limits: { cpu: "200m", memory: "128Mi" }
