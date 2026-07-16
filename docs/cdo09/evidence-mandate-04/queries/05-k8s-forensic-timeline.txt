@@ -1,0 +1,18 @@
+# Replace <DEMO_CONFIGMAP_NAME> with the exact resource created for the drill.
+fields @timestamp,
+       user.username,
+       user.groups,
+       verb,
+       requestURI,
+       objectRef.namespace,
+       objectRef.resource,
+       objectRef.name,
+       sourceIPs,
+       userAgent,
+       responseStatus.code,
+       auditID
+| filter @logStream like /kube-apiserver-audit-/
+| filter objectRef.namespace = "audit-forensic-demo"
+| filter objectRef.name = "<DEMO_CONFIGMAP_NAME>"
+| sort @timestamp asc
+| limit 100

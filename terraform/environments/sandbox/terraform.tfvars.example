@@ -124,3 +124,20 @@ subdomain           = "<SUBDOMAIN>"           # vd: ecommerce.yourdomain.com
 acm_certificate_arn = "arn:aws:acm:us-east-1:<ACCOUNT_ID>:certificate/<CERT_ID>"
 
 enable_cloudfront = true
+
+# ============================================================
+# Audit trail (CDO-46/CDO-105/CDO-106)
+# ============================================================
+eks_enabled_cluster_log_types        = ["api", "audit", "authenticator"]
+eks_enable_control_plane_log_kms     = true
+cloudtrail_enable_kms_encryption     = true
+cloudtrail_enable_cloudwatch_logs    = true
+cloudtrail_cloudwatch_log_retention_days = 90
+cloudtrail_s3_transition_days        = 90
+cloudtrail_s3_transition_storage_class = "GLACIER_IR"
+cloudtrail_s3_retention_days         = 2555
+cloudtrail_enable_object_lock        = false
+cloudtrail_object_lock_retention_days = 30
+audit_administrator_principals       = []
+audit_break_glass_principals          = []
+audit_operator_role_names             = []
