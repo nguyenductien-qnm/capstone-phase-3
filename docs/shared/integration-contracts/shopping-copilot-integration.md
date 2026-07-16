@@ -113,3 +113,29 @@ Các cập nhật liên quan tới triển khai AWS Bedrock và A/B Testing:
    - Khi khách hàng bấm xác nhận, gọi một HTTP request mới kèm `confirmation_token` (hoặc gửi lại vào khung chat) để báo cho Copilot biết đã cấp quyền thực thi.
 
 Vui lòng cấu hình UI xử lý kịp thời để luồng thêm vào giỏ hàng của Agent không bị kẹt.
+
+## 6. Phụ lục 17/07/2026 — Bedrock Guardrails (TF1-61, thay guardrail v3)
+
+Guardrail nội-code (v3 hand-rolled) được thay bằng **Amazon Bedrock Guardrails** managed
+(xem `docs/ai/adr-012-bedrock-guardrails.md`). Áp dụng cho **cả `shopping-copilot` và
+`product-reviews`**. Action Gate ở §5 **giữ nguyên** (excessive-agency là app code, không
+phải guardrail engine).
+
+**Contract với CDO — chỉ cần cấp env, không đụng application code:**
+
+| Env | Nguồn | Ý nghĩa |
+|---|---|---|
+| `BEDROCK_GUARDRAIL_ID` | output TF `terraform/ai-guardrails/` (AI-owned) | id guardrail resource |
+| `BEDROCK_GUARDRAIL_VERSION` | output TF (numbered, **không dùng DRAFT** ở prod) | version pin |
+| `LLM_BEDROCK_GUARDRAIL` | `values-aio-llm.yaml` (default `true`) | flag bật/tắt; tắt → degrade regex pre-filter |
+
+- Tiêm qua `platform/gitops/environments/sandbox/values-aio-llm.yaml` (AI-owned). Guardrail
+  resource ở **module TF riêng, state riêng, KHÔNG chạm module CDO**. Nếu account boundary
+  chặn `terraform apply` → CDO apply hộ `terraform/ai-guardrails/`, app chỉ cần id+version.
+- **IAM:** service role của 2 pod cần `bedrock:ApplyGuardrail` trên ARN guardrail (region
+  `us-east-2`, cùng nơi Nova/Titan chạy).
+- **Hành vi:** INPUT rail fail-**closed** (chặn khi lỗi); OUTPUT grounding fail-**open** nhưng
+  vẫn mask PII. Guardrail lỗi/tắt → không treo trang (degrade an toàn).
+- **Lưu ý PII log:** mask chỉ áp lên response API; raw PII vẫn vào CloudWatch model-invocation
+  log → nếu bật, KMS-encrypt + siết IAM log group.
+
