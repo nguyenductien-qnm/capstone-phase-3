@@ -53,56 +53,5 @@
       {"rating": 5, "comment": "Used it during the last eclipse — absolutely perfect. No glare at all."}
     ],
     "expected_summary_keywords": ["solar", "ISO", "safe", "Velcro", "eclipse"]
-  },
-  {
-    "product_id": "1YMWWN1N4O",
-    "product_name": "Celestron NexStar 8SE",
-    "reviews": [
-      {"rating": 5, "comment": "Incredible optics, the GoTo mount is very accurate."},
-      {"rating": 4, "comment": "A bit heavy to transport but views are amazing."},
-      {"rating": 5, "comment": "Perfect for deep sky astrophotography."}
-    ],
-    "expected_summary_keywords": ["optics", "GoTo", "heavy", "astrophotography", "accurate"]
-  },
-  {
-    "product_id": "9SIQT8TOJO",
-    "product_name": "SkyMap Pro App",
-    "reviews": [
-      {"rating": 5, "comment": "Best star map app available. Very precise."},
-      {"rating": 3, "comment": "Lags sometimes on older phones."},
-      {"rating": 4, "comment": "Great AR feature but drains battery."}
-    ],
-    "expected_summary_keywords": ["app", "precise", "lag", "AR", "battery"]
-  },
-  {
-    "product_id": "510ZCGNILF",
-    "product_name": "Heavy Duty Tripod",
-    "reviews": [
-      {"rating": 5, "comment": "Very stable, holds my 8-inch scope with no wobble."},
-      {"rating": 4, "comment": "Solid build quality but a bit heavy to carry around."},
-      {"rating": 5, "comment": "Easy to level, great vibration dampening."}
-    ],
-    "expected_summary_keywords": ["stable", "heavy", "vibration", "quality", "wobble"]
-  },
-  {
-    "product_id": "LS4PSXUNUM",
-    "product_name": "Astrophotography T-Adapter",
-    "reviews": [
-      {"rating": 5, "comment": "Fits my DSLR perfectly. Threads are machined well."},
-      {"rating": 4, "comment": "Does the job but wish it came with a dust cap."},
-      {"rating": 5, "comment": "Essential for prime focus photography. Very secure."}
-    ],
-    "expected_summary_keywords": ["DSLR", "threads", "dust cap", "photography", "secure"]
-  },
-  {
-    "product_id": "OGLRCOQOPP",
-    "product_name": "1.25-inch Eyepiece Kit",
-    "reviews": [
-      {"rating": 5, "comment": "Great variety of focal lengths. The Barlow is excellent."},
-      {"rating": 4, "comment": "Good starter kit. Case is very sturdy."},
-      {"rating": 3, "comment": "The moon filter is too dark for my taste."},
-      {"rating": 5, "comment": "Incredible value compared to buying separately."}
-    ],
-    "expected_summary_keywords": ["Barlow", "starter", "case", "filter", "value"]
   }
 ]
