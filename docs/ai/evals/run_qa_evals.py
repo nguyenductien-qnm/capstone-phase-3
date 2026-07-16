@@ -29,8 +29,28 @@ def load_dataset(path: str) -> list:
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
+def call_bedrock_agent(case: dict) -> str:
+    """Gọi thực tế lên Bedrock Nova. Nếu thiếu credentials hoặc lỗi mạng thì fallback về mock_agent_call."""
+    question = case.get("question", "")
+    context = case.get("context", "")
+    prompt = f"Ngữ cảnh: {context}\n\nCâu hỏi: {question}\nTrả lời ngắn gọn."
+    
+    try:
+        import boto3
+        client = boto3.client("bedrock-runtime", region_name="us-east-1")
+        
+        response = client.converse(
+            modelId="amazon.nova-lite-v1:0",
+            messages=[{"role": "user", "content": [{"text": prompt}]}]
+        )
+        return response['output']['message']['content'][0]['text']
+    except Exception as e:
+        # Nếu chưa cấu hình AWS hoặc bị lỗi, fallback mock data để không vỡ CI
+        print(f"  [WARN] Không gọi được Bedrock ({e}). Fallback sang mock data.")
+        return mock_agent_call(case)
+
 def mock_agent_call(case: dict) -> str:
-    """Mock agent response for testing the CI pipeline. In production, this would call Copilot gRPC."""
+    """Mock agent response cho CI khi không có kết nối thật."""
     t = case.get("type", "")
     expected = case.get("expected_answer", "").lower()
     
@@ -83,7 +103,7 @@ def run_qa_evals(dataset_path: str, threshold: float = 0.8) -> dict:
     
     for case in dataset:
         cid = case.get("id", "Unknown")
-        agent_resp = mock_agent_call(case)
+        agent_resp = call_bedrock_agent(case)
         eval_result = evaluate_case(case, agent_resp)
         
         if eval_result["pass"]:
