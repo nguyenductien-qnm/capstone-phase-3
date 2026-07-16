@@ -275,7 +275,7 @@ def get_bedrock_primary_client():
     global bedrock_primary_client
     if bedrock_primary_client is None:
         aws_region = os.environ.get('AWS_REGION', 'us-east-1')
-        main_timeout = float(os.environ.get('LLM_REVIEWS_TIMEOUT', '3.0'))
+        main_timeout = float(os.environ.get('LLM_REVIEWS_TIMEOUT', '4.0'))
         primary_config = Config(connect_timeout=1.0, read_timeout=main_timeout, retries={'max_attempts': 0})
         bedrock_primary_client = boto3.client(service_name="bedrock-runtime", region_name=aws_region, config=primary_config)
     return bedrock_primary_client
@@ -498,8 +498,9 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                 time_remaining = context.time_remaining()
                 if time_remaining is not None:
                     logger.info(f"gRPC request time remaining: {time_remaining:.3f}s")
-                    if time_remaining < 3.0:
-                        logger.warning(f"Time remaining {time_remaining:.3f}s is less than hard floor 3.0s. Fail-fast to Mock Summary.")
+                    deadline_floor = float(os.environ.get('LLM_REVIEWS_FALLBACK_TIMEOUT', '2.0'))
+                    if time_remaining < deadline_floor:
+                        logger.warning(f"Time remaining {time_remaining:.3f}s is less than hard floor {deadline_floor:.1f}s. Fail-fast to Mock Summary.")
                         logger.error("AI_SUMMARY_FALLBACK stage=deadline reason=DeadlineTooClose")
                         ai_assistant_response.response = MOCK_SUMMARY_VI
                         return ai_assistant_response
