@@ -15,3 +15,6 @@ errored.tfstate
 
 # Ignore temporary logs
 *.log
+
+# Ignore local reports
+vinh/jira_week2_report.md

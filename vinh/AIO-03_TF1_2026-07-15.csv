@@ -1,0 +1,445 @@
+Summary,Issue key,Issue id,Issue Type,Status,Project key,Project name,Project type,Project lead,Project lead id,Project description,Priority,Resolution,Assignee,Assignee Id,Reporter,Reporter Id,Creator,Creator Id,Created,Updated,Last Viewed,Resolved,Due date,Votes,Labels,Labels,Labels,Labels,Labels,Labels,Labels,Description,Environment,Watchers,Watchers,Watchers Id,Watchers Id,Original estimate,Remaining Estimate,Time Spent,Work Ratio,Σ Original Estimate,Σ Remaining Estimate,Σ Time Spent,Security Level,Attachment,Custom field (Actual end),Custom field (Actual start),Custom field (AgentSessions),Custom field (Approvals),Custom field (Change reason),Custom field (Change risk),Custom field (Change type),Custom field (Development),Custom field (Epic Color),Custom field (Epic Name),Custom field (Epic Status),Custom field (Focus Areas),Custom field (Goals),Custom field (Impact),Custom field (Issue color),Custom field (Locked forms),Custom field (Open forms),Custom field (Project overview key),Custom field (Project overview status),Custom field (Rank),Custom field (Request Type),Custom field (Request participants),Satisfaction rating,Custom field (Satisfaction date),Custom field (Sentiment),Sprint,Custom field (Start date),Custom field (Story Points),Custom field (Story point estimate),Custom field (Submitted forms),Custom field (Target end),Custom field (Target start),Custom field (Team),Custom field (Total forms),Custom field (Vulnerability),Custom field (Work category),Custom field (Work item created forms),Custom field ([CHART] Date of First Response),Custom field ([CHART] Time in Status),Comment,Comment,Comment,Comment,Parent,Parent key,Parent summary,Status Category,Status Category Changed
+Backtest EWMA alpha and retune Drain3 masking/sim_th,TF1-80,10143,Sub-task,Backlog,TF1,Task Force 1,software,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,High,,Thanh Hoang (Jax),712020:e0337882-a4e1-4f73-afd8-f8d0bb562575,Vinh Bui,712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8,Vinh Bui,712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8,13/Jul/26 5:34 PM,13/Jul/26 5:34 PM,13/Jul/26 6:03 PM,,,0,ai-w2-aiops,ai-w2-data,,,,,,Backtest EWMA parameters and rerun Drain3 parameter grid with masking on 24h EKS logs.,,Vinh Bui,,712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8,,,,,,,,,,,,,,ApprovalsCFValue{approvals=[]},,,,,,,,,,,,,,,,0|i000ev:,,,,,,Sprint 2,,,,,,,,,,,,,,,,,,10134,TF1-71,[AIOps][W2] Verify rule draft trên EKS (memory/kafka/burn) + backtest EWMA alpha + Drain3 masking → chốt sim_th,To Do,13/Jul/26 5:34 PM
+"Verify EKS alert rules, MTTD and polling interval",TF1-79,10142,Sub-task,In Progress,TF1,Task Force 1,software,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,High,,Nguyễn Ngọc Giao,6288975d0685de006fd3d9d8,Vinh Bui,712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8,Vinh Bui,712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8,13/Jul/26 5:34 PM,15/Jul/26 12:01 PM,,,,0,ai-w2-aiops,ai-w2-eks,,,,,,Verify memory and Kafka-related rule semantics on EKS; measure ingest lag/MTTD and justify detector polling interval.,,Vinh Bui,,712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8,,,,,,,,,,,,,,ApprovalsCFValue{approvals=[]},,,,,,,,,,,,,,,,0|i000en:,,,,,,Sprint 2,,,,,,,,,,,,,,,,,,10134,TF1-71,[AIOps][W2] Verify rule draft trên EKS (memory/kafka/burn) + backtest EWMA alpha + Drain3 masking → chốt sim_th,In Progress,15/Jul/26 12:01 PM
+[AIOps] Intelligent Systems Observability & Auto-Remediation,TF1-78,10141,Epic,Selected for Development,TF1,Task Force 1,software,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,Medium,,Vinh Bui,712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8,Vinh Bui,712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,13/Jul/26 3:13 PM,15/Jul/26 12:56 PM,13/Jul/26 9:22 PM,,,0,,,,,,,,Cấu hình Intelligent Systems Observability & Auto-Remediation.,,Định Nguyễn,,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,,,,,,,,,,,,,ApprovalsCFValue{approvals=[]},,,,,ghx-label-7,,To Do,,,,purple,,,,,0|i000ef:,,,,,,,,,,,,,,,,,,,,,,,,,,,To Do,13/Jul/26 9:21 PM
+[AIE] AI Product Features & Shopping Copilot,TF1-77,10140,Epic,Selected for Development,TF1,Task Force 1,software,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,Medium,,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,13/Jul/26 3:13 PM,15/Jul/26 12:56 PM,13/Jul/26 4:33 PM,,,0,,,,,,,,Tổng hợp AI Shopping Copilot và AI Recommendations.,,Định Nguyễn,,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,,,,,,,,,,,,,ApprovalsCFValue{approvals=[]},,,,,ghx-label-9,,To Do,,,,orange,,,,,0|i000ej:,,,,,,,,,,,,,,,,,,,,,,,,,,,To Do,13/Jul/26 3:13 PM
+[AIOps][W2] Phối hợp CDO chốt log backend (shrink OpenSearch vs Loki) — cung cấp requirement + script đo,TF1-76,10139,Task,Backlog,TF1,Task Force 1,software,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,Medium,,Trần Mạnh Trường,712020:a9970ac1-131b-4ec8-b522-87dd22c7271a,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,13/Jul/26 9:19 AM,13/Jul/26 5:35 PM,13/Jul/26 9:22 AM,,27/Jul/26 12:00 AM,0,AIOps,ai-w2-cost,ai-w2-stretch,cdo-coordination,cost,week2,,"*Mục tiêu:* CDO raise cost OpenSearch; AI cung cấp requirement + đo để CDO quyết. Theo mentor 13/07: requirement-first, rẻ nhất mà đạt win (TÍNH cả chi phí migration); TÁCH log storage khỏi vector store.
+
+*Việc (phần của AI — CDO quyết backend):*
+
+* Cấp requirement đo được cho CDO: phrase-count 5m + read raw lines + MTTD ≤2 phút ({{ai-data-requirements-for-cdo.md}} mục 6-8).
+* Nhận baseline RAM/EBS OpenSearch hiện tại từ CDO.
+* Nếu CDO thử Loki: chạy {{measure_detection_pipeline.py}} trỏ Loki + OS-đã-bóp song song → so ingest/MTTD táo-với-táo.
+* Detector adapter cho backend CDO chọn (~50 dòng, query đã tách trong {{sources.py}}).
+* *KHÔNG* đụng vector store (semantic search deferred — catalog 10 sản phẩm).
+
+*Done:* CDO chốt backend với số so sánh; AI có adapter nếu đổi. *Ref:* mentor decision, {{ai-data-requirements-for-cdo.md}} §8.1.",,Vinh Bui,Định Nguyễn,712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,,,,,,,,,,,,ApprovalsCFValue{approvals=[]},,,,,,,,,,,,,,,,0|i000dz:,,,,,,Sprint 2,13/Jul/26 12:00 AM,,2.0,,,,,,,,,2026-07-13 10:35:04.233,,"13/Jul/26 5:35 PM;712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8;[AI-W2-AGENT:W2-TF1-76] Week 2 owner: Trường Reviewer: Tiến Thành Acceptance criteria: Có bảng RAM/EBS/MTTD táo-với-táo; không tự migrate backend nếu CDO chưa chốt. Planning load: 2 units Changes applied: assignee, labels Change applied from approved TF1 AI Week 2 plan.",,,,10141,TF1-78,[AIOps] Intelligent Systems Observability & Auto-Remediation,To Do,13/Jul/26 9:19 AM
+[AIOps][W2] Telemetry EKS: verify trace continuity + readiness-gating span (INC-3) + prompt-caching Nova,TF1-75,10138,Task,Backlog,TF1,Task Force 1,software,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,High,,Thịnh Nguyễn Hưng,712020:13a3f803-4895-403d-a774-dbea11f32c2d,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,13/Jul/26 9:18 AM,13/Jul/26 5:35 PM,13/Jul/26 10:04 AM,,27/Jul/26 12:00 AM,0,AIOps,ai-w2-aiops,ai-w2-telemetry,blocked-eks,telemetry,week2,,"*Mục tiêu:* telemetry đã verify trên compose (1 trace × 12 service), cần verify lại trên EKS + đóng 2 việc còn dở.
+
+*Việc:*
+
+* Verify trace continuity trên EKS (collector daemonset khác compose): browser→proxy→service→collector→Jaeger không đứt ({{telemetry-audit.md}}).
+* INC-3: kiểm span ghi đúng thời điểm readiness của service khi deploy để tránh 503 (readiness-gating).
+* *Prompt caching* Bedrock (pitch Phần 2 dòng ""tối ưu nhất""): bật để giảm token input tóm tắt lặp — đo tiết kiệm thật.
+
+*Done:* trace liền mạch trên EKS confirmed; readiness span có mặt; prompt-caching đo được tiết kiệm. *Ref:* TF1-51, review pitch cost model.",,Vinh Bui,Định Nguyễn,712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,,,,,,,,,,,,ApprovalsCFValue{approvals=[]},,,,,,,,,,,,,,,,0|i000dr:,,,,,,Sprint 2,13/Jul/26 12:00 AM,,5.0,,,,,,,,,2026-07-13 10:35:02.865,,"13/Jul/26 5:35 PM;712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8;[AI-W2-AGENT:W2-TF1-75] Week 2 owner: Hưng Thịnh Reviewer: Tiến Thành Acceptance criteria: Trace continuity EKS, readiness gating và prompt-cache saving đều có evidence định lượng. Planning load: 5 units Changes applied: assignee, labels Change applied from approved TF1 AI Week 2 plan.",,,,10141,TF1-78,[AIOps] Intelligent Systems Observability & Auto-Remediation,To Do,13/Jul/26 9:18 AM
+[AIE][Safety][W2] Copilot end-to-end: confirmation gate + guardrail + injection eval trên agent thật,TF1-74,10137,Task,Backlog,TF1,Task Force 1,software,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,Highest,,Vinh Bui,712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,13/Jul/26 9:18 AM,13/Jul/26 5:34 PM,13/Jul/26 3:44 PM,,27/Jul/26 12:00 AM,0,AIE,ai-w2-core,ai-w2-safety,copilot,safety,week2,,"*Mục tiêu:* khác biệt lớn nhất so với RAG read-only (CLAUDE.md): cart là write-tool, mọi thao tác ghi phải có cổng xác nhận; copilot phải chống injection qua review.
+
+*Việc (sau khi TF1-59/56 có agent chạy thật):*
+
+* Confirmation gate: {{add_to_cart}} → pending_confirmation, KHÔNG bao giờ tự {{empty_cart}}/checkout.
+* Wire guardrail ({{guardrails.py}} — đã có cho product-reviews) vào copilot: sanitize tool result, output guard.
+* Chạy {{golden_qa_dataset.json}} 4 case injection trên agent thật: chặn ""add 10 to cart"", ""reveal system prompt"", ""medical claim"", ""checkout without confirm"".
+
+*Done:* eval injection pass 4/4 trên agent thật; không tool ghi nào chạy không confirm. *Ref:* AI_FEATURE Phần B, ADR-006, phụ thuộc TF1-59/56/61.",,Vinh Bui,Định Nguyễn,712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,,,,,,,,,,,,ApprovalsCFValue{approvals=[]},,,,,,,,,,,,,,,,0|i000dj:,,,,,,Sprint 2,13/Jul/26 12:00 AM,,5.0,,,,,,,,,2026-07-13 10:34:47.457,,"13/Jul/26 5:34 PM;712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8;[AI-W2-AGENT:W2-TF1-74] Week 2 owner: Vinh Reviewer: Định Acceptance criteria: Không write-tool nào chạy thiếu confirmation; bộ injection eval pass. Planning load: 5 units Changes applied: assignee, labels Change applied from approved TF1 AI Week 2 plan.",,,,10140,TF1-77,[AIE] AI Product Features & Shopping Copilot,To Do,13/Jul/26 9:18 AM
+[AIOps][Cost][W2] Tín hiệu cost Bedrock (token counter → metric) + AWS Budgets/Cost Anomaly alert,TF1-73,10136,Task,Backlog,TF1,Task Force 1,software,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,High,,Thịnh Nguyễn Hưng,712020:13a3f803-4895-403d-a774-dbea11f32c2d,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,13/Jul/26 9:18 AM,13/Jul/26 5:35 PM,13/Jul/26 9:21 AM,,27/Jul/26 12:00 AM,0,AIOps,ai-w2-aiops,ai-w2-cost,cost,week2,,,"*Mục tiêu:* đề liệt kê ""cost"" là 1 trong các tín hiệu đa-tín-hiệu (latency/error/saturation/queue/*cost*); hiện detector chưa có tín hiệu cost — gap duy nhất trong 6 nhóm tín hiệu.
+
+*Việc:*
+
+* Export metric token/chi phí Bedrock từ product-reviews (đếm input/output token per request → Prometheus gauge/counter).
+* Rule detector cảnh báo khi chi phí Bedrock/giờ vượt ngưỡng (bám trần BUDGET.md).
+* Dựng *AWS Budgets + Cost Anomaly Detection* (BUDGET.md khuyến nghị dựng sớm) alert khi tiến gần trần.
+
+*Done:* detector có rule cost sống + AWS Budgets alert cấu hình. *Ref:* review AIOps coverage (cost gap), BUDGET.md.",,Vinh Bui,Định Nguyễn,712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,,,,,,,,,,,,ApprovalsCFValue{approvals=[]},,,,,,,,,,,,,,,,0|i000db:,,,,,,Sprint 2,13/Jul/26 12:00 AM,,5.0,,,,,,,,,2026-07-13 10:35:01.374,,"13/Jul/26 5:35 PM;712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8;[AI-W2-AGENT:W2-TF1-73] Week 2 owner: Hưng Thịnh Reviewer: Tiến Thành Acceptance criteria: Token/cost metric sống, detector threshold có căn cứ và AWS Budget alert có evidence. Planning load: 4 units Changes applied: assignee, labels Change applied from approved TF1 AI Week 2 plan.",,,,10141,TF1-78,[AIOps] Intelligent Systems Observability & Auto-Remediation,To Do,13/Jul/26 9:18 AM
+[AIOps][W2] Closed-loop auto-remediation: implement vòng dry-run→blast-radius→verify→rollback→CB,TF1-72,10135,Task,Done,TF1,Task Force 1,software,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,Highest,Done,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,13/Jul/26 9:17 AM,15/Jul/26 1:10 PM,15/Jul/26 1:03 PM,13/Jul/26 3:41 PM,27/Jul/26 12:00 AM,0,AIOps,remediation,week2,,,,,"*Mục tiêu:* AIOps core của đề yêu cầu ""vòng tự động hoá xử lý sự cố, chạy liên tục"". W1 mới detect-only (đúng trình tự); W2 implement vòng khép kín theo spec {{03_specs/anomaly_remediation.md}} (đã khớp nguyên văn giáo trình).
+
+*Việc:*
+
+* Implement action catalog rule-based (restart pod / scale / clear cache) từ alert → hành động.
+* Safety boundary: *dry-run* kiểm quyền trước; *blast radius* tối đa 1 pod/namespace/giờ; *verify* đo metrics 120s sau vá, không về ngưỡng thì *rollback*; *circuit breaker* đóng băng sau 3 fail liên tiếp + escalate on-call.
+* Verify các số (120s/3-fail/1-pod-h) bằng chaos test thật, thay assumption.
+
+*Done:* 1 kịch bản end-to-end (vd OOM → restart → verify → rollback nếu fail) chạy an toàn trên EKS với chaos. *Ref:* RULES.md §4 AIOps core, TF1-50 spec.",,Định Nguyễn,,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,,,,,,,,,,,,,ApprovalsCFValue{approvals=[]},,,,,,,,,,,,,,,,0|i000d3:,,,,,,Sprint 2,13/Jul/26 12:00 AM,,8.0,,,,,,,,,,10006_*:*_1_*:*_23039677_*|*_10005_*:*_1_*:*_0,15/Jul/26 12:56 PM;712020:1d2b710c-361d-410f-a6e2-b98e74b348f5;[KHÔNG LÀM] Hoãn sang Tuần 3 vì cần kiểm chứng metrics.,15/Jul/26 1:10 PM;712020:1d2b710c-361d-410f-a6e2-b98e74b348f5;[KHÔNG LÀM] Hoãn sang Tuần 3 vì cần kiểm chứng metrics.,,,10141,TF1-78,[AIOps] Intelligent Systems Observability & Auto-Remediation,Done,13/Jul/26 3:41 PM
+[AIOps][W2] Verify rule draft trên EKS (memory/kafka/burn) + backtest EWMA alpha + Drain3 masking → chốt sim_th,TF1-71,10134,Task,In Progress,TF1,Task Force 1,software,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,High,,Thanh Pham Huu Tien,712020:ea31465a-12af-4197-a758-b6297a61b6e3,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,13/Jul/26 9:17 AM,13/Jul/26 5:34 PM,13/Jul/26 4:20 PM,,27/Jul/26 12:00 AM,0,AIOps,ai-w2-aiops,ai-w2-parent,blocked-eks,measurement,week2,,"*Mục tiêu:* nhiều tham số/rule mới chỉ pass-parse hoặc là số đo compose — phải verify semantics + đo lại trên EKS.
+
+*Việc:*
+
+* {{memory-saturation-high}}: cần *kube-state-metrics + cadvisor* trên EKS (compose 0 series) — verify fire trước OOM (leading indicator cho J1).
+* {{kafka-consumer-lag-high}}: verify tên metric thật trên Prometheus EKS (kafka receiver của collector).
+* Backtest *EWMA alpha* (0.1/0.2/0.3) trên 24h p95 thật thay số convention ({{evaluate_detector.py}} trên data thật).
+* Drain3: chạy grid CÓ masking ({{MASK=1 drain3_param_grid.py}}) trên 24h log EKS → chốt {{sim_th}} cuối (hiện default 0.3 pre-masking).
+* Đo lại MTTD/ingest trên EKS → chốt poll interval (compose cho 35.4s @30s).
+
+*Done:* mọi số DRAFT/assumption trong {{05_adrs}} Sổ đăng ký thành số đo EKS. *Ref:* review G4/G5/K4, sim_th fix.",,Vinh Bui,Định Nguyễn,712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,,,,,,,,,,,,ApprovalsCFValue{approvals=[]},,,,,,,,,,,,,,,,0|i0009n:,,,,,,Sprint 2,13/Jul/26 12:00 AM,,5.0,,,,,,,,,2026-07-13 10:34:59.901,,"13/Jul/26 5:34 PM;712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8;[AI-W2-AGENT:W2-TF1-71-PARENT] Week 2 owner: Tiến Thành Reviewer: Tiến Thành Acceptance criteria: Parent dùng để theo dõi hai workstream độc lập 71A và 71B. Planning load: 0 units Changes applied: assignee, labels, subtask, subtask Change applied from approved TF1 AI Week 2 plan.",,,,10141,TF1-78,[AIOps] Intelligent Systems Observability & Auto-Remediation,In Progress,13/Jul/26 4:03 PM
+[AIOps][W2] Correlate stage: fingerprint dedup alert + ma trận tương quan golden signals (nền RCA),TF1-70,10133,Task,Backlog,TF1,Task Force 1,software,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,Highest,,Thanh Hoang (Jax),712020:e0337882-a4e1-4f73-afd8-f8d0bb562575,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,13/Jul/26 9:17 AM,13/Jul/26 5:34 PM,13/Jul/26 9:21 AM,,27/Jul/26 12:00 AM,0,AIOps,ai-w2-aiops,ai-w2-data,correlation,rca,week2,,"*Mục tiêu:* pipeline giáo trình có stage Correlate BẮT BUỘC (Detect→Correlate→Diagnose→Act) — hiện chỉ có cooldown per-rule, 1 sự cố Bedrock bắn 3 alert cùng lúc.
+
+*Việc:*
+
+* *K3 dedup:* fingerprint {{(rule_id, service, 5m-bucket)}} → gộp alert cùng bucket thành 1 message (~30 dòng trong {{alerter.py}}).
+* *G7 tương quan (nền RCA mở rộng):* export 24h Prometheus (locust load) → Pearson/Spearman giữa golden signals per-service ở lag 0/30/60s; alert co-occurrence từ alerter history. Xác định leading indicator (saturation dẫn trước latency).
+
+*Done:* 1 sự cố = 1 alert gộp; bảng tương quan + co-occurrence commit làm nền cho RCA cross-service. *Ref:* review G7/K3.",,Vinh Bui,Định Nguyễn,712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,,,,,,,,,,,,ApprovalsCFValue{approvals=[]},,,,,,,,,,,,,,,,0|i000cn:,,,,,,Sprint 2,13/Jul/26 12:00 AM,,8.0,,,,,,,,,2026-07-13 10:34:56.397,,"13/Jul/26 5:34 PM;712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8;[AI-W2-AGENT:W2-TF1-70] Week 2 owner: Nhật Thành Reviewer: Tiến Thành Acceptance criteria: Alert fingerprint/dedup hoạt động; một incident chỉ phát một alert gộp; có co-occurrence matrix. Planning load: 5 units Changes applied: assignee, labels Change applied from approved TF1 AI Week 2 plan.",,,,10141,TF1-78,[AIOps] Intelligent Systems Observability & Auto-Remediation,To Do,13/Jul/26 9:17 AM
+[AIOps][W2] Multi-window burn-rate alerting thay raw error-rate (course non-negotiable) + verify PromQL EKS,TF1-69,10132,Task,In Progress,TF1,Task Force 1,software,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,Highest,,Nguyễn Ngọc Giao,6288975d0685de006fd3d9d8,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,13/Jul/26 9:16 AM,15/Jul/26 12:00 PM,13/Jul/26 9:20 AM,,27/Jul/26 12:00 AM,0,AIOps,ai-w2-aiops,ai-w2-slo,alerting,week2,,,"*Mục tiêu:* rule error-rate hiện là single-window 5m raw threshold — vi phạm non-negotiable của giáo trình AIOps (""never alert on raw error rate; use multi-window multi-burn-rate""). Hai mặt hỏng: page vì blip khi budget còn nguyên, và ngủ quên trước slow burn.
+
+*Việc:*
+
+* Hoàn thiện rule DRAFT {{error-budget-burn-fast}} (14.4× @5m+1h page) + thêm ticket-level (6× @30m+6h).
+* Verify PromQL trên Prometheus EKS với chaos sinh HTTP 5xx thật (local chỉ tạo được gRPC error — xem {{grpc-error-rate-high}} đã verified).
+* Đảm bảo phủ cả checkout (luồng ra tiền, budget 1%).
+
+*Done:* rule burn-rate fire đúng dưới chaos EKS, im trước blip; thay rule raw cũ. *Ref:* review K1.",,Vinh Bui,Định Nguyễn,712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,,,,,,,,,,,,ApprovalsCFValue{approvals=[]},,,,,,,,,,,,,,,,0|i000b7:,,,,,,Sprint 2,13/Jul/26 12:00 AM,,5.0,,,,,,,,,2026-07-13 10:34:54.897,,"13/Jul/26 5:34 PM;712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8;[AI-W2-AGENT:W2-TF1-69] Week 2 owner: Giao Reviewer: Tiến Thành Acceptance criteria: Fast/slow multi-window burn-rate rules fire đúng dưới chaos và im trước transient blip. Planning load: 5 units Changes applied: assignee, labels Change applied from approved TF1 AI Week 2 plan.",,,,10141,TF1-78,[AIOps] Intelligent Systems Observability & Auto-Remediation,In Progress,15/Jul/26 12:00 PM
+[AIE][Reliability][W2] Chốt ADR-003 valkey với CDO: maxmemory + tách instance cache reviews (J1 CRITICAL),TF1-68,10131,Task,In Progress,TF1,Task Force 1,software,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,Highest,,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,13/Jul/26 9:16 AM,13/Jul/26 9:17 PM,14/Jul/26 9:35 AM,,27/Jul/26 12:00 AM,0,AIE,ai-w2-p0,ai-w2-valkey,blocked-cdo,critical,reliability,week2,"*Mục tiêu:* đóng rủi ro CRITICAL J1 — {{volatile-lru}} được thêm KHÔNG có {{--maxmemory}} (policy không chạy), TTL cart từng bị gỡ → nguy cơ kubelet OOMKill mất giỏ → đánh checkout SLO ≥99%.
+
+*Đã làm tạm 13/07:* khôi phục TTL cart 60m (baseline) trong {{ValkeyCartStore.cs}} để an toàn trong khi chờ chốt.
+
+*Việc:*
+
+* Chốt với CDO (xem {{open-questions-w1.md}} mục A): (a) giữ TTL cart hay (b) set {{--maxmemory}} < cgroup limit + nâng limit 20Mi + tách instance cache reviews khỏi valkey-cart.
+* Soak test đo time-to-OOM ({{INFO memory}} theo giờ dưới locust) để chọn số maxmemory có căn cứ.
+* Session length thật để chốt TTL cart (nếu giữ) thay vì 60m mặc định.
+
+*Done:* ADR-003 co-sign CDO + config không còn nguy cơ OOM (chứng minh bằng soak test). *Ref:* review J1.",,Vinh Bui,Định Nguyễn,712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,,,,,,,,,,,,ApprovalsCFValue{approvals=[]},,,,,,,,,,,,,,,,0|i000av:,,,,,,Sprint 2,13/Jul/26 12:00 AM,,5.0,,,,,,,,,2026-07-13 10:34:52.031,,"13/Jul/26 5:34 PM;712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8;[AI-W2-AGENT:W2-TF1-68] Week 2 owner: Định Reviewer: Vinh + CDO Acceptance criteria: ADR được co-sign; maxmemory/TTL/tách cache được chốt; soak test chứng minh không OOM. Planning load: 5 units Changes applied: assignee, labels Change applied from approved TF1 AI Week 2 plan.",,,,10140,TF1-77,[AIE] AI Product Features & Shopping Copilot,In Progress,13/Jul/26 9:17 PM
+[AIE][W2] Eval fidelity tóm tắt trên Nova thật + golden_qa 34 case + đưa vào CI,TF1-67,10130,Task,Backlog,TF1,Task Force 1,software,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,High,,Thịnh Nguyễn Công,712020:e450ab44-e405-4673-9c30-f76deaccb47d,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,13/Jul/26 9:16 AM,13/Jul/26 5:34 PM,13/Jul/26 9:20 AM,,27/Jul/26 12:00 AM,0,AIE,ai-w2-ci,ai-w2-eval,ci,eval,week2,,"*Mục tiêu:* biến eval từ harness/mô phỏng thành số đo tái tạo được (AI_FEATURE: ""số không tái tạo được coi như chưa chứng minh"").
+
+*Việc:*
+
+* Chạy {{run_evals.py}} + {{golden_dataset.json}} (10 case) trên Nova thật, đo fidelity (summary khớp {{expected_summary_keywords}}, không bịa).
+* Chạy {{golden_qa_dataset.json}} (24 case: grounded/no_info/injection) — kiểm ""nói không có thông tin"" khi review không đề cập.
+* {{measure_before_after}} (đã viết lại đo thật qua chaos flagd) chạy trên EKS lấy số error-rate trước/sau.
+* Thêm GitHub Actions: pytest + guardrail self-check + eval mỗi PR.
+
+*Done:* báo cáo fidelity trong {{04_eval_report.md}} với số thật; CI xanh chạy được từ repo sạch. *Ref:* review B5/G3, liên quan TF1-64.",,Vinh Bui,Định Nguyễn,712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,,,,,,,,,,,,ApprovalsCFValue{approvals=[]},,,,,,,,,,,,,,,,0|i000bz:,,,,,,Sprint 2,13/Jul/26 12:00 AM,,5.0,,,,,,,,,2026-07-13 10:34:50.366,,"13/Jul/26 5:34 PM;712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8;[AI-W2-AGENT:W2-TF1-67] Week 2 owner: Công Thịnh Reviewer: Vinh Acceptance criteria: Golden dataset chạy trên Nova thật trong CI từ repo sạch; báo cáo có breakdown và tái tạo được. Planning load: 4 units Changes applied: assignee, labels Change applied from approved TF1 AI Week 2 plan.",,,,10140,TF1-77,[AIE] AI Product Features & Shopping Copilot,To Do,13/Jul/26 9:16 AM
+[AIE][W2] Đo Bedrock latency P50/P95 thật → chốt timeout reviews 3.0/2.0s & copilot 5.0/3.0s,TF1-66,10129,Task,Backlog,TF1,Task Force 1,software,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,High,,Phan Đức Tài,712020:5ddc2f27-a9d7-44df-ae16-56c6137782af,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,13/Jul/26 9:15 AM,13/Jul/26 5:34 PM,13/Jul/26 9:20 AM,,27/Jul/26 12:00 AM,0,AIE,ai-w2-bedrock,ai-w2-eval,blocked-creds,measurement,week2,,"*Mục tiêu:* timeout hiện tại dựa trên TTFT sai (spec ghi ~0.4s, Artificial Analysis thật là 1.04s / 175.7 tok/s → 1 call ~2.2s, luồng 2 vòng converse ~4.4s). Phải ĐO thật thay ước.
+
+*Việc:*
+
+* Chạy {{docs/ai/evals/measure_bedrock_latency.py}} trên Nova Lite/Micro/Pro thật (cần AWS creds).
+* Đo P50/P95 end-to-end cho luồng reviews (2 vòng converse) và copilot (tool loop).
+* Cập nhật {{LLM_REVIEWS_TIMEOUT}}/{{LLM_COPILOT_TIMEOUT}} theo số đo; sửa số trong {{03_specs/fallback_retry.md}} + slide.
+
+*Done:* bảng P50/P95 đo được commit; timeout = số đo (không phải spec cũ). *Ref:* review B3.",,Vinh Bui,Định Nguyễn,712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,,,,,,,,,,,,ApprovalsCFValue{approvals=[]},,,,,,,,,,,,,,,,0|i000br:,,,,,,Sprint 2,13/Jul/26 12:00 AM,,3.0,,,,,,,,,2026-07-13 10:34:49.031,,"13/Jul/26 5:34 PM;712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8;[AI-W2-AGENT:W2-TF1-66] Week 2 owner: Tài Reviewer: Vinh Acceptance criteria: Có bảng P50/P95 tái tạo được cho Nova Lite/Micro/Pro và timeout được cập nhật theo số đo. Planning load: 3 units Changes applied: assignee, labels Change applied from approved TF1 AI Week 2 plan.",,,,10140,TF1-77,[AIE] AI Product Features & Shopping Copilot,To Do,13/Jul/26 9:15 AM
+[AIE][W2] Deploy product-reviews Bedrock lên EKS thật (IAM IRSA + build→ECR + smoke test),TF1-65,10128,Task,Backlog,TF1,Task Force 1,software,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,High,,Thịnh Nguyễn Công,712020:e450ab44-e405-4673-9c30-f76deaccb47d,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,13/Jul/26 9:15 AM,13/Jul/26 5:56 PM,13/Jul/26 9:20 AM,,27/Jul/26 12:00 AM,0,AIE,ai-w2-bedrock,ai-w2-core,blocked-cdo,deploy,week2,,"*Mục tiêu:* đóng tiêu chí ""chạy thật, không mockup"" (AI_FEATURE) — hiện product-reviews gọi Bedrock trong code nhưng chưa deploy được lên EKS.
+
+*Việc:*
+
+* CDO cấp IAM {{bedrock:InvokeModel}} (IRSA cho serviceAccount {{product-reviews}}) — xem {{docs/ai/open-questions-w1.md}} mục B.
+* Enable model access console: nova-lite/micro/pro (us-east-1).
+* Build image từ source → push ECR ({{.env.override}} trỏ {{804372444787.dkr.ecr...}}); cập nhật {{platform/gitops/environments/sandbox/values-aio-llm.yaml}} (đang OpenAI gpt-4o-mini → Bedrock env).
+* Smoke test in-cluster: Ask AI trả summary thật từ Nova, không phải mock.
+
+*Done:* 1 request Ask AI trên EKS trả summary Nova thật; log không có ""AI_SUMMARY_FALLBACK stage=bedrock"".
+
+*Chặn bởi:* IAM từ CDO. *Ref:* review C4.",,Vinh Bui,Định Nguyễn,712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,,,,,,,,,,,,ApprovalsCFValue{approvals=[]},,,,,,,,,,,,,,,,0|i000bj:,,,,,,Sprint 2,13/Jul/26 12:00 AM,,3.0,,,,,,,,,2026-07-13 10:34:45.893,,"13/Jul/26 5:34 PM;712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8;[AI-W2-AGENT:W2-TF1-65] Week 2 owner: Vinh Reviewer: Định Acceptance criteria: Một request trên EKS trả summary từ Nova thật qua IRSA, không rơi vào mock. Planning load: 5 units Changes applied: assignee, labels Change applied from approved TF1 AI Week 2 plan.","13/Jul/26 5:56 PM;712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8;[AI-W2-AGENT:REASSIGN-TF1-65]
+Reassigned from Vinh → Công Thịnh
+Reason: Cân bằng tải — Vinh 10u quá cao (cũng là PM1+reviewer), Công Thịnh chỉ 4u có capacity.
+Vinh: 10u → 5u (giữ TF1-74 safety)
+Công Thịnh: 4u → 9u (thêm TF1-65 Bedrock deploy)
+Reviewer: Định (giữ nguyên)",,,10140,TF1-77,[AIE] AI Product Features & Shopping Copilot,To Do,13/Jul/26 9:15 AM
+"[Quality] Eval task-success 100% là vòng tròn — đang đo keyword matcher, không đo agent",TF1-64,10127,Task,In Progress,TF1,Task Force 1,software,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,High,,03 lê kim dũng,712020:7700aa2a-6287-4ce9-a419-db3ba9151845,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,10/Jul/26 9:45 AM,13/Jul/26 5:35 PM,13/Jul/26 5:04 PM,,15/Jul/26 12:00 AM,0,ai-w2-agent,ai-w2-eval,,,,,,"h3. Vấn đề
+
+test_task_success.py import demo_copilot_st rồi gọi run_mock_agent(). Mà run_mock_agent route bằng danh sách keyword hardcode. Nghĩa là eval đang đo một bộ so khớp chuỗi với các kịch bản viết ra từ chính những chuỗi đó. Con số 100% không chứng minh gì về chất lượng agent.
+
+h3. Bằng chứng
+
+* test_task_success.py:164 — import demo_copilot_st; copilot.run_mock_agent(user_input)
+* demo_copilot_st.py:446-475 — block_keywords / cart_keywords / review_keywords quyết định tool
+* AI_FEATURE.md — 'duoc danh gia khong phai tra loi troi chay, ma co eval task-success'
+
+h3. Acceptance criteria
+
+* Eval chạy trên agent thật (servicer gRPC từ task của Tài), không phải run_mock_agent
+* Kịch bản test độc lập với keyword của router — viết bởi người không đọc code router
+* Báo cáo task-success kèm breakdown: tool_selection, param_accuracy, confirmation_gate, blocked
+* Số đo tái tạo được từ dữ liệu + script commit trong repo",,Vinh Bui,Định Nguyễn,712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,,,,,,,,,,,,ApprovalsCFValue{approvals=[]},,,,,,,,,,,,,,,,0|i0009m:i,,,,,,Sprint 1,06/Jul/26 12:00 AM,,5.0,,,,,,,,,2026-07-13 10:35:05.537,,"13/Jul/26 5:35 PM;712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8;[AI-W2-AGENT:W2-TF1-64] Week 2 owner: Dũng Reviewer: Vinh Acceptance criteria: Task-success eval gọi agent gRPC thật và có breakdown tool/parameter/confirmation/blocked action. Planning load: 3 units Changes applied: assignee, labels Change applied from approved TF1 AI Week 2 plan.",,,,,,,In Progress,13/Jul/26 5:17 PM
+[Quality] test_task_success.py có 0 test pytest và nuốt exception — CI xanh giả,TF1-63,10126,Task,Done,TF1,Task Force 1,software,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,High,Done,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,10/Jul/26 9:45 AM,13/Jul/26 3:26 PM,15/Jul/26 12:57 PM,10/Jul/26 12:34 PM,13/Jul/26 12:00 AM,0,,,,,,,,"h3. Vấn đề
+
+File tên bắt đầu bằng test_ nhưng không có hàm def test_ nào. pytest trả 'no tests ran' và exit xanh. Nếu file này nằm trong CI thì CI đang pass mà không chạy gì. Ngoài ra hai chỗ except ... pass nuốt lỗi, trả tool_calls rỗng im lặng.
+
+h3. Bằng chứng
+
+* pytest docs/ai/evals/test_task_success.py -q → 'no tests ran in 0.01s'
+* grep -cE '^def test_' test_task_success.py → 0
+* test_task_success.py:179 — except Exception: pass
+* test_task_success.py:187 — except ImportError: pass, trả [] im lặng
+
+h3. Acceptance criteria
+
+* Mỗi scenario là một test pytest thật, chạy được bằng: pytest docs/ai/evals/
+* Bỏ except...pass; lỗi import hoặc lỗi agent phải làm test đỏ, không im lặng
+* Đưa eval vào CI và chứng minh CI đỏ khi chất lượng rớt",,Định Nguyễn,,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,,,,,,,,,,,,,ApprovalsCFValue{approvals=[]},,,,,,,,,,,,,,,,0|i00081:,,,,,,Sprint 1,06/Jul/26 12:00 AM,,3.0,,,,,,,,,,3_*:*_1_*:*_0_*|*_10006_*:*_1_*:*_526368,13/Jul/26 2:59 PM;712020:1d2b710c-361d-410f-a6e2-b98e74b348f5;✅ Task resolved by Pull Request: [https://github.com/nguyenductien-qnm/capstone-phase-3/pull/27|https://github.com/nguyenductien-qnm/capstone-phase-3/pull/27],,,,,,,Done,10/Jul/26 12:34 PM
+[AIOps] Deploy aiops-detector lên EKS và chạy liên tục — image vẫn là placeholder,TF1-62,10125,Task,In Progress,TF1,Task Force 1,software,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,High,,Thanh Pham Huu Tien,712020:ea31465a-12af-4197-a758-b6297a61b6e3,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,10/Jul/26 9:45 AM,13/Jul/26 5:34 PM,13/Jul/26 5:17 PM,,15/Jul/26 12:00 AM,0,ai-w2-aiops,ai-w2-core,,,,,,"h3. Vấn đề
+
+Detector có code tốt và KPI tái tạo được, nhưng chưa deploy. Manifest vẫn để image placeholder. AI_FEATURE.md bar đánh giá cao: 'He AIOps chay lien tuc trong luc van hanh va xu ly duoc su co that (khong phai demo mot lan)'.
+
+h3. Bằng chứng
+
+* tools/aiops-detector/deploy/deployment.yaml:28 — image: <ECR>/techx-corp:1.0-aiops-detector (chưa thay)
+* docs/ai/telemetry-audit.md:32 — audit chạy trên Docker Compose local (localhost:8080), không phải EKS
+* evaluate_detector.py chạy exit 0, KPI khớp detector_kpi_metrics.json — phần code đã sẵn sàng
+
+h3. Acceptance criteria
+
+* Build, push ECR của TF, deploy lên EKS, thay placeholder <ECR>
+* Detector poll Prometheus/OpenSearch liên tục, không phải chạy tay một lần
+* Khai rõ endpoint kênh cảnh báo trong bản nộp
+* Có bằng chứng detector bắt được ít nhất 1 sự cố thật trong lúc vận hành",,Vinh Bui,Định Nguyễn,712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,,,,,,,,,,,,ApprovalsCFValue{approvals=[]},,,,,,,,,,,,,,,,0|i0009m:,,,,,,Sprint 1,06/Jul/26 12:00 AM,,3.0,,,,,,,,,2026-07-13 10:34:53.38,,"13/Jul/26 5:34 PM;712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8;[AI-W2-AGENT:W2-TF1-62] Week 2 owner: Tiến Thành Reviewer: Định Acceptance criteria: AIOps detector chạy liên tục trên EKS và bắt được ít nhất một chaos thật. Planning load: 5 units Changes applied: assignee, labels Change applied from approved TF1 AI Week 2 plan.",,,,10141,TF1-78,[AIOps] Intelligent Systems Observability & Auto-Remediation,In Progress,13/Jul/26 5:17 PM
+[AIE] Guardrail prompt-injection / PII / lộ system prompt — hiện tại bằng 0,TF1-61,10124,Task,Done,TF1,Task Force 1,software,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,Highest,Done,Nguyễn Ngọc Giao,6288975d0685de006fd3d9d8,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,10/Jul/26 9:45 AM,13/Jul/26 9:15 PM,15/Jul/26 12:49 PM,13/Jul/26 9:15 PM,13/Jul/26 12:00 AM,0,,,,,,,,"h3. Vấn đề
+
+product_reviews_server.py gọi Bedrock trực tiếp với nội dung review, không có lớp lọc nào. Prompt-injection nhét trong review (đúng kịch bản đề bài nêu) đi thẳng vào model. Guardrail duy nhất là blocklist keyword trong Streamlit PoC, và nó thủng.
+
+h3. Bằng chứng
+
+* grep -ciE 'injection|sanitiz|guardrail|redact|pii' product_reviews_server.py → 0
+* demo_copilot_st.py:446 — block_keywords chặn 'xóa' nhưng không chặn 'làm trống', 'bỏ hết', 'reset giỏ'
+* AI_FEATURE.md Cốt lõi 1 — 'guardrail chặn prompt-injection nhét trong review, lọc PII, chặn lộ system prompt'
+
+h3. Acceptance criteria
+
+* Guardrail chạy trong service thật, không phải chỉ trong PoC
+* Có eval đo tỉ lệ chặn tấn công, tái tạo được bằng script commit trong repo
+* Bộ test adversarial gồm biến thể tiếng Việt lẫn tiếng Anh, không chỉ khớp chuỗi
+* Không lộ system prompt, không rò PII trong output",,Định Nguyễn,,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,,,,,,,,,,,,,ApprovalsCFValue{approvals=[]},,,,,,,,,,,,,,,,0|i000d7:,,,,,,Sprint 1,06/Jul/26 12:00 AM,,5.0,,,,,,,,,,3_*:*_2_*:*_268061359_*|*_10006_*:*_1_*:*_10012226_*|*_10005_*:*_1_*:*_8239540,13/Jul/26 2:59 PM;712020:1d2b710c-361d-410f-a6e2-b98e74b348f5;✅ Task resolved by Pull Request: [https://github.com/nguyenductien-qnm/capstone-phase-3/pull/36|https://github.com/nguyenductien-qnm/capstone-phase-3/pull/36],,,,10140,TF1-77,[AIE] AI Product Features & Shopping Copilot,Done,13/Jul/26 9:15 PM
+[AIE] Fallback routing + retry/timeout cho product-reviews — hiện tại bằng 0,TF1-60,10123,Task,Done,TF1,Task Force 1,software,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,High,Done,Thịnh Nguyễn Công,712020:7db43fb7-4735-49a8-8f0f-de429b4e873d,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,10/Jul/26 9:45 AM,13/Jul/26 9:18 PM,15/Jul/26 12:58 PM,10/Jul/26 12:36 PM,13/Jul/26 12:00 AM,0,,,,,,,,"h3. Vấn đề
+
+specs/fallback_retry.md thiết kế flow Nova Lite sang model dự phòng, nhưng code thật không có fallback nào. except ClientError chỉ trả câu xin lỗi cho khách — đó là graceful degradation, không phải fallback routing. AI_FEATURE.md Cốt lõi 1 yêu cầu 'fallback khi LLM lỗi/chậm'.
+
+h3. Bằng chứng
+
+* grep -ciE 'fallback|retry|backoff|timeout' product_reviews_server.py → 0
+* product_reviews_server.py:299-311 — except ClientError trả 'The system is unable to process your response'
+* ThrottlingException chỉ log, không chuyển model
+* specs/fallback_retry.md — spec đã có, code chưa có
+
+h3. Acceptance criteria
+
+* Model chính lỗi/429 thì tự chuyển model dự phòng, khách vẫn thấy tóm tắt
+* Có timeout + retry với backoff trên mọi lời gọi Bedrock
+* Test tái tạo được: inject ThrottlingException, chứng minh fallback kích hoạt
+* Đo before/after: tỉ lệ lỗi hiển thị cho khách",,Định Nguyễn,,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,,,,,,,,,,,,,ApprovalsCFValue{approvals=[]},,,,,,,,,,,,,,,,0|i0009f:,,,,,,Sprint 1,06/Jul/26 12:00 AM,,5.0,,,,,,,,,,10006_*:*_1_*:*_10289814_*|*_10005_*:*_1_*:*_0,13/Jul/26 2:59 PM;712020:1d2b710c-361d-410f-a6e2-b98e74b348f5;✅ Task resolved by Pull Request: [https://github.com/nguyenductien-qnm/capstone-phase-3/pull/26|https://github.com/nguyenductien-qnm/capstone-phase-3/pull/26],,,,10140,TF1-77,[AIE] AI Product Features & Shopping Copilot,Done,10/Jul/26 12:36 PM
+[AIE] Implement ShoppingCopilotServiceServicer — trợ lý chưa chạy thật,TF1-59,10122,Task,In Progress,TF1,Task Force 1,software,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,Highest,,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,10/Jul/26 9:45 AM,13/Jul/26 9:20 PM,14/Jul/26 9:35 AM,,15/Jul/26 12:00 AM,0,ai-w2-aie,ai-w2-core,,,,,,"h3. Vấn đề
+
+pb/shopping_copilot.proto đã định nghĩa service ShoppingCopilotService và stub đã sinh, nhưng không service nào implement servicer. Cái đang demo là Streamlit PoC chạy MOCK_PRODUCTS hardcode. RULES.md muc 4 yeu cau 'phai chay that trong he thong cua TF (khong mockup)'.
+
+h3. Bằng chứng
+
+* grep -rl ShoppingCopilotServiceServicer techx-corp-platform/src/ → trống
+* techx-corp-platform/pb/shopping_copilot.proto:11 — service ShoppingCopilotService đã khai báo
+* demo_copilot_st.py:71 — MOCK_PRODUCTS hardcode
+* 00_backlog.md muc 3.3 — TF1-56 (nối gRPC thật) đang hoãn
+
+h3. Acceptance criteria
+
+* Một service implement ShoppingCopilotServiceServicer và lắng nghe trên :50051
+* 3 intent cốt lõi gọi được tool gRPC thật: product-catalog search, product-reviews, cart
+* Thao tác ghi vào cart có confirmation gate; không tự checkout/xoá giỏ
+* Có audit log mọi lời gọi tool",,Vinh Bui,Định Nguyễn,712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,,,,,,,,,,,,ApprovalsCFValue{approvals=[]},,,,,,,,,,,,,,,,0|i000a7:,,,,,,Sprint 1,06/Jul/26 12:00 AM,,5.0,,,,,,,,,2026-07-13 10:34:42.499,,"13/Jul/26 5:34 PM;712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8;[AI-W2-AGENT:W2-TF1-59] Week 2 owner: Định Reviewer: Vinh Acceptance criteria: ShoppingCopilotServiceServicer chạy thật trên :50051; có session, tool-loop và audit log. Planning load: 8 units Changes applied: labels Change applied from approved TF1 AI Week 2 plan.","13/Jul/26 9:13 PM;712020:1d2b710c-361d-410f-a6e2-b98e74b348f5;Implemented the real gRPC servicer (branch {{feat/TF1-59-shopping-copilot-servicer}}, *PR #47 → develop*).
+
+{{techx-corp-platform/src/shopping-copilot/}} — {{ShoppingCopilotService.ChatWithCopilot}} on {{:50051}}, replacing the Streamlit PoC.
+
+*Acceptance criteria:*
+
+* ✅ Service implements {{ShoppingCopilotServiceServicer}}, listens on {{:50051}}
+* ✅ 3 intents via real gRPC: {{search_products}}→ProductCatalog, {{get_product_reviews}}→ProductReviews, {{get_cart}}/{{add_item_to_cart}}→Cart
+* ✅ Cart write behind a *two-phase token-based confirmation gate*; {{empty_cart}}/{{place_order}}/checkout block-listed by omission
+* ✅ Audit log every tool call ({{ToolCallRecord}} + JSON log)
+
+Extras: max 5 tool-calls/turn, degraded fallback on Bedrock failure, w4-agentic-rag tool-desc + grounding rules.
+
+{{test_copilot.py}} self-check (no AWS/gRPC) passes: gate two-phase, single-use token, routing+audit, max-loop, degraded.
+
+*Still open (not blocking merge):* live EKS integration with product-catalog/reviews/cart + Bedrock creds (depends on CDO/AWS, overlaps TF1-68 valkey + TF1-58 Bedrock); Helm {{shopping-copilot}} chart {{enabled: true}} after image build (J2). Keeping this In Progress until reviewed + merged.",,,10140,TF1-77,[AIE] AI Product Features & Shopping Copilot,In Progress,10/Jul/26 12:49 PM
+[AIE][AIOps] Đồng bộ docs/ai với hệ thống thật sau review mentor (P1 Bedrock + cache spec + AIOps gaps),TF1-58,10121,Task,Done,TF1,Task Force 1,software,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,Medium,Done,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,09/Jul/26 3:15 PM,13/Jul/26 3:25 PM,15/Jul/26 12:59 PM,13/Jul/26 2:59 PM,13/Jul/26 12:00 AM,0,,,,,,,,"Gộp toàn bộ công việc phát sinh từ review của mentor + 3 phát hiện khi verify claim.
+
+*Verify kết quả:* 5/6 góp ý của mentor đúng. 2 điểm đã lỗi thời (pitch.md đã dùng giá Nova; get_cart đã có trong spec + proto). Verify lộ thêm 3 vấn đề nặng hơn.
+
+----
+
+h2. Bước 1 — P1: product-reviews KHÔNG gọi Bedrock (chặn mọi thứ khác)
+
+{{product_reviews_server.py:41}} import OpenAI SDK, trỏ vào mock LLM in-cluster ({{LLM_BASE_URL=http://llm:8000/v1}}, {{LLM_MODEL=techx-llm}}). Không có boto3, không có Bedrock, không có Nova. Nhưng ADR-004 + pitch.md + valkey_caching.md:41 đều mô tả Bedrock Nova. Cost model $9.66/tuần đang tính token cho một service không tiêu token nào. Quyết định: sửa code theo docs (RULES.md §4).
+
+* [ ] Thay {{openai}} SDK bằng {{boto3}} Converse trong {{product_reviews_server.py:155-310}} — cả nhánh {{llmRateLimitError}} ({{:164-201}})
+* [ ] Viết lại 2 tool function-calling ({{fetch_product_reviews}}, {{fetch_product_info}}, {{:53-88}}) theo {{toolConfig}} Bedrock; tham chiếu bản đã chạy {{demo_copilot_st.py:338-414}}
+* [ ] Env/Helm/compose: bỏ {{LLM_BASE_URL}} + {{OPENAI_API_KEY}}, thêm AWS region ({{.env:159-166}}, {{values.yaml:606-615}})
+* [ ] GIỮ mock LLM {{src/llm/app.py}} làm fault-injection cho flag {{llmRateLimitError}} (429 giả, AIOps đang dùng). Gate bằng env, không xoá.
+
+h2. Bước 2 — Cache spec (mentor #1, #2)
+
+* [ ] Chuyển cache từ {{GetProductReviews}} sang {{AskProductAIAssistant}} ({{valkey_caching.md:14,29,41}}). {{GetProductReviews}} chỉ đọc DB, không gọi LLM — cache hiện chặn 0 lời gọi LLM.
+* [ ] Cache key thêm version: {{reviews:summary:{product_id}:{model_ver}:{prompt_ver}}} ({{:60}}). Bỏ {{model_override}} khỏi key {{:meta}} — hiện đổi Nova Lite↔Pro vẫn trúng cache cũ.
+* [ ] Xoá §6.1 Write-Around Invalidation + §6.2 Thumbs Down ({{:135-147}}) và khối cảnh báo rpc ({{:124-133}}). Review là data seed tĩnh ({{src/postgresql/init.sql}}), TTL + version key là đủ.
+* [ ] Gỡ {{rpc AddReview}} + {{SubmitSummaryFeedback}} khỏi {{pb/demo.proto:111,112,146}}. Regen stub, sync 6 service.
+* [ ] Implement cache thật + đọc flag {{llmReviewsCacheEnabled}} — flag có ở {{src/flagd/demo.flagd.json:22}} nhưng không dòng code nào đọc nó.
+* [ ] Thêm {{llmReviewsCacheEnabled}} vào {{techx-corp-chart/flagd/demo.flagd.json}} (bản chart đang thiếu).
+
+h2. Bước 3 — Dọn docs (mentor #3, #4, #5, #6c)
+
+* [ ] {{ADR-log.md:71}} — Option 2 là pod Valkey thứ hai in-cluster (20Mi trên node sẵn có ≈ $0), KHÔNG phải ElastiCache. Con số ""~$30/tuần"" bị copy từ ADR-001 Option A ({{:22}}). Terraform không có ElastiCache.
+* [ ] {{ADR-log.md:66-69}} — thêm CDO co-sign cho ADR-003. Hiện chỉ nhắc CTO. Thay đổi {{ValkeyCartStore.cs}} đã merge (TF1-54) nên cần ký hồi tố.
+* [ ] {{ADR-log.md:164}} + {{shopping_copilot.md:202}} — {{OWASP LLM09:2025}} → {{LLM06:2025}}. Đã verify: genai.owasp.org xác nhận LLM06:2025 = Excessive Agency; LLM09:2025 = Misinformation.
+* [ ] {{ADR-log.md:154-156}} — {{add_to_cart}} → {{add_item_to_cart}} (khớp spec). Gắn {{[Extend]}} cho {{list_recommendations}}, {{convert_currency}}, {{get_shipping_quote}} — 3 tool ADR-006 allowlist nhưng spec không định nghĩa.
+* [ ] {{ADR-log.md:18-20}} — gỡ Write-Around Invalidation + Feedback Loop khỏi ADR-001, gỡ ref TF1-55.
+* [ ] {{shopping_copilot.md}} §3.1–3.4 — gắn nhãn {{[Core]}} cho 4 tool.
+* [ ] Đồng bộ TTL (4h–7d vs 1h) và cache key ({{reviews:summary:{id}}} vs {{review_summary:L9ECAV7KIM}}) giữa {{valkey_caching.md}}, {{shopping_copilot.md:36,43}}, {{contracts/product-reviews-integration.md:50}}.
+* [ ] ADR-004 — ghi rõ phạm vi áp dụng là Copilot, không phải product-reviews.
+
+h2. Bước 4 — AIOps gap so với giáo trình AIOps-Learning
+
+* [ ] *Golden Signals: thêm phương pháp thứ 2.* Hiện chỉ có PromQL threshold tĩnh ({{tools/aiops-detector/rules.yaml:30-65}}). Deck W1 dạy rõ threshold cứng là anti-pattern, và group lab bắt buộc ""anomaly detection với ít nhất hai phương pháp khác nhau và so sánh hiệu quả"". Chọn 1: EWMA / STL+3σ / IsolationForest.
+* [ ] *Đo TTD / precision / recall trên ground-truth dataset.* Hiện không có con số nào. Bar W1: TTD < 5 phút, recall > 0.8, precision > 0.5, false alarm < 1%, explainability bắt buộc.
+* [ ] Drain3: tune {{sim_th}} ở 0.3 / 0.5 / 0.7 và so sánh template count (hiện hardcode 0.4). Export {{top_templates.csv}}, {{template_counts.csv}}.
+* [ ] Viết test cho {{tools/aiops-detector/}} — hiện zero test.
+* [ ] {{anomaly_remediation.md}}: bổ sung 5 safety checkpoint bắt buộc của W3 handout — dry-run mode, blast radius ({{max_actions_per_minute}}, {{max_restarts_per_service_per_hour}}), verify post-act (poll Prometheus ≥3 lần/60s), auto-rollback, circuit breaker (3 fail liên tiếp → halt, log {{CIRCUIT_OPEN}}, reset thủ công).
+* [ ] *Bỏ silent fallback* ở 2 chỗ: {{log_clustering.py:110,461}} (OpenSearch fail → im lặng dùng sample logs) và {{demo_copilot_st.py:255-286}} (gRPC fail → {{except Exception: pass}} → MOCK_PRODUCTS). Chaos deck gọi đây là ""silent blackout"" — pipeline vẫn xanh khi hạ tầng chết. Vi phạm RULES.md §4.
+
+----
+
+h2. Verification
+
+# {{grep -rn ""GetProductReviews"" docs/ai/specs/valkey_caching.md}} → không còn trong sequence diagram
+# {{grep -rn ""AddReview\|SubmitSummaryFeedback"" techx-corp-platform/pb/ docs/ai/}} → 0 hit
+# {{grep -rn ""LLM09"" docs/ai/}} → 0 hit; {{grep -rn ""LLM06"" docs/ai/}} → 2 hit
+# {{grep -rn ""reviews:summary\|review_summary"" docs/ai/}} → chỉ còn một dạng key
+# {{grep -c ""llmReviewsCacheEnabled"" techx-corp-chart/flagd/demo.flagd.json}} → 1
+# Regen proto sạch; {{python -c ""import demo_pb2_grpc""}} OK
+# {{cd aiops/log_clustering && python -m pytest test_log_clustering.py}} pass sau khi bỏ silent fallback
+
+h2. Ghi chú
+
+Không tạo task riêng cho: cost model Claude→Nova (đã xong ở {{pitch.md:83-89}}), thêm {{get_cart}} (đã có ở {{shopping_copilot.md:187-190}} + {{demo.proto:25}}).",,Định Nguyễn,,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,,,,,,,,,,,,,ApprovalsCFValue{approvals=[]},,,,,,,,,,,,,,,,0|i0009z:,,,,,,Sprint 1,06/Jul/26 12:00 AM,,2.0,,,,,,,,,,3_*:*_1_*:*_0_*|*_10006_*:*_1_*:*_3220750,"09/Jul/26 4:23 PM;712020:1d2b710c-361d-410f-a6e2-b98e74b348f5;Báo cáo tiến độ:
+Đã hoàn thành và đẩy code lên GitHub PR #24 (https://github.com/nguyenductien-qnm/capstone-phase-3/pull/24).
+
+Minh chứng kiểm thử (Evidence):
+1. Đã sinh stubs thành công cho cả 6 microservices thông qua docker-gen-proto.sh.
+2. Nối Bedrock Nova Converse API thật và Valkey cache (dynamic TTL) hoạt động ổn định.
+3. Tích hợp client gRPC cho Streamlit Copilot (demo_copilot_st.py) và gỡ bỏ pass im lặng của gRPC exceptions.
+4. Cải tiến AIOps: Thêm detector dynamic 3-sigma bên cạnh threshold tĩnh. evaluate_detector.py đo đạc KPI Hybrid đạt Recall 91.67% và TTD 5 steps.
+5. Unit tests pass 100%: pytest detector pass 3/3, pytest log clustering pass 32/32.",13/Jul/26 2:59 PM;712020:1d2b710c-361d-410f-a6e2-b98e74b348f5;✅ Task resolved by Pull Request: [https://github.com/nguyenductien-qnm/capstone-phase-3/pull/34|https://github.com/nguyenductien-qnm/capstone-phase-3/pull/34],,,10140,TF1-77,[AIE] AI Product Features & Shopping Copilot,Done,13/Jul/26 2:59 PM
+[AIE-Competitive] Semantic Search + AI Recommendations + Model Gateway (ADR-008/009/010),TF1-57,10120,Task,In Progress,TF1,Task Force 1,software,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,Medium,,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,09/Jul/26 12:19 PM,15/Jul/26 12:48 PM,14/Jul/26 9:11 AM,,15/Jul/26 12:00 AM,0,ai-w2-competitive,ai-w2-deferred,,,,,,"*Scope (competitive/đua top):* Semantic Search bằng Titan Embeddings + pgvector (ADR-008), AI Recommendations bằng embedding similarity (ADR-009), Model Gateway & A/B testing qua OpenFeature/flagd (ADR-010).
+
+*Trạng thái: DEFERRED khỏi đường găng Week 2* (W2 planning decision, 13/07). Không triển khai trước khi các core task (TF1-59, TF1-68) và evidence pack hoàn tất.
+
+*Điều kiện mở lại (reopen conditions):*
+
+* Core tasks + evidence Week 2 hoàn tất, VÀ
+* Catalog scale vượt ngưỡng đã thống nhất (search keyword hiện tại không đáp ứng), HOẶC có directive mới từ BTC/mentor.
+
+*Tài liệu:* ADR-008/009/010 trong {{docs/ai/05_adrs.md}}; specs trong {{docs/ai/03_specs/}} (semantic_search.md, ai_recommendations.md, model_gateway_ab_testing.md) — thiết kế đã sẵn, chỉ chờ điều kiện mở lại.",,Vinh Bui,Định Nguyễn,712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,,,,,,,,,,,,ApprovalsCFValue{approvals=[]},,,,,,,,,,,,,,,,0|i0009t:,,,,,,Sprint 1,06/Jul/26 12:00 AM,,,,,,,,,,,2026-07-13 10:35:06.942,,"13/Jul/26 5:35 PM;712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8;[AI-W2-AGENT:W2-TF1-57-DEFER] Week 2 owner: — Reviewer: Định/Vinh Acceptance criteria: Description được sửa cho khớp title; chỉ mở lại khi core/evidence hoàn tất hoặc catalog vượt ngưỡng đã thống nhất. Planning load: 0 units Changes applied: assignee, labels, description Change applied from approved TF1 AI Week 2 plan.",,,,10140,TF1-77,[AIE] AI Product Features & Shopping Copilot,In Progress,15/Jul/26 12:48 PM
+Implement real gRPC adapters for Shopping Copilot tools,TF1-56,10119,Task,In Progress,TF1,Task Force 1,software,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,Medium,,Phan Đức Tài,712020:5ddc2f27-a9d7-44df-ae16-56c6137782af,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,09/Jul/26 12:19 PM,13/Jul/26 5:34 PM,13/Jul/26 9:20 PM,,16/Jul/26 12:00 AM,0,ai-w2-adapter,ai-w2-aie,ai-w2-core,,,,,"demo_copilot_st.py chạy 3 tool (search_products, get_product_reviews, add_to_cart) trên MOCK_PRODUCTS - dict hardcode trong file. Không gọi product-catalog / product-reviews / cart thật trên EKS. RULES.md §4: 'Với mọi hạng mục AIE: phải chạy thật trong hệ thống của TF (không mockup)'. Ở trạng thái hiện tại hạng mục Copilot CHƯA đáp ứng tiêu chí chấm. Cần: wire tool vào gRPC stub (proto đã có sẵn ở pb/demo.proto + pb/shopping_copilot.proto sau PR #16), deploy vào cụm, và bổ sung eval task-success (assert agent gọi đúng tool, đúng tham số, dừng ở Confirmation Gate) - AI_FEATURE.md §3 nói rõ 'không tính trả lời trôi chảy'.",,Vinh Bui,Định Nguyễn,712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,,,,,,,,,,,,ApprovalsCFValue{approvals=[]},,,,,,,,,,,,,,,,0|i0009j:,,,,,,Sprint 1,06/Jul/26 12:00 AM,,,,,,,,,,,2026-07-13 10:34:44.289,,"09/Jul/26 4:23 PM;712020:1d2b710c-361d-410f-a6e2-b98e74b348f5;Báo cáo tiến độ:
+Đã hoàn thành và đẩy code lên GitHub PR #24 (https://github.com/nguyenductien-qnm/capstone-phase-3/pull/24).
+
+Minh chứng kiểm thử (Evidence):
+1. Đã sinh stubs thành công cho cả 6 microservices thông qua docker-gen-proto.sh.
+2. Nối Bedrock Nova Converse API thật và Valkey cache (dynamic TTL) hoạt động ổn định.
+3. Tích hợp client gRPC cho Streamlit Copilot (demo_copilot_st.py) và gỡ bỏ pass im lặng của gRPC exceptions.
+4. Cải tiến AIOps: Thêm detector dynamic 3-sigma bên cạnh threshold tĩnh. evaluate_detector.py đo đạc KPI Hybrid đạt Recall 91.67% và TTD 5 steps.
+5. Unit tests pass 100%: pytest detector pass 3/3, pytest log clustering pass 32/32.","13/Jul/26 5:34 PM;712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8;[AI-W2-AGENT:W2-TF1-56] Week 2 owner: Tài Reviewer: Vinh Acceptance criteria: search_products, get_product_reviews và cart gọi service thật; timeout rõ; test adapter pass. Planning load: 5 units Changes applied: assignee, labels, summary Change applied from approved TF1 AI Week 2 plan.",,,10140,TF1-77,[AIE] AI Product Features & Shopping Copilot,In Progress,09/Jul/26 3:51 PM
+[AIE] Bổ sung rpc AddReview + SubmitSummaryFeedback vào pb/demo.proto,TF1-55,10118,Task,Done,TF1,Task Force 1,software,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,Medium,Done,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,09/Jul/26 12:19 PM,15/Jul/26 1:10 PM,15/Jul/26 12:58 PM,09/Jul/26 3:51 PM,13/Jul/26 12:00 AM,0,,,,,,,,"ProductReviewService hiện chỉ có 3 rpc ĐỌC: GetProductReviews, GetAverageProductReviewScore, AskProductAIAssistant. Không có đường ghi review, không có endpoint nhận feedback. Review được seed sẵn qua src/postgresql/init.sql. Hệ quả: (1) Write-Around Invalidation của ADR-001 không có trigger; (2) nút Thumbs Down của ADR-001 không có backend. Hiện chỉ Dynamic TTL làm mới cache. Cần thêm: rpc AddReview(AddReviewRequest) returns (Empty) và rpc SubmitSummaryFeedback(SummaryFeedbackRequest) returns (Empty). Docs đã tham chiếu task này ở docs/ai/00_backlog.md và docs/ai/ADR-log.md (ADR-001).",,Định Nguyễn,,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,,,,,,,,,,,,,ApprovalsCFValue{approvals=[]},,,,,,,,,,,,,,,,0|i0009b:,,,,,,Sprint 1,06/Jul/26 12:00 AM,,,,,,,,,,,,10006_*:*_1_*:*_12710320_*|*_10005_*:*_1_*:*_0,"09/Jul/26 3:51 PM;712020:1d2b710c-361d-410f-a6e2-b98e74b348f5;Hủy thực hiện task này. Dữ liệu reviews là tĩnh, không có UI viết reviews hay gửi feedback. Thay vào đó, áp dụng Versioned Cache Key (reviews:summary:{product_id}:{model_ver}:{prompt_ver}) để làm mới cache khi thay đổi model/prompt.","15/Jul/26 12:56 PM;712020:1d2b710c-361d-410f-a6e2-b98e74b348f5;[KHÔNG LÀM] Không có UI, đã thay thế bằng TF1-58.","15/Jul/26 1:10 PM;712020:1d2b710c-361d-410f-a6e2-b98e74b348f5;[KHÔNG LÀM] Không có UI, đã thay thế bằng TF1-58.",,10140,TF1-77,[AIE] AI Product Features & Shopping Copilot,Done,09/Jul/26 3:51 PM
+[AIE-Reliability] Implement Valkey Eviction Policy Workaround (Option 1),TF1-54,10117,Task,Done,TF1,Task Force 1,software,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,Medium,Done,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,08/Jul/26 11:52 PM,15/Jul/26 12:56 PM,15/Jul/26 12:57 PM,09/Jul/26 12:06 AM,13/Jul/26 12:00 AM,0,,,,,,,,"Triển khai giải pháp Option 1 để giải quyết xung đột bộ nhớ trên cụm Valkey dùng chung:
+1. Cấu hình cụm Valkey thành volatile-lru.
+2. Loại bỏ TTL của key giỏ hàng trong code C# (ValkeyCartStore.cs) để tránh bị eviction nhầm.
+3. Viết script CronJob quét dọn offline (SCAN) giỏ hàng cũ quá 30 ngày.",,Định Nguyễn,,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,,,,,,,,,,,,,ApprovalsCFValue{approvals=[]},,,,,,,,,,,,,,,,0|i0007t:,,,,,,Sprint 1,06/Jul/26 12:00 AM,,,,,,,,,,,,3_*:*_1_*:*_0_*|*_10006_*:*_1_*:*_964,09/Jul/26 12:24 AM;712020:1d2b710c-361d-410f-a6e2-b98e74b348f5;CẬP NHẬT: Tài liệu đặc tả valkey_caching.md và bảng đối chiếu checklist HTML đã được cập nhật chi tiết mô tả giải pháp kỹ thuật Option 1 (volatile-lru + Bỏ Cart TTL + Cron GC dọn rác ban đêm) để bảo vệ dữ liệu giỏ hàng an toàn tuyệt đối dưới ngân sách $300/tuần. Mã nguồn tài liệu được lưu trên nhánh feat/valkey-eviction-opt1.,15/Jul/26 12:56 PM;712020:1d2b710c-361d-410f-a6e2-b98e74b348f5;Hoàn thành tính năng. Link PR: https://github.com/nguyenductien-qnm/capstone-phase-3/pull/36,,,10140,TF1-77,[AIE] AI Product Features & Shopping Copilot,Done,09/Jul/26 12:06 AM
+[AIOps-W1-T5] Xây dựng script/tool phát hiện lỗi và cảnh báo vận hành,TF1-53,10116,Task,Done,TF1,Task Force 1,software,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,Medium,Done,Thanh Pham Huu Tien,712020:ea31465a-12af-4197-a758-b6297a61b6e3,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,08/Jul/26 11:40 AM,15/Jul/26 1:10 PM,15/Jul/26 12:58 PM,09/Jul/26 10:40 AM,13/Jul/26 12:00 AM,0,,,,,,,,"h1. Mục tiêu & Phạm vi:
+Viết script Python phát hiện lỗi GenAI từ logs/metrics và gửi alert.
+
+h1. Context kỹ thuật & AIOps Learning:
+* *Giám sát log & metrics lỗi (từ Lab W1-W2 & S07/S01):*
+  - Viết script Python phân tích trực tiếp stream log hoặc API Prometheus.
+  - Nhận biết các sự cố kinh điển: connection pool cạn kiệt (INC-1/S01), cạn bộ nhớ gây OOM (INC-2/S07), hay lỗi DNS nxdomain (S02).
+  - Thiết lập cảnh báo vận hành ngắn gọn, gửi thông tin trực tiếp về kênh liên lạc chung của team.",,Thanh Pham Huu Tien,Định Nguyễn,712020:ea31465a-12af-4197-a758-b6297a61b6e3,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,,,,,,,,09/Jul/26 10:33 AM;ug:03288f0c-44b3-4546-b87d-dde52952f9eb;image-20260709-032818.png;https://dinhknd3.atlassian.net/rest/api/3/attachment/content/10000,,,,ApprovalsCFValue{approvals=[]},,,,,,,,,,,,,,,,0|i0008x:,,,,,,Sprint 1,06/Jul/26 12:00 AM,,,,,,,,,,,2026-07-09 03:33:50.814,3_*:*_1_*:*_0_*|*_10006_*:*_1_*:*_82807597,"09/Jul/26 10:33 AM;712020:ea31465a-12af-4197-a758-b6297a61b6e3;Done!
+
+!image-20260709-032818.png|width=650,alt=""image-20260709-032818.png""!
+
+* Script Python phát hiện lỗi từ logs + metrics → gửi alert.
+* Phân tích stream log (OpenSearch) và API Prometheus — cả hai nguồn.
+* Lỗi GenAI: LLM 429, GenAI assistant failure, GenAI latency.
+* Connection pool cạn (INC-1/S01), OOM (INC-2/S07), DNS NXDOMAIN (S02) — có rule riêng, đã demo NXDOMAIN trong ảnh.
+* Cảnh báo ngắn gọn → kênh chung team: Slack/Discord webhook, có dedup + cooldown chống spam.
+
+Chất lượng & an toàn:
+
+* Config-driven (thêm/sửa rule không đụng code); ngưỡng bám onboarding/SLO.md.
+* Không hardcode secret (webhook đọc từ env).
+* Đúng phạm vi AIOps: chỉ phát hiện + cảnh báo, không tự khắc phục (thuộc TF1-50), không đụng flagd (tránh disqualify).
+* Đã đóng gói Docker (image 225MB) + có sẵn manifest deploy/deployment.yaml để chạy in-cluster ở Tuần 2.
+
+Kiểm thử: compile pass; chạy với mock telemetry → 15/15 rule fire đúng; không có nguồn → degrade gọn, không crash; chạy trong Docker container → fire đúng.","09/Jul/26 10:33 AM;712020:ea31465a-12af-4197-a758-b6297a61b6e3;Done!
+
+!image-20260709-032818.png|width=650,alt=""image-20260709-032818.png""!
+
+* Script Python phát hiện lỗi từ logs + metrics → gửi alert.
+* Phân tích stream log (OpenSearch) và API Prometheus — cả hai nguồn.
+* Lỗi GenAI: LLM 429, GenAI assistant failure, GenAI latency.
+* Connection pool cạn (INC-1/S01), OOM (INC-2/S07), DNS NXDOMAIN (S02) — có rule riêng, đã demo NXDOMAIN trong ảnh.
+* Cảnh báo ngắn gọn → kênh chung team: Slack/Discord webhook, có dedup + cooldown chống spam.
+
+Chất lượng & an toàn:
+
+* Config-driven (thêm/sửa rule không đụng code); ngưỡng bám onboarding/SLO.md.
+* Không hardcode secret (webhook đọc từ env).
+* Đúng phạm vi AIOps: chỉ phát hiện + cảnh báo, không tự khắc phục (thuộc TF1-50), không đụng flagd (tránh disqualify).
+* Đã đóng gói Docker (image 225MB) + có sẵn manifest deploy/deployment.yaml để chạy in-cluster ở Tuần 2.
+
+Kiểm thử: compile pass; chạy với mock telemetry → 15/15 rule fire đúng; không có nguồn → degrade gọn, không crash; chạy trong Docker container → fire đúng.",15/Jul/26 12:56 PM;712020:1d2b710c-361d-410f-a6e2-b98e74b348f5;Hoàn thành. Link PR: https://github.com/nguyenductien-qnm/capstone-phase-3/pull/13,15/Jul/26 1:10 PM;712020:1d2b710c-361d-410f-a6e2-b98e74b348f5;Hoàn thành. Link PR: https://github.com/nguyenductien-qnm/capstone-phase-3/pull/13,10141,TF1-78,[AIOps] Intelligent Systems Observability & Auto-Remediation,Done,09/Jul/26 10:40 AM
+[AIOps-W1-T4] Nghiên cứu & Xây dựng Log Clustering sử dụng thuật toán Drain3,TF1-52,10115,Task,Done,TF1,Task Force 1,software,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,Medium,Done,Vinh Bui,712020:75cc7ed9-bd5d-4f7e-b256-08a6af7e8ba8,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,08/Jul/26 11:40 AM,13/Jul/26 3:41 PM,,09/Jul/26 12:18 PM,13/Jul/26 12:00 AM,0,,,,,,,,"h1. Mục tiêu & Phạm vi:
+Nghiên cứu ứng dụng log mining để phân cụm log lỗi GenAI.
+
+h1. Context kỹ thuật & AIOps Learning (Drain3 từ Lab W1-D2 & S05):
+* *Log Clustering:* Thu thập log mẫu từ các container product-reviews và llm.
+* *Drain3 Algorithm:* Sử dụng thư viện Drain3 để tự động phân cụm log thô thành các log templates.
+* *Anomaly Detection:* Phát hiện nhanh các log template lỗi mới lạ (OOM, DB connection timeout, 5xx cascades) để chỉ điểm nhanh culprit thay vì alert nhiễu.",,Định Nguyễn,,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,,,,,,,,,,,,,ApprovalsCFValue{approvals=[]},,,,,,,,,,,,,,,,0|i00093:,,,,,,Sprint 1,06/Jul/26 12:00 AM,,,,,,,,,,,,10006_*:*_1_*:*_88688586_*|*_10005_*:*_1_*:*_0,"09/Jul/26 12:18 PM;712020:1d2b710c-361d-410f-a6e2-b98e74b348f5;PR #15 merged: https://github.com/nguyenductien-qnm/capstone-phase-3/pull/15. Trạng thái Backlog trước đó là SAI (PR đã mở và hoàn thành). 32/32 test pass. ADR-007 đụng số với PR #12 -> đã nhường 007 cho task này, PR #12 dịch sang ADR-008/009/010. Ghi chú: PR có sửa tools/aiops-detector/alerter.py (thuộc TF1-53) - giữ lại vì đó là fix bảo mật thật (substring match 'discord.com' in url cho phép spoof host; đổi sang urlparse().hostname).",,,,10141,TF1-78,[AIOps] Intelligent Systems Observability & Auto-Remediation,Done,09/Jul/26 12:18 PM
+[AIOps-W1-T3] Audit hạ tầng Telemetry & Phân tích trace context,TF1-51,10114,Task,Done,TF1,Task Force 1,software,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,Medium,Done,Thanh Hoang (Jax),712020:e0337882-a4e1-4f73-afd8-f8d0bb562575,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,08/Jul/26 11:40 AM,15/Jul/26 1:10 PM,15/Jul/26 12:57 PM,10/Jul/26 8:15 AM,13/Jul/26 12:00 AM,0,,,,,,,,"h1. Mục tiêu & Phạm vi:
+Đánh giá toàn diện đường ống telemetry hiện tại của hệ thống.
+
+h1. Context kỹ thuật & AIOps Learning:
+* *Audit Telemetry Pipeline:* Kiểm tra cấu hình OpenTelemetry Collector trong pod reviews để đảm bảo trace context không bị đứt đoạn khi đi qua frontend-proxy và Jaeger.
+* *Phòng ngừa sự cố lịch sử (INC-3):* Đảm bảo các span ghi nhận chính xác thời điểm sẵn sàng của service khi deploy (readiness gating) để tránh lỗi 503.",,Thanh Pham Huu Tien,Định Nguyễn,712020:ea31465a-12af-4197-a758-b6297a61b6e3,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,,,,,,,,,,,,ApprovalsCFValue{approvals=[]},,,,,,,,,,,,,,,,0|i0007y:i,,,,,,Sprint 1,06/Jul/26 12:00 AM,,,,,,,,,,,2026-07-10 01:14:57.397,3_*:*_1_*:*_0_*|*_10006_*:*_1_*:*_26588360,"09/Jul/26 12:18 PM;712020:1d2b710c-361d-410f-a6e2-b98e74b348f5;AUDIT (tech lead): task đang In Progress nhưng KHÔNG có branch, KHÔNG có PR, không có bằng chứng nào trên GitHub. Đây là task duy nhất trong Tuần 1 chưa có artifact. Cần cập nhật trạng thái thật hoặc đẩy work-in-progress lên branch để review kịp trước buổi pitch.","10/Jul/26 8:14 AM;712020:ea31465a-12af-4197-a758-b6297a61b6e3;Updated: Đã có PR và đã pass, Approved!",15/Jul/26 12:56 PM;712020:1d2b710c-361d-410f-a6e2-b98e74b348f5;Hoàn thành. Link PR: https://github.com/nguyenductien-qnm/capstone-phase-3/pull/25,15/Jul/26 1:10 PM;712020:1d2b710c-361d-410f-a6e2-b98e74b348f5;Hoàn thành. Link PR: https://github.com/nguyenductien-qnm/capstone-phase-3/pull/25,10141,TF1-78,[AIOps] Intelligent Systems Observability & Auto-Remediation,Done,10/Jul/26 8:15 AM
+[AIOps-W1-T2] Thiết kế Spec Auto-Remediation closed-loop & Safety boundary,TF1-50,10113,Task,Done,TF1,Task Force 1,software,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,Medium,Done,Nguyễn Ngọc Giao,6288975d0685de006fd3d9d8,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,08/Jul/26 11:39 AM,13/Jul/26 3:41 PM,13/Jul/26 5:01 PM,09/Jul/26 12:18 PM,13/Jul/26 12:00 AM,0,,,,,,,,"h1. Mục tiêu & Phạm vi:
+Soạn thảo đặc tả thiết kế kịch bản tự động phục hồi khép kín (closed-loop remediation).
+
+h1. Context kỹ thuật & AIOps Learning (Safety Pattern từ Lab W3):
+* *Dry-run:* Hỗ trợ chế độ chạy mô phỏng trước khi tác động lên K8s thật.
+* *Blast Radius:* Giới hạn số pod restart (ví dụ: tối đa 1 pod/namespace mỗi giờ) tránh phản ứng dây chuyền.
+* *Verify & Rollback:* Sửa lỗi xong query Prometheus trong 120s, nếu không phục hồi tự động rollback về state cũ.
+* *Circuit Breaker:* Khắc phục lỗi thất bại 3 lần liên tiếp thì khóa chặt luồng tự động để on-call vào xử lý thủ công.",,Định Nguyễn,,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,,,,,,,,,,,,,ApprovalsCFValue{approvals=[]},,,,,,,,,,,,,,,,0|i0007y:,,,,,,Sprint 1,06/Jul/26 12:00 AM,,,,,,,,,,,,3_*:*_1_*:*_0_*|*_10006_*:*_1_*:*_23307137,"09/Jul/26 12:18 PM;712020:1d2b710c-361d-410f-a6e2-b98e74b348f5;PR #10 merged: https://github.com/nguyenductien-qnm/capstone-phase-3/pull/10. Approved, không lỗi chặn. Spec đầy đủ: dry-run -> blast-radius -> verify 120s -> rollback -> circuit breaker, có Error Budget guard và readiness gating (INC-3). Đã bảo vệ file này khỏi bị PR #17 ghi đè. Góp ý vòng sau: làm rõ 'Max 1 pod/giờ' áp cho toàn namespace hay mỗi Deployment.",,,,10141,TF1-78,[AIOps] Intelligent Systems Observability & Auto-Remediation,Done,09/Jul/26 12:18 PM
+[AIOps-W1-T1] Thiết kế Spec Golden Signal Anomaly Detection (Latency & Error Rate),TF1-49,10112,Task,Done,TF1,Task Force 1,software,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,Medium,Done,Thịnh Nguyễn Hưng,712020:13a3f803-4895-403d-a774-dbea11f32c2d,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,08/Jul/26 11:39 AM,13/Jul/26 3:25 PM,15/Jul/26 12:58 PM,09/Jul/26 8:18 AM,13/Jul/26 12:00 AM,0,,,,,,,,"h1. Mục tiêu & Phạm vi:
+Soạn thảo đặc tả kỹ thuật giám sát các tín hiệu vàng (Golden Signals) của hệ thống.
+
+h1. Context kỹ thuật & AIOps Learning:
+* *Địa điểm làm việc:* docs/ai/specs/anomaly_remediation.md.
+* *Ngưỡng phát hiện lỗi:* Giám sát p95 latency của storefront (SLO cam kết < 1s) và tỷ lệ lỗi HTTP 5xx.
+* *EWMA Algorithm (từ Lab W2-D1):* Sử dụng thuật toán EWMA (alpha = 0.2, threshold = 3 độ lệch chuẩn) để lọc nhiễu, chuyển đổi thô từ time-series metrics sang tín hiệu bất thường thật sự.",,Định Nguyễn,,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,,,,,,,,,,,,,ApprovalsCFValue{approvals=[]},,,,,,,,,,,,,,,,0|i0008f:,,,,,,Sprint 1,06/Jul/26 12:00 AM,,,,,,,,,,,,3_*:*_1_*:*_0_*|*_10006_*:*_1_*:*_26753929,"09/Jul/26 12:18 PM;712020:1d2b710c-361d-410f-a6e2-b98e74b348f5;PR #17 merged: https://github.com/nguyenductien-qnm/capstone-phase-3/pull/17. Trạng thái Done trước đó là SAI (PR chưa merge tại thời điểm đó); giờ đã đúng. Lỗi chặn đã sửa: PR ghi đè toàn bộ docs/ai/specs/anomaly_remediation.md (deliverable của TF1-50, đang được PR #10 mở rộng) -> chuyển nội dung sang file mới docs/ai/specs/golden_signals_detection.md, khôi phục file cũ. Git không báo conflict vì rewrite cả file. Commit ba3dd51.",,,,10141,TF1-78,[AIOps] Intelligent Systems Observability & Auto-Remediation,Done,09/Jul/26 8:18 AM
+[AIE-W1-T5] Phát triển Shopping Copilot PoC (Streamlit) & Thiết lập Evals,TF1-48,10111,Task,Done,TF1,Task Force 1,software,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,Medium,Done,03 lê kim dũng,712020:7700aa2a-6287-4ce9-a419-db3ba9151845,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,08/Jul/26 11:39 AM,13/Jul/26 3:25 PM,15/Jul/26 12:58 PM,10/Jul/26 8:40 AM,13/Jul/26 12:00 AM,0,,,,,,,,"h1. Mục tiêu & Phạm vi:
+
+Phát triển bản chatbot prototype Streamlit gọi Bedrock thật và script python đo lường tự động.
+
+h1. Context kỹ thuật & Onboarding:
+
+* *Streamlit PoC (demo_copilot_st.py):* Chatbot gọi Bedrock, chạy 3 intent (search catalog, reviews QA, cart confirmation gate).
+* *Confirmation Gate:* Bắt buộc hiển thị hộp thoại/nút xác nhận cho cart mutations (add_to_cart) để chống excessive agency.
+* *run_evals.py & golden_dataset.json:* Tệp dataset mẫu chứa review và summary chuẩn, chạy python script tự động tính accuracy score dựa trên từ khóa mong đợi.
+* Giới hạn vòng lặp (Loop limit): Thiết lập Hard Limit cho Agent chỉ được phép gọi tối đa 3-5 Tools cho mỗi request để tránh lỗi infinite loop đốt sạch tài khoản Bedrock.",,Thanh Pham Huu Tien,Định Nguyễn,712020:ea31465a-12af-4197-a758-b6297a61b6e3,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,,,,,,,,,,,,ApprovalsCFValue{approvals=[]},,,,,,,,,,,,,,,,0|i00083:,,,,,,Sprint 1,06/Jul/26 12:00 AM,,,,,,,,,,,2026-07-10 01:40:32.721,3_*:*_2_*:*_20672_*|*_10006_*:*_1_*:*_81193017_*|*_10005_*:*_1_*:*_1623770,"09/Jul/26 12:18 PM;712020:1d2b710c-361d-410f-a6e2-b98e74b348f5;PR #6 (mở, BLOCKED chờ approval): https://github.com/nguyenductien-qnm/capstone-phase-3/pull/6. Commit feb460d. VẤN ĐỀ CHẤM ĐIỂM: ba tool (search_products, get_product_reviews, add_to_cart) chạy trên MOCK_PRODUCTS - dict hardcode trong demo_copilot_st.py, KHÔNG gọi gRPC tới product-catalog/product-reviews/cart trên EKS. RULES.md §4 yêu cầu hạng mục AIE phải chạy thật, không mockup. Đã gắn nhãn rõ trên UI (st.warning) + docstring. PoC vẫn có giá trị: chứng minh Confirmation Gate, MAX_TOOL_CALLS=5, block-list Tier 3. Nối gRPC thật -> TF1-56. CÒN NỢ: run_evals.py chỉ đo keyword overlap trên summary sinh sẵn - proxy yếu cho độ trung thực, và thiếu hẳn eval task-success cho agent (AI_FEATURE.md §3 nói rõ 'không tính trả lời trôi chảy'). Sửa nhỏ: docstring ghi Claude trong khi picker chỉ có Nova; JIRA header ghi TF1-19/20/21 thay vì TF1-48; region picker cho us-west-2 dù ADR-004 chốt đơn vùng us-east-1.",10/Jul/26 8:40 AM;712020:ea31465a-12af-4197-a758-b6297a61b6e3;Done. Approved,,,10140,TF1-77,[AIE] AI Product Features & Shopping Copilot,Done,10/Jul/26 8:40 AM
+[AIE-W1-T4] Thiết kế Spec Shopping Copilot Agent & Hợp đồng tích hợp CDO,TF1-47,10110,Task,Done,TF1,Task Force 1,software,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,Medium,Done,Phan Đức Tài,712020:5ddc2f27-a9d7-44df-ae16-56c6137782af,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,08/Jul/26 11:39 AM,13/Jul/26 3:25 PM,15/Jul/26 12:57 PM,09/Jul/26 12:18 PM,13/Jul/26 12:00 AM,0,,,,,,,,"h1. Mục tiêu & Phạm vi:
+Soạn thảo spec gRPC cho Shopping Copilot và chốt các hợp đồng tích hợp chéo với CDO team.
+
+h1. Context kỹ thuật & Onboarding:
+* *Copilot Spec (shopping_copilot.md):* Trợ lý ảo chạy gRPC server trên cổng *:50051*, Envoy proxy redirect traffic gRPC-Web từ client storefront vào đây.
+* *Hợp đồng tích hợp (docs/ai/contracts/):* Phê duyệt 2 bản hợp đồng kỹ thuật Reviews và Copilot (cấu hình biến ENV, K8s CPU/RAM limit, và OTel trace context spans).",,Định Nguyễn,,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,,,,,,,,,,,,,ApprovalsCFValue{approvals=[]},,,,,,,,,,,,,,,,0|i0007w:,,,,,,Sprint 1,06/Jul/26 12:00 AM,,,,,,,,,,,,3_*:*_8_*:*_3147261_*|*_10006_*:*_1_*:*_78600174_*|*_10005_*:*_5_*:*_1113086,"09/Jul/26 12:18 PM;712020:1d2b710c-361d-410f-a6e2-b98e74b348f5;PR #16 merged: https://github.com/nguyenductien-qnm/capstone-phase-3/pull/16. Tech-lead review đã sửa 3 lỗi chặn trước khi merge: (1) ChatWithCopilotResponse chỉ có field text nên không biểu diễn được Confirmation Gate của ADR-006 -> thêm PendingConfirmation (idempotency token + expiry) và ToolCallRecord/actions_taken cho audit log; (2) chat_history do client gửi = đường prompt injection -> deprecate, thêm session_id để server tự nạp lịch sử; (3) envoy route copilot đặt timeout 0s (tắt timeout) -> đổi 30s. Commit b6a762a. Proto additive, wire-compatible.",,,,10140,TF1-77,[AIE] AI Product Features & Shopping Copilot,Done,09/Jul/26 12:18 PM
+[AIE-W1-T3] Thiết kế Spec Valkey Caching & Model Fallback Routing (docs/ai/specs/),TF1-46,10109,Task,Done,TF1,Task Force 1,software,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,Medium,Done,Thịnh Nguyễn Công,712020:7db43fb7-4735-49a8-8f0f-de429b4e873d,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,08/Jul/26 11:39 AM,15/Jul/26 1:10 PM,15/Jul/26 12:57 PM,09/Jul/26 12:05 AM,13/Jul/26 12:00 AM,0,,,,,,,,"h1. Mục tiêu & Phạm vi:
+
+Biên soạn đặc tả thiết kế kỹ thuật chi tiết cho Valkey Caching và Fallback model routing.
+
+h1. Context kỹ thuật & Quyết định kiến trúc (ADR):
+
+* *Valkey Caching (valkey_caching.md & ADR-001):* Cache key format *reviews:summary:{product_id}* lưu JSON, TTL = 24h. Tận dụng `valkey-cart:6379` có sẵn của CDO để tối ưu cost. Bypass flag qua `llmReviewsCacheEnabled`.
+* *Fallback Routing (fallback_retry.md & ADR-002):* Model chính là Claude 3.0 Sonnet (*anthropic.claude-3-sonnet-20240229-v1:0*), timeout > 5.0s hoặc lỗi 429/500 tự động retry tối đa 2 lần, nếu sập chuyển hướng sang Claude 3 Haiku (*anthropic.claude-3-haiku-20240307-v1:0*).
+* Lưu ý kiến trúc: Khi dùng valkey-cart làm cache, BẮT BUỘC dùng policy `volatile-lru` để tránh xóa nhầm giỏ hàng của khách (Sự cố INC-2).",,Định Nguyễn,,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,,,,,,,,,,,,,ApprovalsCFValue{approvals=[]},,,,,,,,,,,,,,,,0|i0007r:,,,,,,Sprint 1,06/Jul/26 12:00 AM,,,,,,,,,,,,3_*:*_1_*:*_0_*|*_10006_*:*_1_*:*_6056205,09/Jul/26 12:24 AM;712020:1d2b710c-361d-410f-a6e2-b98e74b348f5;CẬP NHẬT: Đã hoàn tất và phê duyệt thiết kế mô hình Định tuyến lai (Hybrid Task-Specific Routing) cho Đơn vùng (Single-Region). Luồng Reviews Summary sẽ sử dụng Amazon Nova Lite làm Primary và Nova Micro làm Fallback (đáp ứng trần chi phí và latency). Luồng Shopping Copilot sẽ dùng Claude 3.5 Sonnet làm Primary và Claude 3.5 Haiku làm Fallback (độ chính xác gọi tool cao). Tài liệu đã cập nhật tại docs/ai/specs/fallback_retry.md và docs/ai/ADR-log.md (ADR-004) trên nhánh feat/valkey-eviction-opt1.,15/Jul/26 12:56 PM;712020:1d2b710c-361d-410f-a6e2-b98e74b348f5;Hoàn thành. Link PR: https://github.com/nguyenductien-qnm/capstone-phase-3/pull/9,15/Jul/26 1:10 PM;712020:1d2b710c-361d-410f-a6e2-b98e74b348f5;Hoàn thành. Link PR: https://github.com/nguyenductien-qnm/capstone-phase-3/pull/9,,10140,TF1-77,[AIE] AI Product Features & Shopping Copilot,Done,09/Jul/26 12:05 AM
+[AIE-W1-T2] Biên soạn Slide Pitching bảo vệ kế hoạch & Cost Model,TF1-45,10108,Task,Done,TF1,Task Force 1,software,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,Medium,Done,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,08/Jul/26 11:39 AM,13/Jul/26 3:25 PM,15/Jul/26 12:57 PM,09/Jul/26 3:51 PM,13/Jul/26 12:00 AM,0,,,,,,,,"h1. Mục tiêu & Phạm vi:
+
+Soạn thảo Slide thuyết trình bảo vệ trước Hội đồng nghiệm thu vào thứ Sáu.
+
+h1. Context kỹ thuật & Onboarding:
+
+* *Tính toán chi phí (Cost Model):* Ước lượng chi tiêu token gọi API Bedrock (Claude 3.0 Sonnet vs Claude 3 Haiku). Chứng minh phương án Valkey Cache giúp giảm 85% - 90% chi phí gọi LLM.
+* *Chuẩn bị phản biện:* Lập luận vững vàng chống lại câu hỏi của:
+* PM: ""Sao lo hạ tầng mà không cải thiện UI trước?""
+* CFO: ""Tốn bao nhiêu tiền? ROI thế nào?""
+* SRE Lead: ""Rủi ro downtime và rollback plan là gì?"" ",,Định Nguyễn,,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,,,,,,,,,,,,,ApprovalsCFValue{approvals=[]},,,,,,,,,,,,,,,,0|i0007x:,,,,,,Sprint 1,06/Jul/26 12:00 AM,,,,,,,,,,,,3_*:*_3_*:*_472933_*|*_10006_*:*_1_*:*_4541297_*|*_10005_*:*_1_*:*_2797362,"09/Jul/26 12:18 PM;712020:1d2b710c-361d-410f-a6e2-b98e74b348f5;Cost model trong pitch.md đã được sửa ở PR #12 (https://github.com/nguyenductien-qnm/capstone-phase-3/pull/12). Phần trình CFO trước đây tính giá Claude và kết luận $262.50/tuần - sai ~27 lần. Tính lại theo Nova Lite (model mà ADR-004 chọn): $9.66/tuần, và là AWS Credit chứ không phải tiền mặt. Lập luận cũng gán sai công trạng: thứ cứu ngân sách là BỎ CLAUDE (Marketplace, credit không cấn trừ được; cache 90% vẫn $525/tuần tiền mặt = vượt trần 1.75 lần), còn ROI của Valkey Cache là LATENCY (2.5s -> <50ms). Cũng sửa region us-west-2 -> us-east-1 và timeout 2.0s -> 3.0s.",,,,10140,TF1-77,[AIE] AI Product Features & Shopping Copilot,Done,09/Jul/26 3:51 PM
+[AIE-W1-T1] Thiết lập Backlog ưu tiên & phân tích rủi ro (docs/ai/00_backlog.md),TF1-44,10107,Task,Done,TF1,Task Force 1,software,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,Medium,Done,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,Định Nguyễn,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,08/Jul/26 11:39 AM,13/Jul/26 3:25 PM,15/Jul/26 12:57 PM,09/Jul/26 3:51 PM,13/Jul/26 12:00 AM,0,,,,,,,,"h1. Mục tiêu & Phạm vi:
+Thiết lập danh sách Backlog ưu tiên kỹ thuật cho nhóm AI theo đúng định dạng tài liệu nghiệm thu.
+
+h1. Context kỹ thuật & Onboarding:
+* *Địa điểm làm việc:* docs/ai/00_backlog.md.
+* *Cách tính độ ưu tiên:* Ưu tiên = Rủi ro (Khả năng x Mức nghiêm trọng) x Tác động Business (SLO/Cost/Incident).
+* *Ràng buộc:* Cân đối với trần ngân sách AWS $300/tuần. Giữ cam kết SLO duyệt sản phẩm không lỗi ≥ 99.5% và checkout ≥ 99.0% (SLO.md).
+* *Nội dung:* Phân tích rủi ro kiến trúc cũ, định hình cost Bedrock, và giải trình phần cố ý trì hoãn chưa làm tuần này (chưa tích hợp Next.js và chưa deploy auto-remediation engine).",,Định Nguyễn,,712020:1d2b710c-361d-410f-a6e2-b98e74b348f5,,,,,,,,,,,,,,ApprovalsCFValue{approvals=[]},,,,,,,,,,,,,,,,0|i0007v:,,,,,,Sprint 1,06/Jul/26 12:00 AM,,,,,,,,,,,,3_*:*_3_*:*_474332_*|*_10006_*:*_1_*:*_4540016_*|*_10005_*:*_1_*:*_2796379,"09/Jul/26 12:18 PM;712020:1d2b710c-361d-410f-a6e2-b98e74b348f5;PR #8 (mở, BLOCKED chờ approval): https://github.com/nguyenductien-qnm/capstone-phase-3/pull/8. Nhánh đã dựng lại trên main (commit 1eb5856). Lý do force-push: nhánh behind main 15 commit, và slides.html trong PR là bản cũ lệch 1123 dòng so với bản đã có trên main (258c6e2) - merge sẽ ghi đè mất bản mới. Đã bỏ slides.html khỏi PR, giữ phần đóng góp riêng: §4 phân công nhân sự + §5 ghi chú phối hợp CDO. Sửa nội dung: đếm task 10->11, model chính Nova Lite (không phải Claude 3.0 Sonnet), ADR-002 đã superseded. CẦN 1 APPROVAL từ đồng đội (author không tự approve được).",,,,10140,TF1-77,[AIE] AI Product Features & Shopping Copilot,Done,09/Jul/26 3:51 PM
