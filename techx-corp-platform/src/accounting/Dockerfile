@@ -22,7 +22,11 @@ RUN dotnet publish "./Accounting.csproj" -r linux-$TARGETARCH -c $BUILD_CONFIGUR
 # -----------------------------------------------------------------------------
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
-USER app
+# 'app' (UID 1654, có sẵn trong base .NET) là non-root, nhưng kubelet không
+# resolve được USER dạng chữ để check runAsNonRoot:true -> CreateContainerConfigError.
+# Ghi bằng số, GIỮ NGUYÊN 1654: các file dưới đây chown theo user 'app', đổi sang
+# UID khác (vd 1000) sẽ mất quyền instrument.sh (ENTRYPOINT) và thư mục log.
+USER 1654
 WORKDIR /app
 COPY --from=publish /app/publish .
 
@@ -30,7 +34,7 @@ USER root
 RUN mkdir -p "/var/log/opentelemetry/dotnet"
 RUN chown app "/var/log/opentelemetry/dotnet"
 RUN chown app "/app/instrument.sh"
-USER app
+USER 1654
 ENV OTEL_DOTNET_AUTO_TRACES_ADDITIONAL_SOURCES=Accounting.Consumer
 
 ENTRYPOINT ["./instrument.sh", "dotnet", "Accounting.dll"]
