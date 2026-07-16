@@ -3,7 +3,10 @@
 
 FROM envoyproxy/envoy:v1.34-latest
 
+# apt-get upgrade: vá CVE ở package hệ thống của base image (vd CVE-2026-45447
+# libssl3). Base image tag không đổi nhưng repo ubuntu đã có bản vá.
 RUN apt-get update && \
+    apt-get upgrade -y && \
     apt-get install -y gettext-base && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*

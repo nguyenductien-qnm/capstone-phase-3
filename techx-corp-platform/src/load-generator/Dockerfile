@@ -19,4 +19,10 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers
 RUN playwright install --with-deps chromium
 COPY ./src/load-generator/locustfile.py .
 COPY ./src/load-generator/people.json .
+
+# Chromium cần ghi vào $HOME và cache Playwright -> user phải có home thật.
+RUN useradd --create-home --uid 1000 app \
+    && chown -R 1000:1000 /usr/src/app /opt/pw-browsers
+USER 1000
+
 ENTRYPOINT ["locust", "--skip-log-setup"]

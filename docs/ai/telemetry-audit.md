@@ -143,3 +143,14 @@ This audit depends on the Compose services running because:
 - This audit applies specifically to the local Docker Compose environment.
 - Similar Helm or Kubernetes deployments should be reviewed separately for equivalent OTLP and Jaeger path behavior.
 - The OTLP `405` response is a normal / protocol-level endpoint behavior, not a trace storage failure.
+
+---
+
+## Verification result (2026-07-12) — trace continuity CONFIRMED
+
+Method: docker compose stack (product-reviews built from current source), traffic từ load-generator + manual requests, query Jaeger HTTP API (`/jaeger/ui/api/traces`).
+
+- **Single trace `8e7b90520fad0c60` spans 12 services**: load-generator, frontend-proxy, frontend, checkout, payment, email, shipping, cart, currency, product-catalog, quote, flagd → context propagation qua Envoy (grpc_web filter + router) **không đứt**.
+- **GenAI path**: single trace `b9c6a3521d7a8023` spans load-generator → frontend-proxy → frontend → product-reviews.
+- Jaeger v2 note: query API nằm sau `base_path` → `http://<jaeger>:16686/jaeger/ui/api/...` (config `/etc/jaeger/config.yml`).
+- Còn lại cho EKS: chạy lại đúng phép thử này trên cluster (collector daemonset khác compose); check readiness-gating span cho INC-3 khi có deploy event thật.

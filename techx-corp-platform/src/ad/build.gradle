@@ -17,9 +17,10 @@ group = "ad"
 version = "0.1.0-SNAPSHOT"
 
 def opentelemetryVersion = "1.57.0"
-def opentelemetryInstrumentationVersion = "2.23.0"
+def opentelemetryInstrumentationVersion = "2.26.1"
 def grpcVersion = "1.78.0"
-def jacksonVersion = "2.20.1"
+def jacksonVersion = "2.21.5"
+def nettyVersion = "4.2.16.Final"
 def protocVersion = "4.33.2"
 
 tasks.withType(JavaCompile).configureEach {
@@ -39,6 +40,12 @@ dependencies {
     } else {
         implementation platform("io.opentelemetry:opentelemetry-bom:${opentelemetryVersion}")
         implementation platform("io.opentelemetry.instrumentation:opentelemetry-instrumentation-bom:${opentelemetryInstrumentationVersion}")
+        // netty/jackson kéo vào transitively qua grpc-netty và flagd; BOM ép version
+        // đã vá cho cả nhánh transitive (Trivy gate CRITICAL,HIGH).
+        // netty phải là 4.2.x: opentelemetry-instrumentation-bom kéo 4.2.7 và Gradle
+        // lấy version CAO nhất, nên ghim 4.1.x ở đây vô tác dụng.
+        implementation platform("io.netty:netty-bom:${nettyVersion}")
+        implementation platform("com.fasterxml.jackson:jackson-bom:${jacksonVersion}")
 
         implementation "com.google.api.grpc:proto-google-common-protos:2.63.2",
                 "com.google.protobuf:protobuf-java:${protocVersion}",

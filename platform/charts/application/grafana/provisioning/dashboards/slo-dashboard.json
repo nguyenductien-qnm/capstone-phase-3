@@ -1,0 +1,674 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "CDO-27 - SLO Dashboard (Mandate-03). RED metrics tu spanmetrics connector (traces_span_metrics_*). Nguong: onboarding/SLO.md. Dung de theo doi SLO khong tut khi drain node / rolling-restart (CDO-83).",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "panels": [
+    {
+      "gridPos": { "h": 2, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "type": "text",
+      "options": {
+        "mode": "markdown",
+        "content": "### SLO Dashboard — browse → cart → checkout\n**Source:** spanmetrics (`traces_span_metrics_*`). Success = span without `STATUS_CODE_ERROR`. Window: **5m live** / **24h error budget**. **SLO targets:** checkout ≥99% · browse/cart ≥99.5% · storefront p95 < 1s"
+      }
+    },
+    {
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 2 },
+      "id": 101,
+      "type": "row",
+      "collapsed": false,
+      "title": "SLI — Current (rolling 5m)",
+      "panels": []
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 3 },
+      "id": 1,
+      "type": "stat",
+      "title": "Checkout SLI (≥ 99%)",
+      "description": "Ty le span checkout khong loi. Nguong 99% (revenue-critical).",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 90,
+          "max": 100,
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 99 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
+          "refId": "A",
+          "expr": "100 * sum(rate(traces_span_metrics_calls_total{service_name=\"checkout\",span_kind=\"SPAN_KIND_SERVER\",status_code!=\"STATUS_CODE_ERROR\"}[5m])) / clamp_min(sum(rate(traces_span_metrics_calls_total{service_name=\"checkout\",span_kind=\"SPAN_KIND_SERVER\"}[5m])), 1e-9)"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 3 },
+      "id": 2,
+      "type": "stat",
+      "title": "Browse SLI (≥ 99.5%)",
+      "description": "Ty le span frontend khong loi (proxy cho non-5xx browse).",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 90,
+          "max": 100,
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 99.5 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
+          "refId": "A",
+          "expr": "100 * sum(rate(traces_span_metrics_calls_total{service_name=\"frontend\",span_kind=\"SPAN_KIND_SERVER\",status_code!=\"STATUS_CODE_ERROR\"}[5m])) / clamp_min(sum(rate(traces_span_metrics_calls_total{service_name=\"frontend\",span_kind=\"SPAN_KIND_SERVER\"}[5m])), 1e-9)"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 3 },
+      "id": 3,
+      "type": "stat",
+      "title": "Cart SLI (≥ 99.5%)",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 90,
+          "max": 100,
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 99.5 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
+          "refId": "A",
+          "expr": "100 * sum(rate(traces_span_metrics_calls_total{service_name=\"cart\",span_kind=\"SPAN_KIND_SERVER\",status_code!=\"STATUS_CODE_ERROR\"}[5m])) / clamp_min(sum(rate(traces_span_metrics_calls_total{service_name=\"cart\",span_kind=\"SPAN_KIND_SERVER\"}[5m])), 1e-9)"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 3 },
+      "id": 4,
+      "type": "stat",
+      "title": "Storefront p95 (SLO < 1s)",
+      "description": "p95 duration span frontend-proxy (Envoy edge). Nguong 1000ms.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1000 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum(rate(traces_span_metrics_duration_milliseconds_bucket{service_name=\"frontend-proxy\"}[5m])) by (le))"
+        }
+      ]
+    },
+    {
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 },
+      "id": 102,
+      "type": "row",
+      "collapsed": false,
+      "title": "Error Budget (24h) — Checkout / Browse / Cart",
+      "panels": []
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
+      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 10 },
+      "id": 5,
+      "type": "gauge",
+      "title": "Checkout Budget (24h)",
+      "description": "100% = chua dung budget; 0% = het budget. SLO 99% => error budget = 1%/ngay.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 25 },
+              { "color": "green", "value": 50 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "auto",
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
+          "refId": "A",
+          "expr": "100 * (1 - ( ((sum(rate(traces_span_metrics_calls_total{service_name=\"checkout\",span_kind=\"SPAN_KIND_SERVER\",status_code=\"STATUS_CODE_ERROR\"}[24h])) or on() vector(0)) / clamp_min(sum(rate(traces_span_metrics_calls_total{service_name=\"checkout\",span_kind=\"SPAN_KIND_SERVER\"}[24h])), 1e-9)) / 0.01 ))"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
+      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 10 },
+      "id": 10,
+      "type": "gauge",
+      "title": "Browse Budget (24h)",
+      "description": "100% = chua dung budget; 0% = het budget. SLO 99.5% => error budget = 0.5%/ngay.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 25 },
+              { "color": "green", "value": 50 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "auto",
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
+          "refId": "A",
+          "expr": "100 * (1 - ( ((sum(rate(traces_span_metrics_calls_total{service_name=\"frontend\",span_kind=\"SPAN_KIND_SERVER\",status_code=\"STATUS_CODE_ERROR\"}[24h])) or on() vector(0)) / clamp_min(sum(rate(traces_span_metrics_calls_total{service_name=\"frontend\",span_kind=\"SPAN_KIND_SERVER\"}[24h])), 1e-9)) / 0.005 ))"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
+      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 10 },
+      "id": 11,
+      "type": "gauge",
+      "title": "Cart Budget (24h)",
+      "description": "100% = chua dung budget; 0% = het budget. SLO 99.5% => error budget = 0.5%/ngay.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 25 },
+              { "color": "green", "value": 50 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "auto",
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
+          "refId": "A",
+          "expr": "100 * (1 - ( ((sum(rate(traces_span_metrics_calls_total{service_name=\"cart\",span_kind=\"SPAN_KIND_SERVER\",status_code=\"STATUS_CODE_ERROR\"}[24h])) or on() vector(0)) / clamp_min(sum(rate(traces_span_metrics_calls_total{service_name=\"cart\",span_kind=\"SPAN_KIND_SERVER\"}[24h])), 1e-9)) / 0.005 ))"
+        }
+      ]
+    },
+    {
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 17 },
+      "id": 106,
+      "type": "row",
+      "collapsed": false,
+      "title": "Burn Rate (1h) & Request Volume",
+      "panels": []
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
+      "gridPos": { "h": 5, "w": 4, "x": 0, "y": 18 },
+      "id": 6,
+      "type": "stat",
+      "title": "Checkout Burn (1h)",
+      "description": "error_rate / 0.01. >1 = dang dot budget nhanh hon cho phep.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 1 },
+              { "color": "red", "value": 2 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
+          "refId": "A",
+          "expr": "((sum(rate(traces_span_metrics_calls_total{service_name=\"checkout\",span_kind=\"SPAN_KIND_SERVER\",status_code=\"STATUS_CODE_ERROR\"}[1h])) or on() vector(0)) / clamp_min(sum(rate(traces_span_metrics_calls_total{service_name=\"checkout\",span_kind=\"SPAN_KIND_SERVER\"}[1h])), 1e-9)) / 0.01"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
+      "gridPos": { "h": 5, "w": 4, "x": 4, "y": 18 },
+      "id": 12,
+      "type": "stat",
+      "title": "Browse Burn (1h)",
+      "description": "error_rate / 0.005. >1 = dang dot budget browse nhanh hon cho phep.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 1 },
+              { "color": "red", "value": 2 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
+          "refId": "A",
+          "expr": "((sum(rate(traces_span_metrics_calls_total{service_name=\"frontend\",span_kind=\"SPAN_KIND_SERVER\",status_code=\"STATUS_CODE_ERROR\"}[1h])) or on() vector(0)) / clamp_min(sum(rate(traces_span_metrics_calls_total{service_name=\"frontend\",span_kind=\"SPAN_KIND_SERVER\"}[1h])), 1e-9)) / 0.005"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
+      "gridPos": { "h": 5, "w": 4, "x": 8, "y": 18 },
+      "id": 13,
+      "type": "stat",
+      "title": "Cart Burn (1h)",
+      "description": "error_rate / 0.005. >1 = dang dot budget cart nhanh hon cho phep.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 1 },
+              { "color": "red", "value": 2 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
+          "refId": "A",
+          "expr": "((sum(rate(traces_span_metrics_calls_total{service_name=\"cart\",span_kind=\"SPAN_KIND_SERVER\",status_code=\"STATUS_CODE_ERROR\"}[1h])) or on() vector(0)) / clamp_min(sum(rate(traces_span_metrics_calls_total{service_name=\"cart\",span_kind=\"SPAN_KIND_SERVER\"}[1h])), 1e-9)) / 0.005"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
+      "gridPos": { "h": 5, "w": 12, "x": 12, "y": 18 },
+      "id": 7,
+      "type": "stat",
+      "title": "Request Volume (req/s)",
+      "description": "De thay tai van chay trong luc drain/rollout (CDO-83).",
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "decimals": 1 },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "none",
+        "graphMode": "area",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
+          "refId": "A",
+          "expr": "sum(rate(traces_span_metrics_calls_total{service_name=~\"frontend|cart|checkout\"}[5m]))"
+        }
+      ]
+    },
+    {
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 23 },
+      "id": 103,
+      "type": "row",
+      "collapsed": false,
+      "title": "Trend — SLO over Time (use during drain / rolling-restart to prove SLO holds)",
+      "panels": []
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "id": 8,
+      "type": "timeseries",
+      "title": "Success Rate over Time (checkout / browse / cart)",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 95,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 99 },
+              { "color": "green", "value": 99.5 }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 5,
+            "spanNulls": true,
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["min", "lastNotNull"] },
+        "tooltip": { "mode": "multi" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
+          "refId": "A",
+          "legendFormat": "checkout",
+          "expr": "100 * sum(rate(traces_span_metrics_calls_total{service_name=\"checkout\",span_kind=\"SPAN_KIND_SERVER\",status_code!=\"STATUS_CODE_ERROR\"}[5m])) / clamp_min(sum(rate(traces_span_metrics_calls_total{service_name=\"checkout\",span_kind=\"SPAN_KIND_SERVER\"}[5m])), 1e-9)"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
+          "refId": "B",
+          "legendFormat": "browse (frontend)",
+          "expr": "100 * sum(rate(traces_span_metrics_calls_total{service_name=\"frontend\",span_kind=\"SPAN_KIND_SERVER\",status_code!=\"STATUS_CODE_ERROR\"}[5m])) / clamp_min(sum(rate(traces_span_metrics_calls_total{service_name=\"frontend\",span_kind=\"SPAN_KIND_SERVER\"}[5m])), 1e-9)"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
+          "refId": "C",
+          "legendFormat": "cart",
+          "expr": "100 * sum(rate(traces_span_metrics_calls_total{service_name=\"cart\",span_kind=\"SPAN_KIND_SERVER\",status_code!=\"STATUS_CODE_ERROR\"}[5m])) / clamp_min(sum(rate(traces_span_metrics_calls_total{service_name=\"cart\",span_kind=\"SPAN_KIND_SERVER\"}[5m])), 1e-9)"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "id": 9,
+      "type": "timeseries",
+      "title": "Latency p95/p99 — Storefront (ms)",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1000 }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 5,
+            "spanNulls": true,
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["max", "lastNotNull"] },
+        "tooltip": { "mode": "multi" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
+          "refId": "A",
+          "legendFormat": "p95",
+          "expr": "histogram_quantile(0.95, sum(rate(traces_span_metrics_duration_milliseconds_bucket{service_name=\"frontend-proxy\"}[5m])) by (le))"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
+          "refId": "B",
+          "legendFormat": "p99",
+          "expr": "histogram_quantile(0.99, sum(rate(traces_span_metrics_duration_milliseconds_bucket{service_name=\"frontend-proxy\"}[5m])) by (le))"
+        }
+      ]
+    },
+    {
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 32 },
+      "id": 105,
+      "type": "row",
+      "collapsed": false,
+      "title": "Kubernetes — Pod & Replica Status (drain / rolling-restart context)",
+      "panels": []
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
+      "gridPos": { "h": 8, "w": 16, "x": 0, "y": 33 },
+      "id": 14,
+      "type": "timeseries",
+      "title": "Replicas Ready — checkout / cart / product-catalog",
+      "description": "So pod Ready trong luc drain / rolling-restart. Duong cam tai y=1 = nguong PDB. So giam xuong roi hoi phuc = drain dang hoat dong dung ke hoach.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 1 },
+              { "color": "green", "value": 2 }
+            ]
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 10,
+            "spanNulls": false,
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["min", "lastNotNull"] },
+        "tooltip": { "mode": "multi" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
+          "refId": "A",
+          "legendFormat": "checkout",
+          "expr": "kube_deployment_status_replicas_ready{namespace=\"techx-tf1\", deployment=\"checkout\"}"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
+          "refId": "B",
+          "legendFormat": "cart",
+          "expr": "kube_deployment_status_replicas_ready{namespace=\"techx-tf1\", deployment=\"cart\"}"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
+          "refId": "C",
+          "legendFormat": "product-catalog",
+          "expr": "kube_deployment_status_replicas_ready{namespace=\"techx-tf1\", deployment=\"product-catalog\"}"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 33 },
+      "id": 15,
+      "type": "timeseries",
+      "title": "Pod Phase — namespace techx-tf1",
+      "description": "Phan phoi pod theo trang thai. Pending tang khi drain va Cluster Autoscaler dang provision node moi.",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "min": 0,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "fillOpacity": 20,
+            "spanNulls": false,
+            "stacking": { "mode": "normal", "group": "A" }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Running" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Pending" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Failed" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }]
+          }
+        ]
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull"] },
+        "tooltip": { "mode": "multi" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
+          "refId": "A",
+          "legendFormat": "{{phase}}",
+          "expr": "sum(kube_pod_status_phase{namespace=\"techx-tf1\"}) by (phase)"
+        }
+      ]
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": ["slo", "reliability", "mandate-03", "cdo-27"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "",
+  "title": "SLO - Deploy Safety (Mandate-03)",
+  "uid": "slo-deploy-safety",
+  "version": 2,
+  "weekStart": ""
+}
