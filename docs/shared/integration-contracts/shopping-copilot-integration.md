@@ -76,4 +76,40 @@ Dịch vụ sẽ export các metric sau phục vụ hệ thống Dashboard giám
    - Đo thời gian phản hồi tổng thể của một phiên hội thoại chat (từ lúc gửi request tới khi trả về text cuối cùng cho khách hàng).
    - Buckets đề xuất: `[0.5, 1.0, 2.5, 5.0, 7.5, 10.0]`.
 
+---
 
+## Phụ lục 14/07/2026 — Cập nhật AWS Bedrock & Model Gateway (Đua Top)
+
+Các cập nhật liên quan tới triển khai AWS Bedrock và A/B Testing:
+
+1. **Chuyển dịch sang AWS Bedrock:** `shopping-copilot` sử dụng SDK boto3 để gọi trực tiếp Amazon Bedrock thay vì gọi Mock LLM (`http://llm:8000/v1`). 
+   - **Yêu cầu hệ thống (CDO):** Cấp quyền IAM Role for Service Accounts (IRSA) với Policy `bedrock:InvokeModel` cho pod `shopping-copilot`. Thiếu quyền này ứng dụng sẽ không thể hoạt động trên môi trường EKS.
+2. **Routing qua Model Gateway:** `shopping-copilot` hiện sử dụng component `ModelRouter` để lấy cấu hình model từ OpenFeature/flagd.
+   - **Biến flagd mới:** Cờ `llmModelRouting` (kiểu JSON Object) dùng chung với `product-reviews` để xác định tỷ lệ % traffic A/B.
+3. **Môi trường & Biến Cấu hình:**
+   - Cần đảm bảo có biến `AWS_REGION` (vd: `us-east-1`).
+   - Cần biến `AWS_BEDROCK_MODEL` hoặc để Router tự điều phối. Các biến cũ `LLM_BASE_URL` và `OPENAI_API_KEY` chỉ giữ lại làm Fallback nếu sử dụng chế độ Mock.
+
+---
+
+## 5. Phụ lục 14/07/2026 — Action Gate & AI Safety (MANDATE-06)
+
+Để ngăn chặn Copilot tự ý thực hiện các hành động thay đổi dữ liệu (Excessive Agency), chúng tôi đã thiết lập **Action Gate (Xác nhận 2 bước)**. Đội Frontend / CDO cần cập nhật tích hợp để xử lý JSON response từ Agent:
+
+1. **Khi User ra lệnh "Thêm vào giỏ hàng"**:
+   - Copilot sẽ KHÔNG gọi trực tiếp `CartService`.
+   - Copilot sẽ trả về Frontend một JSON Object yêu cầu xác nhận:
+     ```json
+     {
+       "action": "add_item_to_cart",
+       "status": "pending_confirmation",
+       "confirmation_token": "token-12345",
+       "item_id": "product-uuid",
+       "quantity": 1
+     }
+     ```
+2. **Nhiệm vụ của Frontend**:
+   - Bắt được JSON này -> Hiển thị nút bấm (VD: "Xác nhận thêm vào giỏ").
+   - Khi khách hàng bấm xác nhận, gọi một HTTP request mới kèm `confirmation_token` (hoặc gửi lại vào khung chat) để báo cho Copilot biết đã cấp quyền thực thi.
+
+Vui lòng cấu hình UI xử lý kịp thời để luồng thêm vào giỏ hàng của Agent không bị kẹt.

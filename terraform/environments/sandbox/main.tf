@@ -35,6 +35,12 @@ module "vpc" {
   single_nat_gateway   = var.single_nat_gateway
   public_subnet_tags   = var.public_subnet_tags
   private_subnet_tags  = var.private_subnet_tags
+  private_app_subnet_tags = merge(
+    var.private_app_subnet_tags,
+    {
+      "karpenter.sh/discovery" = "${var.project_name}-${var.environment}-eks"
+    }
+  )
 }
 
 module "eks" {
@@ -48,7 +54,9 @@ module "eks" {
   endpoint_public_access = var.eks_endpoint_public_access
   public_access_cidrs    = var.eks_public_access_cidrs
 
+  enabled_cluster_log_types        = var.eks_enabled_cluster_log_types
   control_plane_log_retention_days = var.eks_control_plane_log_retention_days
+  enable_control_plane_log_kms     = var.eks_enable_control_plane_log_kms
 
   node_instance_types = var.eks_node_instance_types
   node_capacity_type  = var.eks_node_capacity_type
@@ -168,6 +176,18 @@ module "cloudtrail" {
 
   project_name = var.project_name
   environment  = var.environment
+
+  enable_kms_encryption          = var.cloudtrail_enable_kms_encryption
+  enable_cloudwatch_logs         = var.cloudtrail_enable_cloudwatch_logs
+  cloudwatch_log_retention_days  = var.cloudtrail_cloudwatch_log_retention_days
+  s3_retention_days              = var.cloudtrail_s3_retention_days
+  s3_transition_days             = var.cloudtrail_s3_transition_days
+  s3_transition_storage_class    = var.cloudtrail_s3_transition_storage_class
+  enable_object_lock             = var.cloudtrail_enable_object_lock
+  object_lock_retention_days     = var.cloudtrail_object_lock_retention_days
+  audit_administrator_principals = var.audit_administrator_principals
+  break_glass_principals         = var.audit_break_glass_principals
+  operator_role_names            = var.audit_operator_role_names
 }
 
 # IRSA role cho External Secrets Operator đọc endpoint/credential từ Secrets Manager

@@ -1,4 +1,4 @@
-# 04 — Eval Report (Nhóm AI / AIO03) — số đo tính đến 15/07
+# 04 — Eval Report (Nhóm AI / AIO03) — Cập nhật W2, số đo tính đến 15/07
 
 > **Evidence tier (mentor chốt 12/07):** số đo trên **docker compose local = evidence TẠM (được chấp nhận)**;
 > W2 chạy lại toàn bộ script trên EKS để nâng thành evidence chính thức. Mỗi bảng số dưới giữ nhãn nguồn.
@@ -27,14 +27,17 @@
 | Fallback ladder runtime | "Fallback routing triggered" ×5; "CB OPENED after 3 failures" | docker logs (compose) |
 | FP 15 phút tải thường | 2 FP config (latency rule match flagd — đã vá filter) + 2 TP sai nhãn (đã vá marker) | detector run |
 | Bedrock latency P50/P95 thật | Reviews Lite 1.571/3.969s; Reviews Micro 1.578/1.938s; Copilot Pro 4.086/5.688s; Copilot Lite 1.907/2.468s | measure_bedrock_latency.py (`us-east-2`; `us-east-1` blocked by OperationNotAllowed for current SSO role) |
+| Unit Test: Model Gateway | Pass 100% tỷ lệ routing theo flagd | `test_model_router.py` |
+| Unit Test: Shopping Copilot | Pass 100% các Guardrails (Prompt Injection, PII, Hallucination, Action Gate) | `test_copilot.py` |
+| Unit Test: Recommendations | Pass 100% vector cosine search trên Mock pgvector | `test_recommendation.py` |
+| Safety Eval (MANDATE-06) | Pass 10/10 (100%): 6/6 Injection blocked, 3/3 Hallucination, 1/1 Action Gate | `eval_mandate06.py --mode offline` |
 
 ## 3. Số CHƯA đo được (blocked — không được trích như kết quả)
 | Số | Chặn bởi |
 |---|---|
 | Trước–sau error-rate với Bedrock thật | creds + EKS |
 | Semantics 2 rule burn-rate/memory (syntax đã pass Prometheus 3.8.1) | data sống EKS |
-| Task-success của Copilot | code copilot (harness hiện chấm MOCK — cấm trích) |
 | Fidelity summary trên model thật vs `expected_summary_keywords` | creds |
 
-## 4. Kế hoạch W2
-Chạy 3 script đo trên EKS; eval fidelity + QA 34 case trên Nova thật; FP-run 24h chốt min_count/cooldown; backtest EWMA α; CI chạy pytest + eval mỗi PR.
+## 4. Kế hoạch tiếp theo (Sau code freeze)
+Chạy 3 script đo trên EKS; eval fidelity + QA 34 case trên Nova thật; FP-run 24h chốt min_count/cooldown; backtest EWMA α; CI chạy pytest + eval mỗi PR. Triển khai nhánh `feat/TF1-57-59-68` lên môi trường prod.

@@ -1,0 +1,8 @@
+﻿fields jsonParse(@message) as e
+| fields @timestamp, e.user.username as username, e.user.groups as groups, e.verb as verb, e.requestURI as requestURI, e.objectRef.namespace as namespace, e.objectRef.resource as resource, e.objectRef.name as resourceName, e.sourceIPs[0] as sourceIP, e.userAgent as userAgent, e.responseStatus.code as responseCode, e.auditID as auditID
+| filter @logStream like /kube-apiserver-audit-/
+| filter e.objectRef.namespace = 'audit-forensic-demo'
+| filter e.objectRef.name = 'forensic-20260715082752'
+| sort @timestamp asc
+| display @timestamp, username, groups, verb, requestURI, namespace, resource, resourceName, sourceIP, userAgent, responseCode, auditID
+| limit 100

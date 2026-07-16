@@ -285,9 +285,13 @@ resource "aws_secretsmanager_secret_version" "db_endpoint" {
   secret_string = jsonencode({
     host           = aws_db_instance.this.address
     proxy_endpoint = aws_db_proxy.this[0].endpoint
-    port           = 5432
-    username       = var.db_username
-    password       = random_password.db_password.result
-    dbname         = var.db_name
+    # Replica cho tác vụ chỉ đọc (catalog/reviews) — kết nối trực tiếp vì RDS Proxy
+    # (non-Aurora) chỉ target primary. Fallback về proxy khi env tắt replica để
+    # chart không phải biết env có replica hay không.
+    replica_endpoint = var.enable_read_replica ? aws_db_instance.replica[0].address : aws_db_proxy.this[0].endpoint
+    port             = 5432
+    username         = var.db_username
+    password         = random_password.db_password.result
+    dbname           = var.db_name
   })
 }

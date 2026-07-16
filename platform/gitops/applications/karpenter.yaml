@@ -1,0 +1,48 @@
+# MANDATE-02 — Karpenter Controller (Node Autoscaler).
+# Watch pods pending và provision EC2 worker nodes trực tiếp qua EC2 Fleet API.
+# Auth: EKS Pod Identity (aws_eks_pod_identity_association.karpenter_controller).
+# Quản lý qua ArgoCD (App-of-Apps: root-app recurse platform/gitops/applications/).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: karpenter
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"  # Install CRD + Controller trước NodePool
+spec:
+  project: default
+  source:
+    repoURL: public.ecr.aws/karpenter
+    chart: karpenter
+    targetRevision: 1.0.1  # Phiên bản stable v1.0.x
+    helm:
+      values: |
+        settings:
+          clusterName: ecommerce-dev-eks
+        serviceAccount:
+          create: true
+          name: karpenter
+          annotations: {}  # Bỏ trống vì dùng Pod Identity Association ở IAM
+        controller:
+          env:
+            - name: AWS_REGION
+              value: "us-east-1"
+            - name: AWS_DEFAULT_REGION
+              value: "us-east-1"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

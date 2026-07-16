@@ -163,6 +163,27 @@
         "off": false
       },
       "defaultVariant": "on"
+    },
+    "aiRecommendationsEnabled": {
+      "state": "ENABLED",
+      "variants": {
+        "on": true,
+        "off": false
+      },
+      "defaultVariant": "on"
+    },
+    "llmModelRouting": {
+      "state": "ENABLED",
+      "variants": {
+        "ab_test_active": {
+          "amazon.nova-lite-v1:0": 80,
+          "amazon.nova-pro-v1:0": 20
+        },
+        "lite_only": {
+          "amazon.nova-lite-v1:0": 100
+        }
+      },
+      "defaultVariant": "ab_test_active"
     }
   }
 }

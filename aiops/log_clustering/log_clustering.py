@@ -550,7 +550,44 @@ def run(output_path: str = "results/log_clustering_report.json") -> list[dict]:
 
 if __name__ == "__main__":
     import sys
+    
+    # Import Alerter from detector
+    detector_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'detector')
+    if detector_dir not in sys.path:
+        sys.path.append(detector_dir)
+    try:
+        from alerter import Alerter
+    except ImportError as e:
+        logger.error(f"Failed to import Alerter: {e}")
+        Alerter = None
+
     output = sys.argv[1] if len(sys.argv) > 1 else "results/log_clustering_report.json"
     alerts = run(output_path=output)
+    
+    if alerts and Alerter:
+        logger.info(f"Sending {len(alerts)} alerts to Webhook...")
+        alerter = Alerter(provider="auto", cooldown_seconds=0) # Drain3 runs per window, no need for Alerter cooldown
+        for alert in alerts:
+            severity = "critical" if alert["alert_type"] == "ERROR_SPIKE" else "info"
+            title = f"Drain3 {alert['alert_type']}"
+            
+            # Format message
+            services = ", ".join(alert.get("services", []))
+            template = alert.get("template", "")
+            count = alert.get("count", 0)
+            sample = alert.get("sample_message", "")
+            
+            msg = (
+                f"Dị thường Log Clustering: {alert['alert_type']}\n"
+                f"Services: {services}\n"
+                f"Template: {template}\n"
+                f"Số lần xuất hiện (Count): {count}\n"
+            )
+            if sample:
+                msg += f"Ví dụ log: {sample}\n"
+                
+            dedup_key = f"drain3_{alert['cluster_id']}_{alert['alert_type']}"
+            alerter.send(dedup_key=dedup_key, severity=severity, title=title, message=msg)
+
     # Exit code non-zero khi có alert (hữu ích cho CI/CD pipeline)
     sys.exit(1 if alerts else 0)

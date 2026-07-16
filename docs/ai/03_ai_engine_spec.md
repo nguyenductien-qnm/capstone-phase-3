@@ -7,7 +7,7 @@
 | Tác vụ | Primary | Fallback | Timeout/call | Spec |
 |---|---|---|---|---|
 | Reviews summary | `amazon.nova-lite-v1:0` | `nova-micro` → mock | 4.0s / 2.0s | `03_specs/fallback_retry.md` |
-| Shopping Copilot (W2) | `amazon.nova-pro-v1:0` | `nova-lite` → thông báo lỗi | 5.7s / 2.5s | `03_specs/shopping_copilot.md` |
+| Shopping Copilot | `amazon.nova-pro-v1:0` | `nova-lite` → thông báo lỗi | 5.7s / 2.5s | `03_specs/shopping_copilot.md` |
 
 Inference params: `INFERENCE_CONFIG` trong `product_reviews_server.py` (maxTokens 1024 = trần chống runaway; temp 0.1 = bám nguồn; topP 0.9 — justification trong code + Sổ đăng ký con số ở `05_adrs.md`).
 
@@ -23,5 +23,7 @@ PostgreSQL read-only (10 sản phẩm / 50 reviews — đo từ DB); Valkey cach
 ## AIOps engine
 Detector poll 30s (MTTD max 35.4s đo được), 13 rule (`aiops/detector/rules.yaml`); Drain3 clustering (`aiops/log_clustering/`, sim_th chờ chốt sau masking — grid 12/07: 0.3); remediation W1 detect-only (`03_specs/anomaly_remediation.md`).
 
-## Mở rộng (đề xuất, chưa build)
-`03_specs/semantic_search.md` (DEFERRED — N=10), `03_specs/ai_recommendations.md`, `03_specs/model_gateway_ab_testing.md`.
+## Hạng mục Đua Top (Đã triển khai - W2)
+- **Model Gateway & A/B Testing**: Sử dụng `flagd` để chia traffic động giữa `amazon.nova-lite-v1:0` và `nova-pro-v1:0` (`03_specs/model_gateway_ab_testing.md`).
+- **AI Recommendations (pgvector)**: Sử dụng khoảng cách Cosine Similarity trực tiếp trên PostgreSQL thay cho giải pháp Random mặc định (`03_specs/ai_recommendations.md`).
+- **Semantic Search (pgvector)**: Giải pháp ban đầu nhét text vào prompt đã bị bác bỏ, chính thức nâng cấp sử dụng HNSW/pgvector chuẩn Enterprise (`03_specs/semantic_search.md`).
