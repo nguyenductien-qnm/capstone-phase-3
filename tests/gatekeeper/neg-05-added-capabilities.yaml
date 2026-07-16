@@ -1,4 +1,4 @@
-# NEGATIVE TEST — vi phạm luật #3: deny-dangerous-capabilities (K8sDisallowCapabilities)
+# NEGATIVE TEST — vi phạm luật #3: psp-capabilities (K8sPSPCapabilities)
 # Kỳ vọng: BỊ TỪ CHỐI khi apply vào techx-tf1.
 # Chỉ vi phạm ĐÚNG 1 luật (add SYS_ADMIN — không nằm trong allowedCapabilities [NET_BIND_SERVICE]);
 # vẫn drop ALL để không dính thêm rule "phải drop ALL", giữ deny message sạch 1 dòng.

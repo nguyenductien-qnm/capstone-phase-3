@@ -21,5 +21,5 @@ spec:
         capabilities:
           drop:
             - NET_RAW   # Vi phạm: drop nhưng KHÔNG drop ALL
-# Policy kỳ vọng: deny-dangerous-capabilities -> VI PHẠM (nhánh not dropped_all)
+# Policy kỳ vọng: psp-capabilities (K8sPSPCapabilities) -> VI PHẠM (nhánh not dropped_all)
 # Các policy khác: PASS

@@ -153,3 +153,55 @@ Thực hiện rà soát chi tiết tất cả các container, initContainer và 
   * `otel-collector-agent`: Hiện tại đang cấu hình chạy hoàn toàn mặc định (chạy dưới quyền root, không có securityContext). Do otel-collector-agent chạy dưới dạng DaemonSet thu thập metric trực tiếp từ Host (máy vật lý), nó sẽ cần một số đặc quyền cấu hình, cần được rà soát và cấu hình các quyền tối thiểu khi hardening.
 * **Các initContainer sử dụng `busybox` (như `wait-for-kafka`, `wait-for-valkey-cart`, `init-config`)**:
   * Các container này dùng để kiểm tra cổng kết nối trước khi app chính khởi động. Vì image `busybox` mặc định không định nghĩa user non-root, chúng chạy dưới quyền root trừ khi Pod cấu hình `podSecurityContext.runAsNonRoot: true`. Chúng cần được gán quyền User ID cố định ở container level.
+
+---
+
+## 5. Tự động hóa Quét bảo mật bằng Trivy (Security Scanning Automation with Trivy)
+
+Để đảm bảo các cấu hình sai lệch (misconfigurations) bảo mật không bị vô tình đưa vào lại hệ thống trong suốt thời gian vận hành còn lại của dự án, nhóm CDO-05 đề xuất tích hợp công cụ quét tự động Trivy (của Aqua Security) vào chu trình phát triển (DevSecOps).
+
+### 5.1. Quy trình quét tự động cục bộ (Local Scanning)
+Trước khi thực hiện `helm upgrade` hoặc `terraform apply`, kỹ sư bảo mật chạy trực tiếp các lệnh quét để kiểm duyệt nhanh:
+
+1. **Quét cấu hình hạ tầng Terraform**:
+   ```bash
+   trivy config terraform/
+   ```
+   * *Mục tiêu*: Phát hiện sớm các lỗi cấu hình AWS EKS Public API Access (SEC-01), ECR mutable tags (SEC-04), hoặc thiếu KMS encryption (SEC-06).
+
+2. **Quét cấu hình Helm Chart**:
+   ```bash
+   trivy config techx-corp-chart/
+   ```
+   * *Mục tiêu*: Tự động phát hiện các container chạy dưới quyền root hoặc thiếu các thiết lập bảo mật `securityContext` (SEC-03).
+
+### 5.2. Git Pre-commit Hooks (Chặn lỗi từ máy cá nhân)
+Thiết lập file `.pre-commit-config.yaml` ở gốc dự án để tự động kích hoạt Trivy kiểm tra mã nguồn trước mỗi lần `git commit`. Nếu phát hiện có lỗi bảo mật nghiêm trọng (High/Critical), git commit sẽ bị từ chối:
+
+```yaml
+repos:
+  - repo: https://github.com/aquasecurity/trivy
+    rev: v0.51.0
+    hooks:
+      - id: trivy-config
+        name: Trivy IaC Scanner (Terraform & Helm)
+        entry: trivy config
+        args: [--severity, HIGH,CRITICAL, --exit-code, "1"]
+        files: \.(tf|yaml|yml)$
+```
+
+### 5.3. Tích hợp CI/CD Pipeline (Cổng bảo mật cuối cùng)
+Tích hợp Trivy quét trực tiếp trên GitHub Actions/ArgoCD khi có Pull Request được tạo ra. Nếu kết quả quét có lỗi bảo mật nghiêm trọng, PR đó sẽ bị báo đỏ và khóa nút Merge:
+
+```yaml
+- name: Run Trivy vulnerability scanner
+  uses: aquasecurity/trivy-action@master
+  with:
+    scan-type: 'config'
+    hide-progress: false
+    format: 'table'
+    exit-code: '1' # Làm fail build nếu có lỗi
+    ignore-unfixed: true
+    severity: 'CRITICAL,HIGH'
+```
+

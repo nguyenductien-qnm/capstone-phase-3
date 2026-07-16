@@ -23,5 +23,5 @@ spec:
             - ALL
           add:
             - SYS_ADMIN   # Vi phạm: add capability ngoài whitelist (chỉ NET_BIND_SERVICE được phép)
-# Policy kỳ vọng: deny-dangerous-capabilities -> VI PHẠM (nhánh has_disallowed_add)
+# Policy kỳ vọng: psp-capabilities (K8sPSPCapabilities) -> VI PHẠM (nhánh has_disallowed_add)
 # Các policy khác: PASS

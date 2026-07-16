@@ -24,4 +24,4 @@ spec:
           add:
             - NET_BIND_SERVICE   # Hợp lệ: capability nằm trong whitelist allowedCapabilities
 # Kỳ vọng: TẤT CẢ policy PASS (không vi phạm).
-# Mục đích: xác nhận deny-dangerous-capabilities cho phép add đúng whitelist.
+# Mục đích: xác nhận psp-capabilities (K8sPSPCapabilities) cho phép add đúng whitelist.

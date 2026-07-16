@@ -36,12 +36,14 @@ Chúng ta đã triển khai toàn bộ các giải pháp kỹ thuật, cấu hì
 * **[adr-runtime-hardening.md](file:///c:/Users/THANH%20TRUNG/Desktop/Phase3/capstone-phase-3/docs/adr-runtime-hardening.md)**: Định nghĩa kế hoạch Rollout (Audit/Dryrun trước, Enforce/Deny sau) và đăng ký ngoại lệ có thời hạn cụ thể (đến **31/12/2026**) cho các ứng dụng hệ thống đặc thù (như `otel-collector-agent` cần quyền root thu thập metrics, hay `grafana` sidecars cần ghi file vào EmptyDir).
 
 ### 2.3. Tạo bộ Test case phục vụ Mentor Nghiệm thu (Yêu cầu 4)
-Đã tạo thư mục **[gatekeeper/tests/](file:///c:/Users/THANH%20TRUNG/Desktop/Phase3/capstone-phase-3/gatekeeper/tests/)** chứa đầy đủ 5 file kiểm thử để Mentor có thể nghiệm thu trực quan cơ chế chặn tự động:
+Đã tạo thư mục **[gatekeeper/tests/](file:///c:/Users/THANH%20TRUNG/Desktop/Phase3/capstone-phase-3/gatekeeper/tests/)** chứa bộ test suite gồm 19 file để kiểm tra toàn diện cả 5 chính sách bảo mật (bao gồm cả trường hợp lỗi - negative và thành công - positive):
+* **Cấm chạy Root:** `neg-01-root.yaml`, `neg-09-run-as-root-uid0.yaml` (Negative) & `pos-02-run-as-nonroot-only.yaml` (Positive).
+* **Cấm Tag di động:** `neg-02-image-latest.yaml`, `neg-08-no-image-tag.yaml`, `neg-11-initcontainer-latest.yaml` (Negative) & `pos-05-image-digest.yaml` (Positive).
+* **Bắt buộc Resource:** `neg-03-missing-resources.yaml`, `neg-10-missing-limits-only.yaml` (Negative).
+* **Cấm Privilege Escalation:** `neg-04-priv-esc-true.yaml`, `neg-05-priv-esc-missing.yaml` (Negative) & `pos-04-exempt-image.yaml` (Positive).
+* **Giới hạn Capabilities:** `neg-06-no-drop-all.yaml`, `neg-07-add-dangerous-cap.yaml` (Negative) & `pos-03-allowed-cap.yaml` (Positive).
+* **Tổng hợp & Hợp lệ:** `neg-12-multi-violation.yaml` (Vi phạm cả 5 luật) & `pos-01-valid.yaml` (Hợp lệ hoàn toàn).
 * `namespace-policy-test.yaml`: Khởi tạo namespace chạy thử.
-* `neg-01-root.yaml`: Pod cố tình chạy root $\rightarrow$ dùng để test xem Gatekeeper có chặn hay không.
-* `neg-02-image-latest.yaml`: Pod cố tình dùng tag `:latest` $\rightarrow$ dùng để test xem Gatekeeper có chặn hay không.
-* `neg-03-missing-resources.yaml`: Pod cố tình thiếu khai báo limits/requests $\rightarrow$ dùng để test xem Gatekeeper có chặn hay không.
-* `pos-01-valid.yaml`: Pod cấu hình chuẩn an toàn $\rightarrow$ dùng để test xem hệ thống có thông qua thành công hay không.
 
 ---
 
@@ -53,23 +55,35 @@ Chúng ta đã triển khai toàn bộ các giải pháp kỹ thuật, cấu hì
 
 ### 3.2. Hướng dẫn Mentor chạy thử nghiệm (Mentor Testing Guide)
 
-Mentor có thể kiểm tra thực tế tính năng chặn tự động bằng cách chạy các lệnh sau từ terminal:
+Mentor có thể kiểm tra thực tế tính năng chặn tự động (chế độ **Deny**) bằng cách chạy các lệnh sau từ terminal:
 
 ```bash
 # Bước 1: Khởi tạo namespace test
 kubectl apply -f gatekeeper/tests/namespace-policy-test.yaml
 
-# Bước 2: Apply thử các file cấu hình lỗi (Kỳ vọng: OPA Gatekeeper chặn lại và báo lỗi)
+# Bước 2: Apply thử các file cấu hình lỗi (Kỳ vọng: OPA Gatekeeper chặn lại ngay lập tức)
+
+# 1. Test cấm chạy root:
 kubectl apply -f gatekeeper/tests/neg-01-root.yaml
-# Lỗi kỳ vọng: [run-as-non-root] Container neg-root is attempting to run without runAsNonRoot...
+# Lỗi kỳ vọng: [run-as-non-root] Container neg-root is attempting to run without a required securityContext/runAsNonRoot or securityContext/runAsUser != 0
 
+# 2. Test cấm tag di động (latest):
 kubectl apply -f gatekeeper/tests/neg-02-image-latest.yaml
-# Lỗi kỳ vọng: [deny-floating-image-tag] container neg-image-latest uses a disallowed tag <nginx:latest>...
+# Lỗi kỳ vọng: [deny-floating-image-tag] container <neg-image-latest> uses a disallowed tag <nginx:latest>...
 
+# 3. Test bắt buộc resource sizing:
 kubectl apply -f gatekeeper/tests/neg-03-missing-resources.yaml
-# Lỗi kỳ vọng: [require-cpu-memory-limits-requests] container neg-missing-resources does not have cpu/memory limits/requests defined...
+# Lỗi kỳ vọng: [require-cpu-memory-limits-requests] container <neg-missing-resources> does not have <{"cpu", "memory"}> limits/requests defined...
+
+# 4. Test cấm privilege escalation:
+kubectl apply -f gatekeeper/tests/neg-04-priv-esc-true.yaml
+# Lỗi kỳ vọng: Privilege escalation container is not allowed: public.ecr.aws/docker/library/nginx:1.27
+
+# 5. Test giới hạn capabilities (không drop ALL):
+kubectl apply -f gatekeeper/tests/neg-06-no-drop-all.yaml
+# Lỗi kỳ vọng: containers are not dropping all required capabilities: {container: neg-no-drop-all, capabilities: [ALL]}
 
 # Bước 3: Apply file cấu hình chuẩn (Kỳ vọng: Thành công)
-kubectl apply -f gatekeeper/tests/pos-01-valid.yaml
-# Kết quả kỳ vọng: pod/pos-valid created
+kubectl apply --dry-run=server -f gatekeeper/tests/pos-01-valid.yaml
+# Kết quả kỳ vọng: pod/pos-valid created (server dry run)
 ```

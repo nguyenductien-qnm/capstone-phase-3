@@ -30,7 +30,7 @@ kubectl get constraints
 | `neg-02-image-latest.yaml` | image `nginx:latest` (tag trôi) | `deny-floating-image-tag` | ❌ REJECT |
 | `neg-03-missing-resources.yaml` | không khai `resources` | `require-cpu-memory-limits-requests` | ❌ REJECT |
 | `neg-04-privilege-escalation.yaml` | `allowPrivilegeEscalation: true` | `deny-privilege-escalation` | ❌ REJECT |
-| `neg-05-added-capabilities.yaml` | `capabilities.add: [SYS_ADMIN]` | `deny-dangerous-capabilities` | ❌ REJECT |
+| `neg-05-added-capabilities.yaml` | `capabilities.add: [SYS_ADMIN]` | `psp-capabilities` | ❌ REJECT |
 | `pos-01-valid.yaml` | không vi phạm gì (pass cả 5 luật) | — | ✅ PASS |
 
 ## Lệnh chạy (từ thư mục gốc `capstone-phase-3/`)
@@ -74,10 +74,9 @@ disallowed tags are ["latest", "dev", "master", "main", "stable", "edge"]
 [deny-privilege-escalation] Privilege escalation container is not allowed: neg-privesc
 ```
 
-**neg-05** (`k8s-disallow-capabilities.yaml`):
+**neg-05** (`k8s-psp-capabilities.yaml`):
 ```
-[deny-dangerous-capabilities] Container <neg-caps> đang add capabilities không được phép: {"SYS_ADMIN"}.
-Chỉ được phép: ["NET_BIND_SERVICE"]
+[psp-capabilities] container <neg-caps> has a disallowed capability. Allowed capabilities are ["NET_BIND_SERVICE"]
 ```
 
 > Wording có thể lệch nhẹ theo version Gatekeeper (phần prefix `Error from server`);
