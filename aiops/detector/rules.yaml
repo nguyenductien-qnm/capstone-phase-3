@@ -46,29 +46,87 @@ rules:
     op: gt
     threshold: 1.0
 
-  - id: error-rate-high
+  - id: error-budget-burn-fast-standard
     type: metric
     severity: critical
     summary: "Tỉ lệ lỗi 5xx > 0.5% — VI PHẠM SLO non-5xx (≥ 99.5%)"
     summary_dynamic: "Tỉ lệ lỗi 5xx TĂNG BẤT THƯỜNG so với baseline (chưa vượt SLO 0.5% — cảnh báo sớm)"
     query: >-
-      sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", http_response_status_code=~"5.."}[5m]))
-      /
-      clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp"}[5m])), 0.001)
+      (
+        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout", http_response_status_code=~"5.."}[5m]))
+        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout"}[5m])), 0.001)
+        <
+        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout", http_response_status_code=~"5.."}[1h]))
+        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout"}[1h])), 0.001)
+      )
+      or
+      (
+        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout", http_response_status_code=~"5.."}[1h]))
+        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout"}[1h])), 0.001)
+      )
     op: gt
-    threshold: 0.005
+    threshold: 0.072
 
-  - id: checkout-failure-high
+  - id: error-budget-burn-fast-checkout
     type: metric
     severity: critical
     summary: "Tỉ lệ lỗi checkout > 1% — luồng RA TIỀN đang vỡ SLO (≥ 99%)"
     summary_dynamic: "Lỗi checkout TĂNG BẤT THƯỜNG so với baseline (chưa vượt SLO 1% — theo dõi sát)"
     query: >-
-      sum (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout", http_response_status_code=~"5.."}[5m]))
-      /
-      clamp_min(sum (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout"}[5m])), 0.001)
+      (
+        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout", http_response_status_code=~"5.."}[5m]))
+        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout"}[5m])), 0.001)
+        <
+        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout", http_response_status_code=~"5.."}[1h]))
+        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout"}[1h])), 0.001)
+      )
+      or
+      (
+        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout", http_response_status_code=~"5.."}[1h]))
+        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout"}[1h])), 0.001)
+      )
     op: gt
-    threshold: 0.01
+    threshold: 0.144
+
+  - id: error-budget-burn-slow-standard
+    type: metric
+    severity: warning
+    summary: "Slow burn rate > 6x (30m/6h) - TICKET! (Non-checkout)"
+    query: >-
+      (
+        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout", http_response_status_code=~"5.."}[30m]))
+        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout"}[30m])), 0.001)
+        <
+        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout", http_response_status_code=~"5.."}[6h]))
+        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout"}[6h])), 0.001)
+      )
+      or
+      (
+        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout", http_response_status_code=~"5.."}[6h]))
+        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout"}[6h])), 0.001)
+      )
+    op: gt
+    threshold: 0.03
+
+  - id: error-budget-burn-slow-checkout
+    type: metric
+    severity: warning
+    summary: "Slow burn rate > 6x (30m/6h) - TICKET! (Checkout)"
+    query: >-
+      (
+        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout", http_response_status_code=~"5.."}[30m]))
+        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout"}[30m])), 0.001)
+        <
+        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout", http_response_status_code=~"5.."}[6h]))
+        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout"}[6h])), 0.001)
+      )
+      or
+      (
+        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout", http_response_status_code=~"5.."}[6h]))
+        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout"}[6h])), 0.001)
+      )
+    op: gt
+    threshold: 0.06
 
   # ---- COST SIGNAL (chi phi LLM) ----
   - id: bedrock-cost-high
