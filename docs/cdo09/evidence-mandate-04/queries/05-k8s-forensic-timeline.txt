@@ -16,4 +16,3 @@ fields @timestamp,
 | filter objectRef.name = "<DEMO_CONFIGMAP_NAME>"
 | sort @timestamp asc
 | limit 100
-

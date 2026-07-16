@@ -19,4 +19,3 @@ Lưu output CLI đã redact ở đây với tên tương ứng ảnh, ví dụ:
 ```
 
 Không lưu credential, token, secret hoặc nội dung `terraform.tfvars`. Giữ raw output đủ để mentor đối chiếu ảnh nhưng redact account-sensitive fields không cần thiết.
-

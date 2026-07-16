@@ -1,4 +1,4 @@
-﻿{
+{
     "queryLanguage": "CWLI",
     "results": [
         [
@@ -8,7 +8,7 @@
             },
             {
                 "field": "username",
-                "value": "arn:aws:sts::804372444787:assumed-role/AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568/huynt"
+                "value": "arn:aws:sts::<ACCOUNT_ID_REDACTED>:assumed-role/AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568/huynt"
             },
             {
                 "field": "groups",
@@ -62,7 +62,7 @@
             },
             {
                 "field": "username",
-                "value": "arn:aws:sts::804372444787:assumed-role/AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568/huynt"
+                "value": "arn:aws:sts::<ACCOUNT_ID_REDACTED>:assumed-role/AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568/huynt"
             },
             {
                 "field": "groups",
@@ -116,7 +116,7 @@
             },
             {
                 "field": "username",
-                "value": "arn:aws:sts::804372444787:assumed-role/AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568/huynt"
+                "value": "arn:aws:sts::<ACCOUNT_ID_REDACTED>:assumed-role/AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568/huynt"
             },
             {
                 "field": "groups",
@@ -170,7 +170,7 @@
             },
             {
                 "field": "username",
-                "value": "arn:aws:sts::804372444787:assumed-role/AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568/huynt"
+                "value": "arn:aws:sts::<ACCOUNT_ID_REDACTED>:assumed-role/AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568/huynt"
             },
             {
                 "field": "groups",
@@ -224,7 +224,7 @@
             },
             {
                 "field": "username",
-                "value": "arn:aws:sts::804372444787:assumed-role/AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568/huynt"
+                "value": "arn:aws:sts::<ACCOUNT_ID_REDACTED>:assumed-role/AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568/huynt"
             },
             {
                 "field": "groups",
@@ -278,7 +278,7 @@
             },
             {
                 "field": "username",
-                "value": "arn:aws:sts::804372444787:assumed-role/AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568/huynt"
+                "value": "arn:aws:sts::<ACCOUNT_ID_REDACTED>:assumed-role/AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568/huynt"
             },
             {
                 "field": "groups",
@@ -332,7 +332,7 @@
             },
             {
                 "field": "username",
-                "value": "arn:aws:sts::804372444787:assumed-role/AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568/huynt"
+                "value": "arn:aws:sts::<ACCOUNT_ID_REDACTED>:assumed-role/AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568/huynt"
             },
             {
                 "field": "groups",

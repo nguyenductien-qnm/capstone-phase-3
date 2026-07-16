@@ -22,4 +22,3 @@
 - Được che phần giữa account ID/ARN nếu mentor không cần account cụ thể.
 - Phải giữ role name, GitHub session, Kubernetes username, verb, resource, timestamp và audit ID để chứng minh attribution.
 - Không chụp access key, session token, GitHub secret, private key hay nội dung tfvars.
-

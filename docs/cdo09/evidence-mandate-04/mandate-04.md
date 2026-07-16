@@ -1,9 +1,9 @@
 # MANDATE-04 Evidence Pack
 
-**Owner:** Nguyễn Tấn Huy  
-**Jira:** CDO-46, CDO-105, CDO-106  
-**AWS SSO profile:** `phase3-cdo`  
-**AWS region:** `us-east-1`  
+**Owner:** Nguyễn Tấn Huy
+**Jira:** CDO-46, CDO-105, CDO-106
+**AWS SSO profile:** `phase3-cdo`
+**AWS region:** `us-east-1`
 **Scope:** Kubernetes Audit Logs, AWS CloudTrail, Change Management, Forensic Investigation và Tamper Protection.
 
 > Trạng thái dưới đây phản ánh kiểm tra runtime thật ngày 15/07/2026. Không đổi mục FAIL/BLOCKED thành PASS trước khi control được review, apply và kiểm tra lại.
@@ -21,11 +21,11 @@
 | 07 — CloudTrail user identity | CDO-105 | AWS event truy về IAM Identity Center session cá nhân | **PARTIAL:** SSO PASS; GitHub session chưa deploy |
 | 08 — S3 log protection | CDO-105 | Versioning, encryption và public-access protection | **FAIL:** Versioning chưa cấu hình |
 | 09 — CloudTrail validation | CDO-105 | Kiểm tra integrity digest/log | **PASS:** 3/3 digest, 126/126 log hợp lệ |
-| 10 — PR/Jira/review | CDO-105 | Jira, tác giả, reviewer, approval và CI | **BLOCKED:** chưa có PR auditability |
+| 10 — PR/Jira/review | CDO-105 | Jira, tác giả, reviewer, approval và CI | **PARTIAL:** PR #93 đã có; local đã merge develop, còn cần push, CI re-run và reviewer approval |
 | 11 — ArgoCD/Git correlation | CDO-105 | ArgoCD revision nối về commit, PR và Jira | **PASS:** root revision → PR #87 → CDO-49 |
 | 12 — Operator explicit deny | CDO-105 | Operator không thể xóa/dừng audit pipeline | **FAIL:** IAM Simulator hiện trả `allowed` |
 
-Chi tiết và đường dẫn raw evidence: [EVIDENCE-INDEX.md](EVIDENCE-INDEX.md).  
+Chi tiết và đường dẫn raw evidence: [EVIDENCE-INDEX.md](EVIDENCE-INDEX.md).
 Kết quả chạy và blocker: [RUN-RESULTS.md](RUN-RESULTS.md).
 
 ## Forensic Demonstration
@@ -38,7 +38,7 @@ Drill đã dùng namespace cô lập `audit-forensic-demo` và ConfigMap `forens
 4. CloudWatch Logs Insights trả username/group, timestamp, verb, resource, source IP, user agent, response code và audit ID.
 5. Namespace demo đã cleanup.
 
-Raw evidence: `logs/05-k8s-forensic-timeline.json`.  
+Raw evidence: `logs/05-k8s-forensic-timeline.json`.
 Query đã dùng: `queries/05-k8s-forensic-timeline-used.txt`.
 
 ## Integrity Result

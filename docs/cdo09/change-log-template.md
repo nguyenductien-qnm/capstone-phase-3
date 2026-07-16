@@ -23,4 +23,3 @@
 | SLO impact | |
 | Rollback | |
 | Evidence paths | |
-

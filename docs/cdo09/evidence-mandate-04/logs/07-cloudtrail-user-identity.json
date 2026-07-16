@@ -1,4 +1,4 @@
-﻿{
+{
     "Attribution":  "IAM Identity Center individual session",
     "ExpectedUser":  "huynt",
     "Events":  [
@@ -8,8 +8,8 @@
                        "EventSource":  "eks.amazonaws.com",
                        "Username":  "huynt",
                        "PrincipalType":  "AssumedRole",
-                       "PrincipalArn":  "arn:aws:sts::804372444787:assumed-role/AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568/huynt",
-                       "SessionIssuerArn":  "arn:aws:iam::804372444787:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568",
+                       "PrincipalArn":  "arn:aws:sts::<ACCOUNT_ID_REDACTED>:assumed-role/AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568/huynt",
+                       "SessionIssuerArn":  "arn:aws:iam::<ACCOUNT_ID_REDACTED>:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568",
                        "SourceIPAddress":  "14.236.19.171",
                        "UserAgent":  "aws-cli/2.34.52 md/awscrt#0.32.2 ua/2.1 os/windows#11 md/arch#amd64 lang/python#3.14.5 md/pyimpl#CPython m/s,r,Z,E,b cfg/retry-mode#standard md/installer#exe sid/1b2c474a641e md/prompt#off md/command#eks.describe-cluster",
                        "Resources":  [
@@ -22,8 +22,8 @@
                        "EventSource":  "notifications.amazonaws.com",
                        "Username":  "huynt",
                        "PrincipalType":  "AssumedRole",
-                       "PrincipalArn":  "arn:aws:sts::804372444787:assumed-role/AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568/huynt",
-                       "SessionIssuerArn":  "arn:aws:iam::804372444787:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568",
+                       "PrincipalArn":  "arn:aws:sts::<ACCOUNT_ID_REDACTED>:assumed-role/AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568/huynt",
+                       "SessionIssuerArn":  "arn:aws:iam::<ACCOUNT_ID_REDACTED>:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568",
                        "SourceIPAddress":  "14.236.19.171",
                        "UserAgent":  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
                        "Resources":  [
@@ -36,8 +36,8 @@
                        "EventSource":  "sts.amazonaws.com",
                        "Username":  "huynt",
                        "PrincipalType":  "AssumedRole",
-                       "PrincipalArn":  "arn:aws:sts::804372444787:assumed-role/AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568/huynt",
-                       "SessionIssuerArn":  "arn:aws:iam::804372444787:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568",
+                       "PrincipalArn":  "arn:aws:sts::<ACCOUNT_ID_REDACTED>:assumed-role/AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568/huynt",
+                       "SessionIssuerArn":  "arn:aws:iam::<ACCOUNT_ID_REDACTED>:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568",
                        "SourceIPAddress":  "14.236.19.171",
                        "UserAgent":  "APN/1.0 HashiCorp/1.0 Terraform/1.15.5 (+https://www.terraform.io) aws-sdk-go-v2/1.41.5 ua/2.1 os/windows lang/go#1.25.10 md/GOOS#windows md/GOARCH#amd64 api/sts#1.41.9 m/r,t,u",
                        "Resources":  [
@@ -50,8 +50,8 @@
                        "EventSource":  "sts.amazonaws.com",
                        "Username":  "huynt",
                        "PrincipalType":  "AssumedRole",
-                       "PrincipalArn":  "arn:aws:sts::804372444787:assumed-role/AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568/huynt",
-                       "SessionIssuerArn":  "arn:aws:iam::804372444787:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568",
+                       "PrincipalArn":  "arn:aws:sts::<ACCOUNT_ID_REDACTED>:assumed-role/AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568/huynt",
+                       "SessionIssuerArn":  "arn:aws:iam::<ACCOUNT_ID_REDACTED>:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568",
                        "SourceIPAddress":  "14.236.19.171",
                        "UserAgent":  "APN/1.0 HashiCorp/1.0 Terraform/1.15.5 (+https://www.terraform.io) aws-sdk-go-v2/1.41.5 ua/2.1 os/windows lang/go#1.25.10 md/GOOS#windows md/GOARCH#amd64 api/sts#1.41.9 m/r,t,u",
                        "Resources":  [

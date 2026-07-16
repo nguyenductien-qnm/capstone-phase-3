@@ -1,9 +1,9 @@
 # MANDATE-04 runtime evidence results
 
-**Captured:** 2026-07-15 UTC/ICT  
-**AWS profile:** `phase3-cdo`  
-**Region:** `us-east-1`  
-**Cluster:** `ecommerce-dev-eks`  
+**Captured:** 2026-07-15 UTC/ICT
+**AWS profile:** `phase3-cdo`
+**Region:** `us-east-1`
+**Cluster:** `ecommerce-dev-eks`
 **Trail:** `ecommerce-dev-audit-trail`
 
 ## Passed
@@ -24,7 +24,7 @@
 
 - 02: Local plan is blocked because the non-committed `terraform.tfvars`/GitHub `TFVARS_SANDBOX` secret is unavailable. The diagnostic lists required variables without exposing values.
 - 08: S3 Public Access Block and AES256 encryption pass, but Versioning is not configured. Object Lock remains intentionally disabled pending migration.
-- 10: No PR implementing CDO-46/CDO-105/CDO-106 exists on the public repository, so reviewer/Jira evidence cannot be claimed.
+- 10 (historical 15/07): no PR existed at capture time. PR #93 now exists; review 16/07 still requires push of the develop merge, CI re-run and independent approval.
 - 12: No audit tamper managed policy exists in AWS. The current SSO role has `AdministratorAccess`; IAM simulation returns `allowed` for CloudTrail stop/delete/update and S3 delete/bypass actions.
 
 ## Required path to full pass
