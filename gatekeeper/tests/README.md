@@ -52,14 +52,14 @@ kubectl delete -f .
 
 ### 2. Chạy & kiểm tra MỘT test cụ thể
 
-Ví dụ kiểm tra `neg-07-add-dangerous-cap.yaml` (kỳ vọng vi phạm `deny-dangerous-capabilities`):
+Ví dụ kiểm tra `neg-07-add-dangerous-cap.yaml` (kỳ vọng vi phạm `psp-capabilities`):
 
 ```sh
 kubectl apply -f neg-07-add-dangerous-cap.yaml
 sleep 60   # đợi audit
 
 # Đọc vi phạm của đúng constraint tương ứng
-kubectl get k8sdisallowcapabilities deny-dangerous-capabilities \
+kubectl get k8spspcapabilities psp-capabilities \
   -o jsonpath='{.status.violations}' | jq
 
 kubectl delete -f neg-07-add-dangerous-cap.yaml
@@ -76,7 +76,7 @@ và message kiểu *"đang add capabilities không được phép: {SYS_ADMIN}"*
 | deny-floating-image-tag | `k8sdisallowedtags` | `kubectl get k8sdisallowedtags deny-floating-image-tag -o jsonpath='{.status.violations}' \| jq` |
 | require-cpu-memory-limits-requests | `k8srequiredresources` | `kubectl get k8srequiredresources require-cpu-memory-limits-requests -o jsonpath='{.status.violations}' \| jq` |
 | deny-privilege-escalation | `k8spspallowprivilegeescalationcontainer` | `kubectl get k8spspallowprivilegeescalationcontainer deny-privilege-escalation -o jsonpath='{.status.violations}' \| jq` |
-| deny-dangerous-capabilities | `k8sdisallowcapabilities` | `kubectl get k8sdisallowcapabilities deny-dangerous-capabilities -o jsonpath='{.status.violations}' \| jq` |
+| psp-capabilities | `k8spspcapabilities` | `kubectl get k8spspcapabilities psp-capabilities -o jsonpath='{.status.violations}' \| jq` |
 
 ### 4. Cách ĐỌC kết quả (đối chiếu pass/fail)
 
@@ -133,7 +133,7 @@ kubectl get pods -n techx-tf1            # xác nhận đã sạch
 |------|------|------------------|-------------|---------|
 | `pos-01-valid.yaml`               | positive | tất cả | — | PASS toàn bộ |
 | `pos-02-run-as-nonroot-only.yaml` | positive | run-as-non-root | runAsNonRoot:true, không runAsUser | PASS |
-| `pos-03-allowed-cap.yaml`         | positive | deny-dangerous-capabilities | add NET_BIND_SERVICE (whitelist) | PASS |
+| `pos-03-allowed-cap.yaml`         | positive | psp-capabilities | add NET_BIND_SERVICE (whitelist) | PASS |
 | `pos-04-exempt-image.yaml`        | positive | deny-privilege-escalation | exemptImages (pause*) | PASS |
 | `pos-05-image-digest.yaml`        | positive | deny-floating-image-tag | image digest cố định | PASS |
 | `neg-01-root.yaml`                | negative | run-as-non-root | thiếu runAsNonRoot & runAsUser | VI PHẠM |
@@ -141,8 +141,8 @@ kubectl get pods -n techx-tf1            # xác nhận đã sạch
 | `neg-03-missing-resources.yaml`   | negative | require-resources | thiếu toàn bộ requests+limits | VI PHẠM |
 | `neg-04-priv-esc-true.yaml`       | negative | deny-privilege-escalation | allowPrivilegeEscalation: true | VI PHẠM |
 | `neg-05-priv-esc-missing.yaml`    | negative | deny-privilege-escalation | thiếu field allowPrivilegeEscalation | VI PHẠM |
-| `neg-06-no-drop-all.yaml`         | negative | deny-dangerous-capabilities | drop nhưng không drop ALL | VI PHẠM |
-| `neg-07-add-dangerous-cap.yaml`   | negative | deny-dangerous-capabilities | add SYS_ADMIN (ngoài whitelist) | VI PHẠM |
+| `neg-06-no-drop-all.yaml`         | negative | psp-capabilities | drop nhưng không drop ALL | VI PHẠM |
+| `neg-07-add-dangerous-cap.yaml`   | negative | psp-capabilities | add SYS_ADMIN (ngoài whitelist) | VI PHẠM |
 | `neg-08-no-image-tag.yaml`        | negative | deny-floating-image-tag | image không có tag | VI PHẠM |
 | `neg-09-run-as-root-uid0.yaml`    | negative | run-as-non-root | runAsUser: 0 (root tường minh) | VI PHẠM |
 | `neg-10-missing-limits-only.yaml` | negative | require-resources | có requests, thiếu limits | VI PHẠM |
@@ -157,10 +157,10 @@ kubectl get pods -n techx-tf1            # xác nhận đã sạch
 | deny-floating-image-tag       | neg-02, neg-08, neg-11, neg-12 | pos-01, pos-05 |
 | require-cpu-memory-limits-requests | neg-03, neg-10, neg-12 | pos-01 |
 | deny-privilege-escalation     | neg-04, neg-05, neg-12 | pos-01, pos-04 (exempt) |
-| deny-dangerous-capabilities   | neg-06, neg-07, neg-12 | pos-01, pos-03 |
+| psp-capabilities              | neg-06, neg-07, neg-12 | pos-01, pos-03 |
 
 ## Ghi chú
 - `namespace-policy-test.yaml` tạo namespace `policy-test` — **không khớp** match `techx-tf1` của
   constraint hiện tại, nên không dùng cho bộ test này. Giữ lại hay bỏ tùy mục đích khác.
-- Template `k8spspcapabilities` (ConstraintTemplate) hiện KHÔNG có constraint nào tham chiếu →
-  không nằm trong phạm vi test.
+- Template `k8sdisallowcapabilities` (`k8s-disallow-capabilities.yaml`) hiện KHÔNG có constraint nào tham chiếu →
+  không nằm trong phạm vi test. Capabilities được kiểm soát bởi template `k8spspcapabilities` (`k8s-psp-capabilities.yaml`) qua constraint `psp-capabilities`.

@@ -8,7 +8,7 @@ metadata:
       Bắt buộc container phải dùng tag cố định hoặc image digest.
       Áp dụng cho namespace techx-tf1.
 spec:
-  enforcementAction: dryrun
+  enforcementAction: deny
   match:
     kinds:
       - apiGroups: [""]

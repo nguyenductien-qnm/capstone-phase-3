@@ -8,7 +8,7 @@ metadata:
       chỉ cho phép add lại NET_BIND_SERVICE. Case-insensitive theo chuẩn K8s.
       Áp dụng namespace techx-tf1. Loại trừ namespace hệ thống.
 spec:
-  enforcementAction: dryrun
+  enforcementAction: deny
   match:
     kinds:
       - apiGroups: [""]

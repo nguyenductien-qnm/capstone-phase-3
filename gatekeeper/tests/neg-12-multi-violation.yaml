@@ -19,5 +19,5 @@ spec:
 #   - require-cpu-memory-limits-requests
 #   - run-as-non-root
 #   - deny-privilege-escalation
-#   - deny-dangerous-capabilities
+#   - psp-capabilities (K8sPSPCapabilities)
 # Mục đích: kiểm tra nhiều constraint cùng báo vi phạm trên 1 đối tượng.

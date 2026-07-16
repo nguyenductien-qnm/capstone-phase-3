@@ -1,7 +1,7 @@
 # Architectural Decision Record (ADR): Runtime Hardening & Đăng ký Ngoại lệ
 
 **Mã tài liệu**: CDO-SEC-ADR-003  
-**Trạng thái**: Đề xuất (Proposed)  
+**Trạng thái**: Đã phê duyệt & Thực thi (Approved & Enforced)  
 **Tác giả**: Châu Thành Trung (CDO-05 / Security & DevOps Lead)  
 **Ngày phê duyệt**: 14/07/2026  
 
@@ -22,11 +22,11 @@ Các rủi ro cần giải quyết:
 Chúng ta lựa chọn **OPA Gatekeeper** làm Admission Controller để tự động chặn các manifest vi phạm.
 
 ### Các luật được thực thi chặn ngay lập tức (Enforced Rules):
-* `k8s-disallow-capabilities`: Chặn tất cả các capabilities ngoại trừ các cấu hình đặc biệt được cho phép.
-* `k8s-allow-privilege-escalation`: Thiết lập `allowPrivilegeEscalation: false`.
-* `k8s-run-as-non-root`: Bắt buộc thiết lập `runAsNonRoot: true`.
-* `k8s-require-image-tag`: Cấm sử dụng các image tag di động/trôi nổi (như `latest`, `dev`, `master`). Chỉ cho phép tag cố định (ví dụ: `1.0-accounting`) hoặc image digest.
-* `k8s-require-resources`: Bắt buộc tất cả các container ứng dụng phải định nghĩa `limits` và `requests` cho cả CPU và Memory.
+* `psp-capabilities`: Chặn tất cả các capabilities ngoại trừ các cấu hình đặc biệt được cho phép.
+* `deny-privilege-escalation`: Thiết lập `allowPrivilegeEscalation: false`.
+* `run-as-non-root`: Bắt buộc thiết lập `runAsNonRoot: true`.
+* `deny-floating-image-tag`: Cấm sử dụng các image tag di động/trôi nổi (như `latest`, `dev`, `master`). Chỉ cho phép tag cố định (ví dụ: `1.0-accounting`) hoặc image digest.
+* `require-cpu-memory-limits-requests`: Bắt buộc tất cả các container ứng dụng phải định nghĩa `limits` và `requests` cho cả CPU và Memory.
 
 ---
 
