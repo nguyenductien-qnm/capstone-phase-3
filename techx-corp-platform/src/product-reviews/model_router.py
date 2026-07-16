@@ -14,12 +14,12 @@ class ModelRouter:
         config = self.of_client.get_object_value("llmReviewsModelRouting", {})
         
         if not config:
-            return os.environ.get('LLM_REVIEWS_MAIN_MODEL', os.environ.get('AWS_BEDROCK_MODEL', 'amazon.nova-lite-v1:0'))
+            return os.environ.get('LLM_REVIEWS_MAIN_MODEL', os.environ.get('AWS_BEDROCK_MODEL', 'arn:aws:bedrock:us-east-1:804372444787:application-inference-profile/krbq2wsgp11t'))
             
         models = list(config.keys())
         weights = list(config.values())
         
         if not models or sum(weights) == 0:
-            return os.environ.get('LLM_REVIEWS_MAIN_MODEL', os.environ.get('AWS_BEDROCK_MODEL', 'amazon.nova-lite-v1:0'))
+            return os.environ.get('LLM_REVIEWS_MAIN_MODEL', os.environ.get('AWS_BEDROCK_MODEL', 'arn:aws:bedrock:us-east-1:804372444787:application-inference-profile/krbq2wsgp11t'))
             
         return random.choices(models, weights=weights, k=1)[0]

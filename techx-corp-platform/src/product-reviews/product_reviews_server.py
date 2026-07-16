@@ -70,7 +70,7 @@ SYSTEM_PROMPT = "You are a helpful assistant that answers related to a specific 
 MOCK_SUMMARY_VI = "Hiện tại hệ thống không thể tạo tóm tắt đánh giá. Vui lòng tham khảo các đánh giá chi tiết bên dưới."
 # Review C1: version cache key theo model/prompt THUC dang dung — doi qua env la key tu doi,
 # khong con hang so chet lam versioned-key mat tac dung.
-model_ver = os.environ.get('LLM_REVIEWS_MAIN_MODEL', os.environ.get('AWS_BEDROCK_MODEL', 'amazon.nova-lite-v1:0'))
+model_ver = os.environ.get('LLM_REVIEWS_MAIN_MODEL', os.environ.get('AWS_BEDROCK_MODEL', 'arn:aws:bedrock:us-east-1:804372444787:application-inference-profile/krbq2wsgp11t'))
 prompt_ver = hashlib.md5(SYSTEM_PROMPT.encode()).hexdigest()[:8]
 
 # New Bedrock Clients & Bulkhead for Caching/Fallback
@@ -99,6 +99,10 @@ INFERENCE_CONFIG = {
     "temperature": float(os.environ.get('LLM_TEMPERATURE', '0.1')),
     "topP": float(os.environ.get('LLM_TOP_P', '0.9')),
 }
+
+# INC-3: Readiness-gating span (record when service becomes ready to avoid 503 during deploy)
+_service_ready = False
+_readiness_span_recorded = False
 
 tracer = trace.get_tracer_provider().get_tracer("product-reviews")
 meter = metrics.get_meter_provider().get_meter("product-reviews")
@@ -172,6 +176,18 @@ class ProductReviewService(demo_pb2_grpc.ProductReviewServiceServicer):
         self.is_serving = True
 
     def Check(self, request, context):
+        # INC-3: Readiness-gating span — record exact moment service becomes ready
+        global _service_ready, _readiness_span_recorded
+        
+        if self.is_serving and not _readiness_span_recorded:
+            with tracer.start_as_current_span("service_readiness_gate") as span:
+                span.set_attribute("app.service", "product-reviews")
+                span.set_attribute("app.readiness_status", "ready")
+                span.set_attribute("app.timestamp", datetime.now(timezone.utc).isoformat())
+                _service_ready = True
+                _readiness_span_recorded = True
+                logger.info("INC-3: Readiness gate recorded — service ready to accept traffic")
+        
         if self.is_serving:
             return health_pb2.HealthCheckResponse(status=health_pb2.HealthCheckResponse.SERVING)
         return health_pb2.HealthCheckResponse(status=health_pb2.HealthCheckResponse.NOT_SERVING)
@@ -273,19 +289,63 @@ def get_bedrock_fallback_client():
         bedrock_fallback_client = boto3.client(service_name="bedrock-runtime", region_name=aws_region, config=fallback_config)
     return bedrock_fallback_client
 
+def _record_bedrock_metrics(response, model_id, status="success"):
+    """
+    Extract and record Bedrock token usage metrics.
+    
+    Args:
+        response: Response from Bedrock converse API
+        model_id: Model ID used for the API call
+        status: Status of the call (success, fallback, error)
+    """
+    # Pricing per 1M tokens (source: docs/ai/03_specs/model_gateway_ab_testing.md)
+    PRICING = {
+        "amazon.nova-lite-v1:0":  {"input": 0.00006,  "output": 0.00024},
+        "amazon.nova-pro-v1:0":   {"input": 0.0008,   "output": 0.0032},
+        "amazon.nova-micro-v1:0": {"input": 0.000035, "output": 0.00014},
+    }
+    try:
+        usage = response.get("usage", {})
+        input_tokens = usage.get("inputTokens", 0)
+        output_tokens = usage.get("outputTokens", 0)
+        
+        # Record token counts with model and status labels
+        product_review_svc_metrics["bedrock_input_tokens_total"].add(
+            input_tokens, 
+            {"model_id": model_id, "status": status}
+        )
+        product_review_svc_metrics["bedrock_output_tokens_total"].add(
+            output_tokens,
+            {"model_id": model_id, "status": status}
+        )
+        
+        # Calculate cost using per-model pricing
+        price = PRICING.get(model_id, {"input": 0.00006, "output": 0.00024})
+        cost_usd = (input_tokens * price["input"] + output_tokens * price["output"]) / 1_000_000
+        product_review_svc_metrics["bedrock_cost_usd_total"].add(
+            cost_usd,
+            {"model_id": model_id, "status": status}
+        )
+        
+        logger.info(f"Bedrock metrics recorded | model={model_id} | input_tokens={input_tokens} | output_tokens={output_tokens} | cost_usd={cost_usd:.6f}")
+    except Exception as e:
+        logger.error(f"Error recording Bedrock metrics: {e}")
+
 def invoke_bedrock_converse_with_fallback(messages, system_prompt, tool_config=None):
     """
     Invokes AWS Bedrock converse API with retry and fallback routing.
     - Timeout, retries, and models are resolved dynamically from environment variables.
     - Exponential backoff with full jitter is applied on retryable errors.
+    - Prompt caching enabled to reduce token reuse cost.
     """
     router = ModelRouter()
-    main_model = router.get_main_model()
+    main_model = os.environ.get('LLM_REVIEWS_MAIN_MODEL', router.get_main_model())
     fallback_model = os.environ.get('LLM_REVIEWS_FALLBACK_MODEL', 'amazon.nova-micro-v1:0')
     max_retries = int(os.environ.get('LLM_REVIEWS_MAX_RETRIES', '2'))
     fallback_max_retries = int(os.environ.get('LLM_REVIEWS_FALLBACK_RETRIES', '1'))
     
     fallback_enabled = check_feature_flag("llmReviewsFallbackEnabled", default=True)
+    prompt_caching_enabled = check_feature_flag("llmPromptCachingEnabled")
 
     # Lớp 5: Circuit Breaker theo lỗi quan sát được (review B2)
     bypass_primary = False
@@ -309,11 +369,20 @@ def invoke_bedrock_converse_with_fallback(messages, system_prompt, tool_config=N
                     "messages": messages,
                     "inferenceConfig": INFERENCE_CONFIG
                 }
+                # Enable prompt caching if feature flag set (reduces token reuse cost)
+                if prompt_caching_enabled:
+                    kwargs["system"] = [{"text": system_prompt, "cacheable": True}]
+                    logger.info("Prompt caching enabled for primary model")
+                
                 if tool_config:
                     kwargs["toolConfig"] = tool_config
                     
                 response = primary_client.converse(**kwargs)
                 logger.info(f"Primary Model call successful: {main_model}")
+                
+                # Record Bedrock token usage metrics
+                _record_bedrock_metrics(response, main_model, status="success")
+                
                 with _cb_lock:
                     _cb_state["failures"] = 0
                 return response
@@ -368,11 +437,20 @@ def invoke_bedrock_converse_with_fallback(messages, system_prompt, tool_config=N
                     "messages": messages,
                     "inferenceConfig": INFERENCE_CONFIG
                 }
+                # Enable prompt caching if feature flag set (reduces token reuse cost)
+                if prompt_caching_enabled:
+                    kwargs["system"] = [{"text": system_prompt, "cacheable": True}]
+                    logger.info("Prompt caching enabled for fallback model")
+                
                 if tool_config:
                     kwargs["toolConfig"] = tool_config
                     
                 response = fallback_client.converse(**kwargs)
                 logger.info(f"Fallback Model call successful: {fallback_model}")
+                
+                # Record Bedrock token usage metrics
+                _record_bedrock_metrics(response, fallback_model, status="fallback")
+                
                 return response
                 
             except (ClientError, BotoCoreError) as e:
