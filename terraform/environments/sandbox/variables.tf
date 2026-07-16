@@ -80,6 +80,12 @@ variable "private_subnet_tags" {
   default     = {}
 }
 
+variable "private_app_subnet_tags" {
+  type        = map(string)
+  description = "Các tags bổ sung chỉ cho Private Application Subnets"
+  default     = {}
+}
+
 variable "eks_cluster_version" {
   type        = string
   description = "Phiên bản Kubernetes được review cho EKS; không tự động chạy theo latest"
@@ -257,7 +263,6 @@ variable "rds_multi_az" {
   type        = bool
   description = "Bật/Tắt chế độ Multi-AZ cho Primary DB"
 }
-
 variable "eks_enabled_cluster_log_types" {
   type        = list(string)
   description = "EKS control-plane log types; api, audit and authenticator are mandatory for auditability"

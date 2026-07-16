@@ -91,3 +91,8 @@ variable "private_subnet_tags" {
   default     = {}
 }
 
+variable "private_app_subnet_tags" {
+  type        = map(string)
+  description = "Các tags bổ sung chỉ cho Private Application Subnets"
+  default     = {}
+}

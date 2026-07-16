@@ -35,6 +35,12 @@ module "vpc" {
   single_nat_gateway   = var.single_nat_gateway
   public_subnet_tags   = var.public_subnet_tags
   private_subnet_tags  = var.private_subnet_tags
+  private_app_subnet_tags = merge(
+    var.private_app_subnet_tags,
+    {
+      "karpenter.sh/discovery" = "${var.project_name}-${var.environment}-eks"
+    }
+  )
 }
 
 module "eks" {
@@ -136,6 +142,24 @@ module "cloudfront" {
   aliases             = [var.subdomain]
 }
 
+# Cửa vào cho người dùng: <subdomain> -> CloudFront. Thiếu record này thì tên miền
+# không phân giải được và request không bao giờ tới CloudFront -- aliases ở module
+# chỉ dạy CloudFront CHẤP NHẬN Host header, nó không tạo DNS.
+# external-dns không tạo hộ: nó chỉ quản host khai trong Ingress (origin-<subdomain>).
+resource "aws_route53_record" "cloudfront_alias" {
+  count = var.enable_cloudfront ? 1 : 0
+
+  zone_id = var.route53_zone_id
+  name    = var.subdomain
+  type    = "A"
+
+  alias {
+    name                   = module.cloudfront[0].cloudfront_domain_name
+    zone_id                = module.cloudfront[0].cloudfront_hosted_zone_id
+    evaluate_target_health = false
+  }
+}
+
 module "msk" {
   source = "../../modules/msk"
 
@@ -182,5 +206,12 @@ module "external_secrets_irsa" {
     module.elasticache.secret_arn,
     module.msk.msk_secret_arn,
     module.msk.msk_endpoint_secret_arn,
+  ]
+
+  # Secret MSK mã hoá bằng KMS key riêng của module msk -> ESO cần kms:Decrypt trên
+  # key này, nếu không sẽ lỗi "AccessDeniedException: Access to KMS is not allowed".
+  # RDS/Valkey dùng key mặc định aws/secretsmanager nên không cần liệt kê.
+  kms_key_arns = [
+    module.msk.kms_key_arn,
   ]
 }
