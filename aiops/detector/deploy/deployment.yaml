@@ -54,11 +54,14 @@ spec:
               value: "http://prometheus:9090"
             - name: OPENSEARCH_URL
               value: "http://opensearch:9200"
+            # optional: thieu secret thi pod van chay, alerter fallback provider=stdout
+            # (alert van thay duoc qua kubectl logs). Tao secret + rollout restart de bat webhook.
             - name: ALERT_WEBHOOK_URL
               valueFrom:
                 secretKeyRef:
                   name: aiops-alert
                   key: webhook
+                  optional: true
           resources:
             requests: { cpu: "50m", memory: "64Mi" }
             limits: { cpu: "200m", memory: "128Mi" }
