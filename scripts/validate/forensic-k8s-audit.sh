@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 REGION="" CLUSTER="" START="" END="" USERNAME="" VERB="" NAMESPACE="" KIND="" NAME="" SOURCE_IP="" USER_AGENT="" STATUS="" DEMO=false
+demo="" ns=""
+cleanup_demo(){
+  [[ -z "$ns" ]] || kubectl delete namespace "$ns" --ignore-not-found --wait=false >/dev/null 2>&1 || true
+}
+trap cleanup_demo EXIT
 usage(){ echo "Usage: $0 --region R --cluster-name C --start ISO8601 --end ISO8601 [--username U] [--verb V] [--namespace N] [--resource-kind K] [--resource-name N] [--source-ip IP] [--user-agent UA] [--response-status CODE] [--generate-demo-event]"; }
 while [[ $# -gt 0 ]]; do case "$1" in
  --region) REGION="$2";shift 2;; --cluster-name) CLUSTER="$2";shift 2;; --start) START="$2";shift 2;; --end) END="$2";shift 2;;
@@ -9,8 +14,8 @@ while [[ $# -gt 0 ]]; do case "$1" in
 [[ -n "$REGION" && -n "$CLUSTER" ]] || { usage; exit 2; }
 if $DEMO; then
   command -v kubectl >/dev/null || { echo "kubectl required for demo"; exit 2; }
-  demo="audit-demo-$(date -u +%Y%m%d%H%M%S)"; ns="audit-forensic-demo"
-  kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f -
+  stamp="$(date -u +%Y%m%d%H%M%S)"; demo="audit-demo-$stamp"; ns="audit-forensic-$stamp"
+  kubectl create namespace "$ns"
   kubectl -n "$ns" create configmap "$demo" --from-literal=purpose=forensic-drill
   kubectl -n "$ns" annotate configmap "$demo" audit.techx.io/drill="$(date -u +%FT%TZ)"
   kubectl -n "$ns" delete configmap "$demo"

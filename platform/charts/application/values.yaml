@@ -1,10 +1,4 @@
 # yaml-language-server: $schema=./values.schema.json
-# Disabled by default so the base chart can be linted/rendered without the
-# sandbox-only External Secrets overlay. ArgoCD enables it via
-# values-external-secrets.yaml in the sandbox environment.
-externalSecrets:
-  enabled: false
-
 default:
   # List of environment variables applied to all components
   env:

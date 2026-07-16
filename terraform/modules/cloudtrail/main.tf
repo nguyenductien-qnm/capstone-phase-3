@@ -196,9 +196,15 @@ resource "aws_cloudtrail" "main_trail" {
 
 data "aws_iam_policy_document" "audit_log_tamper_protection" {
   statement {
-    sid       = "DenyCloudTrailTampering"
-    effect    = "Deny"
-    actions   = ["cloudtrail:StopLogging", "cloudtrail:DeleteTrail", "cloudtrail:UpdateTrail"]
+    sid    = "DenyCloudTrailTampering"
+    effect = "Deny"
+    actions = [
+      "cloudtrail:StopLogging",
+      "cloudtrail:DeleteTrail",
+      "cloudtrail:UpdateTrail",
+      "cloudtrail:PutEventSelectors",
+      "cloudtrail:PutInsightSelectors",
+    ]
     resources = ["arn:${data.aws_partition.current.partition}:cloudtrail:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:trail/${local.trail_name}"]
     dynamic "condition" {
       for_each = length(local.exempt_principals) > 0 ? [1] : []
@@ -213,9 +219,16 @@ data "aws_iam_policy_document" "audit_log_tamper_protection" {
   dynamic "statement" {
     for_each = var.enable_cloudwatch_logs ? [1] : []
     content {
-      sid       = "DenyAuditLogDeletionAndRetentionWeakening"
-      effect    = "Deny"
-      actions   = ["logs:DeleteLogGroup", "logs:DeleteLogStream", "logs:PutRetentionPolicy"]
+      sid    = "DenyAuditLogDeletionAndRetentionWeakening"
+      effect = "Deny"
+      actions = [
+        "logs:DeleteLogGroup",
+        "logs:DeleteLogStream",
+        "logs:DeleteRetentionPolicy",
+        "logs:PutRetentionPolicy",
+        "logs:AssociateKmsKey",
+        "logs:DisassociateKmsKey",
+      ]
       resources = [aws_cloudwatch_log_group.cloudtrail[0].arn, "${aws_cloudwatch_log_group.cloudtrail[0].arn}:*"]
     }
   }
@@ -224,8 +237,21 @@ data "aws_iam_policy_document" "audit_log_tamper_protection" {
     sid    = "DenyAuditBucketTampering"
     effect = "Deny"
     actions = [
-      "s3:DeleteObject", "s3:DeleteObjectVersion", "s3:PutBucketPolicy", "s3:DeleteBucket",
-      "s3:PutBucketVersioning", "s3:BypassGovernanceRetention",
+      "s3:PutObject",
+      "s3:DeleteObject",
+      "s3:DeleteObjectVersion",
+      "s3:PutBucketPolicy",
+      "s3:DeleteBucketPolicy",
+      "s3:DeleteBucket",
+      "s3:PutBucketVersioning",
+      "s3:PutEncryptionConfiguration",
+      "s3:DeleteBucketEncryption",
+      "s3:PutLifecycleConfiguration",
+      "s3:DeleteBucketLifecycle",
+      "s3:PutBucketPublicAccessBlock",
+      "s3:DeletePublicAccessBlock",
+      "s3:PutBucketObjectLockConfiguration",
+      "s3:BypassGovernanceRetention",
     ]
     resources = [aws_s3_bucket.cloudtrail_logs.arn, "${aws_s3_bucket.cloudtrail_logs.arn}/*"]
   }
@@ -233,9 +259,15 @@ data "aws_iam_policy_document" "audit_log_tamper_protection" {
   dynamic "statement" {
     for_each = var.enable_kms_encryption ? [1] : []
     content {
-      sid       = "DenyAuditKeyDeletion"
-      effect    = "Deny"
-      actions   = ["kms:ScheduleKeyDeletion"]
+      sid    = "DenyAuditKeyTampering"
+      effect = "Deny"
+      actions = [
+        "kms:ScheduleKeyDeletion",
+        "kms:DisableKey",
+        "kms:DisableKeyRotation",
+        "kms:PutKeyPolicy",
+        "kms:RevokeGrant",
+      ]
       resources = [aws_kms_key.audit[0].arn]
     }
   }
