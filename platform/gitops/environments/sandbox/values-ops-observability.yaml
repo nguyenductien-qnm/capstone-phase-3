@@ -21,7 +21,7 @@ opentelemetry-collector:
     service:
       pipelines:
         logs:
-          exporters: [debug]
+          exporters: [opensearch, debug]
 
 jaeger:
   jaeger:
@@ -86,7 +86,8 @@ grafana:
       operator: Equal
       value: observability
       effect: NoSchedule
-  plugins: []
+  plugins:
+    - grafana-opensearch-datasource
   resources:
     requests:
       cpu: 100m
