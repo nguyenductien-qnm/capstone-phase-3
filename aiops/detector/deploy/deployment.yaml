@@ -10,7 +10,7 @@
 #   aws ecr get-login-password --region us-east-1 | docker login --username AWS \
 #     --password-stdin 804372444787.dkr.ecr.us-east-1.amazonaws.com
 #   docker buildx build --platform linux/amd64 \
-#     -t 804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.1-aiops-detector \
+#     -t 804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.2-aiops-detector \
 #     --push aiops/detector
 apiVersion: apps/v1
 kind: Deployment
@@ -40,7 +40,7 @@ spec:
       containers:
         - name: aiops-detector
           # MANDATE-05: pin tag co dinh, khong dung tag troi (:latest).
-          image: 804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.1-aiops-detector
+          image: 804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.2-aiops-detector
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false

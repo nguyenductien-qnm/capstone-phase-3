@@ -4,10 +4,16 @@
 import os
 import time
 import logging
+from datetime import datetime, timezone, timedelta
 from urllib.parse import urlparse
 import requests
 
 log = logging.getLogger("aiops.alerter")
+
+# Gio hien thi tren alert: pod chay TZ=UTC nhung on-call doc gio VN (review 16/07:
+# alert ghi 06:42 trong khi Discord hien 13:42 -> gay nham lan khi doi chieu).
+# Fixed offset +7 (VN khong co DST) - khong phu thuoc goi tzdata (python:slim khong co).
+TZ_VN = timezone(timedelta(hours=7))
 
 SEVERITY_EMOJI = {"critical": "\U0001F534", "warning": "\U0001F7E1", "info": "⚪"}
 
@@ -101,8 +107,8 @@ class Alerter:
         self._last_sent[dedup_key] = now
 
         emoji = SEVERITY_EMOJI.get(severity, "⚪")
-        stamp = time.strftime("%Y-%m-%d %H:%M:%S")
-        text_fallback = f"{emoji} [{severity.upper()}] {title}\n{message}\nphat hien luc: {stamp}"
+        stamp = datetime.now(TZ_VN).strftime("%Y-%m-%d %H:%M:%S (giờ VN)")
+        text_fallback = f"{emoji} [{severity.upper()}] {title}\n{message}\nphát hiện lúc: {stamp}"
         
         webhook_url = self.webhook_critical if severity == "critical" else (self.webhook_info or self.webhook_critical)
 
