@@ -22,3 +22,7 @@ spec:
   parameters:
     runAsUser:
       rule: MustRunAsNonRoot
+    exemptImages:
+      # Observability stack — ngoại lệ có kiểm soát (ADR-003 §4, hết hạn 2026-12-31).
+      # otel-collector-agent (DaemonSet) cần chạy quyền cao để đọc host/node metrics.
+      - "otel/opentelemetry-collector-contrib*"
