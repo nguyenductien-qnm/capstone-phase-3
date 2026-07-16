@@ -30,7 +30,7 @@ import grpc
 
 import agent
 import tools
-from guardrails import sanitize_text   # MANDATE-06: L1 input guardrail
+from guardrails import sanitize_text, detect_prompt_injection_llm   # MANDATE-06: L1 / L2 input guardrail
 import shopping_copilot_pb2 as pb
 import shopping_copilot_pb2_grpc as pb_grpc
 
@@ -83,9 +83,16 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
         session = self._sessions.setdefault(request.session_id or request.user_id, [])
         # MANDATE-06 L1 Input Guardrail: chặn injection + lọc PII trước khi vào LLM.
         sanitized_question = sanitize_text(request.question)
-        session.append({"role": "user", "content": [{"text": sanitized_question}]})
 
         import model_router
+        # MANDATE-06 L2 Input Guardrail: Bedrock LLM-judge bắt paraphrase/reorder mà L1 regex miss.
+        # Tái dùng self._bedrock đã có sẵn — không thêm model/dependency mới.
+        if model_router.check_feature_flag("llmGuardrailLlmJudge") and detect_prompt_injection_llm(self._bedrock, sanitized_question):
+            logger.warning("[Guardrail L2] LLM-judge flagged user input for session=%s", request.session_id or request.user_id)
+            sanitized_question = "[filtered]"
+
+        session.append({"role": "user", "content": [{"text": sanitized_question}]})
+
         routed_model = model_router.get_routed_model("copilot", MAIN_MODEL)
         logger.info(f"Routed model for copilot: {routed_model}")
 

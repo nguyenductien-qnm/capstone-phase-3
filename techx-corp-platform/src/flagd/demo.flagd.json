@@ -117,16 +117,6 @@
         }
       }
     },
-    "llmReviewsModelRouting": {
-      "defaultVariant": "lite_only",
-      "description": "ADR-004: product-reviews model routing, kept separate from copilot's llmModelRouting A/B flag so copilot's Nova Pro experiment can never leak Pro-priced traffic into the high-volume reviews path",
-      "state": "ENABLED",
-      "variants": {
-        "lite_only": {
-          "amazon.nova-lite-v1:0": 100
-        }
-      }
-    },
     "llmRateLimitError": {
       "defaultVariant": "off",
       "description": "LLM intermittently returns a rate limit error",
@@ -137,7 +127,7 @@
       }
     },
     "llmReviewsCacheEnabled": {
-      "defaultVariant": "on",
+      "defaultVariant": "off",
       "description": "Enable or disable LLM reviews cache bypass",
       "state": "ENABLED",
       "variants": {

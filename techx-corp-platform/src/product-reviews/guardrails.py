@@ -1,16 +1,46 @@
-# Guardrails cho tầng AI (TF1-61 scope): chặn prompt-injection nhét trong review,
-# lọc PII, chặn lộ system prompt. Nội dung review là DỮ LIỆU KHÔNG TIN CẬY.
+# Guardrails cho tầng AI (TF1-61 scope, MANDATE-06): chặn prompt-injection nhét
+# trong review, lọc PII, chặn lộ system prompt. Nội dung review là DỮ LIỆU
+# KHÔNG TIN CẬY.
 #
-# Defense-in-depth design (merged from PR #35 + PR #36):
-# Lớp 1 — always-on, deterministic (regex): sanitize per-field, mask PII (email/phone/CC), output guard.
-# Lớp 2 — optional deep scan (LLM-as-judge): bật qua feature flag llmGuardrailLlmJudge, fail-closed.
+# Defense-in-depth design (v3 — sau red-team nội bộ 16/07, xem ADR-011 addendum):
+# Lớp 0 — normalize: Unicode NFKC + strip zero-width/bidi-control char (chặn
+#         bypass kiểu "ig<ZWSP>nore" né regex).
+# Lớp 1 — always-on, deterministic (regex): sanitize per-field, mask PII, injection keyword.
+# Lớp 2 — LLM-as-judge (Bedrock, optional feature flag llmGuardrailLlmJudge): bắt
+#         paraphrase/reorder/ngôn ngữ khác mà L1 miss. Fail-closed khi lỗi.
+#
+# Cân nhắc đã loại: thêm Presidio (NER) + 1 ONNX classifier riêng (transformer
+# thứ hai) làm Lớp 1.5 — bị bỏ sau review vì (a) mandate yêu cầu "đừng quăng
+# model to cho xong", thêm model thứ 2 đi ngược tinh thần đó trong khi L2 đã
+# có sẵn Bedrock làm đúng việc "hiểu ngữ nghĩa"; (b) cần đổi base image
+# alpine→debian-slim (đất hạ tầng của CDO, cần co-sign) đúng lúc MANDATE-05
+# cũng đang chạm 2 Dockerfile này; (c) chưa verify được inference thật trong
+# thời gian còn lại trước deadline.
 
 import json
 import re
 import os
 import logging
+import unicodedata
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Lớp 0: Normalize — chặn bypass qua Unicode homoglyph / zero-width char
+# ---------------------------------------------------------------------------
+
+_ZERO_WIDTH = re.compile(r'[\u200b-\u200f\u202a-\u202e\u2060\ufeff]')
+
+
+def normalize_text(text: str) -> str:
+    """NFKC-fold + strip zero-width/bidi-control chars trước khi đưa qua bất kỳ
+    layer nào. Chặn kiểu bypass "ig<ZWSP>nore all previous instructions" hoặc
+    full-width/homoglyph char né \\b word-boundary trong regex."""
+    if not text:
+        return text
+    text = unicodedata.normalize('NFKC', text)
+    return _ZERO_WIDTH.sub('', text)
+
 
 # ---------------------------------------------------------------------------
 # Lớp 1: Regex/deterministic — always-on, gần free, chạy được trong CI
@@ -37,6 +67,7 @@ MAX_FIELD_CHARS = 1000  # trần per-field, không cắt giữa JSON
 
 def sanitize_text(text: str) -> str:
     """Lọc 1 chuỗi không tin cậy trước khi đưa vào prompt LLM."""
+    text = normalize_text(text)
     text = PII_CC.sub('[REDACTED_CC]', text)
     text = PII_EMAIL.sub('[REDACTED_EMAIL]', text)
     text = PII_PHONE.sub('[REDACTED_PHONE]', text)
@@ -68,55 +99,47 @@ def redact_pii(text: str) -> str:
     """Redact PII từ chuỗi văn bản thuần (không phải JSON). Dùng cho output guard."""
     if not text:
         return text
+    text = normalize_text(text)
     text = PII_CC.sub('[REDACTED_CC]', text)
     text = PII_EMAIL.sub('[REDACTED_EMAIL]', text)
     text = PII_PHONE.sub('[REDACTED_PHONE]', text)
     return text
 
 
-def _build_prompt_keywords(system_prompt: str, n: int = 5, min_len: int = 20) -> list[str]:
-    """Trích ~n phrase không trùng nhau từ system_prompt ở nhiều vị trí khác nhau
-    (đầu/giữa/cuối) để tạo keyword-set khó bypass hơn 40-char prefix.
-
-    Chỉ lấy phrase từ các từ hoàn chỉnh (không cắt giữa từ), bỏ qua dấu câu đơn lẻ.
-    Không hardcode — derive hoàn toàn từ system_prompt thật.
-    """
-    words = system_prompt.split()
-    if not words:
-        return []
-
-    # Chia system_prompt thành n đoạn đều nhau → lấy 1 phrase/đoạn
-    total = len(words)
-    chunk = max(1, total // n)
-    keywords = []
-    for i in range(n):
-        start = i * chunk
-        end = min(start + chunk, total)
-        segment = " ".join(words[start:end])
-        # Lấy đoạn min_len ký tự từ giữa segment (tránh lấy toàn bộ)
-        mid = max(0, (len(segment) - min_len) // 2)
-        phrase = segment[mid: mid + min_len * 2].strip()
-        if len(phrase) >= min_len:
-            keywords.append(phrase.lower())
-    return keywords
+def _normalize_for_leak_check(text: str) -> str:
+    """Chuẩn hoá về chữ thường + gộp khoảng trắng + bỏ dấu câu, dùng chung cho
+    cả output_text và system_prompt để so khớp công bằng."""
+    cleaned = re.sub(r'[^\w\s]', ' ', normalize_text(text).lower())
+    return " ".join(cleaned.split())
 
 
-def leaks_system_prompt(output_text: str, system_prompt: str) -> bool:
+def leaks_system_prompt(output_text: str, system_prompt: str, window_words: int = 6) -> bool:
     """Output guard: phát hiện output LLM có chứa nội dung system prompt.
 
-    Dùng keyword-set (nhiều phrase từ nhiều vị trí khác nhau trong prompt)
-    thay vì chỉ kiểm 40 ký tự đầu — khó bypass hơn qua direct/middle/end leak.
+    Trượt cửa sổ N-từ liên tục qua OUTPUT rồi kiểm từng cửa sổ có nằm trong
+    system_prompt hay không — thay vì chỉ mẫu vài phrase cố định từ prompt
+    (cách cũ để hở khoảng trống giữa các phrase được mẫu, kẻ tấn công leak
+    đúng khe hở đó thì lọt). Cách này soi được MỌI đoạn liên tục của output,
+    không phụ thuộc việc leak rơi đúng vùng đã "may mắn" được mẫu trước.
     Không bắt được paraphrase/dịch (đó là nhiệm vụ của L2 LLM-judge, optional).
     """
     if not output_text or not system_prompt:
         return False
 
-    out_lower = output_text.lower()
-    keywords = _build_prompt_keywords(system_prompt)
+    out_normalized = _normalize_for_leak_check(output_text)
+    prompt_normalized = _normalize_for_leak_check(system_prompt)
+    if not out_normalized or not prompt_normalized:
+        return False
 
-    for kw in keywords:
-        if kw in out_lower:
-            logger.warning("System prompt leakage detected in output (matched phrase: %r…)", kw[:30])
+    out_words = out_normalized.split()
+    windows = (
+        [" ".join(out_words[i:i + window_words]) for i in range(len(out_words) - window_words + 1)]
+        if len(out_words) >= window_words else [out_normalized]
+    )
+
+    for window in windows:
+        if len(window) >= 20 and window in prompt_normalized:
+            logger.warning("System prompt leakage detected in output (matched phrase: %r…)", window[:30])
             return True
     return False
 
@@ -144,7 +167,9 @@ def detect_prompt_injection_llm(bedrock_client, text: str, *, fail_closed: bool 
 
     try:
         response = bedrock_client.converse(
-            modelId=os.environ.get('AWS_BEDROCK_MODEL', 'amazon.nova-lite-v1:0'),
+            # LLM_JUDGE_MODEL takes precedence; AWS_BEDROCK_MODEL kept as fallback since
+            # product-reviews' deployment config (docker-compose/helm) already sets that var.
+            modelId=os.environ.get('LLM_JUDGE_MODEL') or os.environ.get('AWS_BEDROCK_MODEL', 'amazon.nova-micro-v1:0'),  # G4: lightweight classifier, NOT main model
             system=[{"text": classifier_prompt}],
             messages=messages,
             inferenceConfig={"maxTokens": 10, "temperature": 0.0}
