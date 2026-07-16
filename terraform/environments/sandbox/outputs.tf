@@ -158,6 +158,10 @@ output "msk_security_group_id" {
   description = "Security Group ID của MSK cluster"
   value       = module.msk.msk_security_group_id
 }
+output "msk_secret_arn" {
+  description = "ARN của Secret Manager lưu msk credentials"
+  value       = module.msk.msk_secret_arn
+}
 
 # ============ Cost Guard Automation Outputs ============
 
