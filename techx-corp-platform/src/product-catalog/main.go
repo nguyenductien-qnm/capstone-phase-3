@@ -9,6 +9,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -152,13 +153,25 @@ func initDatabase() error {
 		return fmt.Errorf("failed to open database connection: %w", err)
 	}
 
+	// CDO-TBD1: pool sized for small pod + RDS Proxy/replica blips.
+	// MaxOpen keeps fan-out bounded under HPA; MaxIdle reuses conns after failover.
+	// ConnMaxLifetime recycles sockets so stale post-failover conns die quickly.
+	db.SetMaxOpenConns(10)
+	db.SetMaxIdleConns(5)
+	db.SetConnMaxLifetime(5 * time.Minute)
+	db.SetConnMaxIdleTime(2 * time.Minute)
+
 	reg, err = otelsql.RegisterDBStatsMetrics(db, otelsql.WithAttributes(semconv.DBSystemNamePostgreSQL))
 	if err != nil {
 		return fmt.Errorf("failed to register database metrics: %w", err)
 	}
 
-	// Test the connection
-	if err := db.Ping(); err != nil {
+	// Ping with retry so a brief blip at pod start does not crash-loop the process.
+	pingCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if err := withDBRetry(pingCtx, "ping", func() error {
+		return db.PingContext(pingCtx)
+	}); err != nil {
 		return fmt.Errorf("failed to ping database: %w", err)
 	}
 
@@ -298,24 +311,27 @@ func loadProductsFromDB(ctx context.Context) ([]*pb.Product, error) {
 		return nil, fmt.Errorf("database connection not initialized")
 	}
 
-	// Query all products with categories
-	rows, err := db.QueryContext(ctx, `
-		SELECT p.id, p.name, p.description, p.picture, 
-		       p.price_currency_code, p.price_units, p.price_nanos, p.categories
-		FROM catalog.products p
-		ORDER BY p.id
-	`)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query products: %w", err)
-	}
-	defer rows.Close()
+	var products []*pb.Product
+	err := withDBRetry(ctx, "loadProducts", func() error {
+		rows, qerr := db.QueryContext(ctx, `
+			SELECT p.id, p.name, p.description, p.picture, 
+			       p.price_currency_code, p.price_units, p.price_nanos, p.categories
+			FROM catalog.products p
+			ORDER BY p.id
+		`)
+		if qerr != nil {
+			return fmt.Errorf("failed to query products: %w", qerr)
+		}
+		defer rows.Close()
 
-	products, err := getProductsFromRows(ctx, rows)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get products from rows: %w", err)
-	}
-
-	return products, nil
+		parsed, perr := getProductsFromRows(ctx, rows)
+		if perr != nil {
+			return fmt.Errorf("failed to get products from rows: %w", perr)
+		}
+		products = parsed
+		return nil
+	})
+	return products, err
 }
 
 func searchProductsFromDB(ctx context.Context, query string) ([]*pb.Product, error) {
@@ -323,26 +339,29 @@ func searchProductsFromDB(ctx context.Context, query string) ([]*pb.Product, err
 		return nil, fmt.Errorf("database connection not initialized")
 	}
 
-	// Query products matching search query in name or description
 	searchPattern := "%" + strings.ToLower(query) + "%"
-	rows, err := db.QueryContext(ctx, `
-		SELECT p.id, p.name, p.description, p.picture, 
-		       p.price_currency_code, p.price_units, p.price_nanos, p.categories
-		FROM catalog.products p
-		WHERE LOWER(p.name) LIKE $1 OR LOWER(p.description) LIKE $1
-		ORDER BY p.id
-	`, searchPattern)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query products: %w", err)
-	}
-	defer rows.Close()
+	var products []*pb.Product
+	err := withDBRetry(ctx, "searchProducts", func() error {
+		rows, qerr := db.QueryContext(ctx, `
+			SELECT p.id, p.name, p.description, p.picture, 
+			       p.price_currency_code, p.price_units, p.price_nanos, p.categories
+			FROM catalog.products p
+			WHERE LOWER(p.name) LIKE $1 OR LOWER(p.description) LIKE $1
+			ORDER BY p.id
+		`, searchPattern)
+		if qerr != nil {
+			return fmt.Errorf("failed to query products: %w", qerr)
+		}
+		defer rows.Close()
 
-	products, err := getProductsFromRows(ctx, rows)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get products from rows: %w", err)
-	}
-
-	return products, nil
+		parsed, perr := getProductsFromRows(ctx, rows)
+		if perr != nil {
+			return fmt.Errorf("failed to get products from rows: %w", perr)
+		}
+		products = parsed
+		return nil
+	})
+	return products, err
 }
 
 func getProductFromDB(ctx context.Context, productID string) (*pb.Product, error) {
@@ -350,26 +369,34 @@ func getProductFromDB(ctx context.Context, productID string) (*pb.Product, error
 		return nil, fmt.Errorf("database connection not initialized")
 	}
 
-	// Query single product by ID
-	row := db.QueryRowContext(ctx, `
-		SELECT p.id, p.name, p.description, p.picture, 
-		       p.price_currency_code, p.price_units, p.price_nanos, p.categories
-		FROM catalog.products p
-		WHERE p.id = $1
-	`, productID)
+	var product *pb.Product
+	err := withDBRetry(ctx, "getProduct", func() error {
+		row := db.QueryRowContext(ctx, `
+			SELECT p.id, p.name, p.description, p.picture, 
+			       p.price_currency_code, p.price_units, p.price_nanos, p.categories
+			FROM catalog.products p
+			WHERE p.id = $1
+		`, productID)
 
-	var id, name, description, picture, currencyCode, categoriesStr string
-	var units int64
-	var nanos int32
+		var id, name, description, picture, currencyCode, categoriesStr string
+		var units int64
+		var nanos int32
 
-	if err := row.Scan(&id, &name, &description, &picture, &currencyCode, &units, &nanos, &categoriesStr); err != nil {
-		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("product not found")
+		if scanErr := row.Scan(&id, &name, &description, &picture, &currencyCode, &units, &nanos, &categoriesStr); scanErr != nil {
+			if scanErr == sql.ErrNoRows {
+				// Business miss — not a connection blip; do not retry.
+				return errProductNotFound
+			}
+			return fmt.Errorf("failed to scan product row: %w", scanErr)
 		}
-		return nil, fmt.Errorf("failed to scan product row: %w", err)
-	}
 
-	return parseProductRow(id, name, description, picture, currencyCode, categoriesStr, units, nanos), nil
+		product = parseProductRow(id, name, description, picture, currencyCode, categoriesStr, units, nanos)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return product, nil
 }
 
 func getProductsFromRows(ctx context.Context, rows *sql.Rows) ([]*pb.Product, error) {
@@ -468,15 +495,22 @@ func (p *productCatalog) GetProduct(ctx context.Context, req *pb.GetProductReque
 		msg := "Error: Product Catalog Fail Feature Flag Enabled"
 		span.SetStatus(otelcodes.Error, msg)
 		span.AddEvent(msg)
-		return nil, status.Errorf(codes.Internal, msg)
+		return nil, status.Error(codes.Internal, msg)
 	}
 
 	found, err := getProductFromDB(ctx, req.Id)
 	if err != nil {
-		msg := fmt.Sprintf("Product Not Found: %s", req.Id)
+		if errors.Is(err, errProductNotFound) {
+			msg := fmt.Sprintf("Product Not Found: %s", req.Id)
+			span.SetStatus(otelcodes.Error, msg)
+			span.AddEvent(msg)
+			return nil, status.Error(codes.NotFound, msg)
+		}
+		// After retries exhausted: real DB failure → Internal (not fake NotFound).
+		msg := fmt.Sprintf("Product Catalog DB error for %s: %v", req.Id, err)
 		span.SetStatus(otelcodes.Error, msg)
 		span.AddEvent(msg)
-		return nil, status.Errorf(codes.NotFound, msg)
+		return nil, status.Error(codes.Internal, msg)
 	}
 
 	span.AddEvent("Product Found")

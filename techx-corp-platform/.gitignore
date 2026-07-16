@@ -47,6 +47,10 @@ test/tracetesting/tracetesting-vars.yaml
 /src/payment/demo.proto
 /src/shipping/proto/
 /src/currency/proto
+# health.proto là source, không phải file copy lúc build (Dockerfile chỉ copy
+# demo.proto vào đây). Luật trên từng nuốt mất nó -> build currency đứt ở
+# COPY ./src/currency/proto/. Upstream cũng force-add file này.
+!/src/currency/proto/grpc/health/v1/health.proto
 /src/frontend/pb
 
 # Android
