@@ -139,8 +139,14 @@ data "aws_iam_policy_document" "karpenter_controller" {
 
     condition {
       test     = "StringEquals"
-      variable = "aws:ResourceTag/karpenter.sh/cluster"
-      values   = [local.cluster_name]
+      variable = "aws:ResourceTag/kubernetes.io/cluster/${local.cluster_name}"
+      values   = ["owned"]
+    }
+
+    condition {
+      test     = "StringLike"
+      variable = "aws:ResourceTag/karpenter.sh/nodepool"
+      values   = ["*"]
     }
   }
 
