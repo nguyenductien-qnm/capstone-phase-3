@@ -87,10 +87,14 @@ rules:
     type: log
     severity: critical
     summary: "LLM bị 429 rate-limit — nguy cơ mất tính năng tóm tắt review (sự cố BTC bơm qua flagd)"
+    # Review 16/07: phrase "429" don doc gay FP tren EKS - access log cua Envoy/ELB
+    # (vd health check ELB-HealthChecker) co truong so (thoi gian xu ly ms) hay trung
+    # "429" ngau nhien, va match_phrase khop theo tung token nen bat ca so dung mot minh.
+    # Verify code that (product_reviews_server.py:336,499): MOI nhanh loi 429 that deu
+    # log dung cum "Rate limit reached" - du de dam bao recall, khong can phrase "429".
     match_phrases:
       - "Rate limit reached"
       - "rate_limit_exceeded"
-      - "429"
     window_minutes: 5
     min_count: 1
 
@@ -216,17 +220,17 @@ rules:
     op: gt
     threshold: 0.85
 
-  # DRAFT (de bai AIOps core: "da tin hieu ... queue lag") - he co Kafka (accounting/fraud-detection).
-  # PHAI verify ten metric tren Prometheus EKS (kafka receiver cua collector) truoc khi tin.
+  # VERIFIED 16/07 tren Prometheus EKS (fraud-detection consumer, topic orders): ten that la
+  # kafka_consumer_records_lag, label service_name/topic/partition - KHONG co label `group`.
+  # Rule cu gia dinh kafka_consumer_group_lag la SAI ten (0 series). TF1-71.
   - id: kafka-consumer-lag-high
     type: metric
     severity: warning
-    # ⚠️ Metric nay KHONG ton tai tren compose local (collector khong scrape kafka consumer lag) —
-    # ten metric `kafka_consumer_group_lag` la GIA DINH, PHAI verify tren Prometheus EKS + kafka exporter
-    # truoc khi tin (TF1-71). Giu DRAFT, khong bat production cho toi khi verify.
-    summary: "DRAFT: Kafka consumer lag > 1000 msg trong 10m — consumer tụt hậu, đơn hàng xử lý chậm"
-    # namespace = namespace K8s (techx-tf1), cung ly do voi rule memory-saturation-high.
+    summary: "Kafka consumer lag > 1000 msg trong 10m — consumer tụt hậu, đơn hàng xử lý chậm"
+    summary_dynamic: "Kafka consumer lag TĂNG BẤT THƯỜNG so với baseline (chưa vượt 1000 msg — cảnh báo sớm)"
     query: >-
-      max by (group) (avg_over_time(kafka_consumer_group_lag{namespace="techx-tf1"}[10m]))
+      max by (service_name, topic) (
+        avg_over_time(kafka_consumer_records_lag{service_namespace="techx-corp"}[10m])
+      )
     op: gt
     threshold: 1000

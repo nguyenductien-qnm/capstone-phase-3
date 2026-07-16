@@ -42,6 +42,19 @@ def _env_url(env_name):
 
 metric_history = {}
 
+# Review 16/07: sàn tuyệt đối cũ (0.001) giả định đơn vị "gần 1" (tỉ lệ lỗi 0-1,
+# memory ratio 0-1) — vỡ trên rule đơn vị khác thang: latency tính bằng giây có
+# baseline chỉ vài ms (cart p95 ~6ms) nên 0.001 quá LỎNG (lọt FP khi std_dev siết
+# chặt band); kafka lag tính bằng số nguyên hàng trăm/nghìn thì 0.001 msg vô nghĩa.
+# Sàn TƯƠNG ĐỐI không phụ thuộc đơn vị: chỉ tính bất thường nếu lệch >= 20% so với
+# mean của chính service. 20% là mặc định ban đầu, còn phải hiệu chỉnh bằng dữ liệu
+# thật cho MANDATE #7b — xem ADR-012.
+MIN_RELATIVE_DEVIATION = 0.20
+# Baseline gần 0 (vd tỉ lệ lỗi vừa xuất hiện lần đầu) làm độ lệch tương đối vô nghĩa
+# (chia cho ~0) — fallback dùng sàn tuyệt đối nhỏ để vẫn bắt được "từ 0 thành có lỗi".
+NEAR_ZERO_MEAN = 1e-9
+MIN_ABSOLUTE_DEVIATION_NEAR_ZERO = 0.001
+
 def eval_metric_rule(rule, prom):
     """Tra ve list cac alert (dedup_key, message) cho tung series vuot nguong hoac bat thuong dynamic 3-sigma."""
     alerts = []
@@ -74,11 +87,20 @@ def eval_metric_rule(rule, prom):
             variance = sum((x - mean) ** 2 for x in history) / len(history)
             std_dev = variance ** 0.5
             dynamic_threshold = mean + 3 * std_dev
-            # Dynamic alert when value exceeds 3-sigma threshold and variance is non-negligible
-            if op == "gt" and value > dynamic_threshold and (value - mean) > 0.001:
-                dynamic_fired = True
-            elif op == "lt" and value < (mean - 3 * std_dev) and (mean - value) > 0.001:
-                dynamic_fired = True
+            abs_mean = abs(mean)
+            # Vuot 3-sigma thoi chua du - con phai lech CO Y NGHIA so voi mean cua
+            # chinh no (sàn tương đối), khong chi "thong ke lech" (band qua siet o
+            # baseline gan-hang-so lam moi jitter nho cung vuot 3-sigma).
+            if op == "gt" and value > dynamic_threshold:
+                if abs_mean > NEAR_ZERO_MEAN:
+                    dynamic_fired = (value - mean) / abs_mean > MIN_RELATIVE_DEVIATION
+                else:
+                    dynamic_fired = (value - mean) > MIN_ABSOLUTE_DEVIATION_NEAR_ZERO
+            elif op == "lt" and value < (mean - 3 * std_dev):
+                if abs_mean > NEAR_ZERO_MEAN:
+                    dynamic_fired = (mean - value) / abs_mean > MIN_RELATIVE_DEVIATION
+                else:
+                    dynamic_fired = (mean - value) > MIN_ABSOLUTE_DEVIATION_NEAR_ZERO
 
         # Append current metric value to history (cap at 30 values)
         history.append(value)
