@@ -28,5 +28,8 @@ COPY ./src/product-reviews/guardrails.py guardrails.py
 COPY ./src/product-reviews/metrics.py metrics.py
 
 
+RUN adduser -D -u 1000 app
+USER 1000
+
 EXPOSE ${PRODUCT_REVIEWS_PORT}
 ENTRYPOINT [ "/venv/bin/opentelemetry-instrument", "/venv/bin/python", "product_reviews_server.py" ]

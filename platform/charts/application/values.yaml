@@ -439,8 +439,8 @@ components:
         cpu: 100m # P0: revenue-critical, limit cũ 20Mi quá thấp
         memory: 64Mi
       limits:
-        cpu: 100m
-        memory: 20Mi
+        cpu: 200m
+        memory: 128Mi # >= request 64Mi; khớp GOMEMLIMIT 96MiB ở trên
     hpa:
       enabled: true
       minReplicas: 2      # có PDB (CDO-34) + revenue-critical SLO 99% -> min>=2 (tránh INC-2)
@@ -958,8 +958,8 @@ components:
         cpu: 100m # CDO-42: read-heavy (mọi browse gọi tới) -> bottleneck -> HPA
         memory: 32Mi # P0 right-size: OOMKilled 4 lần, Go runtime
       limits:
-        cpu: 100m
-        memory: 20Mi
+        cpu: 200m
+        memory: 128Mi # >= request 32Mi; đầu headroom cho Go runtime sau 4 lần OOMKill
     hpa:
       enabled: true
       minReplicas: 2 # có PDB (CDO-34) -> min>=2, tránh INC-2 khi node consolidate
@@ -1162,7 +1162,7 @@ components:
         memory: 32Mi
       limits:
         cpu: 100m
-        memory: 20Mi
+        memory: 96Mi # >= request 32Mi
   flagd:
     enabled: true
     imageOverride:
