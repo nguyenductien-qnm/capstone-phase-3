@@ -24,3 +24,8 @@ spec:
       - NET_BIND_SERVICE
     requiredDropCapabilities:
       - ALL
+    exemptImages:
+      # Observability stack — ngoại lệ có kiểm soát (ADR-003 §4, hết hạn 2026-12-31).
+      - "quay.io/prometheus/prometheus*"
+      - "otel/opentelemetry-collector-contrib*"
+      - "jaegertracing/jaeger*"
