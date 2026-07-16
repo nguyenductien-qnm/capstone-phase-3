@@ -1,0 +1,41 @@
+# Service TẠM HOÃN build — CI đọc file này để loại khỏi matrix (app-build.yaml, job detect).
+#
+# Vì sao tồn tại: chính sách là KHÔNG push image dính CVE CRITICAL/HIGH lên ECR.
+# Khi CVE chặn một service mà upstream CHƯA phát hành bản vá, ta không có cách nào
+# build sạch -> tạm hoãn build service đó. ArgoCD vẫn trỏ tag cũ trong
+# values-image-tags.yaml nên service tiếp tục chạy image cũ đã có trên ECR.
+#
+# ĐÁNH ĐỔI phải biết: service bị hoãn sẽ KHÔNG được deploy code mới cho tới khi bỏ hoãn.
+# Đây là hoãn CÓ HẠN, không phải danh sách loại trừ vĩnh viễn:
+#   - `review_by`: tới ngày này phải kiểm tra lại upstream đã có fix chưa.
+#   - Khi bản vá ra -> bump base image/dependency -> XÓA entry -> service tự vào lại matrix.
+#   - KHÔNG thêm entry chỉ vì build fail; chỉ dùng cho CVE chưa có fixed version.
+#
+# Kiểm tra CVE đã có fix chưa:
+#   trivy image --severity CRITICAL,HIGH <image>   (xem cột "Fixed Version")
+
+exclusions:
+  - service: cart
+    reason: "CVE-2026-28387 (libssl3/libcrypto3, HIGH) - OpenSSL DANE TLSA use-after-free, upstream chưa có bản vá"
+    cves: ["CVE-2026-28387"]
+    review_by: "2026-08-16"
+
+  - service: email
+    reason: "CVE-2026-28387 (libssl3, HIGH) + CVE-2026-42245 (net-imap, HIGH) - cả hai upstream chưa có bản vá"
+    cves: ["CVE-2026-28387", "CVE-2026-42245"]
+    review_by: "2026-08-16"
+
+  - service: frontend
+    reason: "CVE-2026-28387 (libssl3, HIGH) - OpenSSL DANE TLSA use-after-free, upstream chưa có bản vá"
+    cves: ["CVE-2026-28387"]
+    review_by: "2026-08-16"
+
+  - service: image-provider
+    reason: "CVE-2026-28387 (libssl3/libcrypto3, HIGH) - OpenSSL DANE TLSA use-after-free, upstream chưa có bản vá"
+    cves: ["CVE-2026-28387"]
+    review_by: "2026-08-16"
+
+  - service: payment
+    reason: "CVE-2026-28387 (libssl3, HIGH) - OpenSSL DANE TLSA use-after-free, upstream chưa có bản vá"
+    cves: ["CVE-2026-28387"]
+    review_by: "2026-08-16"
