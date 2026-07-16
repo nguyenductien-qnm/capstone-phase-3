@@ -1,6 +1,6 @@
 # Spec: Model Gateway & A/B Testing cho LLM (Hạng mục Đua Top)
 
-> **Trạng thái:** Draft  
+> **Trạng thái:** Implemented  
 > **Trụ:** Performance Efficiency / Cost Optimization / Reliability  
 > **Ngày:** 2026-07-09  
 > **Tác giả:** Nhóm AI (AIO03) - TF1  
@@ -148,142 +148,62 @@ Request arrives
   "llmModelRouting": {
     "state": "ENABLED",
     "variants": {
-      "nova-lite-100": {
-        "reviews_model": "amazon.nova-lite-v1:0",
-        "copilot_model": "amazon.nova-pro-v1:0"
+      "ab_test_active": {
+        "amazon.nova-lite-v1:0": 80,
+        "amazon.nova-pro-v1:0": 20
       },
-      "nova-lite-80-pro-20": {
-        "reviews_model": "amazon.nova-lite-v1:0",
-        "copilot_model": "amazon.nova-pro-v1:0",
-        "reviews_ab": {
-          "amazon.nova-lite-v1:0": 80,
-          "amazon.nova-pro-v1:0": 20
-        }
-      },
-      "nova-pro-100": {
-        "reviews_model": "amazon.nova-pro-v1:0",
-        "copilot_model": "amazon.nova-pro-v1:0"
+      "lite_only": {
+        "amazon.nova-lite-v1:0": 100
       }
     },
-    "defaultVariant": "nova-lite-100",
-    "targeting": {
-      "fractional": [
-        ["nova-lite-100", 80],
-        ["nova-lite-80-pro-20", 20]
-      ]
-    }
+    "defaultVariant": "ab_test_active"
   }
 }
 ```
 
 ### Phase 2: Model Router Implementation (Day 1-2)
 
+Tạo component dùng chung ở `src/product-reviews/model_router.py` (và tương tự ở `src/shopping-copilot/`, `src/llm/`):
+
 ```python
-# llm/model_router.py
+# model_router.py
 
-import os
 import random
-import logging
-from openfeature import api as of_api
-from opentelemetry import trace, metrics
-
-logger = logging.getLogger(__name__)
-tracer = trace.get_tracer("model-router")
+import os
+from openfeature import api
 
 class ModelRouter:
-    """Routes LLM requests to different models based on feature flags."""
-    
-    def __init__(self, bedrock_client, meter):
-        self.bedrock_client = bedrock_client
-        self.of_client = of_api.get_client()
+    def __init__(self):
+        self.of_client = api.get_client()
+
+    def get_main_model(self, default_model=None):
+        if not default_model:
+            default_model = os.environ.get('LLM_REVIEWS_MAIN_MODEL', os.environ.get('AWS_BEDROCK_MODEL', 'amazon.nova-lite-v1:0'))
+            
+        config = self.of_client.get_object_value("llmModelRouting", {})
         
-        # Metrics per model
-        self.request_counter = meter.create_counter(
-            "llm.gateway.requests",
-            description="Total LLM requests by model"
-        )
-        self.latency_histogram = meter.create_histogram(
-            "llm.gateway.latency_ms",
-            description="LLM request latency by model"
-        )
-        self.token_counter = meter.create_counter(
-            "llm.gateway.tokens",
-            description="Token usage by model"
-        )
-        self.cost_counter = meter.create_counter(
-            "llm.gateway.estimated_cost_usd",
-            description="Estimated cost by model"
-        )
-    
-    def route_request(self, task_type: str, prompt: str, **kwargs):
-        """Route an LLM request based on task type and feature flags."""
-        with tracer.start_as_current_span("model_router.route") as span:
-            # 1. Determine model from flag
-            model_id = self._select_model(task_type)
-            span.set_attribute("llm.model_id", model_id)
-            span.set_attribute("llm.task_type", task_type)
+        if not config:
+            return default_model
             
-            # 2. Call Bedrock
-            import time
-            start = time.monotonic()
-            response = self._call_bedrock(model_id, prompt, **kwargs)
-            elapsed_ms = (time.monotonic() - start) * 1000
+        models = list(config.keys())
+        weights = list(config.values())
+        
+        if not models or sum(weights) == 0:
+            return default_model
             
-            # 3. Emit metrics
-            labels = {"model_id": model_id, "task_type": task_type}
-            self.request_counter.add(1, labels)
-            self.latency_histogram.record(elapsed_ms, labels)
-            
-            if "usage" in response:
-                input_tokens = response["usage"].get("inputTokens", 0)
-                output_tokens = response["usage"].get("outputTokens", 0)
-                self.token_counter.add(input_tokens, {**labels, "token_type": "input"})
-                self.token_counter.add(output_tokens, {**labels, "token_type": "output"})
-                
-                # Estimate cost
-                cost = self._estimate_cost(model_id, input_tokens, output_tokens)
-                self.cost_counter.add(cost, labels)
-            
-            logger.info(f"Routed {task_type} to {model_id} ({elapsed_ms:.0f}ms)")
-            return response
-    
-    def _select_model(self, task_type: str) -> str:
-        """Select model based on feature flag evaluation."""
-        try:
-            config = self.of_client.get_object_value(
-                "llmModelRouting", 
-                {"reviews_model": "amazon.nova-lite-v1:0", 
-                 "copilot_model": "amazon.nova-pro-v1:0"}
-            )
-            
-            if task_type == "reviews_summary":
-                # Check A/B split
-                if "reviews_ab" in config:
-                    return self._weighted_select(config["reviews_ab"])
-                return config.get("reviews_model", "amazon.nova-lite-v1:0")
-            elif task_type == "copilot":
-                return config.get("copilot_model", "amazon.nova-pro-v1:0")
-            else:
-                return "amazon.nova-lite-v1:0"
-        except Exception as e:
-            logger.warning(f"Flag evaluation failed: {e}, using default")
-            return "amazon.nova-lite-v1:0"
-    
-    def _weighted_select(self, weights: dict) -> str:
-        """Select model based on percentage weights."""
-        models = list(weights.keys())
-        probs = [weights[m] / sum(weights.values()) for m in models]
-        return random.choices(models, weights=probs, k=1)[0]
-    
-    def _estimate_cost(self, model_id: str, input_tokens: int, output_tokens: int) -> float:
-        """Estimate cost in USD per Bedrock pricing."""
-        PRICING = {
-            "amazon.nova-lite-v1:0": {"input": 0.00006, "output": 0.00024},
-            "amazon.nova-pro-v1:0":  {"input": 0.0008,  "output": 0.0032},
-            "amazon.nova-micro-v1:0": {"input": 0.000035, "output": 0.00014},
-        }
-        prices = PRICING.get(model_id, {"input": 0.001, "output": 0.004})
-        return (input_tokens * prices["input"] + output_tokens * prices["output"]) / 1000
+        return random.choices(models, weights=weights, k=1)[0]
+```
+
+Tích hợp trực tiếp vào logic gọi LLM (`product_reviews_server.py`):
+
+```python
+from model_router import ModelRouter
+
+# Lấy model bằng Model Router thay vì cứng từ ENV
+router = ModelRouter()
+main_model = router.get_main_model()
+
+response = invoke_bedrock_converse_with_fallback(...)
 ```
 
 ### Phase 3: A/B Evaluation Dashboard (Day 3)

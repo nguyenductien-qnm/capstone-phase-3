@@ -10,14 +10,15 @@ metadata:
   finalizers:
     - resources-finalizer.argocd.argoproj.io
   annotations:
-    argocd.argoproj.io/sync-wave: "0"  # Install CRD + Controller trước NodePool
+    argocd.argoproj.io/sync-wave: "0"  # Install Controller sau CRD, trước NodePool
 spec:
   project: default
   source:
     repoURL: public.ecr.aws/karpenter
     chart: karpenter
-    targetRevision: 1.0.1  # Phiên bản stable v1.0.x
+    targetRevision: 1.14.0
     helm:
+      skipCrds: true  # CRD lifecycle được quản lý bởi Application karpenter-crd
       values: |
         settings:
           clusterName: ecommerce-dev-eks
@@ -36,7 +37,7 @@ spec:
               cpu: 100m
               memory: 128Mi
             limits:
-              memory: 256Mi
+              memory: 512Mi
   destination:
     server: https://kubernetes.default.svc
     namespace: kube-system

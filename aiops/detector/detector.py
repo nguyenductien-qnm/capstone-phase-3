@@ -158,9 +158,15 @@ def main():
         timeout=src.get("http_timeout_seconds", 5),
     )
 
-    webhook = None if args.dry_run else os.environ.get(cfg["alert"]["webhook_env"])
+    webhook = None if args.dry_run else os.environ.get(cfg["alert"]["webhook_env"]) # Deprecated in favor of direct env lookup in Alerter
     provider = "stdout" if args.dry_run else cfg["alert"].get("provider", "auto")
-    alerter = Alerter(webhook, provider=provider, cooldown_seconds=cfg["alert"]["cooldown_seconds"])
+    
+    # If not dry-run, Alerter will automatically pull AIOPS_SLACK_WEBHOOK_CRITICAL and INFO from os.environ
+    if args.dry_run:
+        os.environ["AIOPS_SLACK_WEBHOOK_CRITICAL"] = ""
+        os.environ["AIOPS_SLACK_WEBHOOK_INFO"] = ""
+
+    alerter = Alerter(provider=provider, cooldown_seconds=cfg["alert"]["cooldown_seconds"])
 
     log.info("AIOps detector khoi dong | provider=%s | %d rule | poll=%ss",
              alerter.provider, len(cfg["rules"]), cfg["poll_interval_seconds"])

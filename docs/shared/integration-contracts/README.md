@@ -16,5 +16,11 @@ Chốt cổng giao tiếp gRPC `:50051`, định nghĩa file Protobuf, cơ chế
 
 ---
 
+## 📁 3. Hợp đồng tích hợp dịch vụ Recommendation
+Chốt giao diện kết nối PostgreSQL (pgvector) để thực hiện tính năng Gợi ý sản phẩm thông minh (AI Recommendations) và fallback flagd:
+👉 **[recommendation-integration.md](recommendation-integration.md)**
+
+---
+
 ## ✍️ Quy ước phê duyệt
 Mỗi tài liệu mô-đun trên bắt buộc phải được review và ký tên xác nhận bởi AI Lead và CDO Lead tương ứng phụ trách phần tích hợp đó trước khi đưa vào vận hành thực tế ở Tuần 2.

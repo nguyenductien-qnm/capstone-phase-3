@@ -104,7 +104,18 @@ grafana:
         memory: 128Mi
 
 opensearch:
-  enabled: false
+  enabled: true
+  nodeSelector:
+    workload-tier: observability
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: observability
+      effect: NoSchedule
+  persistence:
+    enabled: true
+    storageClass: gp3-observability
+    size: 10Gi
 
 components:
   load-generator:

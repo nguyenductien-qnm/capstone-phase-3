@@ -59,6 +59,26 @@ output "ebs_csi_role_arn" {
   value       = aws_iam_role.ebs_csi.arn
 }
 
+output "control_plane_log_group_name" {
+  description = "CloudWatch log group containing EKS control-plane logs"
+  value       = aws_cloudwatch_log_group.control_plane.name
+}
+
+output "enabled_cluster_log_types" {
+  description = "EKS control-plane log types enabled on the cluster"
+  value       = aws_eks_cluster.this.enabled_cluster_log_types
+}
+
+output "control_plane_log_retention_days" {
+  description = "Retention in days for EKS control-plane logs"
+  value       = aws_cloudwatch_log_group.control_plane.retention_in_days
+}
+
+output "control_plane_log_kms_key_arn" {
+  description = "KMS key ARN used by EKS control-plane logs, or null when disabled"
+  value       = try(aws_kms_key.control_plane_logs[0].arn, null)
+}
+
 output "karpenter_controller_role_arn" {
   description = "Pod Identity IAM role ARN for the Karpenter controller"
   value       = aws_iam_role.karpenter_controller.arn

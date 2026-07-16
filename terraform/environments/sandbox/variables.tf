@@ -263,6 +263,88 @@ variable "rds_multi_az" {
   type        = bool
   description = "Bật/Tắt chế độ Multi-AZ cho Primary DB"
 }
+variable "eks_enabled_cluster_log_types" {
+  type        = list(string)
+  description = "EKS control-plane log types; api, audit and authenticator are mandatory for auditability"
+  default     = ["api", "audit", "authenticator"]
+
+  validation {
+    condition     = alltrue([for required in ["api", "audit", "authenticator"] : contains(var.eks_enabled_cluster_log_types, required)])
+    error_message = "eks_enabled_cluster_log_types must include api, audit and authenticator."
+  }
+}
+
+variable "eks_enable_control_plane_log_kms" {
+  type        = bool
+  description = "Use a customer-managed rotating KMS key for the EKS control-plane log group"
+  default     = true
+}
+
+variable "cloudtrail_enable_kms_encryption" {
+  type        = bool
+  default     = true
+  description = "Use a customer-managed rotating KMS key for CloudTrail storage"
+}
+
+variable "cloudtrail_enable_cloudwatch_logs" {
+  type        = bool
+  default     = true
+  description = "Stream CloudTrail events to CloudWatch Logs for operational queries"
+}
+
+variable "cloudtrail_cloudwatch_log_retention_days" {
+  type        = number
+  default     = 90
+  description = "CloudWatch retention for CloudTrail events"
+}
+
+variable "cloudtrail_s3_retention_days" {
+  type        = number
+  default     = 2555
+  description = "Days before expiring archived CloudTrail objects"
+}
+
+variable "cloudtrail_s3_transition_days" {
+  type        = number
+  default     = 90
+  description = "Days before transitioning CloudTrail objects"
+}
+
+variable "cloudtrail_s3_transition_storage_class" {
+  type        = string
+  default     = "GLACIER_IR"
+  description = "Storage class for older CloudTrail objects"
+}
+
+variable "cloudtrail_enable_object_lock" {
+  type        = bool
+  default     = false
+  description = "Enable GOVERNANCE Object Lock only for a compatible/new bucket; may require migration"
+}
+
+variable "cloudtrail_object_lock_retention_days" {
+  type        = number
+  default     = 30
+  description = "GOVERNANCE retention when Object Lock is explicitly enabled"
+}
+
+variable "audit_administrator_principals" {
+  type        = list(string)
+  default     = []
+  description = "IAM principal ARNs exempted from the operator tamper deny policy"
+}
+
+variable "audit_break_glass_principals" {
+  type        = list(string)
+  default     = []
+  description = "Break-glass IAM principal ARNs exempted from the operator tamper deny policy"
+}
+
+variable "audit_operator_role_names" {
+  type        = list(string)
+  default     = []
+  description = "IAM role names to attach the tamper-deny policy; leave empty for Identity Center manual attachment"
+}
 
 # ============ Cost Guard Automation Variables ============
 

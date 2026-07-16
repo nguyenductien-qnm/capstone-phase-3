@@ -1,0 +1,6 @@
+# Replace the placeholders before running in CloudTrail Event History or the forensic CLI.
+# Expected session name:
+gha-<github-actor>-<github-run-id>
+
+# CLI lookup pattern:
+aws cloudtrail lookup-events --profile phase3-cdo --region us-east-1 --lookup-attributes AttributeKey=Username,AttributeValue=gha-<github-actor>-<github-run-id> --max-results 20
