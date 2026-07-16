@@ -11,7 +11,7 @@ Mandate gốc ghi chỉ TF4, trong khi `RULES.md` đặt CDO09 trong TF1 và Jir
 | Check / acceptance | Command | Exit code | Output thực tế rút gọn | Evidence |
 |---|---|---:|---|---|
 | Git remote state | `git fetch origin` | 0 | Fetch thành công | terminal review 16/07; commit merge `1a974ac` |
-| Branch đồng bộ develop | `git rev-list --left-right --count origin/develop...HEAD` | 0 | Trước merge `23 2`; sau merge `0 4` | Git history local |
+| Branch đồng bộ develop | `git rev-list --left-right --count origin/develop...HEAD` | 0 | Trước merge `23 2`; sau merge không còn commit nào thiếu từ develop (`left=0`) | Git history local |
 | Scope | PowerShell classify `git diff --name-only origin/develop` | 0 | `FORBIDDEN_COUNT=0`, `FLAGD_DIFF_COUNT=0`, `BUSINESS_LOGIC_DIFF_COUNT=0` | terminal review 16/07 |
 | Conflict artifacts | `rg -l '^(<<<<<<<|>>>>>>>)' .` | 1 (không có match) | `CONFLICT_MARKER_COUNT=0` | terminal review 16/07 |
 | Terraform format | `terraform -chdir=terraform/environments/sandbox fmt -check -recursive ../../` | 0 | Không có format error | terminal review 16/07 |
