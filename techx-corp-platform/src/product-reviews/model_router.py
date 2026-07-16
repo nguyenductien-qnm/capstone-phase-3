@@ -7,7 +7,11 @@ class ModelRouter:
         self.of_client = api.get_client()
 
     def get_main_model(self):
-        config = self.of_client.get_object_value("llmModelRouting", {})
+        # ADR-004: reviews stays on Nova Lite (high volume/simple task).
+        # Deliberately not the shared "llmModelRouting" flag copilot A/B-tests
+        # Nova Pro on — that flag leaking into reviews sends real Pro-priced
+        # traffic here, ~13x the Lite cost, contradicting ADR-004.
+        config = self.of_client.get_object_value("llmReviewsModelRouting", {})
         
         if not config:
             return os.environ.get('LLM_REVIEWS_MAIN_MODEL', os.environ.get('AWS_BEDROCK_MODEL', 'amazon.nova-lite-v1:0'))
