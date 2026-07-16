@@ -29,7 +29,7 @@ components:
       tag: 1.0-product-reviews-413ab40
   llm:
     imageOverride:
-      tag: 1.0-llm-aae748d
+      tag: 1.0-llm-f61b78e
   load-generator:
     imageOverride:
       tag: 1.0-load-generator-aae748d
