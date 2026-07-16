@@ -190,3 +190,4 @@ resource "aws_msk_scram_secret_association" "this" {
     aws_secretsmanager_secret_version.msk_credentials
   ]
 }
+
