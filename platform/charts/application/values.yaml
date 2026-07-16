@@ -285,6 +285,18 @@ components:
     enabled: true
     imageOverride:
       tag: "1.1-cart" # CDO-80: image mới có gRPC health tách liveness/readiness
+    # Image chạy root và đang HOÃN BUILD vì CVE-2026-28387 (xem build-exclusions.yaml)
+    # -> không vá được bằng USER trong Dockerfile, phải ép UID từ chart.
+    # Template dùng `default` (thay cả block, KHÔNG merge) nên phải lặp lại đủ field
+    # của defaultValues.securityContext, nếu không sẽ mất drop ALL.
+    # Verify: docker run --user 1000:1000 <image 1.1-cart> -> chạy tới logic app.
+    securityContext:
+      allowPrivilegeEscalation: false
+      runAsNonRoot: true
+      runAsUser: 1000
+      capabilities:
+        drop:
+          - ALL
     useDefault:
       env: true
     service:
@@ -518,6 +530,17 @@ components:
 
   email:
     enabled: true
+    # Image chạy root và đang HOÃN BUILD vì CVE-2026-28387 + CVE-2026-42245 (xem
+    # build-exclusions.yaml) -> ép UID từ chart thay vì USER trong Dockerfile.
+    # Template dùng `default` (thay cả block, KHÔNG merge) nên phải lặp lại đủ field.
+    # Verify: docker run --user 1000:1000 <image 1.0-email> -> Sinatra/Puma lên bình thường.
+    securityContext:
+      allowPrivilegeEscalation: false
+      runAsNonRoot: true
+      runAsUser: 1000
+      capabilities:
+        drop:
+          - ALL
     useDefault:
       env: true
     service:

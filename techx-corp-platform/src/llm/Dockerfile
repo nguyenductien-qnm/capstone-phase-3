@@ -27,4 +27,10 @@ COPY ./src/llm/product-review-summaries/product-review-summaries.json product-re
 COPY ./src/llm/product-review-summaries/inaccurate-product-review-summaries.json inaccurate-product-review-summaries.json
 
 EXPOSE ${LLM_PORT}
+
+# Base python alpine chạy root và không có UID 1000 sẵn -> kubelet chặn bởi
+# runAsNonRoot:true. App chỉ đọc app.py + 2 file JSON (mode 644) nên không cần chown.
+RUN adduser -D -u 1000 app
+USER 1000
+
 ENTRYPOINT [ "/venv/bin/python", "app.py" ]
