@@ -24,4 +24,5 @@ spec:
     automated:
       selfHeal: true
     syncOptions:
-      - ServerSideApply=true
+      # Remove stale v1.0.1 conversion fields in one CRD update.
+      - Replace=true
