@@ -67,6 +67,18 @@ rules:
     op: gt
     threshold: 0.01
 
+  # ---- COST SIGNAL (chi phi LLM) ----
+  - id: bedrock-cost-high
+    type: metric
+    severity: warning
+    summary: "Bedrock chi phí/giờ vượt ngưỡng - tiến gần trần budget $300/tuần"
+    query: >-
+      sum by (service_name) (
+        increase(bedrock_cost_usd_total{service_namespace="techx-corp"}[1h])
+      )
+    op: gt
+    threshold: 1.0
+
   # ---- TIN HIEU LOI GenAI (trong tam task) ----
   - id: llm-rate-limit-429
     type: log
