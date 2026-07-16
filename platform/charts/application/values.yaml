@@ -246,6 +246,13 @@ components:
           capabilities:
             drop:
               - ALL
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 50m
+            memory: 32Mi
 
   ad:
     enabled: true
@@ -383,6 +390,13 @@ components:
           capabilities:
             drop:
               - ALL
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 50m
+            memory: 32Mi
 
   checkout:
     enabled: true
@@ -498,6 +512,13 @@ components:
           capabilities:
             drop:
               - ALL
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 50m
+            memory: 32Mi
 
   currency:
     enabled: true
@@ -632,6 +653,13 @@ components:
           capabilities:
             drop:
               - ALL
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 50m
+            memory: 32Mi
 
   frontend:
     enabled: true
@@ -1326,6 +1354,13 @@ components:
           capabilities:
             drop:
               - ALL
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 50m
+            memory: 32Mi
         volumeMounts:
           - mountPath: /config-ro
             name: config-ro
