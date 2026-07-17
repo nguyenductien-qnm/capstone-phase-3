@@ -11,43 +11,43 @@ components:
       tag: "1.1-cart-ae89fa2"
   checkout:
     imageOverride:
-      tag: "1.0-checkout-07809af"
+      tag: "1.0-checkout-f1a4189"
   frontend-proxy:
     imageOverride:
-      tag: "1.0-frontend-proxy-07809af"
+      tag: "1.0-frontend-proxy-f1a4189"
   product-catalog:
     imageOverride:
-      tag: "1.0-product-catalog-07809af"
+      tag: "1.0-product-catalog-f1a4189"
   ad:
     imageOverride:
-      tag: 1.0-ad-07809af
+      tag: 1.0-ad-f1a4189
   currency:
     imageOverride:
-      tag: 1.0-currency-07809af
+      tag: 1.0-currency-f1a4189
   accounting:
     imageOverride:
-      tag: 1.0-accounting-07809af
+      tag: 1.0-accounting-f1a4189
   product-reviews:
     imageOverride:
-      tag: 1.0-product-reviews-07809af
+      tag: 1.0-product-reviews-f1a4189
   llm:
     imageOverride:
-      tag: 1.0-llm-07809af
+      tag: 1.0-llm-f1a4189
   load-generator:
     imageOverride:
-      tag: 1.0-load-generator-07809af
+      tag: 1.0-load-generator-f1a4189
   quote:
     imageOverride:
-      tag: 1.0-quote-07809af
+      tag: 1.0-quote-f1a4189
   recommendation:
     imageOverride:
-      tag: 1.0-recommendation-07809af
+      tag: 1.0-recommendation-f1a4189
   shipping:
     imageOverride:
-      tag: 1.0-shipping-07809af
+      tag: 1.0-shipping-f1a4189
   shopping-copilot:
     imageOverride:
-      tag: 1.0-shopping-copilot-07809af
+      tag: 1.0-shopping-copilot-f1a4189
   ml-guard:
     imageOverride:
-      tag: 1.0-ml-guard-07809af
+      tag: 1.0-ml-guard-f1a4189
