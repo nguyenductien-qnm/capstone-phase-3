@@ -84,6 +84,7 @@ Các cập nhật liên quan tới triển khai AWS Bedrock và A/B Testing:
 
 1. **Chuyển dịch sang AWS Bedrock:** `shopping-copilot` sử dụng SDK boto3 để gọi trực tiếp Amazon Bedrock thay vì gọi Mock LLM (`http://llm:8000/v1`). 
    - **Yêu cầu hệ thống (CDO):** Cấp quyền IAM Role for Service Accounts (IRSA) với Policy `bedrock:InvokeModel` cho pod `shopping-copilot`. Thiếu quyền này ứng dụng sẽ không thể hoạt động trên môi trường EKS.
+   - **Bedrock Account 2:** Nếu CDO cung cấp `BEDROCK_AWS_ACCESS_KEY_ID` và `BEDROCK_AWS_SECRET_ACCESS_KEY`, service sẽ dùng bộ credential riêng này chỉ cho Bedrock Runtime; nếu không có thì fallback về Pod Identity/IAM mặc định.
 2. **Routing qua Model Gateway:** `shopping-copilot` hiện sử dụng component `ModelRouter` để lấy cấu hình model từ OpenFeature/flagd.
    - **Biến flagd mới:** Cờ `llmModelRouting` (kiểu JSON Object) dùng chung với `product-reviews` để xác định tỷ lệ % traffic A/B.
 3. **Môi trường & Biến Cấu hình:**

@@ -21,6 +21,7 @@ on:
       - "techx-corp-platform/src/checkout/**"
       - "techx-corp-platform/src/frontend-proxy/**"
       - "techx-corp-platform/src/product-catalog/**"
+      - "techx-corp-platform/src/product-reviews/**"
       - "techx-corp-platform/src/shopping-copilot/**"
       - ".github/workflows/app-build.yaml"
   pull_request:
@@ -30,6 +31,7 @@ on:
       - "techx-corp-platform/src/checkout/**"
       - "techx-corp-platform/src/frontend-proxy/**"
       - "techx-corp-platform/src/product-catalog/**"
+      - "techx-corp-platform/src/product-reviews/**"
       - "techx-corp-platform/src/shopping-copilot/**"
       - ".github/workflows/app-build.yaml"
   workflow_dispatch:
@@ -87,6 +89,8 @@ jobs:
               - 'techx-corp-platform/src/frontend-proxy/**'
             product-catalog:
               - 'techx-corp-platform/src/product-catalog/**'
+            product-reviews:
+              - 'techx-corp-platform/src/product-reviews/**'
             shopping-copilot:
               - 'techx-corp-platform/src/shopping-copilot/**'
 
@@ -99,6 +103,7 @@ jobs:
           CHECKOUT: ${{ steps.filter.outputs.checkout }}
           FRONTEND_PROXY: ${{ steps.filter.outputs.frontend-proxy }}
           PRODUCT_CATALOG: ${{ steps.filter.outputs.product-catalog }}
+          PRODUCT_REVIEWS: ${{ steps.filter.outputs.product-reviews }}
           SHOPPING_COPILOT: ${{ steps.filter.outputs.shopping-copilot }}
         run: |
           set -euo pipefail
@@ -110,6 +115,7 @@ jobs:
             [checkout]="src/checkout/Dockerfile"
             [frontend-proxy]="src/frontend-proxy/Dockerfile"
             [product-catalog]="src/product-catalog/Dockerfile"
+            [product-reviews]="src/product-reviews/Dockerfile"
             [shopping-copilot]="src/shopping-copilot/Dockerfile"
           )
 
@@ -118,13 +124,14 @@ jobs:
             if [ -n "${DISPATCH_SERVICES:-}" ]; then
               read -ra selected <<< "$DISPATCH_SERVICES"
             else
-              selected=(cart checkout frontend-proxy product-catalog shopping-copilot)
+              selected=(cart checkout frontend-proxy product-catalog product-reviews shopping-copilot)
             fi
           else
             [ "$CART" = "true" ]            && selected+=(cart) || true
             [ "$CHECKOUT" = "true" ]        && selected+=(checkout) || true
             [ "$FRONTEND_PROXY" = "true" ]  && selected+=(frontend-proxy) || true
             [ "$PRODUCT_CATALOG" = "true" ] && selected+=(product-catalog) || true
+            [ "$PRODUCT_REVIEWS" = "true" ] && selected+=(product-reviews) || true
             [ "$SHOPPING_COPILOT" = "true" ] && selected+=(shopping-copilot) || true
           fi
 
@@ -182,10 +189,67 @@ jobs:
   # digest. Mỗi service 1 job matrix, tag riêng <version>-<svc>-<sha>.  #
   # needs validate-manifest: gate CDO-141 phải xanh mới được build.     #
   # ------------------------------------------------------------------ #
+  # ------------------------------------------------------------------ #
+  # Bedrock Account 2 credentials: GitHub Secrets -> K8s Secret.
+  # App code reads BEDROCK_AWS_* only for Bedrock clients; AWS_REGION
+  # stays us-east-1 for infra consistency.
+  # ------------------------------------------------------------------ #
+  sync_bedrock_credentials:
+    name: Sync Bedrock credentials secret
+    needs: [detect, validate-manifest]
+    if: github.event_name != 'pull_request' && needs.detect.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    environment: sandbox
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      APP_NAMESPACE: techx-tf1
+      CLUSTER_NAME: ${{ vars.EKS_CLUSTER_NAME || 'ecommerce-dev-eks' }}
+      BEDROCK_AWS_ACCESS_KEY_ID: ${{ secrets.BEDROCK_AWS_ACCESS_KEY_ID }}
+      BEDROCK_AWS_SECRET_ACCESS_KEY: ${{ secrets.BEDROCK_AWS_SECRET_ACCESS_KEY }}
+      BEDROCK_AWS_SESSION_TOKEN: ${{ secrets.BEDROCK_AWS_SESSION_TOKEN }}
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.TF_AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-${{ github.actor }}-${{ github.run_id }}
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: "v1.30.0"
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name "$CLUSTER_NAME" --region "$AWS_REGION"
+
+      - name: Upsert bedrock-credentials secret
+        run: |
+          set -euo pipefail
+          if [ -z "${BEDROCK_AWS_ACCESS_KEY_ID:-}" ] || [ -z "${BEDROCK_AWS_SECRET_ACCESS_KEY:-}" ]; then
+            echo "::warning::BEDROCK_AWS_ACCESS_KEY_ID/SECRET_ACCESS_KEY GitHub Secrets are not both set; keeping Pod Identity/IAM fallback."
+            exit 0
+          fi
+
+          args=(
+            "--from-literal=BEDROCK_AWS_ACCESS_KEY_ID=${BEDROCK_AWS_ACCESS_KEY_ID}"
+            "--from-literal=BEDROCK_AWS_SECRET_ACCESS_KEY=${BEDROCK_AWS_SECRET_ACCESS_KEY}"
+          )
+          if [ -n "${BEDROCK_AWS_SESSION_TOKEN:-}" ]; then
+            args+=("--from-literal=BEDROCK_AWS_SESSION_TOKEN=${BEDROCK_AWS_SESSION_TOKEN}")
+          fi
+
+          kubectl create secret generic bedrock-credentials \
+            -n "$APP_NAMESPACE" \
+            "${args[@]}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
   build:
     name: Build ${{ matrix.service }}
-    needs: [detect, validate-manifest]
-    if: needs.detect.outputs.any == 'true'
+    needs: [detect, validate-manifest, sync_bedrock_credentials]
+    if: always() && needs.detect.outputs.any == 'true' && needs.validate-manifest.result == 'success' && (github.event_name == 'pull_request' || needs.sync_bedrock_credentials.result == 'success' || needs.sync_bedrock_credentials.result == 'skipped')
     runs-on: ubuntu-latest
     permissions:
       contents: read

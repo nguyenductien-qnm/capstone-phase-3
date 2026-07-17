@@ -30,11 +30,11 @@ import threading
 import time
 from dataclasses import dataclass, field
 
-import boto3
 from botocore.config import Config
 from botocore.exceptions import ClientError, ConnectTimeoutError, ReadTimeoutError
 
 import tools
+from bedrock_client import create_bedrock_runtime_client
 from guardrails import sanitize_json_for_llm, redact_pii, leaks_system_prompt
 
 logger = logging.getLogger(__name__)
@@ -218,7 +218,7 @@ def get_bedrock_fallback_client():
         aws_region = os.environ.get('AWS_REGION', 'us-east-1')
         fallback_timeout = float(os.environ.get('LLM_COPILOT_FALLBACK_TIMEOUT', '2.5'))
         fallback_config = Config(connect_timeout=1.0, read_timeout=fallback_timeout, retries={'max_attempts': 0})
-        _fallback_client = boto3.client(service_name="bedrock-runtime", region_name=aws_region, config=fallback_config)
+        _fallback_client = create_bedrock_runtime_client(region_name=aws_region, config=fallback_config)
     return _fallback_client
 
 def invoke_bedrock_converse_with_fallback(primary_client, model_id, system, messages, tool_config, inference_config):

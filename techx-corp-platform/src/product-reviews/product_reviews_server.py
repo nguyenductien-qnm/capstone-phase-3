@@ -30,6 +30,7 @@ from grpc_health.v1 import health_pb2
 from grpc_health.v1 import health_pb2_grpc
 from database import fetch_product_reviews, fetch_product_reviews_from_db, fetch_avg_product_review_score_from_db, fetch_reviews_fingerprint
 from guardrails import sanitize_json_for_llm, leaks_system_prompt, redact_pii, detect_prompt_injection_llm
+from bedrock_client import create_bedrock_runtime_client
 
 from openfeature import api
 from openfeature.contrib.provider.flagd import FlagdProvider
@@ -44,7 +45,6 @@ from openai import OpenAI
 # Model Router
 from model_router import ModelRouter
 
-import boto3
 from botocore.exceptions import ClientError, ReadTimeoutError, ConnectTimeoutError, BotoCoreError
 from botocore.config import Config
 import redis
@@ -261,7 +261,7 @@ def get_bedrock_primary_client():
         aws_region = os.environ.get('AWS_REGION', 'us-east-1')
         main_timeout = float(os.environ.get('LLM_REVIEWS_TIMEOUT', '4.0'))
         primary_config = Config(connect_timeout=1.0, read_timeout=main_timeout, retries={'max_attempts': 0})
-        bedrock_primary_client = boto3.client(service_name="bedrock-runtime", region_name=aws_region, config=primary_config)
+        bedrock_primary_client = create_bedrock_runtime_client(region_name=aws_region, config=primary_config)
     return bedrock_primary_client
 
 def get_bedrock_fallback_client():
@@ -270,7 +270,7 @@ def get_bedrock_fallback_client():
         aws_region = os.environ.get('AWS_REGION', 'us-east-1')
         fallback_timeout = float(os.environ.get('LLM_REVIEWS_FALLBACK_TIMEOUT', '2.0'))
         fallback_config = Config(connect_timeout=1.0, read_timeout=fallback_timeout, retries={'max_attempts': 0})
-        bedrock_fallback_client = boto3.client(service_name="bedrock-runtime", region_name=aws_region, config=fallback_config)
+        bedrock_fallback_client = create_bedrock_runtime_client(region_name=aws_region, config=fallback_config)
     return bedrock_fallback_client
 
 def invoke_bedrock_converse_with_fallback(messages, system_prompt, tool_config=None):
@@ -727,7 +727,7 @@ if __name__ == "__main__":
     health_pb2_grpc.add_HealthServicer_to_server(service, server)
 
     aws_region = os.environ.get('AWS_REGION', 'us-east-1')
-    bedrock_client = boto3.client(service_name="bedrock-runtime", region_name=aws_region)
+    bedrock_client = create_bedrock_runtime_client(region_name=aws_region)
 
     valkey_addr = os.environ.get('VALKEY_ADDR', 'valkey-cart:6379')
     try:

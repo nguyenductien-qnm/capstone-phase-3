@@ -25,12 +25,12 @@ import time
 import uuid
 from concurrent import futures
 
-import boto3
 import grpc
 from grpc_health.v1 import health, health_pb2, health_pb2_grpc
 
 import agent
 import tools
+from bedrock_client import create_bedrock_runtime_client
 from guardrails import sanitize_text   # MANDATE-06: L1 input guardrail
 import shopping_copilot_pb2 as pb
 import shopping_copilot_pb2_grpc as pb_grpc
@@ -147,7 +147,7 @@ def _to_records(actions: list[agent.ToolCall]) -> list:
 
 
 def serve():
-    bedrock = boto3.client("bedrock-runtime", region_name=AWS_REGION)
+    bedrock = create_bedrock_runtime_client(region_name=AWS_REGION)
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=MAX_WORKERS))
     pb_grpc.add_ShoppingCopilotServiceServicer_to_server(
         ShoppingCopilotServicer(bedrock), server)

@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import statistics
 import time
 from dataclasses import dataclass
@@ -53,6 +54,28 @@ FAKE_REVIEWS_TEXT = (
     "family solar viewing. The image is clear for beginners, though the tripod "
     "can shake in wind. Shipping was fast. 4/5 stars. "
 ) * 45
+
+
+def create_bedrock_runtime_client(*, session: boto3.Session, region_name: str):
+    kwargs = {
+        "service_name": "bedrock-runtime",
+        "region_name": region_name,
+    }
+
+    access_key = os.environ.get("BEDROCK_AWS_ACCESS_KEY_ID")
+    secret_key = os.environ.get("BEDROCK_AWS_SECRET_ACCESS_KEY")
+    session_token = os.environ.get("BEDROCK_AWS_SESSION_TOKEN")
+
+    if access_key and secret_key:
+        kwargs["aws_access_key_id"] = access_key
+        kwargs["aws_secret_access_key"] = secret_key
+        if session_token:
+            kwargs["aws_session_token"] = session_token
+        print("Using explicit BEDROCK_AWS_* credentials for Bedrock runtime")
+    elif access_key or secret_key:
+        print("WARNING: incomplete BEDROCK_AWS_* credentials; falling back to default AWS provider chain")
+
+    return session.client(**kwargs)
 
 REVIEWS_TOOL_CONFIG = {
     "tools": [
@@ -417,7 +440,7 @@ def main() -> None:
 
     n = args.n if args.n is not None else (args.legacy_n if args.legacy_n is not None else 10)
     session = boto3.Session(profile_name=args.profile) if args.profile else boto3.Session()
-    client = session.client("bedrock-runtime", region_name=args.region)
+    client = create_bedrock_runtime_client(session=session, region_name=args.region)
 
     cases = [
         Case(
