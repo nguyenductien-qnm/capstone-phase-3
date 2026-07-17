@@ -29,7 +29,7 @@ components:
       tag: 1.0-accounting-9b5c297
   product-reviews:
     imageOverride:
-      tag: 1.0-product-reviews-5a2493c
+      tag: 1.0-product-reviews-d485d1b
   llm:
     imageOverride:
       tag: 1.0-llm-9b5c297
