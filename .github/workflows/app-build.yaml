@@ -10,25 +10,26 @@ name: App Build (ECR + Trivy + Cosign + GitOps bump)
 # Tag convention: <version>-<service>-<sha>  (version = chart appVersion default.image.tag).
 # ECR: 1 repo chung ecommerce-dev-techx-corp, IMMUTABLE. Ký theo digest, không ký tag.
 #
-# 4 service team quản (có source trong techx-corp-platform/src). flagd/postgresql/
-# valkey-cart là image upstream -> KHÔNG build ở đây.
+# Service build được suy ra ĐỘNG, không hardcode: giao của
+#   (a) component `enabled: true` trong chart values.yaml, KHÔNG có imageOverride.repository
+#       (có repository = image upstream: flagd/postgresql/valkey-cart -> bỏ), và
+#   (b) có Dockerfile trong techx-corp-platform/src/<svc>/ (hoặc <svc>/src/ như cart).
+# Thêm service mới vào chart + có Dockerfile là tự động được build, không sửa file này.
 
 on:
   push:
     branches: ["develop", "main"]
     paths:
-      - "techx-corp-platform/src/cart/**"
-      - "techx-corp-platform/src/checkout/**"
-      - "techx-corp-platform/src/frontend-proxy/**"
-      - "techx-corp-platform/src/product-catalog/**"
+      - "techx-corp-platform/src/**"
+      - "platform/charts/application/values.yaml"
+      - "platform/build-exclusions.yaml"
       - ".github/workflows/app-build.yaml"
   pull_request:
     branches: ["develop", "main"]
     paths:
-      - "techx-corp-platform/src/cart/**"
-      - "techx-corp-platform/src/checkout/**"
-      - "techx-corp-platform/src/frontend-proxy/**"
-      - "techx-corp-platform/src/product-catalog/**"
+      - "techx-corp-platform/src/**"
+      - "platform/charts/application/values.yaml"
+      - "platform/build-exclusions.yaml"
       - ".github/workflows/app-build.yaml"
   workflow_dispatch:
     inputs:
@@ -59,8 +60,11 @@ env:
 
 jobs:
   # ------------------------------------------------------------------ #
-  # Xác định service nào cần build. push/PR -> theo path-filter.        #
-  # dispatch -> theo input (rỗng = tất cả).                             #
+  # Suy ra danh sách service team-owned từ chart + filesystem (không     #
+  # hardcode), rồi lọc theo thay đổi thực tế:                            #
+  #   push/PR   -> service có file đổi trong src/<svc>/ (git diff)       #
+  #   dispatch  -> theo input (rỗng = build tất cả service team-owned)   #
+  # Chart values.yaml đổi -> build tất cả (tag/enabled có thể đã đổi).   #
   # ------------------------------------------------------------------ #
   detect:
     name: Detect changed services
@@ -71,55 +75,109 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Path filter
-        uses: dorny/paths-filter@v3
-        id: filter
         with:
-          filters: |
-            cart:
-              - 'techx-corp-platform/src/cart/**'
-            checkout:
-              - 'techx-corp-platform/src/checkout/**'
-            frontend-proxy:
-              - 'techx-corp-platform/src/frontend-proxy/**'
-            product-catalog:
-              - 'techx-corp-platform/src/product-catalog/**'
+          # Cần commit trước đó để git diff ra file đã đổi.
+          fetch-depth: 0
+
+      - name: Install yq
+        uses: mikefarah/yq@v4
 
       - name: Build matrix
         id: set
         env:
           EVENT: ${{ github.event_name }}
           DISPATCH_SERVICES: ${{ github.event.inputs.services }}
-          CART: ${{ steps.filter.outputs.cart }}
-          CHECKOUT: ${{ steps.filter.outputs.checkout }}
-          FRONTEND_PROXY: ${{ steps.filter.outputs.frontend-proxy }}
-          PRODUCT_CATALOG: ${{ steps.filter.outputs.product-catalog }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          VALUES: platform/charts/application/values.yaml
+          EXCLUSIONS_FILE: platform/build-exclusions.yaml
         run: |
           set -euo pipefail
 
-          # Bảng service -> dockerfile (context chung = techx-corp-platform).
-          # cart là .NET: Dockerfile nằm ở src/cart/src/, khác các service khác.
-          declare -A DOCKERFILE=(
-            [cart]="src/cart/src/Dockerfile"
-            [checkout]="src/checkout/Dockerfile"
-            [frontend-proxy]="src/frontend-proxy/Dockerfile"
-            [product-catalog]="src/product-catalog/Dockerfile"
+          # (a) Component team-owned trong chart: enabled=true và KHÔNG có
+          # imageOverride.repository (có repository = kéo từ registry ngoài).
+          mapfile -t owned < <(
+            yq -r '.components | to_entries[]
+                   | select(.value.enabled == true)
+                   | select(.value.imageOverride.repository == null)
+                   | .key' "$VALUES"
           )
 
-          selected=()
-          if [ "$EVENT" = "workflow_dispatch" ]; then
-            if [ -n "${DISPATCH_SERVICES:-}" ]; then
-              read -ra selected <<< "$DISPATCH_SERVICES"
-            else
-              selected=(cart checkout frontend-proxy product-catalog)
-            fi
-          else
-            [ "$CART" = "true" ]            && selected+=(cart) || true
-            [ "$CHECKOUT" = "true" ]        && selected+=(checkout) || true
-            [ "$FRONTEND_PROXY" = "true" ]  && selected+=(frontend-proxy) || true
-            [ "$PRODUCT_CATALOG" = "true" ] && selected+=(product-catalog) || true
+          # (b) Giao với Dockerfile có thật. cart (.NET) để Dockerfile ở
+          # src/cart/src/ nên thử cả 2 vị trí thay vì đặc case theo tên.
+          declare -A DOCKERFILE=()
+          for svc in "${owned[@]}"; do
+            for cand in "src/$svc/Dockerfile" "src/$svc/src/Dockerfile"; do
+              if [ -f "$BUILD_CONTEXT/$cand" ]; then
+                DOCKERFILE[$svc]="$cand"
+                break
+              fi
+            done
+          done
+          if [ "${#DOCKERFILE[@]}" -eq 0 ]; then
+            echo "::error::Không tìm thấy service team-owned nào có Dockerfile."
+            exit 1
           fi
+          echo "Service team-owned: ${!DOCKERFILE[*]}"
+
+          # (c) Loại service đang TẠM HOÃN vì CVE chưa có bản vá upstream.
+          # Chính sách: không push image dính CVE CRITICAL/HIGH lên ECR. Service bị
+          # hoãn giữ nguyên tag cũ trong values-image-tags.yaml -> ArgoCD chạy image cũ.
+          # Quá hạn review_by -> cảnh báo để không ai quên (nhưng vẫn hoãn, không fail CI).
+          if [ -f "$EXCLUSIONS_FILE" ]; then
+            TODAY=$(date -u +%F)
+            while IFS=$'\t' read -r svc reason review_by; do
+              [ -z "$svc" ] && continue
+              if [ -z "${DOCKERFILE[$svc]:-}" ]; then
+                echo "::warning::build-exclusions: '$svc' không còn là service team-owned -> entry thừa, nên xoá."
+                continue
+              fi
+              unset 'DOCKERFILE[$svc]'
+              echo "::notice::HOÃN BUILD '$svc' — $reason (review_by: $review_by)"
+              if [[ "$review_by" < "$TODAY" ]]; then
+                echo "::warning::build-exclusions: '$svc' đã QUÁ HẠN review ($review_by). Kiểm tra upstream đã có fix chưa rồi bump + xoá entry."
+              fi
+            done < <(yq -r '.exclusions[] | [.service, .reason, .review_by] | @tsv' "$EXCLUSIONS_FILE")
+          fi
+
+          # --- Chọn service cần build ---------------------------------------
+          selected=()
+          case "$EVENT" in
+            workflow_dispatch)
+              if [ -n "${DISPATCH_SERVICES:-}" ]; then
+                read -ra requested <<< "$DISPATCH_SERVICES"
+                for svc in "${requested[@]}"; do
+                  if [ -z "${DOCKERFILE[$svc]:-}" ]; then
+                    echo "::error::Service '$svc' không phải team-owned hoặc không có Dockerfile."
+                    exit 1
+                  fi
+                  selected+=("$svc")
+                done
+              else
+                selected=("${!DOCKERFILE[@]}")
+              fi
+              ;;
+            *)
+              # BASE_SHA rỗng (branch mới) hoặc không tồn tại -> build tất cả cho an toàn.
+              if [ -z "${BASE_SHA:-}" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ] \
+                 || ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+                echo "Không xác định được base commit -> build tất cả."
+                selected=("${!DOCKERFILE[@]}")
+              else
+                mapfile -t changed < <(git diff --name-only "$BASE_SHA" "${{ github.sha }}")
+                # Chart đổi -> ảnh hưởng mọi service, build tất cả.
+                if printf '%s\n' "${changed[@]}" | grep -qx "$VALUES"; then
+                  echo "$VALUES đổi -> build tất cả."
+                  selected=("${!DOCKERFILE[@]}")
+                else
+                  for svc in "${!DOCKERFILE[@]}"; do
+                    if printf '%s\n' "${changed[@]}" | grep -q "^techx-corp-platform/src/$svc/"; then
+                      selected+=("$svc")
+                    fi
+                  done
+                fi
+              fi
+              ;;
+          esac
 
           if [ "${#selected[@]}" -eq 0 ]; then
             echo "any=false" >> "$GITHUB_OUTPUT"
@@ -129,19 +187,14 @@ jobs:
           fi
 
           include=""
-          for svc in "${selected[@]}"; do
-            df="${DOCKERFILE[$svc]:-}"
-            if [ -z "$df" ]; then
-              echo "::error::Service '$svc' không có trong bảng dockerfile."
-              exit 1
-            fi
+          for svc in $(printf '%s\n' "${selected[@]}" | sort -u); do
             [ -n "$include" ] && include+=","
-            include+="{\"service\":\"$svc\",\"dockerfile\":\"$df\"}"
+            include+="{\"service\":\"$svc\",\"dockerfile\":\"${DOCKERFILE[$svc]}\"}"
           done
 
           echo "any=true" >> "$GITHUB_OUTPUT"
           echo "matrix={\"include\":[$include]}" >> "$GITHUB_OUTPUT"
-          echo "Sẽ build: ${selected[*]}"
+          echo "Sẽ build: $(printf '%s ' "${selected[@]}")"
 
   # ------------------------------------------------------------------ #
   # CDO-141: Validate Helm/manifest làm GATE trước build/deploy.        #
@@ -180,6 +233,9 @@ jobs:
     needs: [detect, validate-manifest]
     if: needs.detect.outputs.any == 'true'
     runs-on: ubuntu-latest
+    # Trust policy của GitHubTerraformSandboxRole khóa sub bằng StringEquals:
+    #   repo:<org>/<repo>:environment:sandbox
+    environment: sandbox
     permissions:
       contents: read
       id-token: write # OIDC cho AWS + Cosign keyless (Fulcio)
@@ -223,12 +279,29 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: sigstore/cosign-installer@v3.5.0
 
+      # Một số Dockerfile cần ARG version (ad/fraud-detection: OTEL_JAVA_AGENT_VERSION,
+      # currency: OPENTELEMETRY_CPP_VERSION). Thiếu -> URL thành .../download/v/... -> 404.
+      # Đọc từ techx-corp-platform/.env (nguồn sự thật, docker-compose cũng dùng file này)
+      # thay vì hardcode ở đây, để bump version chỉ sửa 1 chỗ.
+      - name: Load build args từ .env
+        id: buildargs
+        run: |
+          set -euo pipefail
+          ENV_FILE="$BUILD_CONTEXT/.env"
+          {
+            echo "args<<EOF"
+            grep -E '^(OTEL_JAVA_AGENT_VERSION|OPENTELEMETRY_CPP_VERSION)=' "$ENV_FILE" \
+              | sed 's/[[:space:]]*$//'
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
       # PR: build (load local) để scan, KHÔNG push. push/dispatch: build & push.
       - name: Build image (load, for scan)
         uses: docker/build-push-action@v6
         with:
           context: ${{ env.BUILD_CONTEXT }}
           file: ${{ env.BUILD_CONTEXT }}/${{ matrix.dockerfile }}
+          build-args: ${{ steps.buildargs.outputs.args }}
           load: true
           push: false
           tags: ${{ steps.meta.outputs.image }}
@@ -255,6 +328,7 @@ jobs:
         with:
           context: ${{ env.BUILD_CONTEXT }}
           file: ${{ env.BUILD_CONTEXT }}/${{ matrix.dockerfile }}
+          build-args: ${{ steps.buildargs.outputs.args }}
           push: true
           tags: ${{ steps.meta.outputs.image }}
           labels: |
@@ -340,5 +414,20 @@ jobs:
           git config user.email "${APP_SLUG}[bot]@users.noreply.github.com"
           git add "$TAGS_FILE"
           git commit -m "ci(app): bump image tags -> $(git rev-parse --short HEAD) [skip ci]"
-          git push origin "HEAD:${BRANCH_NAME}"
-          echo "✅ Bumped & pushed lên $BRANCH_NAME — ArgoCD sẽ selfHeal sync."
+
+          # Job này checkout branch lúc bắt đầu run rồi build vài phút mới push. Merge
+          # tiếp theo trong khoảng đó làm branch tiến lên -> push non-fast-forward bị
+          # từ chối (đúng: push thẳng sẽ nuốt mất commit của run kia). Rebase rồi thử
+          # lại: mỗi run chỉ sửa key của service mình trong TAGS_FILE nên không đụng
+          # nhau, chỉ là cùng chạm một file.
+          for attempt in 1 2 3 4 5; do
+            if git push origin "HEAD:${BRANCH_NAME}"; then
+              echo "✅ Bumped & pushed lên $BRANCH_NAME — ArgoCD sẽ selfHeal sync."
+              exit 0
+            fi
+            echo "⚠️ Push bị từ chối (lần $attempt) — có commit mới trên $BRANCH_NAME, rebase rồi thử lại."
+            git pull --rebase origin "$BRANCH_NAME"
+          done
+
+          echo "::error::Push thất bại sau 5 lần rebase — $BRANCH_NAME đang bị ghi quá nhanh."
+          exit 1

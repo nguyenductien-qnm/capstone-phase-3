@@ -8,10 +8,37 @@ components:
       tag: "1.1-cart"
   checkout:
     imageOverride:
-      tag: "1.1-checkout"
+      tag: "1.0-checkout-cd0ee9b"
   frontend-proxy:
     imageOverride:
-      tag: "1.0-frontend-proxy"
+      tag: "1.0-frontend-proxy-cd0ee9b"
   product-catalog:
     imageOverride:
-      tag: "1.1-product-catalog"
+      tag: "1.0-product-catalog-cd0ee9b"
+  ad:
+    imageOverride:
+      tag: 1.0-ad-cd0ee9b
+  currency:
+    imageOverride:
+      tag: 1.0-currency-cd0ee9b
+  accounting:
+    imageOverride:
+      tag: 1.0-accounting-cd0ee9b
+  product-reviews:
+    imageOverride:
+      tag: 1.0-product-reviews-1158bb8
+  llm:
+    imageOverride:
+      tag: 1.0-llm-cd0ee9b
+  load-generator:
+    imageOverride:
+      tag: 1.0-load-generator-cd0ee9b
+  quote:
+    imageOverride:
+      tag: 1.0-quote-cd0ee9b
+  recommendation:
+    imageOverride:
+      tag: 1.0-recommendation-cd0ee9b
+  shipping:
+    imageOverride:
+      tag: 1.0-shipping-cd0ee9b

@@ -35,7 +35,7 @@ from botocore.config import Config
 from botocore.exceptions import ClientError, ConnectTimeoutError, ReadTimeoutError
 
 import tools
-from guardrails import sanitize_json_for_llm, redact_pii, leaks_system_prompt
+from guardrails import sanitize_json_for_llm, redact_pii, leaks_system_prompt, validate_citations
 
 logger = logging.getLogger(__name__)
 
@@ -207,7 +207,7 @@ def get_bedrock_fallback_client():
     global _fallback_client
     if _fallback_client is None:
         aws_region = os.environ.get('AWS_REGION', 'us-east-1')
-        fallback_timeout = float(os.environ.get('LLM_COPILOT_FALLBACK_TIMEOUT', '3.0'))
+        fallback_timeout = float(os.environ.get('LLM_COPILOT_FALLBACK_TIMEOUT', '2.5'))
         fallback_config = Config(connect_timeout=1.0, read_timeout=fallback_timeout, retries={'max_attempts': 0})
         _fallback_client = boto3.client(service_name="bedrock-runtime", region_name=aws_region, config=fallback_config)
     return _fallback_client
@@ -296,6 +296,7 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
     pending: PendingAction | None = None
     current = list(messages)
     tool_calls = 0
+    tool_results_raw: list[str] = []  # Thu thap tool results de validate citations (mentor 16/07)
 
     while True:
         if not bedrock_bulkhead.acquire(blocking=False):
@@ -334,6 +335,11 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
             if leaks_system_prompt(clean_text, SYSTEM_PROMPT):
                 logger.error("[Guardrail] System prompt leakage blocked in copilot output.")
                 clean_text = "Xin lỗi, tôi không thể hiển thị nội dung này."
+            # Citation validator (mentor 16/07): kiem tra so lieu trong output co khop tool result
+            if tool_results_raw and clean_text:
+                is_valid, clean_text = validate_citations(clean_text, tool_results_raw)
+                if not is_valid:
+                    logger.warning("[Guardrail] Citation validation: fabricated numbers replaced with [unverified]")
             return AgentResult(text=clean_text or "(không có phản hồi)", actions_taken=actions,
                                pending=pending)
 
@@ -366,7 +372,7 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
                 ok = True
             else:
                 out = _run_read_tool(name, args, user_id)
-
+                tool_results_raw.append(out)  # Luu tool result de validate citations
                 ok = '"error"' not in out
 
             actions.append(ToolCall(

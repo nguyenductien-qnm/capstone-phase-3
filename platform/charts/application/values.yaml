@@ -223,7 +223,22 @@ components:
     initContainers:
       - name: wait-for-kafka
         image: busybox:1.38.0   # Pinned: do NOT use :latest — breaks reproducibility.
-        command: ["sh", "-c", "until nc -z -v -w30 b-1.ecommercedevmsk.61s37h.c4.kafka.us-east-1.amazonaws.com 9096; do echo waiting for kafka; sleep 2; done;"]
+        # Broker lấy từ msk-secret (ESO sync từ Secrets Manager) — KHÔNG hardcode:
+        # MSK tạo lại thì AWS cấp ID mới, hostname cũ chết DNS -> init loop vô hạn.
+        env:
+          - name: KAFKA_ADDR
+            valueFrom:
+              secretKeyRef:
+                name: msk-secret
+                key: brokers_sasl_scram
+        command:
+          - sh
+          - -c
+          - |
+            # brokers_sasl_scram = "host1:9096,host2:9096" -> lấy broker đầu tiên
+            broker=$(echo "$KAFKA_ADDR" | cut -d, -f1)
+            host=${broker%:*}; port=${broker##*:}
+            until nc -z -v -w30 "$host" "$port"; do echo waiting for kafka; sleep 2; done
         securityContext:
           runAsUser: 1000
           runAsNonRoot: true
@@ -231,6 +246,13 @@ components:
           capabilities:
             drop:
               - ALL
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 50m
+            memory: 32Mi
 
   ad:
     enabled: true
@@ -270,6 +292,18 @@ components:
     enabled: true
     imageOverride:
       tag: "1.1-cart" # CDO-80: image mới có gRPC health tách liveness/readiness
+    # Image chạy root và đang HOÃN BUILD vì CVE-2026-28387 (xem build-exclusions.yaml)
+    # -> không vá được bằng USER trong Dockerfile, phải ép UID từ chart.
+    # Template dùng `default` (thay cả block, KHÔNG merge) nên phải lặp lại đủ field
+    # của defaultValues.securityContext, nếu không sẽ mất drop ALL.
+    # Verify: docker run --user 1000:1000 <image 1.1-cart> -> chạy tới logic app.
+    securityContext:
+      allowPrivilegeEscalation: false
+      runAsNonRoot: true
+      runAsUser: 1000
+      capabilities:
+        drop:
+          - ALL
     useDefault:
       env: true
     service:
@@ -356,6 +390,13 @@ components:
           capabilities:
             drop:
               - ALL
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 50m
+            memory: 32Mi
 
   checkout:
     enabled: true
@@ -439,8 +480,8 @@ components:
         cpu: 100m # P0: revenue-critical, limit cũ 20Mi quá thấp
         memory: 64Mi
       limits:
-        cpu: 100m
-        memory: 20Mi
+        cpu: 200m
+        memory: 128Mi # >= request 64Mi; khớp GOMEMLIMIT 96MiB ở trên
     hpa:
       enabled: true
       minReplicas: 2      # có PDB (CDO-34) + revenue-critical SLO 99% -> min>=2 (tránh INC-2)
@@ -448,7 +489,22 @@ components:
     initContainers:
       - name: wait-for-kafka
         image: busybox:1.38.0   # Pinned: do NOT use :latest — breaks reproducibility.
-        command: ["sh", "-c", "until nc -z -v -w30 b-1.ecommercedevmsk.61s37h.c4.kafka.us-east-1.amazonaws.com 9096; do echo waiting for kafka; sleep 2; done;"]
+        # Broker lấy từ msk-secret (ESO sync từ Secrets Manager) — KHÔNG hardcode:
+        # MSK tạo lại thì AWS cấp ID mới, hostname cũ chết DNS -> init loop vô hạn.
+        env:
+          - name: KAFKA_ADDR
+            valueFrom:
+              secretKeyRef:
+                name: msk-secret
+                key: brokers_sasl_scram
+        command:
+          - sh
+          - -c
+          - |
+            # brokers_sasl_scram = "host1:9096,host2:9096" -> lấy broker đầu tiên
+            broker=$(echo "$KAFKA_ADDR" | cut -d, -f1)
+            host=${broker%:*}; port=${broker##*:}
+            until nc -z -v -w30 "$host" "$port"; do echo waiting for kafka; sleep 2; done
         securityContext:
           runAsUser: 1000
           runAsNonRoot: true
@@ -456,6 +512,13 @@ components:
           capabilities:
             drop:
               - ALL
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 50m
+            memory: 32Mi
 
   currency:
     enabled: true
@@ -488,6 +551,17 @@ components:
 
   email:
     enabled: true
+    # Image chạy root và đang HOÃN BUILD vì CVE-2026-28387 + CVE-2026-42245 (xem
+    # build-exclusions.yaml) -> ép UID từ chart thay vì USER trong Dockerfile.
+    # Template dùng `default` (thay cả block, KHÔNG merge) nên phải lặp lại đủ field.
+    # Verify: docker run --user 1000:1000 <image 1.0-email> -> Sinatra/Puma lên bình thường.
+    securityContext:
+      allowPrivilegeEscalation: false
+      runAsNonRoot: true
+      runAsUser: 1000
+      capabilities:
+        drop:
+          - ALL
     useDefault:
       env: true
     service:
@@ -556,7 +630,22 @@ components:
     initContainers:
       - name: wait-for-kafka
         image: busybox:1.38.0   # Pinned: do NOT use :latest — breaks reproducibility.
-        command: ["sh", "-c", "until nc -z -v -w30 b-1.ecommercedevmsk.61s37h.c4.kafka.us-east-1.amazonaws.com 9096; do echo waiting for kafka; sleep 2; done;"]
+        # Broker lấy từ msk-secret (ESO sync từ Secrets Manager) — KHÔNG hardcode:
+        # MSK tạo lại thì AWS cấp ID mới, hostname cũ chết DNS -> init loop vô hạn.
+        env:
+          - name: KAFKA_ADDR
+            valueFrom:
+              secretKeyRef:
+                name: msk-secret
+                key: brokers_sasl_scram
+        command:
+          - sh
+          - -c
+          - |
+            # brokers_sasl_scram = "host1:9096,host2:9096" -> lấy broker đầu tiên
+            broker=$(echo "$KAFKA_ADDR" | cut -d, -f1)
+            host=${broker%:*}; port=${broker##*:}
+            until nc -z -v -w30 "$host" "$port"; do echo waiting for kafka; sleep 2; done
         securityContext:
           runAsUser: 1000
           runAsNonRoot: true
@@ -564,6 +653,13 @@ components:
           capabilities:
             drop:
               - ALL
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 50m
+            memory: 32Mi
 
   frontend:
     enabled: true
@@ -958,8 +1054,8 @@ components:
         cpu: 100m # CDO-42: read-heavy (mọi browse gọi tới) -> bottleneck -> HPA
         memory: 32Mi # P0 right-size: OOMKilled 4 lần, Go runtime
       limits:
-        cpu: 100m
-        memory: 20Mi
+        cpu: 200m
+        memory: 128Mi # >= request 32Mi; đầu headroom cho Go runtime sau 4 lần OOMKill
     hpa:
       enabled: true
       minReplicas: 2 # có PDB (CDO-34) -> min>=2, tránh INC-2 khi node consolidate
@@ -980,6 +1076,10 @@ components:
         value: us-east-1
       - name: AWS_BEDROCK_MODEL
         value: amazon.nova-lite-v1:0
+      - name: LLM_REVIEWS_TIMEOUT
+        value: "4.0"
+      - name: LLM_REVIEWS_FALLBACK_TIMEOUT
+        value: "2.0"
       - name: LLM_HOST
         value: llm
       - name: LLM_PORT
@@ -1116,6 +1216,16 @@ components:
         value: techx-llm
       - name: OPENAI_API_KEY
         value: dummy
+      - name: AWS_REGION
+        value: us-east-1
+      - name: LLM_COPILOT_MAIN_MODEL
+        value: amazon.nova-pro-v1:0
+      - name: LLM_COPILOT_FALLBACK_MODEL
+        value: amazon.nova-lite-v1:0
+      - name: LLM_COPILOT_TIMEOUT
+        value: "5.7"
+      - name: LLM_COPILOT_FALLBACK_TIMEOUT
+        value: "2.5"
       - name: PRODUCT_CATALOG_ADDR
         value: product-catalog:8080
       - name: CART_ADDR
@@ -1162,7 +1272,7 @@ components:
         memory: 32Mi
       limits:
         cpu: 100m
-        memory: 20Mi
+        memory: 96Mi # >= request 32Mi
   flagd:
     enabled: true
     imageOverride:
@@ -1244,6 +1354,13 @@ components:
           capabilities:
             drop:
               - ALL
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 50m
+            memory: 32Mi
         volumeMounts:
           - mountPath: /config-ro
             name: config-ro

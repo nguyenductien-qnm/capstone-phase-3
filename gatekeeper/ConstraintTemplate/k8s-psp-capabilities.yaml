@@ -169,7 +169,8 @@ spec:
             }
 
             has_disallowed_capabilities(container) {
-              allowed := {c | c := lower(input.parameters.allowedCapabilities[_])}
+              allowed_caps := object.get(object.get(input, "parameters", {}), "allowedCapabilities", [])
+              allowed := {c | c := lower(allowed_caps[_])}
               not allowed["*"]
               capabilities := {c | c := lower(container.securityContext.capabilities.add[_])}
 
@@ -177,9 +178,14 @@ spec:
             }
 
             missing_drop_capabilities(container) {
-              must_drop := {c | c := lower(input.parameters.requiredDropCapabilities[_])}
+              must_drop_caps := object.get(object.get(input, "parameters", {}), "requiredDropCapabilities", [])
+              must_drop := {c | c := lower(must_drop_caps[_])}
               all := {"all"}
-              dropped := {c | c := lower(container.securityContext.capabilities.drop[_])}
+              
+              sec_context := object.get(container, "securityContext", {})
+              caps := object.get(sec_context, "capabilities", {})
+              dropped_caps := object.get(caps, "drop", [])
+              dropped := {c | c := lower(dropped_caps[_])}
 
               count(must_drop - dropped) > 0
               count(all - dropped) > 0

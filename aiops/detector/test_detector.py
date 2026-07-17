@@ -76,4 +76,29 @@ def test_eval_log_rule():
     alerts = detector.eval_log_rule(rule, osc)
     assert len(alerts) == 1
     assert alerts[0][0] == "db-error"
-    assert "so log khop=5" in alerts[0][1]
+    assert "số log khớp=5" in alerts[0][1]
+
+
+def test_metric_rule_dynamic_only_uses_dynamic_headline():
+    """Chi lop 3-sigma keu -> headline KHONG duoc la summary static (trend hieu nham
+    'p95 > 1s' khi gia tri thuc 6ms — review 16/07)."""
+    prom = MagicMock()
+    rule = {
+        "id": "latency-test",
+        "type": "metric",
+        "query": "dummy_query",
+        "op": "gt",
+        "threshold": 10.0,
+        "summary": "p95 > 1s - VI PHAM SLO",
+        "summary_dynamic": "Lệch bất thường so với baseline (chưa chạm SLO)",
+        "severity": "warning",
+    }
+    detector.metric_history.clear()
+    for val in [0.1, 0.11, 0.09, 0.1, 0.12]:
+        prom.query.return_value = [(val, {"service_name": "storefront"})]
+        detector.eval_metric_rule(rule, prom)
+    prom.query.return_value = [(0.5, {"service_name": "storefront"})]
+    alerts = detector.eval_metric_rule(rule, prom)
+    assert len(alerts) == 1
+    assert "Lệch bất thường" in alerts[0][1]
+    assert "VI PHAM SLO" not in alerts[0][1]

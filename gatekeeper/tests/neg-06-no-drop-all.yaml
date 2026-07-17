@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: neg-no-drop-all
+  namespace: techx-tf1
+spec:
+  containers:
+    - name: neg-no-drop-all
+      image: public.ecr.aws/docker/library/nginx:1.27
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          cpu: 100m
+          memory: 128Mi
+      securityContext:
+        runAsUser: 1000
+        runAsNonRoot: true
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - NET_RAW   # Vi phạm: drop nhưng KHÔNG drop ALL
+# Policy kỳ vọng: deny-dangerous-capabilities -> VI PHẠM (nhánh not dropped_all)
+# Các policy khác: PASS

@@ -20,7 +20,11 @@ RUN ./gradlew installDist -PprotoSourceDir=./proto
 
 # -----------------------------------------------------------------------------
 
-FROM eclipse-temurin:21-jre
+# :21-jre (ubuntu 26.04) nhét sẵn /usr/bin/pebble v1.32.0 — binary Go không thuộc
+# app, không config nào ref tới, nhưng mang 5 CVE HIGH (x/net, stdlib) làm Trivy
+# gate đỏ. Tag noble không có pebble và scan sạch 0 CVE; vẫn JRE 21, chỉ khác
+# ubuntu 24.04 vs 26.04.
+FROM eclipse-temurin:21-jre-noble
 
 ARG OTEL_JAVA_AGENT_VERSION
 ARG _JAVA_OPTIONS

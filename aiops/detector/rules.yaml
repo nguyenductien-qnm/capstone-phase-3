@@ -32,7 +32,8 @@ rules:
   - id: latency-p95-high
     type: metric
     severity: warning
-    summary: "p95 latency > 1s - vi pham SLO storefront (< 1s)"
+    summary: "p95 latency > 1s — VI PHẠM SLO storefront (< 1s)"
+    summary_dynamic: "p95 latency TĂNG BẤT THƯỜNG so với 15 phút gần đây (chưa vượt SLO 1s — cảnh báo sớm)"
     # Review FP-run 12/07: flagd (4.87s, khong thuoc SLO nao) tung trigger rule nay.
     # Loai service ha tang/noi bo khoi pham vi SLO storefront (exclusion an toan hon allowlist
     # - khong vo tinh bo sot service storefront moi).
@@ -45,33 +46,105 @@ rules:
     op: gt
     threshold: 1.0
 
-  - id: error-rate-high
+  - id: error-budget-burn-fast-standard
     type: metric
     severity: critical
-    summary: "5xx error rate > 0.5% - vi pham SLO non-5xx (>= 99.5%)"
+    summary: "Tỉ lệ lỗi 5xx > 0.5% — VI PHẠM SLO non-5xx (≥ 99.5%)"
+    summary_dynamic: "Tỉ lệ lỗi 5xx TĂNG BẤT THƯỜNG so với baseline (chưa vượt SLO 0.5% — cảnh báo sớm)"
     query: >-
-      sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", http_response_status_code=~"5.."}[5m]))
-      /
-      clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp"}[5m])), 0.001)
+      (
+        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout", http_response_status_code=~"5.."}[5m]))
+        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout"}[5m])), 0.001)
+        <
+        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout", http_response_status_code=~"5.."}[1h]))
+        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout"}[1h])), 0.001)
+      )
+      or
+      (
+        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout", http_response_status_code=~"5.."}[1h]))
+        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout"}[1h])), 0.001)
+      )
     op: gt
-    threshold: 0.005
+    threshold: 0.072
 
-  - id: checkout-failure-high
+  - id: error-budget-burn-fast-checkout
     type: metric
     severity: critical
-    summary: "Checkout error rate > 1% - luong RA TIEN (SLO >= 99%)"
+    summary: "Tỉ lệ lỗi checkout > 1% — luồng RA TIỀN đang vỡ SLO (≥ 99%)"
+    summary_dynamic: "Lỗi checkout TĂNG BẤT THƯỜNG so với baseline (chưa vượt SLO 1% — theo dõi sát)"
     query: >-
-      sum (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout", http_response_status_code=~"5.."}[5m]))
-      /
-      clamp_min(sum (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout"}[5m])), 0.001)
+      (
+        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout", http_response_status_code=~"5.."}[5m]))
+        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout"}[5m])), 0.001)
+        <
+        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout", http_response_status_code=~"5.."}[1h]))
+        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout"}[1h])), 0.001)
+      )
+      or
+      (
+        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout", http_response_status_code=~"5.."}[1h]))
+        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout"}[1h])), 0.001)
+      )
     op: gt
-    threshold: 0.01
+    threshold: 0.144
+
+  - id: error-budget-burn-slow-standard
+    type: metric
+    severity: warning
+    summary: "Slow burn rate > 6x (30m/6h) - TICKET! (Non-checkout)"
+    query: >-
+      (
+        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout", http_response_status_code=~"5.."}[30m]))
+        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout"}[30m])), 0.001)
+        <
+        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout", http_response_status_code=~"5.."}[6h]))
+        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout"}[6h])), 0.001)
+      )
+      or
+      (
+        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout", http_response_status_code=~"5.."}[6h]))
+        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout"}[6h])), 0.001)
+      )
+    op: gt
+    threshold: 0.03
+
+  - id: error-budget-burn-slow-checkout
+    type: metric
+    severity: warning
+    summary: "Slow burn rate > 6x (30m/6h) - TICKET! (Checkout)"
+    query: >-
+      (
+        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout", http_response_status_code=~"5.."}[30m]))
+        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout"}[30m])), 0.001)
+        <
+        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout", http_response_status_code=~"5.."}[6h]))
+        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout"}[6h])), 0.001)
+      )
+      or
+      (
+        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout", http_response_status_code=~"5.."}[6h]))
+        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout"}[6h])), 0.001)
+      )
+    op: gt
+    threshold: 0.06
+
+  # ---- COST SIGNAL (chi phi LLM) ----
+  - id: bedrock-cost-high
+    type: metric
+    severity: warning
+    summary: "Bedrock chi phí/giờ vượt ngưỡng - tiến gần trần budget $300/tuần"
+    query: >-
+      sum by (service_name) (
+        increase(bedrock_cost_usd_total{service_namespace="techx-corp"}[1h])
+      )
+    op: gt
+    threshold: 1.0
 
   # ---- TIN HIEU LOI GenAI (trong tam task) ----
   - id: llm-rate-limit-429
     type: log
     severity: critical
-    summary: "LLM 429 rate-limit - nguy co mat tinh nang tom tat review (su co BTC bom qua flagd)"
+    summary: "LLM bị 429 rate-limit — nguy cơ mất tính năng tóm tắt review (sự cố BTC bơm qua flagd)"
     match_phrases:
       - "Rate limit reached"
       - "rate_limit_exceeded"
@@ -82,7 +155,7 @@ rules:
   - id: genai-assistant-failure
     type: log
     severity: critical
-    summary: "GenAI assistant loi - product-reviews khong sinh duoc tom tat/tra loi (fallback error)"
+    summary: "GenAI assistant lỗi — product-reviews không sinh được tóm tắt/trả lời (đã rơi vào fallback)"
     # Review G2/G6: match machine marker do code emit (khong phu thuoc copy hien thi cho khach).
     # "unable to process your response" da chet sau PR#26 (code doi message sang tieng Viet).
     match_phrases:
@@ -94,7 +167,8 @@ rules:
   - id: genai-latency-high
     type: metric
     severity: warning
-    summary: "p95 latency product-reviews > 2s - cuoc goi LLM cham, de bao gio SLO storefront"
+    summary: "p95 product-reviews > 2s — cuộc gọi LLM chậm, đe dọa gián tiếp SLO storefront"
+    summary_dynamic: "Độ trễ product-reviews TĂNG BẤT THƯỜNG so với baseline (chưa chạm 2s — cảnh báo sớm)"
     query: >-
       histogram_quantile(0.95,
         sum by (le) (
@@ -108,7 +182,7 @@ rules:
   - id: db-pool-exhaustion
     type: log
     severity: critical
-    summary: "DB connection pool can (INC-1/S01 tai dien) - checkout co the timeout"
+    summary: "DB connection pool cạn (INC-1/S01 tái diễn) — checkout có thể timeout"
     match_phrases:
       - "too many clients"
       - "connection pool"
@@ -121,7 +195,7 @@ rules:
   - id: oom-detected
     type: log
     severity: critical
-    summary: "OutOfMemory / OOMKilled - pod bi giet vi het RAM (INC-2/S07)"
+    summary: "OutOfMemory / OOMKilled — pod bị giết vì hết RAM (INC-2/S07)"
     match_phrases:
       - "OutOfMemory"
       - "OOMKilled"
@@ -132,7 +206,7 @@ rules:
   - id: dns-resolution-error
     type: log
     severity: warning
-    summary: "Loi phan giai DNS / NXDOMAIN (S02) - service khong goi duoc dependency"
+    summary: "Lỗi phân giải DNS / NXDOMAIN (S02) — service không gọi được dependency"
     match_phrases:
       - "NXDOMAIN"
       - "no such host"
@@ -148,7 +222,7 @@ rules:
   - id: error-budget-burn-fast
     type: metric
     severity: critical
-    summary: "DRAFT K1: error budget burn > 14.4x tren ca 5m va 1h - dang dot budget 24h voi toc do chay het trong <2h"
+    summary: "DRAFT K1: đốt error budget > 14.4× ở CẢ 5m và 1h — tốc độ này cạn budget 24h trong dưới 2 giờ"
     query: >-
       (
         sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", http_response_status_code=~"5.."}[5m]))
@@ -174,7 +248,8 @@ rules:
   - id: grpc-error-rate-high
     type: metric
     severity: critical
-    summary: "gRPC error ratio > 5% - loi tang RPC (khong hien qua HTTP 5xx, vd productCatalogFailure)"
+    summary: "Tỉ lệ lỗi gRPC > 5% — lỗi tầng RPC (KHÔNG hiện qua HTTP 5xx, vd productCatalogFailure)"
+    summary_dynamic: "Tỉ lệ lỗi gRPC TĂNG BẤT THƯỜNG so với baseline (chưa vượt 5% — cảnh báo sớm)"
     query: >-
       sum by (service_name) (rate(rpc_server_duration_milliseconds_count{rpc_grpc_status_code=~"2|4|13|14"}[5m]))
       /
@@ -186,12 +261,15 @@ rules:
   - id: memory-saturation-high
     type: metric
     severity: warning
-    summary: "DRAFT K4: container memory > 85% limit trong 10m - nguy co OOMKill (valkey-cart/J1, INC-2)"
+    summary: "DRAFT K4: RAM container > 85% limit kéo dài 10m — nguy cơ OOMKill (valkey-cart/J1, INC-2)"
+    # Label `namespace` o day la NAMESPACE K8S (techx-tf1 tren EKS - xem
+    # platform/gitops/applications/application.yaml:31), KHONG phai service_namespace
+    # cua OTel (techx-corp). Hai label khac nguon, dung nham la rule cau 0 series.
     query: >-
       max by (container) (
-        avg_over_time(container_memory_working_set_bytes{namespace="techx-corp"}[10m])
+        avg_over_time(container_memory_working_set_bytes{namespace="techx-tf1"}[10m])
         /
-        clamp_min(kube_pod_container_resource_limits{namespace="techx-corp", resource="memory"}, 1)
+        clamp_min(kube_pod_container_resource_limits{namespace="techx-tf1", resource="memory"}, 1)
       )
     op: gt
     threshold: 0.85
@@ -204,8 +282,9 @@ rules:
     # ⚠️ Metric nay KHONG ton tai tren compose local (collector khong scrape kafka consumer lag) —
     # ten metric `kafka_consumer_group_lag` la GIA DINH, PHAI verify tren Prometheus EKS + kafka exporter
     # truoc khi tin (TF1-71). Giu DRAFT, khong bat production cho toi khi verify.
-    summary: "DRAFT: Kafka consumer lag > 1000 msg trong 10m - consumer tut hau, don hang xu ly cham"
+    summary: "DRAFT: Kafka consumer lag > 1000 msg trong 10m — consumer tụt hậu, đơn hàng xử lý chậm"
+    # namespace = namespace K8s (techx-tf1), cung ly do voi rule memory-saturation-high.
     query: >-
-      max by (group) (avg_over_time(kafka_consumer_group_lag{namespace="techx-corp"}[10m]))
+      max by (group) (avg_over_time(kafka_consumer_group_lag{namespace="techx-tf1"}[10m]))
     op: gt
     threshold: 1000

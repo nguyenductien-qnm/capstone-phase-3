@@ -22,6 +22,10 @@ FROM docker.io/library/php:8.4-cli-alpine3.22
 
 COPY --from=installer /usr/bin/install-php-extensions /usr/local/bin/
 
+# Vá CVE ở package hệ thống của base image (vd CVE-2026-33630 c-ares).
+# Base image tag không đổi nhưng repo alpine đã có bản vá -> upgrade lúc build.
+RUN apk upgrade --no-cache
+
 RUN install-php-extensions opcache pcntl protobuf opentelemetry
 
 WORKDIR /var/www
