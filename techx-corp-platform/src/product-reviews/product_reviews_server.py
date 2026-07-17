@@ -7,6 +7,7 @@
 # Python
 import os
 import json
+import re
 from concurrent import futures
 import random
 
@@ -486,6 +487,12 @@ def invoke_bedrock_converse_with_fallback(messages, system_prompt, tool_config=N
     # 3. If we reach here, both primary and fallback failed
     raise Exception("All model attempts exhausted or failed.")
 
+def build_ai_assistant_cache_key(request_product_id, model_ver, prompt_ver, content_fp, question):
+    """Content-addressed Valkey key. Must include `question` — two different
+    questions about the same product are two different answers, not one."""
+    question_fp = hashlib.sha256(question.strip().lower().encode()).hexdigest()[:16]
+    return f"reviews:summary:{request_product_id}:{model_ver}:{prompt_ver}:{content_fp}:{question_fp}"
+
 def get_ai_assistant_response(request_product_id, question, context=None):
 
     with tracer.start_as_current_span("get_ai_assistant_response") as span:
@@ -529,7 +536,7 @@ def get_ai_assistant_response(request_product_id, question, context=None):
         except Exception as e:
             logger.error(f"Reviews fingerprint error (skip cache this call): {e}")
             content_fp = None
-        cache_key = f"reviews:summary:{request_product_id}:{model_ver}:{prompt_ver}:{content_fp}"
+        cache_key = build_ai_assistant_cache_key(request_product_id, model_ver, prompt_ver, content_fp, question)
         llm_reviews_cache_enabled = check_feature_flag("llmReviewsCacheEnabled", default=True) and content_fp is not None
         logger.info(f"llmReviewsCacheEnabled feature flag: {llm_reviews_cache_enabled}")
 
@@ -734,6 +741,12 @@ def get_ai_assistant_response(request_product_id, question, context=None):
             else:
                 text_parts = [b["text"] for b in content_blocks if "text" in b]
                 result = "\n".join(text_parts) if text_parts else ""
+
+            # Bug (reproduced live 17/07): model doi khi tra <thinking>...</thinking>
+            # lam van ban thuong thay vi reasoning block rieng -> leak thang ra UI.
+            # Strip truoc moi guard/cache/return khac.
+            if result:
+                result = re.sub(r"<thinking>.*?</thinking>\s*", "", result, flags=re.DOTALL).strip()
 
             # Guardrail Phan A: output guard — chặn lộ system prompt + redact PII khỏi khách.
             result = redact_pii(result)
