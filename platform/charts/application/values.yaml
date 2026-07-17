@@ -1919,7 +1919,8 @@ opensearch:
   resources:
     requests:
       cpu: 250m
-      memory: 1Gi       # usage đo ~915Mi (JVM 400m heap + lucene off-heap); request thật chống binpack
+      memory: 512Mi     # node obs t3.medium 3.9Gi: request 1Gi làm tổng vượt node -> Pending.
+                        # Right-size thật cần resize node (terraform EKS module) - xem follow-up.
     limits:
       cpu: "1"
       memory: 1100Mi
