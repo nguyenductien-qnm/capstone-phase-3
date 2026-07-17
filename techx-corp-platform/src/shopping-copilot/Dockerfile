@@ -15,6 +15,9 @@ RUN venv/bin/opentelemetry-bootstrap -a install
 
 FROM docker.io/library/python:3.12-alpine3.22
 
+# Patch OS packages from the base image, e.g. OpenSSL libcrypto3/libssl3 CVEs.
+RUN apk upgrade --no-cache
+
 COPY --from=build-venv /venv/ /venv/
 
 WORKDIR /app
