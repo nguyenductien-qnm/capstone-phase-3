@@ -27,6 +27,10 @@ import os
 import sys
 import base64
 
+# BUG-5 fix: restore sys.path removed in TF1-61-bedrock-guardrails refactor.
+# guardrails.py sống ở product-reviews (canonical) — byte-identical với shopping-copilot.
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../techx-corp-platform/src/product-reviews"))
+
 from guardrails import (
     sanitize_text, sanitize_json_for_llm, leaks_system_prompt,
     validate_citations, detect_semantic_similarity_to_known_attacks,

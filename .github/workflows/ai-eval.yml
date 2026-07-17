@@ -5,6 +5,9 @@ on:
     paths:
       - 'docs/ai/**'
       - 'techx-corp-platform/src/llm/**'
+      - 'techx-corp-platform/src/product-reviews/guardrails.py'
+      - 'techx-corp-platform/src/shopping-copilot/guardrails.py'
+      - 'techx-corp-platform/src/ml-guard/**'
   push:
     branches:
       - main

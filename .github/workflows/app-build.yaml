@@ -287,7 +287,11 @@ jobs:
         id: buildargs
         run: |
           set -euo pipefail
-          ENV_FILE="$BUILD_CONTEXT/.env"
+          if [ -f "$BUILD_CONTEXT/.env" ]; then
+            ENV_FILE="$BUILD_CONTEXT/.env"
+          else
+            ENV_FILE="$BUILD_CONTEXT/.env.example"
+          fi
           {
             echo "args<<EOF"
             grep -E '^(OTEL_JAVA_AGENT_VERSION|OPENTELEMETRY_CPP_VERSION)=' "$ENV_FILE" \
