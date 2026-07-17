@@ -671,11 +671,14 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                         raise Exception(f'Received unexpected tool call request: {tool_name}')
 
                     tool_results_raw.append(function_response)
+                    parsed_res = json.loads(function_response)
+                    if not isinstance(parsed_res, dict):
+                        parsed_res = {"result": parsed_res}
                     tool_results.append({
                         "toolUseId": tool_use_id,
                         # function_response is already sanitized above (both branches) —
                         # reuse it instead of re-sanitizing the same string twice.
-                        "content": [{"json": json.loads(function_response)}],
+                        "content": [{"json": parsed_res}],
                     })
 
                 llm_inaccurate_response = check_feature_flag("llmInaccurateResponse")

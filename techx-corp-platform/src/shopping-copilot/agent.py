@@ -402,8 +402,10 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
                 tool_name=name, arguments_json=json.dumps(args), succeeded=ok,
                 started_at_unix=int(started), duration_ms=int((time.time() - started) * 1000),
             ))
-            logger.info("audit tool=%s args=%s ok=%s", name, json.dumps(args), ok)
-            results.append({"toolUseId": tuid, "content": [{"json": json.loads(out)}]})
+            parsed_out = json.loads(out)
+            if not isinstance(parsed_out, dict):
+                parsed_out = {"result": parsed_out}
+            results.append({"toolUseId": tuid, "content": [{"json": parsed_out}]})
 
         current.append({"role": "user", "content": [{"toolResult": r} for r in results]})
 
