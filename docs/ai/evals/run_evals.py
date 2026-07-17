@@ -66,6 +66,23 @@ def load_summaries(path: str) -> dict:
     return {item["product_id"]: item["product_review_summary"] for item in items}
 
 
+def call_bedrock_summarize(reviews_text: str) -> str:
+    """Gọi Bedrock Nova để tóm tắt thực tế nếu chưa có trong mock data."""
+    prompt = f"Tóm tắt các đánh giá sản phẩm sau trong 20-50 từ:\n\n{reviews_text}"
+    try:
+        import boto3
+        client = boto3.client("bedrock-runtime", region_name="us-east-1")
+        
+        response = client.converse(
+            modelId="amazon.nova-lite-v1:0",
+            messages=[{"role": "user", "content": [{"text": prompt}]}]
+        )
+        return response['output']['message']['content'][0]['text']
+    except Exception as e:
+        print(f"  [WARN] Không gọi được Bedrock ({e}). Dùng fallback nối string.")
+        return reviews_text
+
+
 # ─────────────────────────────────────────────
 # Evaluation metrics
 # ─────────────────────────────────────────────
@@ -163,10 +180,11 @@ def run_evals(
         # Lấy tóm tắt thực tế
         actual_summary = summaries.get(pid, "")
         if not actual_summary:
-            # Fallback: dùng tóm tắt từ reviews trong dataset nếu có
+            # Gọi Bedrock thật nếu không có sẵn
             reviews = case.get("reviews", [])
             if reviews:
-                actual_summary = " ".join(r.get("comment", "") for r in reviews)
+                reviews_text = " ".join(f"- {r.get('comment', '')}" for r in reviews)
+                actual_summary = call_bedrock_summarize(reviews_text)
             else:
                 actual_summary = ""
 

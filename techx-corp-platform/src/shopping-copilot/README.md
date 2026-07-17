@@ -44,10 +44,12 @@ omission — the LLM is never given a tool definition for them.
 |---|---|---|
 | `SHOPPING_COPILOT_PORT` | `50051` | gRPC listen port |
 | `AWS_REGION` | `us-east-1` | Bedrock region (needs `bedrock:InvokeModel`) |
-| `LLM_COPILOT_MODEL` | `amazon.nova-pro-v1:0` | main agent model |
-| `PRODUCT_CATALOG_ADDR` | `product-catalog:3550` | downstream |
-| `PRODUCT_REVIEWS_ADDR` | `product-reviews:8080` | downstream |
-| `CART_SERVICE_ADDR` | `cart:7070` | downstream |
+| `BEDROCK_AWS_ROLE_ARN` | unset | optional cross-account Bedrock role; base credentials still come from IRSA/Pod Identity |
+| `BEDROCK_AWS_EXTERNAL_ID` | unset | optional external id for cross-account assume-role trust |
+| `LLM_COPILOT_MODEL` / `LLM_COPILOT_MAIN_MODEL` | `amazon.nova-pro-v1:0` | main agent model |
+| `PRODUCT_CATALOG_ADDR` | `product-catalog:8080` | downstream |
+| `PRODUCT_REVIEWS_ADDR` | `product-reviews:3551` | downstream |
+| `CART_SERVICE_ADDR` / `CART_ADDR` | `cart:8080` | downstream |
 | `COPILOT_RPC_TIMEOUT` | `2.0` | per-RPC deadline (spec §6) |
 | `COPILOT_CONFIRM_TTL` | `300` | confirmation-token TTL (s) |
 
