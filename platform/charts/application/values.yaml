@@ -726,6 +726,8 @@ components:
         value: recommendation:8080
       - name: SHIPPING_ADDR
         value: http://shipping:8080
+      - name: SHOPPING_COPILOT_ADDR
+        value: shopping-copilot:50051
       - name: FLAGD_HOST
         value: flagd
       - name: FLAGD_PORT
@@ -966,6 +968,48 @@ components:
       limits:
         cpu: 500m
         memory: 500Mi     # P0 right-size: LOCUST_BROWSER_TRAFFIC_ENABLED=false -> HTTP thuần (PR#49, restore sau PR#106)
+  ml-guard:
+    # Self-hosted ML Guard cascade stage (ADR-014, MANDATE-06 §7.1): Presidio PII +
+    # ProtectAI prompt-injection classifier + mDeBERTa-xnli grounding NLI, called over
+    # HTTP by product-reviews/shopping-copilot's guardrails.py (ML_GUARD_URL). Model
+    # load takes 25-90s -> startupProbe covers warm-up before readiness is checked,
+    # same convention as product-catalog's Postgres-wait startupProbe below.
+    enabled: true
+    useDefault:
+      env: true
+    imageOverride:
+      tag: "1.0-ml-guard"
+    replicas: 1 # traffic Ask-AI ~10 view : 1 call; no HPA (docs §7.1)
+    # no serviceAccount block: model is local, no AWS calls (docs §7.3)
+    service:
+      port: 8090
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: techx-corp
+    startupProbe:
+      httpGet: { path: /healthz, port: 8090 }
+      periodSeconds: 5
+      failureThreshold: 24
+    readinessProbe:
+      httpGet: { path: /healthz, port: 8090 }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
+    livenessProbe:
+      httpGet: { path: /healthz, port: 8090 }
+      periodSeconds: 10
+      timeoutSeconds: 2
+      failureThreshold: 6
+    env:
+      - name: ML_GUARD_PORT
+        value: "8090"
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1280Mi
+      limits:
+        cpu: 1000m
+        memory: 1536Mi
   payment:
     enabled: true
     imageOverride:
@@ -1135,6 +1179,10 @@ components:
           secretKeyRef:
             name: valkey-secret
             key: auth_token
+      - name: ML_GUARD_URL
+        value: http://ml-guard:8090
+      - name: LLM_LOCAL_ML_GUARD
+        value: "true"
     resources:
       requests:
         cpu: 100m
@@ -1284,6 +1332,10 @@ components:
         value: "true"
       - name: OTEL_EXPORTER_OTLP_ENDPOINT
         value: http://$(OTEL_COLLECTOR_NAME):4317
+      - name: ML_GUARD_URL
+        value: http://ml-guard:8090
+      - name: LLM_LOCAL_ML_GUARD
+        value: "true"
     resources:
       requests:
         cpu: 10m

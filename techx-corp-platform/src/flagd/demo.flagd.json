@@ -137,7 +137,7 @@
       }
     },
     "llmReviewsCacheEnabled": {
-      "defaultVariant": "off",
+      "defaultVariant": "on",
       "description": "Enable or disable LLM reviews cache bypass",
       "state": "ENABLED",
       "variants": {

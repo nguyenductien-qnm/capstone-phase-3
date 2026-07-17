@@ -5,3 +5,4 @@ sentencepiece==0.2.1
 presidio-analyzer
 presidio-anonymizer
 spacy
+cryptography>=48.0.1
