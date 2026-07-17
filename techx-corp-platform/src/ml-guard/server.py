@@ -41,13 +41,22 @@ _metrics = {"pass": 0, "block": 0, "judge": 0, "error": 0, "latency_sum": 0.0, "
 
 def _load_model():
     import torch
-    from transformers import AutoTokenizer, AutoModelForSequenceClassification
+    from transformers import AutoTokenizer, AutoModelForSequenceClassification, pipeline
+    from presidio_analyzer import AnalyzerEngine
+    from presidio_anonymizer import AnonymizerEngine
     torch.set_num_threads(TORCH_THREADS)
     tok = AutoTokenizer.from_pretrained(MODEL_ID)
     model = AutoModelForSequenceClassification.from_pretrained(MODEL_ID)
     model.eval()
-    _state.update(tok=tok, model=model, torch=torch, ready=True)
-    logger.info("model loaded: %s (threads=%d)", MODEL_ID, TORCH_THREADS)
+    p_model = os.environ.get("PROMPT_GUARD_MODEL", "protectai/deberta-v3-base-prompt-injection-v2")
+    prompt_guard = pipeline("text-classification", model=p_model)
+    analyzer = AnalyzerEngine()
+    anonymizer = AnonymizerEngine()
+    _state.update(
+        tok=tok, model=model, torch=torch, prompt_guard=prompt_guard, 
+        analyzer=analyzer, anonymizer=anonymizer, ready=True
+    )
+    logger.info("models loaded: %s, %s (threads=%d)", MODEL_ID, p_model, TORCH_THREADS)
 
 
 def nli_scores(premise, hypothesis):
@@ -105,13 +114,17 @@ class Handler(BaseHTTPRequestHandler):
             self._json(404, {"error": "not found"})
 
     def do_POST(self):
-        if self.path != "/v1/grounding":
+        if self.path not in ("/v1/grounding", "/v1/protect"):
             return self._json(404, {"error": "not found"})
         if not _state["ready"]:
             return self._json(503, {"error": "model not ready"})
         try:
             length = int(self.headers.get("Content-Length", 0))
             req = json.loads(self.rfile.read(length))
+            
+            if self.path == "/v1/protect":
+                return self._handle_protect(req)
+                
             source, answer = req.get("source", ""), req.get("answer", "")
             if not source.strip() or not answer.strip():
                 return self._json(400, {"error": "source and answer required"})
@@ -124,9 +137,40 @@ class Handler(BaseHTTPRequestHandler):
             result["latency_ms"] = round(dt * 1000, 1)
             return self._json(200, result)
         except Exception as e:  # lỗi nội bộ -> caller fail-open, không treo trang
-            _metrics["error"] += 1
-            logger.error("grounding error: %s", e)
+            if self.path == "/v1/grounding":
+                _metrics["error"] += 1
+            logger.error("error in %s: %s", self.path, e)
             return self._json(500, {"error": str(e)})
+
+    def _handle_protect(self, req):
+        text = req.get("text", "")
+        if not text:
+            return self._json(400, {"error": "text required"})
+            
+        t0 = time.perf_counter()
+        
+        # 1. Presidio PII
+        anonymized_text = text
+        analyzer = _state["analyzer"]
+        anonymizer = _state["anonymizer"]
+        results = analyzer.analyze(text=text, language='en')
+        if results:
+            anonymized = anonymizer.anonymize(text=text, analyzer_results=results)
+            anonymized_text = anonymized.text
+            
+        # 2. Prompt Guard
+        pipe = _state["prompt_guard"]
+        pg_res = pipe(anonymized_text[:2000])
+        label = pg_res[0]['label']
+        score = pg_res[0]['score']
+        
+        dt = time.perf_counter() - t0
+        return self._json(200, {
+            "text": anonymized_text,
+            "injection_label": label,
+            "injection_score": score,
+            "latency_ms": round(dt * 1000, 1)
+        })
 
 
 def main():

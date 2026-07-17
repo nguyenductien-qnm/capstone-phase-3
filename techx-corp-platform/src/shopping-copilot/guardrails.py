@@ -38,64 +38,35 @@ GUARDRAIL_ENABLED = bool(GUARDRAIL_ID) and (
 
 LOCAL_ML_GUARD = os.environ.get("LLM_LOCAL_ML_GUARD", "false").lower() == "true"
 
-_prompt_guard_pipe = None
-_presidio_analyzer = None
-_presidio_anonymizer = None
-
-def _get_prompt_guard():
-    global _prompt_guard_pipe
-    if _prompt_guard_pipe is None:
-        from transformers import pipeline
-        _prompt_guard_pipe = pipeline(
-            "text-classification",
-            model="protectai/deberta-v3-base-prompt-injection-v2",
+def _apply_protect(text, anonymize_only=False):
+    if not ML_GUARD_URL:
+        return text, False
+    import urllib.request
+    try:
+        req = urllib.request.Request(
+            f"{ML_GUARD_URL}/v1/protect",
+            data=json.dumps({"text": text}).encode(),
+            headers={"Content-Type": "application/json"},
         )
-    return _prompt_guard_pipe
-
-def _get_presidio():
-    global _presidio_analyzer, _presidio_anonymizer
-    if _presidio_analyzer is None:
-        from presidio_analyzer import AnalyzerEngine
-        from presidio_anonymizer import AnonymizerEngine
-        _presidio_analyzer = AnalyzerEngine()
-        _presidio_anonymizer = AnonymizerEngine()
-    return _presidio_analyzer, _presidio_anonymizer
-
-_PRESIDIO_TAG_MAP = {
-    "<EMAIL_ADDRESS>": "[REDACTED_EMAIL]",
-    "<PHONE_NUMBER>": "[REDACTED_PHONE]",
-    "<CREDIT_CARD>": "[REDACTED_CC]",
-    "<PERSON>": "[REDACTED_NAME]",
-    "<US_SSN>": "[REDACTED_SSN]",
-    "<IP_ADDRESS>": "[REDACTED_IP]",
-}
-
-def _normalize_presidio_tags(text):
-    for presidio_tag, our_tag in _PRESIDIO_TAG_MAP.items():
-        text = text.replace(presidio_tag, our_tag)
-    return text
+        with urllib.request.urlopen(req, timeout=ML_GUARD_TIMEOUT) as r:
+            res = json.loads(r.read())
+            anonymized = res.get("text", text)
+            label = res.get("injection_label", "")
+            score = res.get("injection_score", 0.0)
+            is_injection = False
+            if not anonymize_only:
+                if label == "INJECTION" and score >= 0.998:
+                    logger.warning("Local ML (ProtectAI) detected: %s (score=%.3f)", label, score)
+                    is_injection = True
+                elif label == "INJECTION":
+                    logger.info("Local ML (ProtectAI) borderline: %s (score=%.3f) — deferring to judge", label, score)
+            return anonymized, is_injection
+    except Exception as e:
+        logger.warning("ml-guard protect unreachable (%s).", e)
+        return text, False
 
 _VN_DIACRITICS = re.compile(r'[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]', re.IGNORECASE)
 
-def _apply_local_ml_guard(text):
-    if not text: return False
-    # ProtectAI DeBERTa train trên EN — false-positive cao trên tiếng Việt.
-    # VN text → skip, để Nova Judge (VN-capable) xử lý ở layer sau.
-    if _VN_DIACRITICS.search(text):
-        return False
-    try:
-        pipe = _get_prompt_guard()
-        result = pipe(text[:2000])
-        label = result[0]['label']
-        score = result[0]['score']
-        if label == "INJECTION" and score >= 0.998:
-            logger.warning("Local ML (ProtectAI) detected: %s (score=%.3f)", label, score)
-            return True
-        if label == "INJECTION":
-            logger.info("Local ML (ProtectAI) borderline: %s (score=%.3f) — deferring to judge", label, score)
-    except Exception as e:
-        logger.warning("Prompt Guard error: %s", e)
-    return False
 
 # ml-guard (ADR-013): self-host NLI grounding gate (mDeBERTa-xnli, VN trong XNLI).
 # Bench local 17/07: block-rule contra>=0.5 bắt 100% case bịa/bóp méo VN.
@@ -223,13 +194,21 @@ def apply_guardrail_input(bedrock_client, text):
         return (False, text)
     # T0: regex trên text GỐC — chặn free, trước khi Presidio có thể mangle pattern
     if _OBVIOUS_INJECTION.search(text):
-        return (True, redact_pii(text))
+        masked = redact_pii(text)
+        if LOCAL_ML_GUARD:
+            masked, _ = _apply_protect(masked, anonymize_only=True)
+        return (True, masked)
+    
     masked = redact_pii(text)
     
     # Phase-2: Local ML Gate (ProtectAI DeBERTa — chỉ EN/non-VN)
     if LOCAL_ML_GUARD:
-        if _apply_local_ml_guard(masked):
-            return (True, masked)
+        if not _VN_DIACRITICS.search(text):
+            masked, is_injection = _apply_protect(masked)
+            if is_injection:
+                return (True, masked)
+        else:
+            masked, _ = _apply_protect(masked, anonymize_only=True)
     # T2: Nova Lite judge cho attack VN tinh vi hơn regex (Micro chỉ 4/7 — đo 17/07)
     if INJECTION_JUDGE and bedrock_client is not None:
         verdict = _judge(bedrock_client, _INJ_JUDGE_SYSTEM, masked[:4000], model=INJECTION_JUDGE_MODEL)
@@ -257,6 +236,8 @@ def apply_guardrail_output(bedrock_client, answer, source_text, query):
     if not answer or not answer.strip():
         return (False, answer)
     masked = redact_pii(answer)
+    if LOCAL_ML_GUARD:
+        masked, _ = _apply_protect(masked, anonymize_only=True)
     src = (source_text or "")[:GROUNDING_MAX_SOURCE_CHARS]
 
     # Lớp 1: ml-guard NLI (self-host, fixed-cost, VN)
@@ -327,17 +308,6 @@ def redact_pii(text):
     text = _PII_EMAIL.sub('[REDACTED_EMAIL]', text)
     text = _PII_PHONE.sub('[REDACTED_PHONE]', text)
 
-    # Presidio sau — bắt thêm PII mà regex bỏ sót (tên người, SSN, IP...)
-    if LOCAL_ML_GUARD:
-        try:
-            analyzer, anonymizer = _get_presidio()
-            results = analyzer.analyze(text=text, language='en')
-            if results:
-                anonymized = anonymizer.anonymize(text=text, analyzer_results=results)
-                text = _normalize_presidio_tags(anonymized.text)
-        except Exception as e:
-            logger.warning("Presidio error: %s", e)
-
     return text
 
 
@@ -347,6 +317,8 @@ def sanitize_text(text):
     if not text:
         return text
     text = redact_pii(text)
+    if LOCAL_ML_GUARD:
+        text, _ = _apply_protect(text, anonymize_only=True)
     if _OBVIOUS_INJECTION.search(text):
         text = _OBVIOUS_INJECTION.sub('[filtered]', text)
     return text[:MAX_FIELD_CHARS]

@@ -544,6 +544,7 @@ services:
       - AWS_ACCESS_KEY_ID
       - AWS_SECRET_ACCESS_KEY
       - AWS_SESSION_TOKEN
+      - BEDROCK_AWS_ROLE_ARN
       - LLM_JUDGE_MODEL
       - OPENAI_API_KEY
       - PRODUCT_CATALOG_ADDR
@@ -551,7 +552,10 @@ services:
       - FLAGD_PORT
       - LLM_HOST
       - LLM_PORT
+      - ML_GUARD_URL=http://ml-guard:8090
     depends_on:
+      ml-guard:
+        condition: service_started
       product-catalog:
         condition: service_started
       llm:
@@ -961,4 +965,41 @@ services:
       interval: 5s
       timeout: 10s
       retries: 10
+    logging: *logging
+
+  # ML Guard service (ADR-013)
+  ml-guard:
+    image: ${IMAGE_NAME}:${DEMO_VERSION}-ml-guard
+    container_name: ml-guard
+    build:
+      context: ./
+      dockerfile: ./src/ml-guard/Dockerfile
+    ports:
+      - "8091:8090"
+    restart: unless-stopped
+    logging: *logging
+
+  # Shopping Copilot service (TF1-59)
+  shopping-copilot:
+    image: ${IMAGE_NAME}:${DEMO_VERSION}-shopping-copilot
+    container_name: shopping-copilot
+    build:
+      context: ./
+      dockerfile: ./src/shopping-copilot/Dockerfile
+    ports:
+      - "3552:3552"
+    environment:
+      - ML_GUARD_URL=http://ml-guard:8090
+      - PRODUCT_CATALOG_ADDR
+      - LLM_HOST
+      - LLM_PORT
+      - BEDROCK_AWS_ROLE_ARN
+      - OTEL_EXPORTER_OTLP_ENDPOINT
+      - OTEL_SERVICE_NAME=shopping-copilot
+      - OTEL_RESOURCE_ATTRIBUTES
+    depends_on:
+      ml-guard:
+        condition: service_started
+      product-catalog:
+        condition: service_started
     logging: *logging
