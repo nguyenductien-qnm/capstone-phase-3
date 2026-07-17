@@ -30,7 +30,14 @@ const request = async <T>({
     throw new Error(responseText || `HTTP error: ${response.status} ${response.statusText}`);
   }
 
-  if (!!responseText) return JSON.parse(responseText);
+  if (!!responseText) {
+    try {
+      return JSON.parse(responseText);
+    } catch (e) {
+      console.error('JSON parse error in Request.ts:', e);
+      return responseText as unknown as T;
+    }
+  }
 
   return undefined as unknown as T;
 };
