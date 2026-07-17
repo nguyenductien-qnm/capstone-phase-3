@@ -14,7 +14,7 @@ components:
       tag: "1.0-checkout-f1a4189"
   frontend-proxy:
     imageOverride:
-      tag: "1.0-frontend-proxy-f1a4189"
+      tag: "1.0-frontend-proxy-88f5e70"
   product-catalog:
     imageOverride:
       tag: "1.0-product-catalog-f1a4189"
@@ -29,7 +29,7 @@ components:
       tag: 1.0-accounting-f1a4189
   product-reviews:
     imageOverride:
-      tag: 1.0-product-reviews-8f61b85
+      tag: 1.0-product-reviews-88f5e70
   llm:
     imageOverride:
       tag: 1.0-llm-f1a4189
