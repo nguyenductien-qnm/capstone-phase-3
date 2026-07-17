@@ -215,7 +215,7 @@ _fallback_client = None
 def get_bedrock_fallback_client():
     global _fallback_client
     if _fallback_client is None:
-        aws_region = os.environ.get('AWS_REGION', 'us-east-2')
+        aws_region = os.environ.get('AWS_REGION', 'us-east-1')
         fallback_timeout = float(os.environ.get('LLM_COPILOT_FALLBACK_TIMEOUT', '2.5'))
         fallback_config = Config(connect_timeout=1.0, read_timeout=fallback_timeout, retries={'max_attempts': 0})
         _fallback_client = boto3.client(service_name="bedrock-runtime", region_name=aws_region, config=fallback_config)

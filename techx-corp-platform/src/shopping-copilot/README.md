@@ -43,8 +43,8 @@ omission — the LLM is never given a tool definition for them.
 | Var | Default | Notes |
 |---|---|---|
 | `SHOPPING_COPILOT_PORT` | `50051` | gRPC listen port |
-| `AWS_REGION` | `us-east-2` | Bedrock region (needs `bedrock:InvokeModel`; `us-east-1` returns `OperationNotAllowed` for this account) |
-| `LLM_COPILOT_MODEL` / `LLM_COPILOT_MAIN_MODEL` | `us.amazon.nova-pro-v1:0` | main agent model via Bedrock inference profile |
+| `AWS_REGION` | `us-east-1` | Bedrock region (needs `bedrock:InvokeModel`) |
+| `LLM_COPILOT_MODEL` / `LLM_COPILOT_MAIN_MODEL` | `amazon.nova-pro-v1:0` | main agent model |
 | `PRODUCT_CATALOG_ADDR` | `product-catalog:8080` | downstream |
 | `PRODUCT_REVIEWS_ADDR` | `product-reviews:3551` | downstream |
 | `CART_SERVICE_ADDR` / `CART_ADDR` | `cart:8080` | downstream |

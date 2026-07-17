@@ -1114,9 +1114,9 @@ components:
       - name: OPENAI_API_KEY
         value: dummy
       - name: AWS_REGION
-        value: us-east-2
+        value: us-east-1
       - name: LLM_COPILOT_MAIN_MODEL
-        value: us.amazon.nova-pro-v1:0
+        value: amazon.nova-pro-v1:0
       - name: LLM_COPILOT_FALLBACK_MODEL
         value: amazon.nova-lite-v1:0
       - name: LLM_COPILOT_TIMEOUT
