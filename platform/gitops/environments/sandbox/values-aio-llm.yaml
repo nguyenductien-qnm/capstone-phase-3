@@ -3,12 +3,6 @@
 components:
   product-reviews:
     envOverrides:
-      - name: LLM_BASE_URL
-        value: https://api.openai.com/v1 # hoặc Bedrock-compatible gateway
-      - name: LLM_MODEL
-        value: gpt-4o-mini
-      - name: OPENAI_API_KEY
-        valueFrom: { secretKeyRef: { name: llm-api-key, key: key } }
       # --- AWS Bedrock Guardrails configuration ---
       - name: LLM_BEDROCK_GUARDRAIL
         value: "true"
@@ -30,6 +24,13 @@ components:
       - name: AWS_REGION
         value: "us-east-2"
   shopping-copilot:
+    securityContext:
+      allowPrivilegeEscalation: false
+      runAsNonRoot: true
+      runAsUser: 10001
+      capabilities:
+        drop:
+          - ALL
     envOverrides:
       # --- AWS Bedrock Guardrails configuration ---
       - name: LLM_BEDROCK_GUARDRAIL
