@@ -4,7 +4,12 @@
     {{- $config := set . "name" ($name | lower) }}
     {{- $config := set . "Release" $.Release }}
     {{- $config := set . "Chart" $.Chart }}
-    {{- $config := set . "serviceAccount" $.Values.serviceAccount }}
+    {{- $componentServiceAccount := $config.serviceAccount }}
+    {{- $serviceAccount := $.Values.serviceAccount }}
+    {{- if $componentServiceAccount }}
+        {{- $serviceAccount = mergeOverwrite (deepCopy $.Values.serviceAccount) $componentServiceAccount }}
+    {{- end }}
+    {{- $config := set . "serviceAccount" $serviceAccount }}
     {{- $config := set . "observability" $.Values.observability }}
     {{- $config := set . "defaultValues" $.Values.default }}
 

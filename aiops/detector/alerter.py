@@ -16,6 +16,8 @@ log = logging.getLogger("aiops.alerter")
 TZ_VN = timezone(timedelta(hours=7))
 
 SEVERITY_EMOJI = {"critical": "\U0001F534", "warning": "\U0001F7E1", "info": "⚪"}
+# Mau brand Discord theo severity (decimal, dung cho field `color` cua embed).
+SEVERITY_COLOR = {"critical": 0xED4245, "warning": 0xFEE75C, "info": 0x5865F2}
 
 
 class Alerter:
@@ -97,8 +99,13 @@ class Alerter:
             ]
         }
 
-    def send(self, dedup_key, severity, title, message):
-        """Gui alert neu khong con trong cooldown. Return True neu da gui."""
+    def send(self, dedup_key, severity, title, message, fields=None):
+        """Gui alert neu khong con trong cooldown. Return True neu da gui.
+
+        `fields`: list tuple (name, value, inline) - du lieu that tach rieng
+        (service, phuong phap phat hien, gia tri do...) de Discord embed hien
+        thanh field ro rang thay vi nhoi het vao 1 doan text (review 17/07).
+        """
         now = time.time()
         last = self._last_sent.get(dedup_key, 0)
         if now - last < self.cooldown:
@@ -109,7 +116,7 @@ class Alerter:
         emoji = SEVERITY_EMOJI.get(severity, "⚪")
         stamp = datetime.now(TZ_VN).strftime("%Y-%m-%d %H:%M:%S (giờ VN)")
         text_fallback = f"{emoji} [{severity.upper()}] {title}\n{message}\nphát hiện lúc: {stamp}"
-        
+
         webhook_url = self.webhook_critical if severity == "critical" else (self.webhook_info or self.webhook_critical)
 
         try:
@@ -117,8 +124,19 @@ class Alerter:
                 payload = self._build_slack_block_kit(severity, title, message)
                 self._post(webhook_url, payload)
             elif self.provider == "discord" and webhook_url:
-                # Discord doesn't support Slack Block Kit natively via webhook unless mapped, fallback to content
-                self._post(webhook_url, {"content": text_fallback})
+                embed = {
+                    "title": f"{emoji} [{severity.upper()}] {title}",
+                    "description": message,
+                    "color": SEVERITY_COLOR.get(severity, 0x99AAB5),
+                    "timestamp": datetime.now(TZ_VN).isoformat(),
+                    "footer": {"text": f"AIOps Detector · dedup={dedup_key} · cooldown {self.cooldown}s"},
+                }
+                if fields:
+                    embed["fields"] = [
+                        {"name": name, "value": value, "inline": inline}
+                        for name, value, inline in fields
+                    ]
+                self._post(webhook_url, {"embeds": [embed]})
             else:  # stdout
                 print(f"\n===== ALERT =====\n{text_fallback}\n=================\n", flush=True)
             log.info("da gui alert [%s] %s", severity, dedup_key)

@@ -118,10 +118,19 @@ def test_degraded_on_bedrock_failure():
 
 
 
+def test_thinking_tags_are_stripped():
+    res = agent.run_agent(FakeBedrock([_end("<thinking>hidden</thinking> Visible answer")]), "m",
+                          [{"role": "user", "content": [{"text": "hi"}]}], "u1")
+    assert "thinking" not in res.text.lower()
+    assert "hidden" not in res.text
+    assert res.text == "Visible answer"
+
+
 if __name__ == "__main__":
     test_confirmation_gate_two_phase()
     test_read_tool_routing_and_audit()
     test_max_loop_limit()
     test_degraded_on_bedrock_failure()
+    test_thinking_tags_are_stripped()
 
     print("OK — all shopping-copilot self-checks passed")
