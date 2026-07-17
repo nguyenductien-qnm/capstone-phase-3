@@ -6,7 +6,7 @@
 #
 #   docker buildx build --platform linux/amd64 \
 #     -f aiops/remediation/Dockerfile \
-#     -t 804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.0-aiops-remediation \
+#     -t 804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.1-aiops-remediation \
 #     --push aiops
 FROM python:3.12-slim
 

@@ -450,6 +450,15 @@ giết tiến trình tức thời (OOM kernel, node eviction, `SIGKILL` từ bê
 trạng thái từ nguồn ghi nhận độc lập với chính tiến trình đó (ở đây là K8s API) —
 không có cách nào "log" để tự báo cáo cái chết đột ngột của chính mình.
 
+**Xác nhận trên EKS 17/07 (sau deploy `1.3-aiops-detector` + RBAC mới do CDO áp):**
+chạy lại đúng kịch bản chaos `ad` (hạ `limits.memory` → 20Mi) lần 2 để verify fix thật,
+không chỉ tin unit test mock. 2 lần thử đầu bị ArgoCD `selfHeal` phục hồi gần như tức
+thời (xem addendum ADR-013) trước khi pod kịp bị OOM hoặc trước khi detector kịp đọc
+được bằng chứng — lần thử thứ 3 bắt được OOMKilled thật (pod `ad-77847744d5-*`,
+`lastState.terminated.reason=OOMKilled`) → detector bắn alert thật lúc `15:11:33`:
+`da gui alert [critical] oom-detected:ad`. Xác nhận rule `k8s_status` hoạt động đúng
+trên K8s API thật ngoài đời, đóng vòng chứng minh fix.
+
 ---
 
 ### Addendum 16/07/2026 — Red-team nội bộ + hardening tối thiểu (không thêm model mới)
@@ -629,6 +638,20 @@ test hôm nay (log_count=0) để tránh regression.
    hiện tình cờ), remediation vẫn hoạt động độc lập vì tự poll OpenSearch riêng, không
    phụ thuộc tiến trình detector đang sống hay không. Cần xử lý riêng (rebuild/redeploy
    detector) — đã tiện thể bump lên `1.3-aiops-detector` cùng đợt fix `k8s_status` này.
+
+**Xác nhận trên EKS 17/07 (sau deploy `1.1-aiops-remediation`):** cùng đợt chaos test
+lại (xem addendum ADR-012) — remediation bắt đúng pod bị OOMKilled qua
+`trigger.type: k8s_pod_status` dù log OpenSearch rỗng, log thật lúc `15:11:25`:
+`[DRY-RUN] se restart pod techx-tf1/ad-77847744d5-pbk2x (service=ad) - khong goi K8s
+API that`, kèm alert `remediation-dryrun:oom-detected:ad` — 8 giây trước khi detector
+bắn alert tương ứng. Đóng vòng chứng minh fix `trigger.type` hoạt động đúng ngoài đời.
+
+Thêm quan sát về rủi ro ArgoCD `selfHeal` (điểm 1 ở trên): trong lần verify này, cửa sổ
+giữa lúc patch và lúc Argo phục hồi lại đôi khi **ngắn hơn cả chu kỳ poll 30s** của
+detector/remediation — 2/3 lần patch bị Argo revert (xoá pod bằng chứng) trước khi
+kịp đọc. Không phải lỗi code, nhưng là giới hạn thật của phương pháp chaos-test theo
+kiểu "patch tay lên resource do Argo quản lý": cần patch nhiều lần / theo dõi sát mới
+chắc chắn bắt được cửa sổ, chứ không phải lúc nào cũng ăn chắc lần đầu.
 
 ---
 
