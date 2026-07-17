@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-test_task_success.py - Eval task-success cho Shopping Copilot Agent
+test_task_success.py - HARNESS eval task-success cho Shopping Copilot Agent
 ====================================================================
 ⚠️  DEPRECATED — TF-64
     File này dùng run_mock_agent() (keyword matcher) để eval.
@@ -14,6 +14,8 @@ test_task_success.py - Eval task-success cho Shopping Copilot Agent
 
     File này được giữ lại cho backward compatibility (CI sanity check).
 ====================================================================
+⚠️ NHÃN TRUNG THỰC: số "accuracy" trong file này là SELF-TEST của harness mock,
+   KHÔNG phải eval agent thật.
 
 Mô tả   : Đo lường khả năng gọi ĐÚNG tool, ĐÚNG tham số, và dừng lại
            ở Confirmation Gate thay vì tự ghi — đúng tiêu chí §3 trong
@@ -160,7 +162,10 @@ def extract_tool_calls_from_mock(user_input: str) -> list[dict]:
     # Import tool handlers từ demo_copilot_st
     _script_dir = os.path.dirname(os.path.abspath(__file__))
     _repo_root = os.path.abspath(os.path.join(_script_dir, "..", "..", ".."))
-    sys.path.insert(0, _repo_root)
+    _copilot_poc_dir = os.path.join(_repo_root, "copilot-poc")
+    for path in (_repo_root, _copilot_poc_dir):
+        if path not in sys.path:
+            sys.path.insert(0, path)
 
     tool_calls = []
 

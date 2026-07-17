@@ -19,7 +19,17 @@ internal class DBContext : DbContext
     {
         var connectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING");
 
-        optionsBuilder.UseNpgsql(connectionString).UseSnakeCaseNamingConvention();
+        // CDO-TBD1: EF execution strategy retries transient Npgsql/RDS blips
+        // (failover, Proxy reconnect) on SaveChanges without restarting the pod.
+        optionsBuilder
+            .UseNpgsql(connectionString, npgsql =>
+            {
+                npgsql.EnableRetryOnFailure(
+                    maxRetryCount: 5,
+                    maxRetryDelay: TimeSpan.FromSeconds(5),
+                    errorCodesToAdd: null);
+            })
+            .UseSnakeCaseNamingConvention();
     }
 }
 
@@ -95,46 +105,123 @@ internal class Consumer : IDisposable
                 return;
             }
 
-            var orderEntity = new OrderEntity
-            {
-                Id = order.OrderId
-            };
-            _dbContext.Add(orderEntity);
-            foreach (var item in order.Items)
-            {
-                var orderItem = new OrderItemEntity
-                {
-                    ItemCostCurrencyCode = item.Cost.CurrencyCode,
-                    ItemCostUnits = item.Cost.Units,
-                    ItemCostNanos = item.Cost.Nanos,
-                    ProductId = item.Item.ProductId,
-                    Quantity = item.Item.Quantity,
-                    OrderId = order.OrderId
-                };
-
-                _dbContext.Add(orderItem);
-            }
-
-            var shipping = new ShippingEntity
-            {
-                ShippingTrackingId = order.ShippingTrackingId,
-                ShippingCostCurrencyCode = order.ShippingCost.CurrencyCode,
-                ShippingCostUnits = order.ShippingCost.Units,
-                ShippingCostNanos = order.ShippingCost.Nanos,
-                StreetAddress = order.ShippingAddress.StreetAddress,
-                City = order.ShippingAddress.City,
-                State = order.ShippingAddress.State,
-                Country = order.ShippingAddress.Country,
-                ZipCode = order.ShippingAddress.ZipCode,
-                OrderId = order.OrderId
-            };
-            _dbContext.Add(shipping);
-            _dbContext.SaveChanges();
+            PersistOrder(order);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Order parsing failed:");
         }
+    }
+
+    /// <summary>
+    /// CDO-TBD1: write path with EF retry strategy; if the context is poisoned
+    /// after a hard disconnect, recreate once and retry the unit of work.
+    /// </summary>
+    private void PersistOrder(OrderResult order)
+    {
+        try
+        {
+            WriteOrderGraph(order);
+        }
+        catch (Exception ex) when (IsLikelyTransientDbFailure(ex))
+        {
+            _logger.LogWarning(ex, "Transient DB failure persisting order {OrderId}; recreating DbContext and retrying once", order.OrderId);
+            try
+            {
+                _dbContext?.Dispose();
+            }
+            catch
+            {
+                // ignore dispose errors on a broken context
+            }
+
+            _dbContext = new DBContext();
+            WriteOrderGraph(order);
+        }
+    }
+
+    private void WriteOrderGraph(OrderResult order)
+    {
+        var orderEntity = new OrderEntity
+        {
+            Id = order.OrderId
+        };
+        _dbContext!.Add(orderEntity);
+        foreach (var item in order.Items)
+        {
+            var orderItem = new OrderItemEntity
+            {
+                ItemCostCurrencyCode = item.Cost.CurrencyCode,
+                ItemCostUnits = item.Cost.Units,
+                ItemCostNanos = item.Cost.Nanos,
+                ProductId = item.Item.ProductId,
+                Quantity = item.Item.Quantity,
+                OrderId = order.OrderId
+            };
+
+            _dbContext.Add(orderItem);
+        }
+
+        var shipping = new ShippingEntity
+        {
+            ShippingTrackingId = order.ShippingTrackingId,
+            ShippingCostCurrencyCode = order.ShippingCost.CurrencyCode,
+            ShippingCostUnits = order.ShippingCost.Units,
+            ShippingCostNanos = order.ShippingCost.Nanos,
+            StreetAddress = order.ShippingAddress.StreetAddress,
+            City = order.ShippingAddress.City,
+            State = order.ShippingAddress.State,
+            Country = order.ShippingAddress.Country,
+            ZipCode = order.ShippingAddress.ZipCode,
+            OrderId = order.OrderId
+        };
+        _dbContext.Add(shipping);
+        _dbContext.SaveChanges();
+    }
+
+    private static bool IsLikelyTransientDbFailure(Exception ex)
+    {
+        // String/type heuristics for a poisoned long-lived DbContext after RDS blip.
+        // Permanent SQL errors (unique violation, FK, ...) should return false.
+        for (Exception? e = ex; e != null; e = e.InnerException)
+        {
+            if (e is TimeoutException)
+            {
+                return true;
+            }
+
+            if (e is Npgsql.PostgresException pg)
+            {
+                // 08xxx = connection exception; 40001 serialization; 40P01 deadlock;
+                // 57P01 admin shutdown; 57P03 cannot connect now.
+                if (pg.IsTransient
+                    || (pg.SqlState is not null && pg.SqlState.StartsWith("08", StringComparison.Ordinal))
+                    || pg.SqlState is "40001" or "40P01" or "57P01" or "57P03")
+                {
+                    return true;
+                }
+                return false;
+            }
+
+            if (e is Npgsql.NpgsqlException)
+            {
+                return true;
+            }
+
+            var msg = e.Message;
+            if (msg.Contains("Exception while reading from stream", StringComparison.OrdinalIgnoreCase)
+                || msg.Contains("Connection is not open", StringComparison.OrdinalIgnoreCase)
+                || msg.Contains("broken", StringComparison.OrdinalIgnoreCase)
+                || msg.Contains("timeout", StringComparison.OrdinalIgnoreCase)
+                || msg.Contains("server closed", StringComparison.OrdinalIgnoreCase)
+                || msg.Contains("connection reset", StringComparison.OrdinalIgnoreCase)
+                || msg.Contains("the database system is starting up", StringComparison.OrdinalIgnoreCase)
+                || msg.Contains("the database system is in recovery mode", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static IConsumer<string, byte[]> BuildConsumer(string servers)
@@ -145,7 +232,11 @@ internal class Consumer : IDisposable
             BootstrapServers = servers,
             // https://github.com/confluentinc/confluent-kafka-dotnet/tree/07de95ed647af80a0db39ce6a8891a630423b952#basic-consumer-example
             AutoOffsetReset = AutoOffsetReset.Earliest,
-            EnableAutoCommit = true
+            EnableAutoCommit = true,
+            SecurityProtocol = SecurityProtocol.SaslSsl,
+            SaslMechanism = SaslMechanism.ScramSha512,
+            SaslUsername = Environment.GetEnvironmentVariable("KAFKA_USER"),
+            SaslPassword = Environment.GetEnvironmentVariable("KAFKA_PASSWORD")
         };
 
         return new ConsumerBuilder<string, byte[]>(conf)

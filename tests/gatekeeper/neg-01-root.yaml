@@ -1,0 +1,28 @@
+# NEGATIVE TEST — vi phạm luật #1: run-as-non-root (K8sPSPAllowedUsers, MustRunAsNonRoot)
+# Kỳ vọng: BỊ TỪ CHỐI khi apply vào techx-tf1.
+# Chỉ vi phạm ĐÚNG 1 luật (runAsUser: 0); mọi field khác hợp lệ để deny message ra sạch.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: neg-01-root
+  namespace: techx-tf1
+  labels:
+    app.kubernetes.io/part-of: gatekeeper-negative-test
+spec:
+  restartPolicy: Never
+  containers:
+    - name: neg-root
+      image: busybox:1.38.0   # tag pin — KHÔNG vi phạm luật image
+      command: ["sleep", "300"]
+      securityContext:
+        runAsUser: 0          # <-- VI PHẠM: chạy root
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
+      resources:              # đủ 4 field — KHÔNG vi phạm luật resources
+        requests:
+          cpu: 10m
+          memory: 16Mi
+        limits:
+          cpu: 50m
+          memory: 32Mi

@@ -1,0 +1,169 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "gridPos": { "h": 3, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "content": "# Cost Breakdown\n\nThis dashboard provides time series and breakdowns of AWS estimated charges. Configure the `Athena` datasource variable below to point to your Athena datasource UID (billing export). For simpler views, you can also use Cost Explorer queries.", "mode": "markdown" },
+      "pluginVersion": "11.5.2",
+      "title": "Overview",
+      "type": "text"
+    },
+    {
+      "datasource": { "type": "athena", "uid": "${athena_datasource}" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 3 },
+      "id": 2,
+      "interval": "",
+      "options": { "legend": { "showLegend": true } },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "rawQuery": true,
+          "query": "SELECT date_trunc('day', from_iso8601_timestamp(line_item_usage_start_date)) AS dt, SUM(line_item_unblended_cost) AS cost FROM ${billing_database}.${billing_table} WHERE from_iso8601_timestamp(line_item_usage_start_date) >= date_add('day', -30, current_date) GROUP BY date_trunc('day', from_iso8601_timestamp(line_item_usage_start_date)) ORDER BY dt",
+          "refId": "A"
+        }
+      ],
+      "title": "Estimated Charges (Total) - Athena",
+      "type": "timeseries"
+    },
+    {
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 11 },
+      "id": 3,
+      "options": {},
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "region": "us-east-1",
+          "namespace": "AWS/Billing",
+          "metricName": "EstimatedCharges",
+          "statistics": ["Maximum"],
+          "dimensions": { "Currency": "${currency}", "ServiceName": "" },
+          "refId": "A"
+        }
+      ],
+      "title": "Estimated Charges by Service (placeholder)",
+      "type": "timeseries"
+    },
+    {
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 11 },
+      "id": 4,
+      "options": {},
+      "pluginVersion": "11.5.2",
+      "targets": [],
+      "title": "Breakdown Recommendations",
+      "type": "text"
+    }
+    ,
+    {
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 19 },
+      "id": 5,
+      "options": {
+        "content": "### Athena example queries (billing export)\n\nReplace `${billing_database}` and `${billing_table}` with your Athena database/table.\n\nTop services by cost (last 30 days):\n\n```
+SELECT product_product_name AS service, SUM(line_item_unblended_cost) AS cost
+FROM ${billing_database}.${billing_table}
+WHERE from_iso8601_timestamp(line_item_usage_start_date) >= date_add('day', -30, current_date)
+GROUP BY product_product_name
+ORDER BY cost DESC
+LIMIT 20;
+```
+\nCost by linked account and tag (example):\n```
+SELECT line_item_account_id AS account, COALESCE(tags['${tag_key}'], '<<none>>') AS tag_value, SUM(line_item_unblended_cost) AS cost
+FROM ${billing_database}.${billing_table}
+WHERE from_iso8601_timestamp(line_item_usage_start_date) >= date_add('day', -30, current_date)
+GROUP BY line_item_account_id, COALESCE(tags['${tag_key}'], '<<none>>')
+ORDER BY cost DESC
+LIMIT 100;
+```
+\nNotes: Athena table schema depends on how the Cost & Usage Report is configured; `tags` may be a map column or separate columns (adjust query accordingly).",
+        "mode": "markdown"
+      },
+      "pluginVersion": "11.5.2",
+      "title": "Athena Query Examples",
+      "type": "text"
+    },
+    {
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 19 },
+      "id": 6,
+      "options": {
+        "content": "### AWS Cost Explorer CLI examples\n\nGet monthly cost by service for a date range:\n\n```
+aws ce get-cost-and-usage --time-period Start=2026-06-01,End=2026-07-01 \\\\
+  --granularity MONTHLY --metrics UnblendedCost \\\\
+  --group-by Type=DIMENSION,Key=SERVICE
+```
+\nGet cost by tag (Key=Project):\n```
+aws ce get-cost-and-usage --time-period Start=2026-06-01,End=2026-07-01 \\\\
+  --granularity MONTHLY --metrics UnblendedCost \\\\
+  --group-by Type=TAG,Key=Project
+```
+\nFor detailed historical exports, enable Cost & Usage Report to S3 and query with Athena as shown in the Athena examples.",
+        "mode": "markdown"
+      },
+      "pluginVersion": "11.5.2",
+      "title": "Cost Explorer Examples",
+      "type": "text"
+    }
+  ],
+  "refresh": "1h",
+  "schemaVersion": 42,
+  "style": "dark",
+  "tags": ["cost", "billing"],
+  "templating": {
+    "list": [
+      
+      {
+        "current": { "text": "USD", "value": "USD" },
+        "description": "Currency for EstimatedCharges metric (CloudWatch uses Currency dimension)",
+        "label": "Currency",
+        "name": "currency",
+        "options": [ { "text": "USD", "value": "USD" } ],
+        "type": "constant"
+      }
+      ,
+      {
+        "allowCustomValue": false,
+        "current": { "text": "Athena", "value": "aws-athena" },
+        "description": "Grafana Athena datasource UID for billing export queries",
+        "label": "Athena Datasource",
+        "name": "athena_datasource",
+        "options": [],
+        "query": "athena",
+        "refresh": 1,
+        "type": "datasource"
+      },
+      {
+        "current": { "text": "billing_db", "value": "billing_db" },
+        "description": "Athena database containing the billing export (set to your Athena DB)",
+        "label": "Billing Database",
+        "name": "billing_database",
+        "options": [],
+        "type": "constant"
+      },
+      {
+        "current": { "text": "billing_table", "value": "billing_table" },
+        "description": "Athena table name for the Cost and Usage Report export",
+        "label": "Billing Table",
+        "name": "billing_table",
+        "options": [],
+        "type": "constant"
+      },
+      {
+        "current": { "text": "user:team", "value": "user:team" },
+        "description": "Billing tag key to group costs by (example: user:team)",
+        "label": "Tag Key",
+        "name": "tag_key",
+        "options": [],
+        "type": "constant"
+      }
+    ]
+  },
+  "time": { "from": "now-30d", "to": "now" },
+  "timepicker": {},
+  "title": "Cost Breakdown",
+  "uid": "cost-breakdown",
+  "version": 1
+}

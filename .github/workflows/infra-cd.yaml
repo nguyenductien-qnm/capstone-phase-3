@@ -1,0 +1,518 @@
+name: Infra CD (Terraform + ArgoCD bootstrap)
+
+# CDO-147: fmt/validate/scan -> plan (PR comment) -> apply (gated) -> bootstrap ArgoCD.
+# QUAN TRỌNG: Terraform CHỈ dựng hạ tầng (EKS/VPC/RDS/MSK/ECR...). ArgoCD KHÔNG cài
+# bằng helm_release trong Terraform — sau khi apply xong, job `bootstrap-argocd` chạy
+# RIÊNG với kubeconfig token MỚI để tránh lỗi token hết hạn giữa chừng plan/apply.
+#
+# Deploy model: CI build+push ECR -> bump tag vào Git -> ArgoCD (selfHeal) tự sync.
+# Job này chỉ lo phần INFRA + cài ArgoCD; việc bump tag/sync app nằm ở workflow build.
+
+on:
+  push:
+    branches: ["develop", "main"]
+    paths:
+      - "terraform/**"
+      - ".github/workflows/infra-cd.yaml"
+  pull_request:
+    branches: ["develop", "main"]
+    paths:
+      - "terraform/**"
+      - ".github/workflows/infra-cd.yaml"
+  schedule:
+    # 07:17 ICT (UTC+7) hằng ngày — chống drift (auto-apply nếu có thay đổi).
+    - cron: "17 0 * * *"
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Apply after a successful plan"
+        required: true
+        default: false
+        type: boolean
+      confirm:
+        description: 'Type "apply-sandbox" to confirm apply'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+  security-events: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  # >=1.10 bắt buộc: backend S3 dùng use_lockfile (native S3 locking, không DynamoDB).
+  TF_VERSION: "1.14.8"
+  TF_LOCK_TIMEOUT: "10m"
+  TF_ROOT: terraform/environments/sandbox
+  # Cluster name = "${project_name}-${environment}-eks" (xem terraform/modules/eks/main.tf).
+  # tfvars hiện tại: project_name=ecommerce, environment=dev -> ecommerce-dev-eks.
+  CLUSTER_NAME: ${{ vars.EKS_CLUSTER_NAME || 'ecommerce-dev-eks' }}
+  # Terraform sandbox inputs: one GitHub Repository Variable per input.
+  TF_VAR_aws_region: ${{ vars.TF_VAR_AWS_REGION }}
+  TF_VAR_project_name: ${{ vars.TF_VAR_PROJECT_NAME }}
+  TF_VAR_environment: ${{ vars.TF_VAR_ENVIRONMENT }}
+  TF_VAR_vpc_cidr: ${{ vars.TF_VAR_VPC_CIDR }}
+  TF_VAR_public_subnets: ${{ vars.TF_VAR_PUBLIC_SUBNETS }}
+  TF_VAR_private_app_subnets: ${{ vars.TF_VAR_PRIVATE_APP_SUBNETS }}
+  TF_VAR_private_data_subnets: ${{ vars.TF_VAR_PRIVATE_DATA_SUBNETS }}
+  TF_VAR_private_mq_subnets: ${{ vars.TF_VAR_PRIVATE_MQ_SUBNETS }}
+  TF_VAR_enable_nat_gateway: ${{ vars.TF_VAR_ENABLE_NAT_GATEWAY }}
+  TF_VAR_single_nat_gateway: ${{ vars.TF_VAR_SINGLE_NAT_GATEWAY }}
+  TF_VAR_public_subnet_tags: ${{ vars.TF_VAR_PUBLIC_SUBNET_TAGS }}
+  TF_VAR_private_subnet_tags: ${{ vars.TF_VAR_PRIVATE_SUBNET_TAGS }}
+  TF_VAR_eks_cluster_version: ${{ vars.TF_VAR_EKS_CLUSTER_VERSION }}
+  TF_VAR_eks_node_capacity_type: ${{ vars.TF_VAR_EKS_NODE_CAPACITY_TYPE }}
+  TF_VAR_eks_endpoint_public_access: ${{ vars.TF_VAR_EKS_ENDPOINT_PUBLIC_ACCESS }}
+  TF_VAR_eks_public_access_cidrs: ${{ vars.TF_VAR_EKS_PUBLIC_ACCESS_CIDRS }}
+  TF_VAR_eks_control_plane_log_retention_days: ${{ vars.TF_VAR_EKS_CONTROL_PLANE_LOG_RETENTION_DAYS }}
+  TF_VAR_eks_access_entries: ${{ vars.TF_VAR_EKS_ACCESS_ENTRIES }}
+  TF_VAR_db_name: ${{ vars.TF_VAR_DB_NAME }}
+  TF_VAR_db_username: ${{ vars.TF_VAR_DB_USERNAME }}
+  TF_VAR_rds_instance_class: ${{ vars.TF_VAR_RDS_INSTANCE_CLASS }}
+  TF_VAR_rds_allocated_storage: ${{ vars.TF_VAR_RDS_ALLOCATED_STORAGE }}
+  TF_VAR_enable_read_replica: ${{ vars.TF_VAR_ENABLE_READ_REPLICA }}
+  TF_VAR_replica_instance_class: ${{ vars.TF_VAR_REPLICA_INSTANCE_CLASS }}
+  TF_VAR_enable_rds_proxy: ${{ vars.TF_VAR_ENABLE_RDS_PROXY }}
+  TF_VAR_rds_multi_az: ${{ vars.TF_VAR_RDS_MULTI_AZ }}
+  TF_VAR_kafka_version: ${{ vars.TF_VAR_KAFKA_VERSION }}
+  TF_VAR_valkey_node_type: ${{ vars.TF_VAR_VALKEY_NODE_TYPE }}
+  TF_VAR_valkey_num_cache_clusters: ${{ vars.TF_VAR_VALKEY_NUM_CACHE_CLUSTERS }}
+  TF_VAR_ecr_repositories: ${{ vars.TF_VAR_ECR_REPOSITORIES }}
+  TF_VAR_route53_zone_id: ${{ vars.TF_VAR_ROUTE53_ZONE_ID }}
+  TF_VAR_subdomain: ${{ vars.TF_VAR_SUBDOMAIN }}
+  TF_VAR_acm_certificate_arn: ${{ vars.TF_VAR_ACM_CERTIFICATE_ARN }}
+  TF_VAR_enable_cloudfront: ${{ vars.TF_VAR_ENABLE_CLOUDFRONT }}
+
+jobs:
+  # ------------------------------------------------------------------ #
+  # Guard: chỉ cho scheduled run chạy trong đúng cửa sổ 07:xx ICT      #
+  # (tránh GitHub delay cron làm chạy lệch giờ ngoài mong đợi).        #
+  # ------------------------------------------------------------------ #
+  schedule-window-guard:
+    name: Schedule window guard
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.guard.outputs.should_run }}
+    steps:
+      - name: Allow only the expected ICT schedule window
+        id: guard
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" != "schedule" ]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          current_hour_ict="$(TZ=Asia/Bangkok date +%H)"
+          current_time_ict="$(TZ=Asia/Bangkok date '+%Y-%m-%d %H:%M:%S %Z')"
+          if [ "$current_hour_ict" = "07" ]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "Scheduled run in allowed window: $current_time_ict"
+          else
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Skipping delayed scheduled run outside 07:00-07:59 ICT ($current_time_ict)"
+          fi
+
+  # ------------------------------------------------------------------ #
+  # Gate: fmt / validate (modules + root) / Trivy IaC / Checkov        #
+  # Không cần AWS creds — init -backend=false.                         #
+  # ------------------------------------------------------------------ #
+  terraform-static-checks:
+    name: Terraform fmt, validate, scan
+    needs: schedule-window-guard
+    if: needs.schedule-window-guard.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Terraform format check
+        run: |
+          set +e
+          terraform fmt -check -recursive -diff terraform
+          FMT_EXIT=$?
+          set -e
+          if [ "$FMT_EXIT" -eq 3 ]; then
+            echo "::error::Terraform files not formatted. Run: terraform fmt -recursive terraform"
+          fi
+          exit "$FMT_EXIT"
+
+      - name: Terraform validate modules
+        run: |
+          set -euo pipefail
+          for dir in terraform/modules/*; do
+            [ -d "$dir" ] || continue
+            if find "$dir" -maxdepth 1 -name '*.tf' -print -quit | grep -q .; then
+              echo "== validate module: $dir =="
+              terraform -chdir="$dir" init -backend=false -input=false
+              terraform -chdir="$dir" validate
+            fi
+          done
+
+      - name: Terraform validate sandbox root
+        run: |
+          terraform -chdir="$TF_ROOT" init -backend=false -input=false
+          terraform -chdir="$TF_ROOT" validate
+
+      - name: Trivy IaC scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: config
+          scan-ref: terraform
+          severity: CRITICAL,HIGH
+          exit-code: "0"
+          format: table
+
+      - name: Checkov scan
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: terraform
+          framework: terraform
+          soft_fail: true
+          quiet: true
+
+  # ------------------------------------------------------------------ #
+  # Plan: cần AWS creds + backend thật. PR -> comment plan.            #
+  # ------------------------------------------------------------------ #
+  terraform-plan:
+    name: Terraform plan sandbox
+    needs: terraform-static-checks
+    runs-on: ubuntu-latest
+    environment: sandbox
+    concurrency:
+      group: terraform-sandbox-state
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: ${{ env.TF_ROOT }}
+    outputs:
+      has_changes: ${{ steps.plan.outputs.has_changes }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.TF_AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-${{ github.actor }}-${{ github.run_id }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Terraform init
+        run: terraform init -input=false
+
+      - name: Terraform plan
+        id: plan
+        run: |
+          set +e
+          terraform plan -no-color -input=false -lock-timeout="$TF_LOCK_TIMEOUT" \
+            -var-file="primary-capacity.tfvars" \
+            -detailed-exitcode -out=tfplan
+          PLAN_EXIT=$?
+          set -e
+          if [ "$PLAN_EXIT" -eq 1 ]; then
+            exit 1
+          fi
+          if [ "$PLAN_EXIT" -eq 2 ]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          fi
+          terraform show -no-color tfplan > tfplan.txt
+
+      - name: Upload Terraform plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-sandbox-plan
+          path: |
+            ${{ env.TF_ROOT }}/tfplan
+            ${{ env.TF_ROOT }}/tfplan.txt
+          retention-days: 7
+
+      - name: Comment plan on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync(`${process.env.TF_ROOT}/tfplan.txt`, 'utf8');
+            const body = [
+              '### Terraform sandbox plan',
+              '',
+              '```',
+              plan.slice(-60000),
+              '```'
+            ].join('\n');
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body
+            });
+
+  # ------------------------------------------------------------------ #
+  # Apply: gated. Chạy khi:                                            #
+  #   - push develop/main (auto-apply)                                 #
+  #   - schedule (chống drift)                                         #
+  #   - dispatch apply=true & confirm=apply-sandbox                    #
+  # Chỉ khi plan có thay đổi.                                          #
+  # ------------------------------------------------------------------ #
+  terraform-apply:
+    name: Terraform apply sandbox
+    needs: terraform-plan
+    if: |
+      needs.terraform-plan.outputs.has_changes == 'true' &&
+      (
+        github.event_name == 'schedule' ||
+        (
+          github.event_name == 'push' &&
+          (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')
+        ) ||
+        (
+          github.event_name == 'workflow_dispatch' &&
+          github.event.inputs.apply == 'true' &&
+          github.event.inputs.confirm == 'apply-sandbox'
+        )
+      )
+    runs-on: ubuntu-latest
+    environment: sandbox
+    concurrency:
+      group: terraform-sandbox-state
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: ${{ env.TF_ROOT }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.TF_AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-${{ github.actor }}-${{ github.run_id }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Download Terraform plan
+        uses: actions/download-artifact@v4
+        with:
+          name: terraform-sandbox-plan
+          path: ${{ env.TF_ROOT }}
+
+      - name: Terraform init
+        run: terraform init -input=false
+
+      - name: Terraform apply
+        run: terraform apply -auto-approve -input=false -lock-timeout="$TF_LOCK_TIMEOUT" tfplan
+
+      - name: Export deployment outputs
+        run: terraform output -no-color || true
+
+  # ================================================================== #
+  # Stage 2: Bootstrap ArgoCD — chạy RIÊNG sau khi hạ tầng đã dựng     #
+  # xong. Lấy kubeconfig token MỚI -> helm install ArgoCD (idempotent) #
+  # -> apply App-of-Apps root. KHÔNG dùng helm_release trong Terraform #
+  # để không bao giờ dính token hết hạn giữa apply.                    #
+  # ================================================================== #
+  bootstrap-argocd:
+    name: Bootstrap ArgoCD vào EKS
+    needs: terraform-apply
+    if: needs.terraform-apply.result == 'success'
+    runs-on: ubuntu-latest
+    environment: sandbox
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      ARGOCD_NAMESPACE: argocd
+      ARGOCD_CHART_VERSION: "7.8.26"
+      PROJECTS_PATH: platform/gitops/projects
+      ROOT_APP_PATH: platform/gitops/bootstrap/root-app.yaml
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.TF_AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-${{ github.actor }}-${{ github.run_id }}
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: "v1.30.0"
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: "v3.17.0"
+
+      - name: Update kubeconfig (token MỚI, không bị hết hạn)
+        run: |
+          aws eks update-kubeconfig --name "$CLUSTER_NAME" --region "$AWS_REGION"
+          kubectl cluster-info
+
+      - name: Ensure ArgoCD is available
+        run: |
+          set -euo pipefail
+
+          if helm status argocd --namespace "$ARGOCD_NAMESPACE" >/dev/null 2>&1; then
+            install_with_helm=true
+            echo "ArgoCD is Helm-managed; upgrading the existing release."
+          elif kubectl get deployment argocd-server \
+            --namespace "$ARGOCD_NAMESPACE" >/dev/null 2>&1; then
+            install_with_helm=false
+            echo "ArgoCD is already installed outside Helm; preserving the existing installation."
+          else
+            install_with_helm=true
+            echo "ArgoCD is not installed; creating a Helm release."
+          fi
+
+          if [ "$install_with_helm" = "true" ]; then
+            helm repo add argo https://argoproj.github.io/argo-helm --force-update
+            helm repo update
+            helm upgrade --install argocd argo/argo-cd \
+              --namespace "$ARGOCD_NAMESPACE" \
+              --create-namespace \
+              --version "$ARGOCD_CHART_VERSION" \
+              --set server.service.type=ClusterIP \
+              --wait \
+              --wait-for-jobs \
+              --timeout 10m
+          fi
+
+          for kind in deployment statefulset; do
+            while IFS= read -r workload; do
+              [ -n "$workload" ] || continue
+              kubectl rollout status "$workload" \
+                --namespace "$ARGOCD_NAMESPACE" \
+                --timeout=5m
+            done < <(kubectl get "$kind" \
+              --namespace "$ARGOCD_NAMESPACE" \
+              --output=name)
+          done
+          kubectl get pods -n "$ARGOCD_NAMESPACE"
+
+      - name: Apply ArgoCD Root App (App-of-Apps)
+        run: |
+          set -euo pipefail
+          kubectl wait --for=condition=established \
+            crd/applications.argoproj.io \
+            crd/appprojects.argoproj.io \
+            --timeout=60s
+
+          # AppProject PHẢI được apply trước root-app nếu app tham chiếu project
+          # tùy biến. platform/gitops/projects/ hiện chỉ có README -> apply có điều
+          # kiện, tránh "error: no objects passed to apply".
+          if ls "$PROJECTS_PATH"/*.yaml >/dev/null 2>&1; then
+            kubectl apply -f "$PROJECTS_PATH"
+            echo "✅ AppProject applied"
+          else
+            echo "ℹ️ Chưa có AppProject tùy biến trong $PROJECTS_PATH; bỏ qua."
+          fi
+
+          kubectl apply -f "$ROOT_APP_PATH"
+          echo "✅ Root App applied — ArgoCD sẽ tự sync các app còn lại (selfHeal)"
+
+      - name: Kiểm tra trạng thái ArgoCD
+        run: |
+          echo "=== ArgoCD Pods ==="
+          kubectl get pods -n "$ARGOCD_NAMESPACE"
+          echo "=== ArgoCD Applications ==="
+          kubectl get applications -n "$ARGOCD_NAMESPACE" || true
+
+  # ================================================================== #
+  # CDO-143: Smoke test hot-path sau deploy.                           #
+  # Chạy SAU bootstrap-argocd — ArgoCD đã sync app. Chờ ArgoCD Root    #
+  # App Healthy rồi test luồng browse -> cart -> checkout qua          #
+  # frontend-proxy (port-forward, không cần NLB public). Đỏ = chặn.    #
+  # ================================================================== #
+  smoke-test:
+    name: Smoke test hot-path
+    needs: bootstrap-argocd
+    if: needs.bootstrap-argocd.result == 'success'
+    runs-on: ubuntu-latest
+    environment: sandbox
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      ARGOCD_NAMESPACE: argocd
+      APP_NAMESPACE: techx-tf1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.TF_AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-${{ github.actor }}-${{ github.run_id }}
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: "v1.30.0"
+
+      - name: Update kubeconfig (token MỚI)
+        run: |
+          aws eks update-kubeconfig --name "$CLUSTER_NAME" --region "$AWS_REGION"
+          kubectl cluster-info
+
+      # ArgoCD selfHeal là bất đồng bộ — chờ Root App (App-of-Apps) Synced+Healthy
+      # trước khi smoke, tránh test trúng lúc app chưa kịp sync (false negative).
+      - name: Chờ ArgoCD Applications Healthy
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 30); do
+            not_ready=$(kubectl get applications -n "$ARGOCD_NAMESPACE" \
+              -o jsonpath='{range .items[*]}{.metadata.name}={.status.sync.status}/{.status.health.status} {end}' 2>/dev/null \
+              | tr ' ' '\n' | grep -vE '=Synced/Healthy$' | grep -v '^$' || true)
+            if [ -z "$not_ready" ]; then
+              echo "✅ Tất cả ArgoCD Applications Synced/Healthy"
+              break
+            fi
+            echo "[$i/30] Chờ app sync: $not_ready"
+            sleep 10
+          done
+
+      - name: Smoke hot-path (browse -> cart -> checkout)
+        run: bash scripts/validate/smoke-test-hotpath.sh

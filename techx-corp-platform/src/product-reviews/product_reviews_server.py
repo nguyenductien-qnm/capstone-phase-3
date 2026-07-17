@@ -28,7 +28,11 @@ import demo_pb2
 import demo_pb2_grpc
 from grpc_health.v1 import health_pb2
 from grpc_health.v1 import health_pb2_grpc
-from database import fetch_product_reviews, fetch_product_reviews_from_db, fetch_avg_product_review_score_from_db
+from database import fetch_product_reviews, fetch_product_reviews_from_db, fetch_avg_product_review_score_from_db, fetch_reviews_fingerprint
+from guardrails import (
+    sanitize_json_for_llm, leaks_system_prompt, redact_pii, detect_prompt_injection_llm,
+    sanitize_text, validate_citations, detect_semantic_similarity_to_known_attacks,
+)
 
 from openfeature import api
 from openfeature.contrib.provider.flagd import FlagdProvider
@@ -40,13 +44,17 @@ from metrics import (
 # OpenAI
 from openai import OpenAI
 
+# Model Router
+from model_router import ModelRouter
+
 import boto3
-from botocore.exceptions import ClientError, ReadTimeoutError, ConnectTimeoutError
+from botocore.exceptions import ClientError, ReadTimeoutError, ConnectTimeoutError, BotoCoreError
 from botocore.config import Config
 import redis
 from datetime import datetime, timezone
 import threading
 import time
+import hashlib
 
 from google.protobuf.json_format import MessageToJson, MessageToDict
 
@@ -60,13 +68,44 @@ llm_model = None
 
 # --- Define the tool for the OpenAI API ---
 valkey_client = None
-model_ver = "nova-lite-v1"
-prompt_ver = "p3"
+
+SYSTEM_PROMPT = "You are a helpful assistant that answers related to a specific product. Use tools as needed to fetch the product reviews and product information. Keep the response brief with no more than 1-2 sentences. If you don't know the answer, just say you don't know."
+MOCK_SUMMARY_VI = "Hiện tại hệ thống không thể tạo tóm tắt đánh giá. Vui lòng tham khảo các đánh giá chi tiết bên dưới."
+# Review C1: version cache key theo model/prompt THUC dang dung — doi qua env la key tu doi,
+# khong con hang so chet lam versioned-key mat tac dung.
+model_ver = os.environ.get('LLM_REVIEWS_MAIN_MODEL', os.environ.get('AWS_BEDROCK_MODEL', 'arn:aws:bedrock:us-east-1:804372444787:application-inference-profile/krbq2wsgp11t'))
+prompt_ver = hashlib.md5(SYSTEM_PROMPT.encode()).hexdigest()[:8]
 
 # New Bedrock Clients & Bulkhead for Caching/Fallback
 bedrock_primary_client = None
 bedrock_fallback_client = None
-bedrock_bulkhead = threading.Semaphore(10)
+# Review B1: sema < gRPC max_workers(10) va acquire non-blocking — waiter van giu thread cua pool
+# nen blocking-wait khong bao ve duoc GetProductReviews (da chung minh bang thi nghiem).
+bedrock_bulkhead = threading.Semaphore(int(os.environ.get('LLM_BULKHEAD_SIZE', '6')))
+
+# Review B2: circuit breaker theo loi quan sat duoc — KHONG doc co su co flagd (AI_FEATURE §3).
+_cb_lock = threading.Lock()
+_cb_state = {"failures": 0, "open_until": 0.0}
+CB_FAILURE_THRESHOLD = int(os.environ.get('LLM_CB_THRESHOLD', '3'))
+CB_COOLDOWN_SECONDS = float(os.environ.get('LLM_CB_COOLDOWN', '30'))
+
+# Justification (12/07, xem ADR-log "So dang ky con so"):
+# - maxTokens 1024: TRAN chong runaway, khong phai target — output tom tat ~200 token (cost model),
+#   vong tool-use can them JSON block; billing tinh theo token SINH THUC nen tran cao khong ton them,
+#   chi chan truong hop model lan man giu ket noi lau (timeout 3s se cat truoc).
+# - temperature 0.1: tom tat/QA phai bam nguon (SLO "khong show tom tat sai") + output gan-deterministic
+#   de eval keyword tai tao duoc va cache 7d nhat quan. Khong dung 0.0 de tranh loop degenerate.
+# - topP 0.9: voi temp 0.1 phan phoi da rat nhon, topP gan nhu khong tac dong — giu muc pho bien,
+#   KHONG phai tham so dieu khien chinh (doi temp truoc neu can chinh hanh vi).
+INFERENCE_CONFIG = {
+    "maxTokens": int(os.environ.get('LLM_MAX_TOKENS', '1024')),
+    "temperature": float(os.environ.get('LLM_TEMPERATURE', '0.1')),
+    "topP": float(os.environ.get('LLM_TOP_P', '0.9')),
+}
+
+# INC-3: Readiness-gating span (record when service becomes ready to avoid 503 during deploy)
+_service_ready = False
+_readiness_span_recorded = False
 
 tracer = trace.get_tracer_provider().get_tracer("product-reviews")
 meter = metrics.get_meter_provider().get_meter("product-reviews")
@@ -115,6 +154,9 @@ tools = [
 
 
 class ProductReviewService(demo_pb2_grpc.ProductReviewServiceServicer):
+    def __init__(self):
+        self.is_serving = True
+
     def GetProductReviews(self, request, context):
         logger.info(f"Receive GetProductReviews for product id:{request.product_id}")
         product_reviews = get_product_reviews(request.product_id)
@@ -133,9 +175,25 @@ class ProductReviewService(demo_pb2_grpc.ProductReviewServiceServicer):
 
         return ai_assistant_response
 
+    def __init__(self):
+        self.is_serving = True
+
     def Check(self, request, context):
-        return health_pb2.HealthCheckResponse(
-            status=health_pb2.HealthCheckResponse.SERVING)
+        # INC-3: Readiness-gating span — record exact moment service becomes ready
+        global _service_ready, _readiness_span_recorded
+        
+        if self.is_serving and not _readiness_span_recorded:
+            with tracer.start_as_current_span("service_readiness_gate") as span:
+                span.set_attribute("app.service", "product-reviews")
+                span.set_attribute("app.readiness_status", "ready")
+                span.set_attribute("app.timestamp", datetime.now(timezone.utc).isoformat())
+                _service_ready = True
+                _readiness_span_recorded = True
+                logger.info("INC-3: Readiness gate recorded — service ready to accept traffic")
+        
+        if self.is_serving:
+            return health_pb2.HealthCheckResponse(status=health_pb2.HealthCheckResponse.SERVING)
+        return health_pb2.HealthCheckResponse(status=health_pb2.HealthCheckResponse.NOT_SERVING)
 
     def Watch(self, request, context):
         return health_pb2.HealthCheckResponse(
@@ -220,7 +278,7 @@ def get_bedrock_primary_client():
     global bedrock_primary_client
     if bedrock_primary_client is None:
         aws_region = os.environ.get('AWS_REGION', 'us-east-1')
-        main_timeout = float(os.environ.get('LLM_REVIEWS_TIMEOUT', '3.0'))
+        main_timeout = float(os.environ.get('LLM_REVIEWS_TIMEOUT', '4.0'))
         primary_config = Config(connect_timeout=1.0, read_timeout=main_timeout, retries={'max_attempts': 0})
         bedrock_primary_client = boto3.client(service_name="bedrock-runtime", region_name=aws_region, config=primary_config)
     return bedrock_primary_client
@@ -234,25 +292,70 @@ def get_bedrock_fallback_client():
         bedrock_fallback_client = boto3.client(service_name="bedrock-runtime", region_name=aws_region, config=fallback_config)
     return bedrock_fallback_client
 
+def _record_bedrock_metrics(response, model_id, status="success"):
+    """
+    Extract and record Bedrock token usage metrics.
+    
+    Args:
+        response: Response from Bedrock converse API
+        model_id: Model ID used for the API call
+        status: Status of the call (success, fallback, error)
+    """
+    # Pricing per 1M tokens (source: docs/ai/03_specs/model_gateway_ab_testing.md)
+    PRICING = {
+        "amazon.nova-lite-v1:0":  {"input": 0.00006,  "output": 0.00024},
+        "amazon.nova-pro-v1:0":   {"input": 0.0008,   "output": 0.0032},
+        "amazon.nova-micro-v1:0": {"input": 0.000035, "output": 0.00014},
+    }
+    try:
+        usage = response.get("usage", {})
+        input_tokens = usage.get("inputTokens", 0)
+        output_tokens = usage.get("outputTokens", 0)
+        
+        # Record token counts with model and status labels
+        product_review_svc_metrics["bedrock_input_tokens_total"].add(
+            input_tokens, 
+            {"model_id": model_id, "status": status}
+        )
+        product_review_svc_metrics["bedrock_output_tokens_total"].add(
+            output_tokens,
+            {"model_id": model_id, "status": status}
+        )
+        
+        # Calculate cost using per-model pricing
+        price = PRICING.get(model_id, {"input": 0.00006, "output": 0.00024})
+        cost_usd = (input_tokens * price["input"] + output_tokens * price["output"]) / 1_000_000
+        product_review_svc_metrics["bedrock_cost_usd_total"].add(
+            cost_usd,
+            {"model_id": model_id, "status": status}
+        )
+        
+        logger.info(f"Bedrock metrics recorded | model={model_id} | input_tokens={input_tokens} | output_tokens={output_tokens} | cost_usd={cost_usd:.6f}")
+    except Exception as e:
+        logger.error(f"Error recording Bedrock metrics: {e}")
+
 def invoke_bedrock_converse_with_fallback(messages, system_prompt, tool_config=None):
     """
     Invokes AWS Bedrock converse API with retry and fallback routing.
     - Timeout, retries, and models are resolved dynamically from environment variables.
     - Exponential backoff with full jitter is applied on retryable errors.
+    - Prompt caching enabled to reduce token reuse cost.
     """
-    main_model = os.environ.get('LLM_REVIEWS_MAIN_MODEL', os.environ.get('AWS_BEDROCK_MODEL', 'amazon.nova-lite-v1:0'))
+    router = ModelRouter()
+    main_model = os.environ.get('LLM_REVIEWS_MAIN_MODEL', router.get_main_model())
     fallback_model = os.environ.get('LLM_REVIEWS_FALLBACK_MODEL', 'amazon.nova-micro-v1:0')
     max_retries = int(os.environ.get('LLM_REVIEWS_MAX_RETRIES', '2'))
     fallback_max_retries = int(os.environ.get('LLM_REVIEWS_FALLBACK_RETRIES', '1'))
     
-    fallback_enabled = check_feature_flag("llmReviewsFallbackEnabled")
-    llm_rate_limit_error = check_feature_flag("llmRateLimitError")
-    
-    # Lớp 5: Flag-Aware Circuit Breaker
+    fallback_enabled = check_feature_flag("llmReviewsFallbackEnabled", default=True)
+    prompt_caching_enabled = check_feature_flag("llmPromptCachingEnabled")
+
+    # Lớp 5: Circuit Breaker theo lỗi quan sát được (review B2)
     bypass_primary = False
-    if llm_rate_limit_error:
-        logger.warning("Circuit Breaker OPEN due to llmRateLimitError flag. Bypassing primary model call.")
-        bypass_primary = True
+    with _cb_lock:
+        if time.time() < _cb_state["open_until"]:
+            logger.warning(f"Circuit Breaker OPEN ({_cb_state['failures']} consecutive primary failures). Bypassing primary model call.")
+            bypass_primary = True
         
     primary_client = get_bedrock_primary_client()
     fallback_client = get_bedrock_fallback_client()
@@ -267,24 +370,33 @@ def invoke_bedrock_converse_with_fallback(messages, system_prompt, tool_config=N
                     "modelId": main_model,
                     "system": [{"text": system_prompt}],
                     "messages": messages,
-                    "inferenceConfig": {
-                        "maxTokens": 1024,
-                        "temperature": 0.1,
-                        "topP": 0.9,
-                    }
+                    "inferenceConfig": INFERENCE_CONFIG
                 }
+                # Enable prompt caching if feature flag set (reduces token reuse cost)
+                if prompt_caching_enabled:
+                    kwargs["system"] = [{"text": system_prompt, "cacheable": True}]
+                    logger.info("Prompt caching enabled for primary model")
+                
                 if tool_config:
                     kwargs["toolConfig"] = tool_config
                     
                 response = primary_client.converse(**kwargs)
                 logger.info(f"Primary Model call successful: {main_model}")
+                
+                # Record Bedrock token usage metrics
+                _record_bedrock_metrics(response, main_model, status="success")
+                
+                with _cb_lock:
+                    _cb_state["failures"] = 0
                 return response
                 
-            except (ClientError, ReadTimeoutError, ConnectTimeoutError) as e:
-                is_retryable = True
-                err_code = "Unknown"
+            except (ClientError, BotoCoreError) as e:
+                # BotoCoreError phu ca NoCredentials/EndpointConnection/timeout — loi ngoai du kien
+                # khong duoc phep thoat khoi ladder (fallback/CB phai van hanh voi moi lop loi).
+                is_retryable = isinstance(e, (ReadTimeoutError, ConnectTimeoutError))
+                err_code = type(e).__name__
                 err_msg = str(e)
-                
+
                 if isinstance(e, ClientError):
                     err_code = e.response["Error"].get("Code", "Unknown")
                     err_msg = e.response["Error"].get("Message", "Unknown")
@@ -308,6 +420,11 @@ def invoke_bedrock_converse_with_fallback(messages, system_prompt, tool_config=N
                     attempt += 1
                 else:
                     logger.error(f"Primary Model exhausted or failed with non-retryable error. Code: {err_code}, Msg: {err_msg}")
+                    with _cb_lock:
+                        _cb_state["failures"] += 1
+                        if _cb_state["failures"] >= CB_FAILURE_THRESHOLD:
+                            _cb_state["open_until"] = time.time() + CB_COOLDOWN_SECONDS
+                            logger.error(f"Circuit Breaker OPENED for {CB_COOLDOWN_SECONDS}s after {_cb_state['failures']} consecutive primary failures.")
                     break
                     
     # 2. Trigger Fallback if enabled
@@ -321,24 +438,31 @@ def invoke_bedrock_converse_with_fallback(messages, system_prompt, tool_config=N
                     "modelId": fallback_model,
                     "system": [{"text": system_prompt}],
                     "messages": messages,
-                    "inferenceConfig": {
-                        "maxTokens": 1024,
-                        "temperature": 0.1,
-                        "topP": 0.9,
-                    }
+                    "inferenceConfig": INFERENCE_CONFIG
                 }
+                # Enable prompt caching if feature flag set (reduces token reuse cost)
+                if prompt_caching_enabled:
+                    kwargs["system"] = [{"text": system_prompt, "cacheable": True}]
+                    logger.info("Prompt caching enabled for fallback model")
+                
                 if tool_config:
                     kwargs["toolConfig"] = tool_config
                     
                 response = fallback_client.converse(**kwargs)
                 logger.info(f"Fallback Model call successful: {fallback_model}")
+                
+                # Record Bedrock token usage metrics
+                _record_bedrock_metrics(response, fallback_model, status="fallback")
+                
                 return response
                 
-            except (ClientError, ReadTimeoutError, ConnectTimeoutError) as e:
-                is_retryable = True
-                err_code = "Unknown"
+            except (ClientError, BotoCoreError) as e:
+                # BotoCoreError phu ca NoCredentials/EndpointConnection/timeout — loi ngoai du kien
+                # khong duoc phep thoat khoi ladder (fallback/CB phai van hanh voi moi lop loi).
+                is_retryable = isinstance(e, (ReadTimeoutError, ConnectTimeoutError))
+                err_code = type(e).__name__
                 err_msg = str(e)
-                
+
                 if isinstance(e, ClientError):
                     err_code = e.response["Error"].get("Code", "Unknown")
                     err_msg = e.response["Error"].get("Message", "Unknown")
@@ -371,22 +495,47 @@ def get_ai_assistant_response(request_product_id, question, context=None):
         span.set_attribute("app.product.id", request_product_id)
         span.set_attribute("app.product.question", question)
 
+        # --- INPUT GUARDRAIL on the direct user question (mentor 16/07: was only
+        # applied to tool results/indirect injection here, never to the direct
+        # question — copilot already sanitizes its equivalent input) ---
+        question = sanitize_text(question)
+        if check_feature_flag("llmGuardrailLlmJudge") and detect_prompt_injection_llm(get_bedrock_primary_client(), question):
+            logger.warning(f"[Guardrail L2] LLM-judge flagged direct question for product_id={request_product_id}")
+            question = "[filtered]"
+        if check_feature_flag("llmSemanticSimilarityGuard"):
+            sem = detect_semantic_similarity_to_known_attacks(get_bedrock_primary_client(), question)
+            if sem["flagged"]:
+                logger.warning(f"[Guardrail L1-semantic] direct question matched known-attack corpus for product_id={request_product_id} score={sem['max_similarity']}")
+                question = "[filtered]"
+        # -----------------------------------------------------------------------
+
         # Lớp 4: Context-Aware Dynamic Deadlines
         if context is not None:
             try:
                 time_remaining = context.time_remaining()
                 if time_remaining is not None:
                     logger.info(f"gRPC request time remaining: {time_remaining:.3f}s")
-                    if time_remaining < 3.0:
-                        logger.warning(f"Time remaining {time_remaining:.3f}s is less than hard floor 3.0s. Fail-fast to Mock Summary.")
-                        logger.error("Rate limit reached. Bedrock ThrottlingException. Fail-fast due to remaining time.")
-                        ai_assistant_response.response = "Hiện tại hệ thống không thể tạo tóm tắt đánh giá. Vui lòng tham khảo các đánh giá chi tiết bên dưới."
+                    deadline_floor = float(os.environ.get('LLM_REVIEWS_FALLBACK_TIMEOUT', '2.0'))
+                    if time_remaining < deadline_floor:
+                        logger.warning(f"Time remaining {time_remaining:.3f}s is less than hard floor {deadline_floor:.1f}s. Fail-fast to Mock Summary.")
+                        logger.error("AI_SUMMARY_FALLBACK stage=deadline reason=DeadlineTooClose")
+                        ai_assistant_response.response = MOCK_SUMMARY_VI
                         return ai_assistant_response
             except Exception as e:
                 logger.error(f"Error checking gRPC deadline: {e}")
 
-        cache_key = f"reviews:summary:{request_product_id}:{model_ver}:{prompt_ver}"
-        llm_reviews_cache_enabled = check_feature_flag("llmReviewsCacheEnabled")
+        # Content-addressed cache key (chuan the gioi: Rails cache_key / HTTP ETag).
+        # Nhung fingerprint noi dung review vao key -> review doi la key doi la MISS tu nhien,
+        # ZERO staleness window. TTL 7d chi con la GC backstop (don key fingerprint cu),
+        # KHONG con vai tro chong outdate. Thay hoan toan dynamic-TTL da go.
+        # Fail-open: loi fingerprint -> skip cache call nay (an toan hon serve summary co the cu).
+        try:
+            content_fp = fetch_reviews_fingerprint(request_product_id)
+        except Exception as e:
+            logger.error(f"Reviews fingerprint error (skip cache this call): {e}")
+            content_fp = None
+        cache_key = f"reviews:summary:{request_product_id}:{model_ver}:{prompt_ver}:{content_fp}"
+        llm_reviews_cache_enabled = check_feature_flag("llmReviewsCacheEnabled", default=True) and content_fp is not None
         logger.info(f"llmReviewsCacheEnabled feature flag: {llm_reviews_cache_enabled}")
 
         # Check Valkey Cache
@@ -404,6 +553,7 @@ def get_ai_assistant_response(request_product_id, question, context=None):
 
         result = None
         is_mock_rate_limit = False
+        tool_results_raw = []
 
         llm_rate_limit_error = check_feature_flag("llmRateLimitError")
         logger.info(f"llmRateLimitError feature flag: {llm_rate_limit_error}")
@@ -424,7 +574,7 @@ def get_ai_assistant_response(request_product_id, question, context=None):
 
                 user_prompt = f"Answer the following question about product ID:{request_product_id}: {question}"
                 messages = [
-                   {"role": "system", "content": "You are a helpful assistant that answers related to a specific product. Use tools as needed to fetch the product reviews and product information. Keep the response brief with no more than 1-2 sentences. If you don't know the answer, just say you don't know."},
+                   {"role": "system", "content": SYSTEM_PROMPT},
                    {"role": "user", "content": user_prompt}
                 ]
                 logger.info(f"Invoking mock LLM with model: techx-llm-rate-limit")
@@ -442,37 +592,43 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                     span.record_exception(e)
                     # Set the span status to ERROR
                     span.set_status(Status(StatusCode.ERROR, description=str(e)))
-                    # Rule AIOps llm-rate-limit-429 check log phrase:
-                    logger.error("Rate limit reached. rate_limit_exceeded from mock LLM.")
-                    ai_assistant_response.response = "Hiện tại hệ thống không thể tạo tóm tắt đánh giá. Vui lòng tham khảo các đánh giá chi tiết bên dưới."
+                    # Genuine 429: giu "Rate limit reached" cho rule llm-rate-limit-429 + marker G6.
+                    logger.error("Rate limit reached. AI_SUMMARY_FALLBACK stage=mock-llm reason=rate_limit_exceeded")
+                    ai_assistant_response.response = MOCK_SUMMARY_VI
                     return ai_assistant_response
 
         if not is_mock_rate_limit:
             # AWS Bedrock Converse API flow
             logger.info("Invoking AWS Bedrock Converse API with fallback wrapper")
 
-            system_prompt = "You are a helpful assistant that answers related to a specific product. Use tools as needed to fetch the product reviews and product information. Keep the response brief with no more than 1-2 sentences. If you don't know the answer, just say you don't know."
+            system_prompt = SYSTEM_PROMPT
             user_prompt = f"Answer the following question about product ID:{request_product_id}: {question}"
             messages = [
                 {"role": "user", "content": [{"text": user_prompt}]}
             ]
 
-            # Lớp 3: Bulkhead Isolation (acquire semaphore)
-            with bedrock_bulkhead:
-                try:
-                    response = invoke_bedrock_converse_with_fallback(
-                        messages=messages,
-                        system_prompt=system_prompt,
-                        tool_config={"tools": tools}
-                    )
-                except Exception as e:
-                    logger.error(f"Bedrock converse failure: {str(e)}")
-                    # Rule AIOps fallback check log phrase:
-                    logger.error("Rate limit reached. Bedrock ThrottlingException. Falling back to default mock summary.")
-                    span.record_exception(e)
-                    span.set_status(Status(StatusCode.ERROR, description=str(e)))
-                    ai_assistant_response.response = "Hiện tại hệ thống không thể tạo tóm tắt đánh giá. Vui lòng tham khảo các đánh giá chi tiết bên dưới."
-                    return ai_assistant_response
+            # Lớp 3: Bulkhead Isolation — non-blocking (review B1): waiter van giu thread cua
+            # gRPC pool nen khi bao hoa phai tra mock NGAY thay vi xep hang (thi nghiem B1: 10ms vs 1909ms).
+            if not bedrock_bulkhead.acquire(blocking=False):
+                logger.error("AI_SUMMARY_FALLBACK stage=bulkhead reason=BulkheadSaturated")
+                ai_assistant_response.response = MOCK_SUMMARY_VI
+                return ai_assistant_response
+            try:
+                response = invoke_bedrock_converse_with_fallback(
+                    messages=messages,
+                    system_prompt=system_prompt,
+                    tool_config={"tools": tools}
+                )
+            except Exception as e:
+                logger.error(f"Bedrock converse failure: {str(e)}")
+                # Marker G6: ghi dung nguyen nhan that, khong gan nhan 429 cho moi loai loi.
+                logger.error(f"AI_SUMMARY_FALLBACK stage=bedrock reason={type(e).__name__}")
+                span.record_exception(e)
+                span.set_status(Status(StatusCode.ERROR, description=str(e)))
+                ai_assistant_response.response = MOCK_SUMMARY_VI
+                return ai_assistant_response
+            finally:
+                bedrock_bulkhead.release()
 
             stop_reason = response.get("stopReason", "end_turn")
             output_msg = response["output"]["message"]
@@ -494,20 +650,35 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                     logger.info(f"Processing tool call: '{tool_name}' with arguments: {tool_input}")
 
                     if tool_name == "fetch_product_reviews":
+                        # Guardrail Phan A: review la du lieu KHONG tin cay — loc PII + injection
+                        # truoc khi dua vao prompt (sanitize per-field, giu JSON hop le).
                         function_response = fetch_product_reviews(
                             product_id=tool_input.get("product_id")
                         )
+                        # --- INPUT GUARDRAIL (Lớp 1: always-on, deterministic, per-field) ---
+                        function_response = sanitize_json_for_llm(function_response)
+                        logger.info(f"[Guardrail L1] review sanitized for product_id={tool_input.get('product_id')}")
+                        # --- INPUT GUARDRAIL (Lớp 2: optional LLM-judge, sau feature flag) ---
+                        if check_feature_flag("llmGuardrailLlmJudge"):
+                            if detect_prompt_injection_llm(get_bedrock_primary_client(), function_response):
+                                logger.warning(f"[Guardrail L2] LLM-judge malicious for product_id={tool_input.get('product_id')}. Blocking.")
+                                function_response = json.dumps({"error": "Content blocked by security guardrail."})
+                        # -----------------------------------------------------------------------
                         logger.info(f"Function response for fetch_product_reviews: '{function_response}'")
                     elif tool_name == "fetch_product_info":
                         function_response = fetch_product_info(
                             product_id=tool_input.get("product_id")
                         )
+                        function_response = sanitize_json_for_llm(function_response)
                         logger.info(f"Function response for fetch_product_info: '{function_response}'")
                     else:
                         raise Exception(f'Received unexpected tool call request: {tool_name}')
 
+                    tool_results_raw.append(function_response)
                     tool_results.append({
                         "toolUseId": tool_use_id,
+                        # function_response is already sanitized above (both branches) —
+                        # reuse it instead of re-sanitizing the same string twice.
                         "content": [{"json": json.loads(function_response)}],
                     })
 
@@ -528,23 +699,53 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                     "content": user_content
                 })
 
-                logger.info(f"Invoking Bedrock for final completion")
-                with bedrock_bulkhead:
+                # Lop 4 (bo sung 12/07): re-check deadline TRUOC vong converse thu 2 —
+                # check dau request khong con dung sau khi vong 1 + tool da tieu thoi gian.
+                if context is not None:
                     try:
-                        final_response = invoke_bedrock_converse_with_fallback(
-                            messages=messages,
-                            system_prompt=system_prompt
-                        )
-                        result = final_response["output"]["message"]["content"][0]["text"]
-                    except Exception as e:
-                        logger.error(f"Bedrock final completion error: {str(e)}")
-                        span.record_exception(e)
-                        span.set_status(Status(StatusCode.ERROR, description=str(e)))
-                        ai_assistant_response.response = "Hiện tại hệ thống không thể tạo tóm tắt đánh giá. Vui lòng tham khảo các đánh giá chi tiết bên dưới."
-                        return ai_assistant_response
+                        _tr = context.time_remaining()
+                        if _tr is not None and _tr < float(os.environ.get('LLM_REVIEWS_FALLBACK_TIMEOUT', '2.0')):
+                            logger.error("AI_SUMMARY_FALLBACK stage=deadline reason=DeadlineTooCloseFinalRound")
+                            ai_assistant_response.response = MOCK_SUMMARY_VI
+                            return ai_assistant_response
+                    except Exception:
+                        pass
+
+                logger.info(f"Invoking Bedrock for final completion")
+                if not bedrock_bulkhead.acquire(blocking=False):
+                    logger.error("AI_SUMMARY_FALLBACK stage=bulkhead reason=BulkheadSaturated")
+                    ai_assistant_response.response = MOCK_SUMMARY_VI
+                    return ai_assistant_response
+                try:
+                    final_response = invoke_bedrock_converse_with_fallback(
+                        messages=messages,
+                        system_prompt=system_prompt
+                    )
+                    result = final_response["output"]["message"]["content"][0]["text"]
+                except Exception as e:
+                    logger.error(f"Bedrock final completion error: {str(e)}")
+                    logger.error(f"AI_SUMMARY_FALLBACK stage=bedrock-final reason={type(e).__name__}")
+                    span.record_exception(e)
+                    span.set_status(Status(StatusCode.ERROR, description=str(e)))
+                    ai_assistant_response.response = MOCK_SUMMARY_VI
+                    return ai_assistant_response
+                finally:
+                    bedrock_bulkhead.release()
             else:
                 text_parts = [b["text"] for b in content_blocks if "text" in b]
                 result = "\n".join(text_parts) if text_parts else ""
+
+            # Guardrail Phan A: output guard — chặn lộ system prompt + redact PII khỏi khách.
+            result = redact_pii(result)
+            if leaks_system_prompt(result, SYSTEM_PROMPT):
+                logger.error("AI_SUMMARY_FALLBACK stage=output-guard reason=SystemPromptLeak")
+                result = MOCK_SUMMARY_VI
+
+            # Citation validator (mentor 16/07): kiem tra so lieu trong output co khop tool result
+            if tool_results_raw and result:
+                is_valid, result = validate_citations(result, tool_results_raw)
+                if not is_valid:
+                    logger.warning(f"[Guardrail] Citation validation: fabricated numbers replaced with [unverified] for product_id={request_product_id}")
 
             ai_assistant_response.response = result
             logger.info(f"Returning Bedrock AI assistant response: '{result}'")
@@ -552,19 +753,9 @@ def get_ai_assistant_response(request_product_id, question, context=None):
             # Update cache if enabled
             if llm_reviews_cache_enabled and valkey_client is not None and result:
                 try:
-                    # Calculate dynamic TTL
-                    reviews = fetch_product_reviews_from_db(request_product_id)
-                    N = len(reviews)
-                    if N > 0:
-                        scores = [float(r[2]) for r in reviews if r[2] is not None]
-                        avg_score = sum(scores) / len(scores) if scores else 0.0
-                        variance = sum((s - avg_score) ** 2 for s in scores) / len(scores) if scores else 0.0
-                    else:
-                        N = 0
-                        variance = 0.0
-
-                    ttl = 14400 + int(N * 3600 / (1.0 + variance))
-                    ttl = max(14400, min(ttl, 604800)) # bounds [4h, 7d]
+                    # Review C2: review data la tinh (verified: proto khong co rpc ghi, seed tu init.sql)
+                    # -> TTL phang 7d + versioned key; dynamic TTL bo vi khong co gi de no phan ung.
+                    ttl = 604800
 
                     cache_val = {
                         "summary": result,
@@ -598,10 +789,10 @@ def must_map_env(key: str):
         raise Exception(f'{key} environment variable must be set')
     return value
 
-def check_feature_flag(flag_name: str):
+def check_feature_flag(flag_name: str, default: bool = False):
     # Initialize OpenFeature
     client = api.get_client()
-    return client.get_boolean_value(flag_name, False)
+    return client.get_boolean_value(flag_name, default)
 
 if __name__ == "__main__":
     service_name = must_map_env('OTEL_SERVICE_NAME')
@@ -649,7 +840,13 @@ if __name__ == "__main__":
     except Exception:
         valkey_host = 'valkey-cart'
         valkey_port = 6379
-    valkey_client = redis.Redis(host=valkey_host, port=valkey_port, decode_responses=True)
+    
+    valkey_password = os.environ.get('VALKEY_AUTH_TOKEN', None)
+    valkey_ssl = os.environ.get('VALKEY_TLS', 'false').lower() == 'true'
+    # socket timeout 0.5s theo spec valkey_caching §4.2 — Valkey sap khong duoc keo treo request
+    valkey_client = redis.Redis(host=valkey_host, port=valkey_port, decode_responses=True,
+                                socket_timeout=0.5, socket_connect_timeout=0.5,
+                                password=valkey_password, ssl=valkey_ssl)
 
     llm_host = must_map_env('LLM_HOST')
     llm_port = must_map_env('LLM_PORT')
@@ -666,6 +863,19 @@ if __name__ == "__main__":
     # Start server
     port = must_map_env('PRODUCT_REVIEWS_PORT')
     server.add_insecure_port(f'[::]:{port}')
+    # MANDATE-03: Graceful Shutdown — mark NOT_SERVING on SIGTERM so LB stops
+    # sending traffic before the process actually stops (grace=10s drain window).
+    import signal
+    def handle_sigterm(signum, frame):
+        logger.info("Received SIGTERM, marking NOT_SERVING and initiating graceful shutdown...")
+        service.is_serving = False
+
+        server.stop(grace=10)
+
+    signal.signal(signal.SIGTERM, handle_sigterm)
+    signal.signal(signal.SIGINT, handle_sigterm)
+
     server.start()
     logger.info(f'Product reviews service started, listening on port {port}')
     server.wait_for_termination()
+    logger.info("Server stopped.")

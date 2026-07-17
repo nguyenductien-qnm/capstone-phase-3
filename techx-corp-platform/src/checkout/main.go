@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -231,7 +232,8 @@ func main() {
 	svc.kafkaBrokerSvcAddr = os.Getenv("KAFKA_ADDR")
 
 	if svc.kafkaBrokerSvcAddr != "" {
-		svc.KafkaProducerClient, err = kafka.CreateKafkaProducer([]string{svc.kafkaBrokerSvcAddr}, logger)
+		brokers := strings.Split(svc.kafkaBrokerSvcAddr, ",")
+		svc.KafkaProducerClient, err = kafka.CreateKafkaProducer(brokers, logger)
 		if err != nil {
 			logger.Error(err.Error())
 		}
@@ -251,6 +253,46 @@ func main() {
 
 	healthcheck := health.NewServer()
 	healthpb.RegisterHealthServer(srv, healthcheck)
+
+	// CDO-80 (Option C): tách liveness khỏi readiness để dependency (Kafka) giật
+	// không gây restart pod (cascade-restart). Liveness chỉ phản ánh "process còn sống".
+	healthcheck.SetServingStatus("liveness", healthpb.HealthCheckResponse_SERVING)
+	// Giữ tương thích ngược cho probe không truyền service name.
+	healthcheck.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
+
+	// Readiness ĐỘNG: kiểm tra kết nối TCP tới broker Kafka định kỳ (giống initContainer
+	// wait-for-kafka). Kafka mất → NOT_SERVING (pod bị kéo khỏi Endpoints) nhưng KHÔNG
+	// restart; Kafka hồi → SERVING trở lại. sarama.AsyncProducer không có API ping nên
+	// dùng net.DialTimeout thay vì phụ thuộc internals của producer.
+	go func() {
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+		updateReadiness := func() {
+			if svc.kafkaBrokerSvcAddr == "" { // không cấu hình Kafka → coi như sẵn sàng
+				healthcheck.SetServingStatus("readiness", healthpb.HealthCheckResponse_SERVING)
+				return
+			}
+			reachable := false
+			for _, broker := range strings.Split(svc.kafkaBrokerSvcAddr, ",") {
+				conn, err := net.DialTimeout("tcp", broker, 2*time.Second)
+				if err == nil {
+					conn.Close()
+					reachable = true
+					break
+				}
+			}
+			if reachable {
+				healthcheck.SetServingStatus("readiness", healthpb.HealthCheckResponse_SERVING)
+			} else {
+				healthcheck.SetServingStatus("readiness", healthpb.HealthCheckResponse_NOT_SERVING)
+			}
+		}
+		updateReadiness()
+		for range ticker.C {
+			updateReadiness()
+		}
+	}()
+
 	logger.Info(fmt.Sprintf("starting to listen on tcp: %q", lis.Addr().String()))
 	err = srv.Serve(lis)
 	logger.Error(err.Error())
@@ -313,7 +355,7 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 
 	prep, err := cs.prepareOrderItemsAndShippingQuoteFromCart(ctx, req.UserId, req.UserCurrency, req.Address)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, err.Error())
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 	span.AddEvent("prepared")
 

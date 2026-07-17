@@ -1,0 +1,217 @@
+name: Infra Destroy (safe teardown)
+
+# CDO-150: Terraform destroy AN TOÀN cho sandbox.
+#
+# Vì sao cần workflow riêng, không gộp vào infra-cd:
+#   - destroy là hành động không thể hoàn tác -> phải gate cực chặt (chỉ manual
+#     dispatch + gõ đúng chuỗi xác nhận), không bao giờ chạy tự động theo push/cron.
+#   - EKS tạo AWS resource NGOÀI Terraform state: Service type=LoadBalancer -> ELB/NLB,
+#     PVC -> EBS volume. Nếu destroy thẳng, các resource này ORPHAN và chặn xoá VPC
+#     (ENI/subnet còn bị giữ) -> destroy treo. Phải PRE-CLEANUP trong K8s trước.
+#
+# Luồng: confirm gate -> pre-cleanup K8s (xoá LB Service + PVC, chờ AWS thu hồi)
+#        -> terraform destroy (var-file như plan/apply để symmetric).
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Gõ đúng "destroy-sandbox" để xác nhận teardown'
+        required: true
+        type: string
+      skip_k8s_cleanup:
+        description: "Bỏ qua pre-cleanup K8s (chỉ dùng khi cluster đã không còn)"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  # Dùng chung group với infra-cd để destroy không chạy song song với apply.
+  group: infra-cd-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  TF_VERSION: "1.14.8"
+  TF_LOCK_TIMEOUT: "10m"
+  TF_ROOT: terraform/environments/sandbox
+  CLUSTER_NAME: ${{ vars.EKS_CLUSTER_NAME || 'ecommerce-dev-eks' }}
+  APP_NAMESPACE: techx-tf1
+  # Terraform sandbox inputs: one GitHub Repository Variable per input.
+  TF_VAR_aws_region: ${{ vars.TF_VAR_AWS_REGION }}
+  TF_VAR_project_name: ${{ vars.TF_VAR_PROJECT_NAME }}
+  TF_VAR_environment: ${{ vars.TF_VAR_ENVIRONMENT }}
+  TF_VAR_vpc_cidr: ${{ vars.TF_VAR_VPC_CIDR }}
+  TF_VAR_public_subnets: ${{ vars.TF_VAR_PUBLIC_SUBNETS }}
+  TF_VAR_private_app_subnets: ${{ vars.TF_VAR_PRIVATE_APP_SUBNETS }}
+  TF_VAR_private_data_subnets: ${{ vars.TF_VAR_PRIVATE_DATA_SUBNETS }}
+  TF_VAR_private_mq_subnets: ${{ vars.TF_VAR_PRIVATE_MQ_SUBNETS }}
+  TF_VAR_enable_nat_gateway: ${{ vars.TF_VAR_ENABLE_NAT_GATEWAY }}
+  TF_VAR_single_nat_gateway: ${{ vars.TF_VAR_SINGLE_NAT_GATEWAY }}
+  TF_VAR_public_subnet_tags: ${{ vars.TF_VAR_PUBLIC_SUBNET_TAGS }}
+  TF_VAR_private_subnet_tags: ${{ vars.TF_VAR_PRIVATE_SUBNET_TAGS }}
+  TF_VAR_eks_cluster_version: ${{ vars.TF_VAR_EKS_CLUSTER_VERSION }}
+  TF_VAR_eks_node_capacity_type: ${{ vars.TF_VAR_EKS_NODE_CAPACITY_TYPE }}
+  TF_VAR_eks_endpoint_public_access: ${{ vars.TF_VAR_EKS_ENDPOINT_PUBLIC_ACCESS }}
+  TF_VAR_eks_public_access_cidrs: ${{ vars.TF_VAR_EKS_PUBLIC_ACCESS_CIDRS }}
+  TF_VAR_eks_control_plane_log_retention_days: ${{ vars.TF_VAR_EKS_CONTROL_PLANE_LOG_RETENTION_DAYS }}
+  TF_VAR_eks_access_entries: ${{ vars.TF_VAR_EKS_ACCESS_ENTRIES }}
+  TF_VAR_db_name: ${{ vars.TF_VAR_DB_NAME }}
+  TF_VAR_db_username: ${{ vars.TF_VAR_DB_USERNAME }}
+  TF_VAR_rds_instance_class: ${{ vars.TF_VAR_RDS_INSTANCE_CLASS }}
+  TF_VAR_rds_allocated_storage: ${{ vars.TF_VAR_RDS_ALLOCATED_STORAGE }}
+  TF_VAR_enable_read_replica: ${{ vars.TF_VAR_ENABLE_READ_REPLICA }}
+  TF_VAR_replica_instance_class: ${{ vars.TF_VAR_REPLICA_INSTANCE_CLASS }}
+  TF_VAR_enable_rds_proxy: ${{ vars.TF_VAR_ENABLE_RDS_PROXY }}
+  TF_VAR_rds_multi_az: ${{ vars.TF_VAR_RDS_MULTI_AZ }}
+  TF_VAR_kafka_version: ${{ vars.TF_VAR_KAFKA_VERSION }}
+  TF_VAR_valkey_node_type: ${{ vars.TF_VAR_VALKEY_NODE_TYPE }}
+  TF_VAR_valkey_num_cache_clusters: ${{ vars.TF_VAR_VALKEY_NUM_CACHE_CLUSTERS }}
+  TF_VAR_ecr_repositories: ${{ vars.TF_VAR_ECR_REPOSITORIES }}
+  TF_VAR_route53_zone_id: ${{ vars.TF_VAR_ROUTE53_ZONE_ID }}
+  TF_VAR_subdomain: ${{ vars.TF_VAR_SUBDOMAIN }}
+  TF_VAR_acm_certificate_arn: ${{ vars.TF_VAR_ACM_CERTIFICATE_ARN }}
+  TF_VAR_enable_cloudfront: ${{ vars.TF_VAR_ENABLE_CLOUDFRONT }}
+
+jobs:
+  # ------------------------------------------------------------------ #
+  # Gate: chỉ tiếp tục nếu người chạy gõ đúng "destroy-sandbox".        #
+  # ------------------------------------------------------------------ #
+  confirm:
+    name: Confirm gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate confirm phrase
+        env:
+          CONFIRM: ${{ github.event.inputs.confirm }}
+        run: |
+          set -euo pipefail
+          if [ "$CONFIRM" != "destroy-sandbox" ]; then
+            echo "::error::Chuỗi xác nhận sai. Phải gõ đúng 'destroy-sandbox'."
+            exit 1
+          fi
+          echo "✅ Confirm hợp lệ — tiến hành teardown."
+
+  # ------------------------------------------------------------------ #
+  # Pre-cleanup K8s: xoá Service LoadBalancer (thu hồi ELB/NLB) và PVC  #
+  # (release EBS) TRƯỚC terraform destroy để không orphan chặn VPC.     #
+  # environment: sandbox -> bắt buộc qua approval nếu env có protection.#
+  # ------------------------------------------------------------------ #
+  k8s-cleanup:
+    name: Pre-cleanup K8s (LB + PVC)
+    needs: confirm
+    if: github.event.inputs.skip_k8s_cleanup != 'true'
+    runs-on: ubuntu-latest
+    environment: sandbox
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.TF_AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-${{ github.actor }}-${{ github.run_id }}
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: "v1.30.0"
+
+      - name: Update kubeconfig
+        id: kube
+        run: |
+          set -euo pipefail
+          # Nếu cluster đã bị xoá trước đó, bỏ qua cleanup (không có gì để dọn).
+          if ! aws eks describe-cluster --name "$CLUSTER_NAME" --region "$AWS_REGION" >/dev/null 2>&1; then
+            echo "cluster_exists=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Cluster $CLUSTER_NAME không tồn tại — bỏ qua K8s cleanup."
+            exit 0
+          fi
+          echo "cluster_exists=true" >> "$GITHUB_OUTPUT"
+          aws eks update-kubeconfig --name "$CLUSTER_NAME" --region "$AWS_REGION"
+          kubectl cluster-info
+
+      - name: Xoá mọi Service type=LoadBalancer (thu hồi ELB/NLB)
+        if: steps.kube.outputs.cluster_exists == 'true'
+        run: |
+          set -euo pipefail
+          echo "== Service LoadBalancer đang tồn tại =="
+          kubectl get svc -A \
+            --field-selector spec.type=LoadBalancer \
+            -o custom-columns=NS:.metadata.namespace,NAME:.metadata.name --no-headers || true
+
+          # Xoá theo namespace/name để controller thu hồi AWS LB. Không xoá cả namespace
+          # (tránh đụng finalizer khác); chỉ xoá Service LB.
+          kubectl get svc -A --field-selector spec.type=LoadBalancer \
+            -o jsonpath='{range .items[*]}{.metadata.namespace} {.metadata.name}{"\n"}{end}' \
+            | while read -r ns name; do
+                [ -z "${name:-}" ] && continue
+                echo ">> delete svc $ns/$name"
+                kubectl delete svc "$name" -n "$ns" --wait=true --timeout=180s || true
+              done
+
+          # Chờ AWS thực sự thu hồi LB (controller cần vài chục giây).
+          echo "== Chờ AWS thu hồi ELB/NLB (60s) =="
+          sleep 60
+
+      - name: Xoá PVC (release EBS volume)
+        if: steps.kube.outputs.cluster_exists == 'true'
+        run: |
+          set -euo pipefail
+          echo "== PVC đang tồn tại =="
+          kubectl get pvc -A --no-headers || true
+
+          # Xoá PVC -> nếu reclaimPolicy=Delete, EBS volume tự bị xoá theo.
+          kubectl get pvc -A \
+            -o jsonpath='{range .items[*]}{.metadata.namespace} {.metadata.name}{"\n"}{end}' \
+            | while read -r ns name; do
+                [ -z "${name:-}" ] && continue
+                echo ">> delete pvc $ns/$name"
+                kubectl delete pvc "$name" -n "$ns" --wait=true --timeout=180s || true
+              done
+          echo "✅ K8s pre-cleanup xong."
+
+  # ------------------------------------------------------------------ #
+  # Terraform destroy: var-file giống plan/apply (symmetric).          #
+  # needs cả confirm + k8s-cleanup; always() để chạy kể cả khi cleanup #
+  # bị skip (skip_k8s_cleanup=true) nhưng confirm phải pass.           #
+  # ------------------------------------------------------------------ #
+  terraform-destroy:
+    name: Terraform destroy sandbox
+    needs: [confirm, k8s-cleanup]
+    if: always() && needs.confirm.result == 'success' && needs.k8s-cleanup.result != 'failure'
+    runs-on: ubuntu-latest
+    environment: sandbox
+    defaults:
+      run:
+        working-directory: ${{ env.TF_ROOT }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.TF_AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-${{ github.actor }}-${{ github.run_id }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Terraform init
+        run: terraform init -input=false
+
+      - name: Terraform destroy
+        run: |
+          terraform destroy -auto-approve -input=false -lock-timeout="$TF_LOCK_TIMEOUT" \
+            -var-file="primary-capacity.tfvars"
+          echo "✅ Terraform destroy hoàn tất."

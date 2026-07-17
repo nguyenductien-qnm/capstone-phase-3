@@ -1,0 +1,433 @@
+name: App Build (ECR + Trivy + Cosign + GitOps bump)
+
+# CDO-140 (build+push ECR, tag convention, immutable) + CDO-146 (Trivy + Cosign ký
+# digest) + CDO-142 (bump tag vào Git -> ArgoCD selfHeal sync).
+#
+# Deploy model: CI build -> push ECR (by digest) -> Trivy gate -> Cosign keyless ký
+# DIGEST -> yq bump components.<svc>.imageOverride.tag trong values.yaml -> commit
+# [skip ci] -> ArgoCD tự sync. KHÔNG kubectl tay.
+#
+# Tag convention: <version>-<service>-<sha>  (version = chart appVersion default.image.tag).
+# ECR: 1 repo chung ecommerce-dev-techx-corp, IMMUTABLE. Ký theo digest, không ký tag.
+#
+# Service build được suy ra ĐỘNG, không hardcode: giao của
+#   (a) component `enabled: true` trong chart values.yaml, KHÔNG có imageOverride.repository
+#       (có repository = image upstream: flagd/postgresql/valkey-cart -> bỏ), và
+#   (b) có Dockerfile trong techx-corp-platform/src/<svc>/ (hoặc <svc>/src/ như cart).
+# Thêm service mới vào chart + có Dockerfile là tự động được build, không sửa file này.
+
+on:
+  push:
+    branches: ["develop", "main"]
+    paths:
+      - "techx-corp-platform/src/**"
+      - "platform/charts/application/values.yaml"
+      - "platform/build-exclusions.yaml"
+      - ".github/workflows/app-build.yaml"
+  pull_request:
+    branches: ["develop", "main"]
+    paths:
+      - "techx-corp-platform/src/**"
+      - "platform/charts/application/values.yaml"
+      - "platform/build-exclusions.yaml"
+      - ".github/workflows/app-build.yaml"
+  workflow_dispatch:
+    inputs:
+      services:
+        description: "Danh sách service build (space-separated), rỗng = build tất cả"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  # KHÔNG cancel-in-progress: build đã push + bump commit không nên bị hủy giữa chừng.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  ECR_REGISTRY: ${{ vars.ECR_REGISTRY || '804372444787.dkr.ecr.us-east-1.amazonaws.com' }}
+  # 1 repo chung, service phân biệt bằng tag suffix (khớp chart _objects.tpl:73).
+  ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY || 'ecommerce-dev-techx-corp' }}
+  # version trong tag = default.image.tag của chart (values.yaml). Bump khi chart lên version.
+  IMAGE_VERSION: ${{ vars.IMAGE_VERSION || '1.0' }}
+  BUILD_CONTEXT: techx-corp-platform
+  # CI CHỈ ghi file tags tách riêng (không comment) -> yq bump không phá format
+  # values.yaml gốc. Helm/ArgoCD load file này SAU values.yaml để override tag.
+  TAGS_FILE: platform/gitops/environments/sandbox/values-image-tags.yaml
+
+jobs:
+  # ------------------------------------------------------------------ #
+  # Suy ra danh sách service team-owned từ chart + filesystem (không     #
+  # hardcode), rồi lọc theo thay đổi thực tế:                            #
+  #   push/PR   -> service có file đổi trong src/<svc>/ (git diff)       #
+  #   dispatch  -> theo input (rỗng = build tất cả service team-owned)   #
+  # Chart values.yaml đổi -> build tất cả (tag/enabled có thể đã đổi).   #
+  # ------------------------------------------------------------------ #
+  detect:
+    name: Detect changed services
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+      any: ${{ steps.set.outputs.any }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Cần commit trước đó để git diff ra file đã đổi.
+          fetch-depth: 0
+
+      - name: Install yq
+        uses: mikefarah/yq@v4
+
+      - name: Build matrix
+        id: set
+        env:
+          EVENT: ${{ github.event_name }}
+          DISPATCH_SERVICES: ${{ github.event.inputs.services }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          VALUES: platform/charts/application/values.yaml
+          EXCLUSIONS_FILE: platform/build-exclusions.yaml
+        run: |
+          set -euo pipefail
+
+          # (a) Component team-owned trong chart: enabled=true và KHÔNG có
+          # imageOverride.repository (có repository = kéo từ registry ngoài).
+          mapfile -t owned < <(
+            yq -r '.components | to_entries[]
+                   | select(.value.enabled == true)
+                   | select(.value.imageOverride.repository == null)
+                   | .key' "$VALUES"
+          )
+
+          # (b) Giao với Dockerfile có thật. cart (.NET) để Dockerfile ở
+          # src/cart/src/ nên thử cả 2 vị trí thay vì đặc case theo tên.
+          declare -A DOCKERFILE=()
+          for svc in "${owned[@]}"; do
+            for cand in "src/$svc/Dockerfile" "src/$svc/src/Dockerfile"; do
+              if [ -f "$BUILD_CONTEXT/$cand" ]; then
+                DOCKERFILE[$svc]="$cand"
+                break
+              fi
+            done
+          done
+          if [ "${#DOCKERFILE[@]}" -eq 0 ]; then
+            echo "::error::Không tìm thấy service team-owned nào có Dockerfile."
+            exit 1
+          fi
+          echo "Service team-owned: ${!DOCKERFILE[*]}"
+
+          # (c) Loại service đang TẠM HOÃN vì CVE chưa có bản vá upstream.
+          # Chính sách: không push image dính CVE CRITICAL/HIGH lên ECR. Service bị
+          # hoãn giữ nguyên tag cũ trong values-image-tags.yaml -> ArgoCD chạy image cũ.
+          # Quá hạn review_by -> cảnh báo để không ai quên (nhưng vẫn hoãn, không fail CI).
+          if [ -f "$EXCLUSIONS_FILE" ]; then
+            TODAY=$(date -u +%F)
+            while IFS=$'\t' read -r svc reason review_by; do
+              [ -z "$svc" ] && continue
+              if [ -z "${DOCKERFILE[$svc]:-}" ]; then
+                echo "::warning::build-exclusions: '$svc' không còn là service team-owned -> entry thừa, nên xoá."
+                continue
+              fi
+              unset 'DOCKERFILE[$svc]'
+              echo "::notice::HOÃN BUILD '$svc' — $reason (review_by: $review_by)"
+              if [[ "$review_by" < "$TODAY" ]]; then
+                echo "::warning::build-exclusions: '$svc' đã QUÁ HẠN review ($review_by). Kiểm tra upstream đã có fix chưa rồi bump + xoá entry."
+              fi
+            done < <(yq -r '.exclusions[] | [.service, .reason, .review_by] | @tsv' "$EXCLUSIONS_FILE")
+          fi
+
+          # --- Chọn service cần build ---------------------------------------
+          selected=()
+          case "$EVENT" in
+            workflow_dispatch)
+              if [ -n "${DISPATCH_SERVICES:-}" ]; then
+                read -ra requested <<< "$DISPATCH_SERVICES"
+                for svc in "${requested[@]}"; do
+                  if [ -z "${DOCKERFILE[$svc]:-}" ]; then
+                    echo "::error::Service '$svc' không phải team-owned hoặc không có Dockerfile."
+                    exit 1
+                  fi
+                  selected+=("$svc")
+                done
+              else
+                selected=("${!DOCKERFILE[@]}")
+              fi
+              ;;
+            *)
+              # BASE_SHA rỗng (branch mới) hoặc không tồn tại -> build tất cả cho an toàn.
+              if [ -z "${BASE_SHA:-}" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ] \
+                 || ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+                echo "Không xác định được base commit -> build tất cả."
+                selected=("${!DOCKERFILE[@]}")
+              else
+                mapfile -t changed < <(git diff --name-only "$BASE_SHA" "${{ github.sha }}")
+                # Chart đổi -> ảnh hưởng mọi service, build tất cả.
+                if printf '%s\n' "${changed[@]}" | grep -qx "$VALUES"; then
+                  echo "$VALUES đổi -> build tất cả."
+                  selected=("${!DOCKERFILE[@]}")
+                else
+                  for svc in "${!DOCKERFILE[@]}"; do
+                    if printf '%s\n' "${changed[@]}" | grep -q "^techx-corp-platform/src/$svc/"; then
+                      selected+=("$svc")
+                    fi
+                  done
+                fi
+              fi
+              ;;
+          esac
+
+          if [ "${#selected[@]}" -eq 0 ]; then
+            echo "any=false" >> "$GITHUB_OUTPUT"
+            echo "matrix={\"include\":[]}" >> "$GITHUB_OUTPUT"
+            echo "Không service nào thay đổi."
+            exit 0
+          fi
+
+          include=""
+          for svc in $(printf '%s\n' "${selected[@]}" | sort -u); do
+            [ -n "$include" ] && include+=","
+            include+="{\"service\":\"$svc\",\"dockerfile\":\"${DOCKERFILE[$svc]}\"}"
+          done
+
+          echo "any=true" >> "$GITHUB_OUTPUT"
+          echo "matrix={\"include\":[$include]}" >> "$GITHUB_OUTPUT"
+          echo "Sẽ build: $(printf '%s ' "${selected[@]}")"
+
+  # ------------------------------------------------------------------ #
+  # CDO-141: Validate Helm/manifest làm GATE trước build/deploy.        #
+  # Chart không render được -> không build/push image nào (fail sớm).   #
+  # ------------------------------------------------------------------ #
+  validate-manifest:
+    name: Validate Helm manifest (deploy gate)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - name: Lint chart
+        run: >-
+          helm lint platform/charts/application
+          -f platform/gitops/environments/sandbox/values-observability.yaml
+          -f platform/gitops/environments/sandbox/values-flagd-sync.yaml
+          -f platform/gitops/environments/sandbox/values-image-tags.yaml
+      - name: Render chart (fail nếu rỗng)
+        run: |
+          set -euo pipefail
+          helm template techx-corp platform/charts/application \
+            -f platform/gitops/environments/sandbox/values-observability.yaml \
+            -f platform/gitops/environments/sandbox/values-flagd-sync.yaml \
+            -f platform/gitops/environments/sandbox/values-image-tags.yaml \
+            > /tmp/rendered.yaml
+          [ -s /tmp/rendered.yaml ] || { echo "::error::manifest rỗng"; exit 1; }
+          echo "✅ manifest OK"
+
+  # ------------------------------------------------------------------ #
+  # Build -> Trivy gate -> (nếu không PR) push by-digest + Cosign ký    #
+  # digest. Mỗi service 1 job matrix, tag riêng <version>-<svc>-<sha>.  #
+  # needs validate-manifest: gate CDO-141 phải xanh mới được build.     #
+  # ------------------------------------------------------------------ #
+  build:
+    name: Build ${{ matrix.service }}
+    needs: [detect, validate-manifest]
+    if: needs.detect.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    # Trust policy của GitHubTerraformSandboxRole khóa sub bằng StringEquals:
+    #   repo:<org>/<repo>:environment:sandbox
+    environment: sandbox
+    permissions:
+      contents: read
+      id-token: write # OIDC cho AWS + Cosign keyless (Fulcio)
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.detect.outputs.matrix) }}
+    outputs:
+      # dùng cho job bump: service -> digest. (matrix outputs gộp theo key cuối;
+      # bump job đọc lại digest từ ECR theo tag nên không phụ thuộc output này.)
+      dummy: "ok"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compute tag
+        id: meta
+        run: |
+          set -euo pipefail
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          TAG="${IMAGE_VERSION}-${{ matrix.service }}-${SHORT_SHA}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "image=${ECR_REGISTRY}/${ECR_REPOSITORY}:${TAG}" >> "$GITHUB_OUTPUT"
+          echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Configure AWS credentials
+        if: github.event_name != 'pull_request'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.TF_AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-${{ github.actor }}-${{ github.run_id }}
+
+      - name: Login to Amazon ECR
+        if: github.event_name != 'pull_request'
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Install Cosign
+        if: github.event_name != 'pull_request'
+        uses: sigstore/cosign-installer@v3.5.0
+
+      # Một số Dockerfile cần ARG version (ad/fraud-detection: OTEL_JAVA_AGENT_VERSION,
+      # currency: OPENTELEMETRY_CPP_VERSION). Thiếu -> URL thành .../download/v/... -> 404.
+      # Đọc từ techx-corp-platform/.env (nguồn sự thật, docker-compose cũng dùng file này)
+      # thay vì hardcode ở đây, để bump version chỉ sửa 1 chỗ.
+      - name: Load build args từ .env
+        id: buildargs
+        run: |
+          set -euo pipefail
+          ENV_FILE="$BUILD_CONTEXT/.env"
+          {
+            echo "args<<EOF"
+            grep -E '^(OTEL_JAVA_AGENT_VERSION|OPENTELEMETRY_CPP_VERSION)=' "$ENV_FILE" \
+              | sed 's/[[:space:]]*$//'
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      # PR: build (load local) để scan, KHÔNG push. push/dispatch: build & push.
+      - name: Build image (load, for scan)
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ env.BUILD_CONTEXT }}
+          file: ${{ env.BUILD_CONTEXT }}/${{ matrix.dockerfile }}
+          build-args: ${{ steps.buildargs.outputs.args }}
+          load: true
+          push: false
+          tags: ${{ steps.meta.outputs.image }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+      - name: Trivy vulnerability scan (gate)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ steps.meta.outputs.image }}
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
+
+      # Chỉ push khi không phải PR. Push by-digest để ký theo digest (chuẩn immutable).
+      - name: Push image
+        id: push
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ env.BUILD_CONTEXT }}
+          file: ${{ env.BUILD_CONTEXT }}/${{ matrix.dockerfile }}
+          build-args: ${{ steps.buildargs.outputs.args }}
+          push: true
+          tags: ${{ steps.meta.outputs.image }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+
+      - name: Cosign keyless sign (by digest)
+        if: github.event_name != 'pull_request'
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          set -euo pipefail
+          # Ký DIGEST, không ký tag: digest bất biến, tag chỉ là con trỏ.
+          REF="${ECR_REGISTRY}/${ECR_REPOSITORY}@${DIGEST}"
+          cosign sign --yes \
+            --rekor-url https://rekor.sigstore.dev \
+            --fulcio-url https://fulcio.sigstore.dev \
+            "$REF"
+          echo "✅ Signed $REF"
+
+  # ------------------------------------------------------------------ #
+  # CDO-142: bump tag vào Git -> ArgoCD selfHeal sync.                  #
+  # Chạy SAU khi mọi service build+push+ký xong, chỉ trên push (không   #
+  # PR). yq map service -> components.<svc>.imageOverride.tag trong      #
+  # FILE TAGS TÁCH RIÊNG (không comment) — map đúng key từng service,   #
+  # không sed 1 dòng, không reformat values.yaml gốc.                   #
+  # ------------------------------------------------------------------ #
+  bump:
+    name: Bump image tags (GitOps)
+    needs: [detect, build]
+    if: github.event_name == 'push' && needs.detect.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # GitHub App token: danh tính bot riêng, ephemeral (~1h), quyền fine-grained
+      # contents:write. App PHẢI nằm trong bypass list của ruleset develop để push
+      # thẳng vượt branch protection. Secrets: GITOPS_APP_ID + GITOPS_APP_PRIVATE_KEY.
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.GITOPS_APP_ID || secrets.GITOPS_APP_ID }}
+          private-key: ${{ secrets.GITOPS_APP_PRIVATE_KEY }}
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Install yq
+        uses: mikefarah/yq@v4
+
+      - name: Bump imageOverride.tag từng service
+        env:
+          MATRIX: ${{ needs.detect.outputs.matrix }}
+        run: |
+          set -euo pipefail
+          SHORT_SHA=$(git rev-parse --short HEAD)
+
+          # Duyệt service trong matrix, map -> đúng key trong file tags riêng.
+          for svc in $(echo "$MATRIX" | yq -r '.include[].service'); do
+            TAG="${IMAGE_VERSION}-${svc}-${SHORT_SHA}"
+            echo "== $svc -> $TAG =="
+            yq -i ".components.\"$svc\".imageOverride.tag = \"$TAG\"" "$TAGS_FILE"
+          done
+
+      - name: Commit & push
+        env:
+          BRANCH_NAME: ${{ github.ref_name }}
+          # Checkout đã dùng App token -> origin remote đã kèm credential đúng.
+          # Commit author = App bot (audit rõ ai bump). Push thẳng nhờ App ở bypass list.
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- "$TAGS_FILE"; then
+            echo "ℹ️ Tag không đổi, bỏ qua commit."
+            exit 0
+          fi
+          git config user.name  "${APP_SLUG}[bot]"
+          git config user.email "${APP_SLUG}[bot]@users.noreply.github.com"
+          git add "$TAGS_FILE"
+          git commit -m "ci(app): bump image tags -> $(git rev-parse --short HEAD) [skip ci]"
+
+          # Job này checkout branch lúc bắt đầu run rồi build vài phút mới push. Merge
+          # tiếp theo trong khoảng đó làm branch tiến lên -> push non-fast-forward bị
+          # từ chối (đúng: push thẳng sẽ nuốt mất commit của run kia). Rebase rồi thử
+          # lại: mỗi run chỉ sửa key của service mình trong TAGS_FILE nên không đụng
+          # nhau, chỉ là cùng chạm một file.
+          for attempt in 1 2 3 4 5; do
+            if git push origin "HEAD:${BRANCH_NAME}"; then
+              echo "✅ Bumped & pushed lên $BRANCH_NAME — ArgoCD sẽ selfHeal sync."
+              exit 0
+            fi
+            echo "⚠️ Push bị từ chối (lần $attempt) — có commit mới trên $BRANCH_NAME, rebase rồi thử lại."
+            git pull --rebase origin "$BRANCH_NAME"
+          done
+
+          echo "::error::Push thất bại sau 5 lần rebase — $BRANCH_NAME đang bị ghi quá nhanh."
+          exit 1

@@ -1,0 +1,29 @@
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sDisallowedTags
+metadata:
+  name: deny-floating-image-tag
+  annotations:
+    description: >-
+      Cấm sử dụng image tag di động/trôi nổi (latest, dev, master, main, stable, edge).
+      Bắt buộc container phải dùng tag cố định hoặc image digest.
+      Áp dụng cho namespace techx-tf1.
+spec:
+  enforcementAction: dryrun
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+    namespaces:
+      - techx-tf1
+    excludedNamespaces:
+      - kube-system
+      - gatekeeper-system
+      - argocd
+  parameters:
+    tags:
+      - latest
+      - dev
+      - master
+      - main
+      - stable
+      - edge
