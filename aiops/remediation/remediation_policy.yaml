@@ -30,6 +30,13 @@ alert:
 
 policies:
   - rule_id: oom-detected
+    # Review 17/07 (chaos test that): OOM dot ngot khien app bi SIGKILL truoc khi kip
+    # ghi log ve cai chet cua chinh no -> rule log-based KHONG BAO GIO khop. K8s API
+    # (containerStatuses[].lastState.terminated) la tin hieu CHINH, dang tin cay hon.
+    # Log OpenSearch (neu co) chi la bang chung PHU dinh kem alert, khong dung de gate.
+    trigger:
+      type: k8s_pod_status
+      lookback_seconds: 300
     action:
       type: k8s_restart_pod
       grace_period_seconds: 30

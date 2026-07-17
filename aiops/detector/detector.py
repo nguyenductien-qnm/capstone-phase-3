@@ -20,6 +20,7 @@ import yaml
 
 from sources import PrometheusClient, OpenSearchClient
 from alerter import Alerter
+from k8s_status import load_k8s_client, find_oom_pods
 
 logging.basicConfig(
     level=os.environ.get("LOG_LEVEL", "INFO"),
@@ -148,13 +149,42 @@ def eval_log_rule(rule, osc):
     return alerts
 
 
-def run_cycle(cfg, prom, osc, alerter):
+def eval_k8s_status_rule(rule, core_v1):
+    """Doc trang thai pod THAT tu K8s API (khong qua log). Bo sung cho rule kieu
+    OOMKilled: kernel SIGKILL container truoc khi no kip ghi log ve cai chet cua chinh
+    no, nen rule log-based khong bao gio khop (xac nhan qua chaos test that 17/07,
+    xem ADR-012 addendum)."""
+    alerts = []
+    namespace = rule.get("k8s_namespace", "techx-tf1")
+    service_label_key = rule.get("service_label_key", "opentelemetry.io/name")
+    lookback = rule.get("lookback_seconds", 300)
+    try:
+        oom_pods = find_oom_pods(core_v1, namespace, service_label_key, since_seconds=lookback)
+    except Exception as exc:  # noqa: BLE001
+        log.error("query K8s API loi (rule=%s): %s", rule["id"], exc)
+        return alerts
+
+    for oom in oom_pods:
+        svc = oom["service_label"]
+        dedup_key = f"{rule['id']}:{svc}"
+        fields = [
+            ("🎯 Dịch vụ", svc, True),
+            ("📦 Pod", oom["pod_name"], True),
+            ("🔍 Container", oom["container_name"], False),
+        ]
+        alerts.append((dedup_key, rule["summary"], fields))
+    return alerts
+
+
+def run_cycle(cfg, prom, osc, core_v1, alerter):
     fired = 0
     for rule in cfg["rules"]:
         if rule["type"] == "metric":
             results = eval_metric_rule(rule, prom)
         elif rule["type"] == "log":
             results = eval_log_rule(rule, osc)
+        elif rule["type"] == "k8s_status":
+            results = eval_k8s_status_rule(rule, core_v1)
         else:
             log.warning("rule %s co type khong hop le: %s", rule.get("id"), rule.get("type"))
             continue
@@ -186,6 +216,7 @@ def main():
         time_field=src.get("opensearch_time_field", "observedTimestamp"),
         timeout=src.get("http_timeout_seconds", 5),
     )
+    core_v1 = load_k8s_client()
 
     webhook = None if args.dry_run else os.environ.get(cfg["alert"]["webhook_env"]) # Deprecated in favor of direct env lookup in Alerter
     provider = "stdout" if args.dry_run else cfg["alert"].get("provider", "auto")
@@ -201,13 +232,13 @@ def main():
              alerter.provider, len(cfg["rules"]), cfg["poll_interval_seconds"])
 
     if args.once:
-        fired = run_cycle(cfg, prom, osc, alerter)
+        fired = run_cycle(cfg, prom, osc, core_v1, alerter)
         log.info("vong don hoan tat, da ban %d alert", fired)
         return
 
     while True:
         try:
-            run_cycle(cfg, prom, osc, alerter)
+            run_cycle(cfg, prom, osc, core_v1, alerter)
         except Exception as exc:  # noqa: BLE001 - giu vong lap song
             log.error("loi trong vong lap: %s", exc)
         time.sleep(cfg["poll_interval_seconds"])

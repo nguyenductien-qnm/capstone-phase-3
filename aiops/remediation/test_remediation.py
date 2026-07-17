@@ -96,6 +96,7 @@ RULE = {
 
 POLICY = {
     "rule_id": "oom-detected",
+    "trigger": {"type": "k8s_pod_status", "lookback_seconds": 300},
     "action": {"type": "k8s_restart_pod", "grace_period_seconds": 30, "require_readiness_gate": True},
     "safety_boundaries": {
         "dry_run": True,
@@ -134,6 +135,39 @@ def test_dry_run_never_calls_k8s_delete():
     # Alert dry-run phai duoc gui voi title "remediation-dry-run:..."
     sent_titles = [call.args[2] for call in alerter.send.call_args_list]
     assert any("dry-run" in t for t in sent_titles)
+
+
+def test_k8s_pod_status_trigger_acts_even_with_zero_log_matches():
+    """Tai hien DUNG phat hien chaos test that 17/07: OOM dot ngot khien app bi
+    SIGKILL truoc khi kip ghi log ve cai chet cua chinh no -> OpenSearch tra ve 0 hit
+    (giong het thuc te), nhung K8s API van xac nhan OOMKilled that -> voi
+    trigger.type=k8s_pod_status, remediation VAN PHAI hanh dong (dry-run o day, chi
+    can xac nhan KHONG bi chan boi log rong)."""
+    prom, osc, core_v1, alerter = _mocks()
+    osc.count_matches.return_value = (0, None)  # dung nhu thuc te - khong co log nao
+    blast_guard = BlastRadiusGuard(1, 3600)
+    breaker = CircuitBreaker(3, 86400)
+
+    remediation.process_oom_policy(POLICY, RULE, CFG, prom, osc, core_v1, alerter, blast_guard, breaker, dry_run=True)
+
+    assert alerter.send.called, "phai van hanh dong (dry-run alert) du log_count=0"
+    sent_titles = [call.args[2] for call in alerter.send.call_args_list]
+    assert any("dry-run" in t for t in sent_titles)
+
+
+def test_opensearch_log_trigger_still_gates_on_log_count():
+    """Doi chung: policy dung trigger.type=opensearch_log (mac dinh/hanh vi cu) thi
+    log_count=0 PHAI chan hanh dong - khong pha vo rule nao khac dang dung kieu cu."""
+    prom, osc, core_v1, alerter = _mocks()
+    osc.count_matches.return_value = (0, None)
+    policy_log_trigger = {**POLICY, "trigger": {"type": "opensearch_log"}}
+    blast_guard = BlastRadiusGuard(1, 3600)
+    breaker = CircuitBreaker(3, 86400)
+
+    remediation.process_oom_policy(policy_log_trigger, RULE, CFG, prom, osc, core_v1, alerter, blast_guard, breaker, dry_run=True)
+
+    alerter.send.assert_not_called()
+    core_v1.delete_namespaced_pod.assert_not_called()
 
 
 def test_no_action_when_no_real_oom_pod_found():
