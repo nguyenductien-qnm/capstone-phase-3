@@ -1077,6 +1077,10 @@ components:
       env: true
     imageOverride:
       tag: "1.0-shopping-copilot"
+    serviceAccount:
+      create: true
+      annotations: {}
+      name: shopping-copilot
     service:
       port: 50051
     startupProbe:
@@ -1110,9 +1114,9 @@ components:
       - name: OPENAI_API_KEY
         value: dummy
       - name: AWS_REGION
-        value: us-east-1
+        value: us-east-2
       - name: LLM_COPILOT_MAIN_MODEL
-        value: amazon.nova-pro-v1:0
+        value: us.amazon.nova-pro-v1:0
       - name: LLM_COPILOT_FALLBACK_MODEL
         value: amazon.nova-lite-v1:0
       - name: LLM_COPILOT_TIMEOUT

@@ -40,6 +40,8 @@ from guardrails import sanitize_json_for_llm, redact_pii, leaks_system_prompt
 logger = logging.getLogger(__name__)
 
 MAX_TOOL_CALLS = 5
+THINKING_BLOCK_RE = re.compile(r"<thinking>.*?</thinking>", re.IGNORECASE | re.DOTALL)
+THINKING_TAG_RE = re.compile(r"</?thinking>", re.IGNORECASE)
 
 # SYSTEM_PROMPT contains the core instructions for the Shopping Copilot.
 # It embeds a static CATALOG to help the LLM map natural language to product
@@ -195,6 +197,13 @@ def _run_read_tool(name: str, args: dict, user_id: str) -> str:
     return json.dumps({"error": f"Unknown tool '{name}'"})
 
 
+def _clean_model_output(text: str) -> str:
+    """Remove hidden reasoning tags that some models may emit as plain text."""
+    text = THINKING_BLOCK_RE.sub("", text or "")
+    text = THINKING_TAG_RE.sub("", text)
+    return re.sub(r"\n{3,}", "\n\n", text).strip()
+
+
 # --- Resiliency: Bulkhead & Circuit Breaker ---
 bedrock_bulkhead = threading.Semaphore(int(os.environ.get('LLM_BULKHEAD_SIZE', '6')))
 _cb_lock = threading.Lock()
@@ -206,7 +215,7 @@ _fallback_client = None
 def get_bedrock_fallback_client():
     global _fallback_client
     if _fallback_client is None:
-        aws_region = os.environ.get('AWS_REGION', 'us-east-1')
+        aws_region = os.environ.get('AWS_REGION', 'us-east-2')
         fallback_timeout = float(os.environ.get('LLM_COPILOT_FALLBACK_TIMEOUT', '2.5'))
         fallback_config = Config(connect_timeout=1.0, read_timeout=fallback_timeout, retries={'max_attempts': 0})
         _fallback_client = boto3.client(service_name="bedrock-runtime", region_name=aws_region, config=fallback_config)
@@ -330,7 +339,7 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
         if stop != "tool_use":
             text = "\n".join(b["text"] for b in blocks if "text" in b)
             # MANDATE-06 Output Guardrail: redact PII + block system prompt leak.
-            clean_text = redact_pii(text) if text else ""
+            clean_text = redact_pii(_clean_model_output(text)) if text else ""
             if leaks_system_prompt(clean_text, SYSTEM_PROMPT):
                 logger.error("[Guardrail] System prompt leakage blocked in copilot output.")
                 clean_text = "Xin lỗi, tôi không thể hiển thị nội dung này."
