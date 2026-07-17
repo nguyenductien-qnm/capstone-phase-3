@@ -102,6 +102,8 @@ Có dùng — đúng 2 consumer: `aiops/detector` (5 rule log, phrase-count cử
 
 **Q3. Requirement service để deploy AI (Bedrock, AgentCore...)?**
 - **Bedrock runtime** (`bedrock-runtime`, us-east-1): models `amazon.nova-lite-v1:0`, `nova-micro-v1:0` (reviews), `nova-pro-v1:0` (copilot W2). **Cần CDO cấp IAM `bedrock:InvokeModel`** qua IRSA cho serviceAccount `product-reviews` và `shopping-copilot` hoặc node role.
+  - **Lưu ý bảo mật (Cross-account SSO)**: Role Assume hiện có điều kiện `sts:ExternalId`. Do đó, CDO **bắt buộc** phải inject biến môi trường `BEDROCK_AWS_EXTERNAL_ID=phase3-bedrock-cross-account` vào container qua Secret/ConfigMap để tránh lỗi AccessDenied.
+- **Bedrock Guardrails**: Không yêu cầu tạo mới hạ tầng Guardrail qua Terraform. App đã hỗ trợ sẵn, CDO chỉ cần cấu hình Guardrail ID vào Secret rồi map thành biến môi trường `BEDROCK_GUARDRAIL_ID` (và tuỳ chọn `BEDROCK_GUARDRAIL_VERSION`) cho container là chạy ngay.
 - **KHÔNG cần**: AgentCore/Bedrock Agents (copilot tự dựng tool-calling qua Converse API — zero managed-agent cost), Knowledge Bases/OpenSearch Serverless (đã loại — xem `03_specs/semantic_search.md`).
 - **PostgreSQL pgvector**: Cấp quyền `CREATE EXTENSION vector` cho schema `catalog` để service `recommendation` thực thi tìm kiếm vector cosine similarity.
 - Copilot W2: pod mới gRPC `:50051`, envoy route + cluster đã có trong `envoy.tmpl.yaml`; chart để `enabled: false` tới khi có image.
