@@ -188,6 +188,7 @@ components:
     # critical path storefront → không cần PDB/spread (gián đoạn ngắn được Kafka đệm).
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
+      reloader.stakater.com/auto: "true"
     env:
       - name: KAFKA_ADDR
         valueFrom:
@@ -1031,6 +1032,7 @@ components:
       failureThreshold: 6
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
+      reloader.stakater.com/auto: "true"
     env:
       - name: PRODUCT_CATALOG_PORT
         value: "8080"
@@ -1069,6 +1071,7 @@ components:
       port: 3551
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
+      reloader.stakater.com/auto: "true"
     env:
       - name: OPENAI_API_KEY
         value: dummy

@@ -82,3 +82,21 @@ variable "eks_node_security_group_id" {
   type        = string
   description = "EKS node security group ID to allow access to RDS"
 }
+
+variable "enable_rotation" {
+  type        = bool
+  description = "Bật/Tắt xoay vòng secret tự động"
+  default     = false
+}
+
+variable "rotation_lambda_arn" {
+  type        = string
+  description = "ARN của Lambda function dùng để xoay vòng secret"
+  default     = ""
+}
+
+variable "rotation_rules_automatically_after_days" {
+  type        = number
+  description = "Số ngày tự động xoay vòng secret"
+  default     = 30
+}

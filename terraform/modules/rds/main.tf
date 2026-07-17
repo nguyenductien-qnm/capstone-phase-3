@@ -176,6 +176,17 @@ resource "aws_secretsmanager_secret_version" "db_credentials" {
   })
 }
 
+resource "aws_secretsmanager_secret_rotation" "db_credentials" {
+  count = (var.enable_rds_proxy && var.enable_rotation) ? 1 : 0
+
+  secret_id           = aws_secretsmanager_secret.db_credentials[0].id
+  rotation_lambda_arn = var.rotation_lambda_arn
+
+  rotation_rules {
+    automatically_after_days = var.rotation_rules_automatically_after_days
+  }
+}
+
 # IAM Role để RDS Proxy đọc Secret
 resource "aws_iam_role" "rds_proxy" {
   count = var.enable_rds_proxy ? 1 : 0

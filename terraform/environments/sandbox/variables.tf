@@ -345,3 +345,21 @@ variable "audit_operator_role_names" {
   default     = []
   description = "IAM role names to attach the tamper-deny policy; leave empty for Identity Center manual attachment"
 }
+
+variable "rds_enable_rotation" {
+  type        = bool
+  description = "Bật/Tắt xoay vòng secret tự động cho RDS"
+  default     = false
+}
+
+variable "rds_rotation_lambda_arn" {
+  type        = string
+  description = "ARN của Lambda function xoay vòng secret RDS"
+  default     = ""
+}
+
+variable "rds_rotation_rules_automatically_after_days" {
+  type        = number
+  description = "Số ngày tự động xoay vòng secret RDS"
+  default     = 30
+}
