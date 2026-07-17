@@ -1,0 +1,28 @@
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sPSPAllowedUsers
+metadata:
+  name: run-as-non-root
+  annotations:
+    description: >-
+      Bắt buộc containers phải chạy với user không phải root.
+      Yêu cầu runAsNonRoot: true hoặc runAsUser > 0 trong securityContext.
+      Áp dụng cho namespace techx-tf1.
+spec:
+  enforcementAction: dryrun
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+    namespaces:
+      - techx-tf1
+    excludedNamespaces:
+      - kube-system
+      - gatekeeper-system
+      - argocd
+  parameters:
+    runAsUser:
+      rule: MustRunAsNonRoot
+    exemptImages:
+      # Observability stack — ngoại lệ có kiểm soát (ADR-003 §4, hết hạn 2026-12-31).
+      # otel-collector-agent (DaemonSet) cần chạy quyền cao để đọc host/node metrics.
+      - "otel/opentelemetry-collector-contrib*"

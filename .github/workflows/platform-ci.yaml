@@ -1,0 +1,100 @@
+name: Platform CI
+
+# CDO-145 (gate stage 0): secret scan + unit test + helm lint chạy trên MỌI push/PR.
+# CDO-141: helm lint + template render làm gate validate manifest TRƯỚC khi deploy.
+#
+# Đây là gate rẻ, không cần AWS creds — fail sớm để chặn code lỗi/lộ secret trước khi
+# tới các workflow tốn kém (app-build push ECR, infra-cd apply).
+
+on:
+  pull_request:
+  push:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: platform-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ------------------------------------------------------------------ #
+  # CDO-145: Secret scan toàn repo. Quét full history trên push;       #
+  # trên PR chỉ quét diff (nhanh + đủ để chặn secret mới thêm).        #
+  # ------------------------------------------------------------------ #
+  secret-scan:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # fetch full history để gitleaks quét được toàn bộ commit trên push.
+          fetch-depth: 0
+      - name: Gitleaks scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ------------------------------------------------------------------ #
+  # CDO-145: Unit test các service Go có sẵn (checkout, product-catalog).#
+  # Chạy `go test ./...` trong từng module. fail-fast=false để thấy    #
+  # hết service nào hỏng trong 1 lần chạy.                             #
+  # ------------------------------------------------------------------ #
+  unit-test:
+    name: Unit test (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [checkout, product-catalog]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: techx-corp-platform/src/${{ matrix.service }}/go.mod
+          cache-dependency-path: techx-corp-platform/src/${{ matrix.service }}/go.sum
+      - name: go vet
+        working-directory: techx-corp-platform/src/${{ matrix.service }}
+        run: go vet ./...
+      - name: go test
+        working-directory: techx-corp-platform/src/${{ matrix.service }}
+        run: go test -race -count=1 ./...
+
+  # ------------------------------------------------------------------ #
+  # CDO-141: Validate Helm/manifest làm gate trước deploy.             #
+  # lint + template render toàn bộ values overlay của sandbox. Nếu     #
+  # chart không render được -> chặn (ArgoCD sẽ không deploy rác).      #
+  # ------------------------------------------------------------------ #
+  helm:
+    name: Helm lint + render (deploy gate)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - name: Lint application chart
+        run: >-
+          helm lint platform/charts/application
+          -f platform/gitops/environments/sandbox/values-observability.yaml
+          -f platform/gitops/environments/sandbox/values-flagd-sync.yaml
+          -f platform/gitops/environments/sandbox/values-external-secrets.yaml
+          -f platform/gitops/environments/sandbox/values-image-tags.yaml
+      - name: Render application chart
+        run: >-
+          helm template techx-corp platform/charts/application
+          -f platform/gitops/environments/sandbox/values-observability.yaml
+          -f platform/gitops/environments/sandbox/values-flagd-sync.yaml
+          -f platform/gitops/environments/sandbox/values-external-secrets.yaml
+          -f platform/gitops/environments/sandbox/values-image-tags.yaml
+          > /tmp/techx-corp-rendered.yaml
+      - name: Fail nếu manifest rỗng
+        run: |
+          set -euo pipefail
+          if [ ! -s /tmp/techx-corp-rendered.yaml ]; then
+            echo "::error::Chart render ra manifest rỗng — chặn deploy."
+            exit 1
+          fi
+          echo "✅ Chart render OK ($(wc -l < /tmp/techx-corp-rendered.yaml) dòng)"

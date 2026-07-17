@@ -1,6 +1,22 @@
 # Ignore CodeGraph index directory
 .codegraph/
 
+# OS and editor files
+.DS_Store
+.idea/
+.vscode/
+
+# Python generated files
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Local environment and secret files
+.env
+.env.*
+!.env.example
+
 # Ignore local Terraform directories
 .terraform/
 
@@ -8,10 +24,30 @@
 *.tfstate
 *.tfstate.*
 errored.tfstate
+tfplan
+*.tfplan
 
 # Ignore sensitive variable files
 *.tfvars
 *.tfvars.json
+!terraform/environments/*/access.auto.tfvars
+!terraform/environments/sandbox/primary-capacity.tfvars
 
 # Ignore temporary logs
 *.log
+
+# Build and test output
+dist/
+build/
+coverage/
+.coverage
+
+# Bản gốc BTC phát (xbrain-learners/phase3) — dùng để diff, không commit
+_baseline-phase3/
+
+# Python bytecode & local artifacts (review 12/07: pycache tung bi commit o root)
+*.pyc
+*.db
+
+# CDO-83 evidence output (runtime snapshots)
+docs/templates/cdo/evidence/

@@ -1,0 +1,38 @@
+# AWS Load Balancer Controller Application
+# Tự động tạo và quản lý AWS ALB/NLB dựa trên Ingress/Service trong cụm EKS.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: aws-load-balancer-controller
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://aws.github.io/eks-charts
+    chart: aws-load-balancer-controller
+    targetRevision: 1.8.1 # Phiên bản chart phù hợp cho EKS 1.30+
+    helm:
+      values: |
+        clusterName: ecommerce-dev-eks
+        region: us-east-1
+        vpcId: vpc-06d4c34ec03f55c6d
+        serviceAccount:
+          create: true
+          name: aws-load-balancer-controller
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            memory: 256Mi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

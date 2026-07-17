@@ -41,7 +41,9 @@ builder.Logging
 
 builder.Services.AddSingleton<ICartStore>(x =>
 {
-    var store = new ValkeyCartStore(x.GetRequiredService<ILogger<ValkeyCartStore>>(), valkeyAddress);
+    string valkeyToken = builder.Configuration["VALKEY_AUTH_TOKEN"];
+    bool valkeyTls = builder.Configuration["VALKEY_TLS"]?.ToLower() == "true";
+    var store = new ValkeyCartStore(x.GetRequiredService<ILogger<ValkeyCartStore>>(), valkeyAddress, valkeyToken, valkeyTls);
     store.Initialize();
     return store;
 });
@@ -88,8 +90,14 @@ builder.Services.AddOpenTelemetry()
         .AddOtlpExporter());
 builder.Services.AddGrpc();
 builder.Services.AddSingleton<readinessCheck>();
+// CDO-80 (Option C): tách liveness khỏi readiness.
+// - "liveness"  : luôn Healthy khi process sống → Valkey giật KHÔNG restart pod.
+// - "readiness" : phản ánh dependency (dùng lại readinessCheck) → giật thì kéo khỏi LB, không restart.
+// Giữ "oteldemo.CartService" cho tương thích ngược.
 builder.Services.AddGrpcHealthChecks()
-    .AddCheck<readinessCheck>("oteldemo.CartService");
+    .AddCheck<readinessCheck>("oteldemo.CartService")
+    .AddCheck("liveness", () => HealthCheckResult.Healthy())
+    .AddCheck<readinessCheck>("readiness");
 
 builder.Services.AddSingleton<HealthServiceImpl>();
 
