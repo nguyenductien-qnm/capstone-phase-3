@@ -27,6 +27,7 @@ from concurrent import futures
 
 import boto3
 import grpc
+from grpc_health.v1 import health, health_pb2, health_pb2_grpc
 
 import agent
 import tools
@@ -39,7 +40,10 @@ logger = logging.getLogger("shopping-copilot")
 
 PORT = os.environ.get("SHOPPING_COPILOT_PORT", "50051")
 AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
-MAIN_MODEL = os.environ.get("LLM_COPILOT_MODEL", "amazon.nova-pro-v1:0")
+MAIN_MODEL = os.environ.get(
+    "LLM_COPILOT_MODEL",
+    os.environ.get("LLM_COPILOT_MAIN_MODEL", "amazon.nova-pro-v1:0"),
+)
 MAX_WORKERS = int(os.environ.get("COPILOT_MAX_WORKERS", "10"))
 CONFIRM_TTL_SECONDS = int(os.environ.get("COPILOT_CONFIRM_TTL", "300"))
 # Keep session context bounded — most recent turns only (context engineering, L4).
@@ -147,6 +151,13 @@ def serve():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=MAX_WORKERS))
     pb_grpc.add_ShoppingCopilotServiceServicer_to_server(
         ShoppingCopilotServicer(bedrock), server)
+    health_servicer = health.HealthServicer()
+    health_pb2_grpc.add_HealthServicer_to_server(health_servicer, server)
+    health_servicer.set("", health_pb2.HealthCheckResponse.SERVING)
+    health_servicer.set(
+        "shopping_copilot.ShoppingCopilotService",
+        health_pb2.HealthCheckResponse.SERVING,
+    )
     server.add_insecure_port(f"[::]:{PORT}")
     
     import signal

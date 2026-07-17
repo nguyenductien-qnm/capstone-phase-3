@@ -15,3 +15,6 @@ components:
   product-catalog:
     imageOverride:
       tag: "1.1-product-catalog"
+  shopping-copilot:
+    imageOverride:
+      tag: "1.0-shopping-copilot"

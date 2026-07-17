@@ -10,7 +10,7 @@ name: App Build (ECR + Trivy + Cosign + GitOps bump)
 # Tag convention: <version>-<service>-<sha>  (version = chart appVersion default.image.tag).
 # ECR: 1 repo chung ecommerce-dev-techx-corp, IMMUTABLE. Ký theo digest, không ký tag.
 #
-# 4 service team quản (có source trong techx-corp-platform/src). flagd/postgresql/
+# Team-managed services (có source trong techx-corp-platform/src). flagd/postgresql/
 # valkey-cart là image upstream -> KHÔNG build ở đây.
 
 on:
@@ -21,6 +21,7 @@ on:
       - "techx-corp-platform/src/checkout/**"
       - "techx-corp-platform/src/frontend-proxy/**"
       - "techx-corp-platform/src/product-catalog/**"
+      - "techx-corp-platform/src/shopping-copilot/**"
       - ".github/workflows/app-build.yaml"
   pull_request:
     branches: ["develop", "main"]
@@ -29,6 +30,7 @@ on:
       - "techx-corp-platform/src/checkout/**"
       - "techx-corp-platform/src/frontend-proxy/**"
       - "techx-corp-platform/src/product-catalog/**"
+      - "techx-corp-platform/src/shopping-copilot/**"
       - ".github/workflows/app-build.yaml"
   workflow_dispatch:
     inputs:
@@ -85,6 +87,8 @@ jobs:
               - 'techx-corp-platform/src/frontend-proxy/**'
             product-catalog:
               - 'techx-corp-platform/src/product-catalog/**'
+            shopping-copilot:
+              - 'techx-corp-platform/src/shopping-copilot/**'
 
       - name: Build matrix
         id: set
@@ -95,6 +99,7 @@ jobs:
           CHECKOUT: ${{ steps.filter.outputs.checkout }}
           FRONTEND_PROXY: ${{ steps.filter.outputs.frontend-proxy }}
           PRODUCT_CATALOG: ${{ steps.filter.outputs.product-catalog }}
+          SHOPPING_COPILOT: ${{ steps.filter.outputs.shopping-copilot }}
         run: |
           set -euo pipefail
 
@@ -105,6 +110,7 @@ jobs:
             [checkout]="src/checkout/Dockerfile"
             [frontend-proxy]="src/frontend-proxy/Dockerfile"
             [product-catalog]="src/product-catalog/Dockerfile"
+            [shopping-copilot]="src/shopping-copilot/Dockerfile"
           )
 
           selected=()
@@ -112,13 +118,14 @@ jobs:
             if [ -n "${DISPATCH_SERVICES:-}" ]; then
               read -ra selected <<< "$DISPATCH_SERVICES"
             else
-              selected=(cart checkout frontend-proxy product-catalog)
+              selected=(cart checkout frontend-proxy product-catalog shopping-copilot)
             fi
           else
             [ "$CART" = "true" ]            && selected+=(cart) || true
             [ "$CHECKOUT" = "true" ]        && selected+=(checkout) || true
             [ "$FRONTEND_PROXY" = "true" ]  && selected+=(frontend-proxy) || true
             [ "$PRODUCT_CATALOG" = "true" ] && selected+=(product-catalog) || true
+            [ "$SHOPPING_COPILOT" = "true" ] && selected+=(shopping-copilot) || true
           fi
 
           if [ "${#selected[@]}" -eq 0 ]; then
