@@ -1,4 +1,4 @@
-"""Eval MANDATE-06 v5 (ADR-013) — reproducible red-team suite cho guardrail cascade.
+"""Eval MANDATE-06 v5 (ADR-014) — reproducible red-team suite cho guardrail cascade.
 
 Chạy: AWS_PROFILE=default python docs/ai/evals/eval_mandate06_v5.py
   (cần Bedrock us-east-1: nova-lite (injection judge) + nova-micro (grounding judge);
@@ -110,7 +110,7 @@ def main():
         "# Eval MANDATE-06 v5 — kết quả chạy " + time.strftime("%Y-%m-%d %H:%M"),
         "",
         f"- Region: {region}; injection judge: {g.INJECTION_JUDGE_MODEL}; grounding judge: {g.JUDGE_MODEL}",
-        f"- ml-guard: {g.ML_GUARD_URL or 'OFF (fallback judge)'}; Bedrock Guardrails: {'ON' if g.GUARDRAIL_ENABLED else 'OFF (ADR-013)'}",
+        f"- ml-guard: {g.ML_GUARD_URL or 'OFF (fallback judge)'}; Bedrock Guardrails: {'ON' if g.GUARDRAIL_ENABLED else 'OFF (ADR-014)'}",
         "",
         "| Rail | Case | Pass | Chi tiết | Latency |",
         "|---|---|---|---|---|",

@@ -1,4 +1,4 @@
-"""ml-guard — self-hosted grounding gate (TF1-61 / MANDATE-06, ADR-013).
+"""ml-guard — self-hosted grounding gate (TF1-61 / MANDATE-06, ADR-014).
 
 Một model mDeBERTa-v3-base-mnli-xnli (MIT, XNLI có tiếng Việt) làm NLI
 entailment: câu trả lời của LLM có được "chống lưng" bởi review nguồn không.

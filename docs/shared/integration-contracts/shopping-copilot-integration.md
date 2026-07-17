@@ -118,9 +118,9 @@ Các cập nhật liên quan tới triển khai AWS Bedrock và A/B Testing:
 
 Vui lòng cấu hình UI xử lý kịp thời để luồng thêm vào giỏ hàng của Agent không bị kẹt.
 
-## 7. Phụ lục 17/07/2026 (chiều) — ML Guard Cascade (ADR-013, thay §6)
+## 7. Phụ lục 17/07/2026 (chiều) — ML Guard Cascade (ADR-014, thay §6)
 
-§6 dưới đây **hạ cấp thành option** (ADR-013): docs AWS xác nhận Bedrock contextual
+§6 dưới đây **hạ cấp thành option** (ADR-014): docs AWS xác nhận Bedrock contextual
 grounding chỉ EN/FR/ES (không VN) và prompt-attack VN cần Standard tier → Bedrock
 Guardrails default OFF. Thay bằng cascade: regex T0 → **ml-guard pod (NLI)** →
 **Nova judge**. Eval 18/18 pass (`docs/ai/evals/eval_mandate06_v5_report.md`).

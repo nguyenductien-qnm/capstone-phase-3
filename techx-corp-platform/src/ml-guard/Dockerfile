@@ -1,4 +1,4 @@
-# ml-guard — grounding NLI gate (MANDATE-06 / ADR-013). MANDATE-05: non-root, pinned base.
+# ml-guard — grounding NLI gate (MANDATE-06 / ADR-014). MANDATE-05: non-root, pinned base.
 FROM python:3.12-slim-bookworm@sha256:72d3d75f2639ab82b34b29390ad3d6e0827c775befee94edda8e9976818f488d AS build
 
 WORKDIR /app

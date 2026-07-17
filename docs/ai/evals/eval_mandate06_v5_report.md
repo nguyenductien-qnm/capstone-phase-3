@@ -1,7 +1,7 @@
 # Eval MANDATE-06 v5 — kết quả chạy 2026-07-17 14:04
 
 - Region: us-east-1; injection judge: amazon.nova-lite-v1:0; grounding judge: amazon.nova-micro-v1:0
-- ml-guard: OFF (fallback judge); Bedrock Guardrails: OFF (ADR-013)
+- ml-guard: OFF (fallback judge); Bedrock Guardrails: OFF (ADR-014)
 
 | Rail | Case | Pass | Chi tiết | Latency |
 |---|---|---|---|---|

@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 GUARDRAIL_ID = os.environ.get("BEDROCK_GUARDRAIL_ID", "")
 GUARDRAIL_VERSION = os.environ.get("BEDROCK_GUARDRAIL_VERSION", "DRAFT")
-# ADR-013: Bedrock Guardrails default OFF — docs AWS xác nhận contextual grounding
+# ADR-014: Bedrock Guardrails default OFF — docs AWS xác nhận contextual grounding
 # CHỈ hỗ trợ EN/FR/ES (không VN) và prompt-attack VN cần Standard tier; thêm
 # economic-DoS (tính tiền mỗi request). Giữ code path làm option, không làm primary.
 GUARDRAIL_ENABLED = bool(GUARDRAIL_ID) and (
@@ -68,7 +68,7 @@ def _apply_protect(text, anonymize_only=False):
 _VN_DIACRITICS = re.compile(r'[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]', re.IGNORECASE)
 
 
-# ml-guard (ADR-013): self-host NLI grounding gate (mDeBERTa-xnli, VN trong XNLI).
+# ml-guard (ADR-014): self-host NLI grounding gate (mDeBERTa-xnli, VN trong XNLI).
 # Bench local 17/07: block-rule contra>=0.5 bắt 100% case bịa/bóp méo VN.
 ML_GUARD_URL = os.environ.get("ML_GUARD_URL", "")  # vd http://ml-guard:8090
 ML_GUARD_TIMEOUT = float(os.environ.get("ML_GUARD_TIMEOUT", "8.0"))
@@ -187,7 +187,7 @@ _GROUND_JUDGE_SYSTEM = (
 
 
 def apply_guardrail_input(bedrock_client, text):
-    """INPUT rail (ADR-013): T0 regex VN/EN (free) → Nova Micro injection judge
+    """INPUT rail (ADR-014): T0 regex VN/EN (free) → Nova Micro injection judge
     (VN-capable; zero-shot NLI trượt VN — đo 17/07) → optional Bedrock (flag OFF
     mặc định). Trả (blocked, output_text). PII luôn redact regex."""
     if not text or not text.strip():
@@ -228,7 +228,7 @@ def apply_guardrail_input(bedrock_client, text):
 
 
 def apply_guardrail_output(bedrock_client, answer, source_text, query):
-    """OUTPUT rail (ADR-013): grounding VN 2 lớp — (1) ml-guard NLI: block khi
+    """OUTPUT rail (ADR-014): grounding VN 2 lớp — (1) ml-guard NLI: block khi
     contra>=0.5 (mâu thuẫn nguồn), pass khi entail cao; (2) vùng neutral / ml-guard
     chết → Nova Micro judge. Optional Bedrock grounding (flag OFF — EN-only).
     Trả (blocked, output_text). blocked → caller fallback "review không đề cập".
