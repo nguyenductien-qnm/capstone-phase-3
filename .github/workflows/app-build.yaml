@@ -228,67 +228,10 @@ jobs:
   # digest. Mỗi service 1 job matrix, tag riêng <version>-<svc>-<sha>.  #
   # needs validate-manifest: gate CDO-141 phải xanh mới được build.     #
   # ------------------------------------------------------------------ #
-  # ------------------------------------------------------------------ #
-  # Bedrock Account 2 credentials: GitHub Secrets -> K8s Secret.
-  # App code reads BEDROCK_AWS_* only for Bedrock clients; AWS_REGION
-  # stays us-east-1 for infra consistency.
-  # ------------------------------------------------------------------ #
-  sync_bedrock_credentials:
-    name: Sync Bedrock credentials secret
-    needs: [detect, validate-manifest]
-    if: github.event_name != 'pull_request' && needs.detect.outputs.any == 'true'
-    runs-on: ubuntu-latest
-    environment: sandbox
-    permissions:
-      contents: read
-      id-token: write
-    env:
-      APP_NAMESPACE: techx-tf1
-      CLUSTER_NAME: ${{ vars.EKS_CLUSTER_NAME || 'ecommerce-dev-eks' }}
-      BEDROCK_AWS_ACCESS_KEY_ID: ${{ secrets.BEDROCK_AWS_ACCESS_KEY_ID }}
-      BEDROCK_AWS_SECRET_ACCESS_KEY: ${{ secrets.BEDROCK_AWS_SECRET_ACCESS_KEY }}
-      BEDROCK_AWS_SESSION_TOKEN: ${{ secrets.BEDROCK_AWS_SESSION_TOKEN }}
-    steps:
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ vars.TF_AWS_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
-          role-session-name: gha-${{ github.actor }}-${{ github.run_id }}
-
-      - name: Install kubectl
-        uses: azure/setup-kubectl@v4
-        with:
-          version: "v1.30.0"
-
-      - name: Update kubeconfig
-        run: aws eks update-kubeconfig --name "$CLUSTER_NAME" --region "$AWS_REGION"
-
-      - name: Upsert bedrock-credentials secret
-        run: |
-          set -euo pipefail
-          if [ -z "${BEDROCK_AWS_ACCESS_KEY_ID:-}" ] || [ -z "${BEDROCK_AWS_SECRET_ACCESS_KEY:-}" ]; then
-            echo "::warning::BEDROCK_AWS_ACCESS_KEY_ID/SECRET_ACCESS_KEY GitHub Secrets are not both set; keeping Pod Identity/IAM fallback."
-            exit 0
-          fi
-
-          args=(
-            "--from-literal=BEDROCK_AWS_ACCESS_KEY_ID=${BEDROCK_AWS_ACCESS_KEY_ID}"
-            "--from-literal=BEDROCK_AWS_SECRET_ACCESS_KEY=${BEDROCK_AWS_SECRET_ACCESS_KEY}"
-          )
-          if [ -n "${BEDROCK_AWS_SESSION_TOKEN:-}" ]; then
-            args+=("--from-literal=BEDROCK_AWS_SESSION_TOKEN=${BEDROCK_AWS_SESSION_TOKEN}")
-          fi
-
-          kubectl create secret generic bedrock-credentials \
-            -n "$APP_NAMESPACE" \
-            "${args[@]}" \
-            --dry-run=client -o yaml | kubectl apply -f -
-
   build:
     name: Build ${{ matrix.service }}
-    needs: [detect, validate-manifest, sync_bedrock_credentials]
-    if: always() && needs.detect.outputs.any == 'true' && needs.validate-manifest.result == 'success' && (github.event_name == 'pull_request' || needs.sync_bedrock_credentials.result == 'success' || needs.sync_bedrock_credentials.result == 'skipped')
+    needs: [detect, validate-manifest]
+    if: needs.detect.outputs.any == 'true'
     runs-on: ubuntu-latest
     # Trust policy của GitHubTerraformSandboxRole khóa sub bằng StringEquals:
     #   repo:<org>/<repo>:environment:sandbox

@@ -1065,6 +1065,10 @@ components:
     enabled: true
     useDefault:
       env: true
+    serviceAccount:
+      create: true
+      annotations: {}
+      name: product-reviews
     service:
       port: 3551
     podAnnotations:
@@ -1076,24 +1080,6 @@ components:
         value: us-east-1
       - name: AWS_BEDROCK_MODEL
         value: amazon.nova-lite-v1:0
-      - name: BEDROCK_AWS_ACCESS_KEY_ID
-        valueFrom:
-          secretKeyRef:
-            name: bedrock-credentials
-            key: BEDROCK_AWS_ACCESS_KEY_ID
-            optional: true
-      - name: BEDROCK_AWS_SECRET_ACCESS_KEY
-        valueFrom:
-          secretKeyRef:
-            name: bedrock-credentials
-            key: BEDROCK_AWS_SECRET_ACCESS_KEY
-            optional: true
-      - name: BEDROCK_AWS_SESSION_TOKEN
-        valueFrom:
-          secretKeyRef:
-            name: bedrock-credentials
-            key: BEDROCK_AWS_SESSION_TOKEN
-            optional: true
       - name: LLM_REVIEWS_TIMEOUT
         value: "4.0"
       - name: LLM_REVIEWS_FALLBACK_TIMEOUT
@@ -1262,24 +1248,6 @@ components:
         value: amazon.nova-pro-v1:0
       - name: LLM_COPILOT_FALLBACK_MODEL
         value: amazon.nova-lite-v1:0
-      - name: BEDROCK_AWS_ACCESS_KEY_ID
-        valueFrom:
-          secretKeyRef:
-            name: bedrock-credentials
-            key: BEDROCK_AWS_ACCESS_KEY_ID
-            optional: true
-      - name: BEDROCK_AWS_SECRET_ACCESS_KEY
-        valueFrom:
-          secretKeyRef:
-            name: bedrock-credentials
-            key: BEDROCK_AWS_SECRET_ACCESS_KEY
-            optional: true
-      - name: BEDROCK_AWS_SESSION_TOKEN
-        valueFrom:
-          secretKeyRef:
-            name: bedrock-credentials
-            key: BEDROCK_AWS_SESSION_TOKEN
-            optional: true
       - name: LLM_COPILOT_TIMEOUT
         value: "5.7"
       - name: LLM_COPILOT_FALLBACK_TIMEOUT

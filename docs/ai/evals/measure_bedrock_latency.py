@@ -57,25 +57,28 @@ FAKE_REVIEWS_TEXT = (
 
 
 def create_bedrock_runtime_client(*, session: boto3.Session, region_name: str):
-    kwargs = {
-        "service_name": "bedrock-runtime",
-        "region_name": region_name,
-    }
+    role_arn = os.environ.get("BEDROCK_AWS_ROLE_ARN")
+    if role_arn:
+        assume_role_kwargs = {
+            "RoleArn": role_arn,
+            "RoleSessionName": os.environ.get("BEDROCK_AWS_ROLE_SESSION_NAME", "measure-bedrock-latency"),
+        }
+        external_id = os.environ.get("BEDROCK_AWS_EXTERNAL_ID")
+        if external_id:
+            assume_role_kwargs["ExternalId"] = external_id
 
-    access_key = os.environ.get("BEDROCK_AWS_ACCESS_KEY_ID")
-    secret_key = os.environ.get("BEDROCK_AWS_SECRET_ACCESS_KEY")
-    session_token = os.environ.get("BEDROCK_AWS_SESSION_TOKEN")
+        sts = session.client("sts")
+        response = sts.assume_role(**assume_role_kwargs)
+        credentials = response["Credentials"]
+        assumed = boto3.Session(
+            aws_access_key_id=credentials["AccessKeyId"],
+            aws_secret_access_key=credentials["SecretAccessKey"],
+            aws_session_token=credentials["SessionToken"],
+        )
+        print("Using IRSA/profile credentials to assume BEDROCK_AWS_ROLE_ARN")
+        return assumed.client("bedrock-runtime", region_name=region_name)
 
-    if access_key and secret_key:
-        kwargs["aws_access_key_id"] = access_key
-        kwargs["aws_secret_access_key"] = secret_key
-        if session_token:
-            kwargs["aws_session_token"] = session_token
-        print("Using explicit BEDROCK_AWS_* credentials for Bedrock runtime")
-    elif access_key or secret_key:
-        print("WARNING: incomplete BEDROCK_AWS_* credentials; falling back to default AWS provider chain")
-
-    return session.client(**kwargs)
+    return session.client("bedrock-runtime", region_name=region_name)
 
 REVIEWS_TOOL_CONFIG = {
     "tools": [
