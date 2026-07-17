@@ -1,0 +1,45 @@
+# TF1-53 [AIOps-W2] - RBAC CHI-DOC cho detector, phuc vu rule type k8s_status (doc
+# containerStatuses[].lastState.terminated, khong qua log - xem k8s_status.py).
+#
+# QUAN TRONG: CHI get/list/watch, KHONG co "delete" hay bat ky verb ghi nao - giu
+# dung ranh gioi "detector = detect-only, khong the tu hanh dong" da document khap
+# repo (detector.py:5, README.md). Neu can hanh dong that (restart pod), do la
+# aiops/remediation/ (RBAC rieng, co "delete", xem deploy/rbac.yaml cua remediation).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: aiops-detector
+  namespace: techx-tf1
+  labels:
+    app: aiops-detector
+    team: aio03
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: aiops-detector-pod-read
+  namespace: techx-tf1
+  labels:
+    app: aiops-detector
+    team: aio03
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: aiops-detector-pod-read
+  namespace: techx-tf1
+  labels:
+    app: aiops-detector
+    team: aio03
+subjects:
+  - kind: ServiceAccount
+    name: aiops-detector
+    namespace: techx-tf1
+roleRef:
+  kind: Role
+  name: aiops-detector-pod-read
+  apiGroup: rbac.authorization.k8s.io

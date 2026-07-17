@@ -215,11 +215,11 @@ components:
         value: "false"
     resources:
       requests:
-        cpu: 10m
-        memory: 32Mi
+        cpu: 100m         # P0 right-size: OOMKilled 36 lần, .NET cần RAM cao (PR#49, restore sau PR#106)
+        memory: 128Mi
       limits:
-        cpu: 100m
-        memory: 120Mi
+        cpu: 200m
+        memory: 256Mi
     initContainers:
       - name: wait-for-kafka
         image: busybox:1.38.0   # Pinned: do NOT use :latest — breaks reproducibility.
@@ -291,7 +291,7 @@ components:
   cart:
     enabled: true
     imageOverride:
-      tag: "1.1-cart" # CDO-80: image mới có gRPC health tách liveness/readiness
+      tag: "1.1-cart-ae89fa2" # CDO-80 gRPC health; incident 2026-07-16: tag tran bi ECR lifecycle xoa, rebuild
     # Image chạy root và đang HOÃN BUILD vì CVE-2026-28387 (xem build-exclusions.yaml)
     # -> không vá được bằng USER trong Dockerfile, phải ép UID từ chart.
     # Template dùng `default` (thay cả block, KHÔNG merge) nên phải lặp lại đủ field
@@ -363,10 +363,10 @@ components:
         value: http://$(OTEL_COLLECTOR_NAME):4317
     resources:
       requests:
-        cpu: 10m
-        memory: 32Mi
+        cpu: 100m         # CDO-42: cart ghi/đọc mỗi session, tải tăng theo user -> HPA (PR#49, restore sau PR#106)
+        memory: 64Mi      # P0 right-size: thêm request, giữ limit
       limits:
-        cpu: 100m
+        cpu: 200m
         memory: 160Mi
     hpa:
       enabled: true
@@ -551,6 +551,8 @@ components:
 
   email:
     enabled: true
+    imageOverride:
+      tag: "1.0-email-ae89fa2" # incident 2026-07-16: tag tran bi ECR lifecycle xoa, image rebuild tu source
     # Image chạy root và đang HOÃN BUILD vì CVE-2026-28387 + CVE-2026-42245 (xem
     # build-exclusions.yaml) -> ép UID từ chart thay vì USER trong Dockerfile.
     # Template dùng `default` (thay cả block, KHÔNG merge) nên phải lặp lại đủ field.
@@ -588,6 +590,8 @@ components:
         memory: 100Mi
   fraud-detection:
     enabled: true
+    imageOverride:
+      tag: "1.0-fraud-detection-ae89fa2" # incident 2026-07-16: tag tran bi ECR lifecycle xoa, image rebuild tu source
     useDefault:
       env: true
     # Consumer Kafka async, KHÔNG HPA (scale nên theo lag, không phải CPU) và ngoài
@@ -663,6 +667,8 @@ components:
 
   frontend:
     enabled: true
+    imageOverride:
+      tag: "1.0-frontend-ae89fa2" # incident 2026-07-16: tag tran bi ECR lifecycle xoa, image rebuild tu source
     useDefault:
       env: true
     service:
@@ -890,6 +896,8 @@ components:
 
   image-provider:
     enabled: true
+    imageOverride:
+      tag: "1.0-image-provider-ae89fa2" # incident 2026-07-16: tag tran bi ECR lifecycle xoa, image rebuild tu source
     useDefault:
       env: true
     service:
@@ -957,9 +965,11 @@ components:
         memory: 256Mi
       limits:
         cpu: 500m
-        memory: 1500Mi
+        memory: 500Mi     # P0 right-size: LOCUST_BROWSER_TRAFFIC_ENABLED=false -> HTTP thuần (PR#49, restore sau PR#106)
   payment:
     enabled: true
+    imageOverride:
+      tag: "1.0-payment-ae89fa2" # incident 2026-07-16: tag tran bi ECR lifecycle xoa, image rebuild tu source
     useDefault:
       env: true
     service:
@@ -1154,7 +1164,7 @@ components:
         memory: 32Mi
       limits:
         cpu: 100m
-        memory: 40Mi
+        memory: 128Mi     # P0 right-size (PR#49, restore sau PR#106)
     securityContext:
       runAsUser: 33 # www-data
       runAsGroup: 33
@@ -1717,8 +1727,8 @@ jaeger:
         cpu: 100m # P0 right-size: memory storage phình
         memory: 256Mi
       limits:
-        cpu: 100m
-        memory: 100Mi
+        cpu: 200m
+        memory: 1Gi       # PR#49 restore; limit cũ 100Mi < request 256Mi -> spec invalid, K8s reject
   userconfig:
     service:
       extensions: [jaeger_storage, jaeger_query, healthcheckv2]
@@ -1839,13 +1849,15 @@ prometheus:
       enabled: false
     service:
       servicePort: 9090
+    # Right-size theo usage đo thực tế (~1Gi, retention 7d): request thấp giả tạo
+    # làm scheduler binpack cả obs stack lên 1 node -> node 96% mem, chết chùm.
     resources:
       requests:
-        cpu: 10m
-        memory: 32Mi
-      limits:
         cpu: 100m
-        memory: 100Mi
+        memory: 1200Mi
+      limits:
+        cpu: 500m
+        memory: 1500Mi
 grafana:
   enabled: true
   fullnameOverride: grafana
@@ -1879,8 +1891,11 @@ grafana:
         cpu: 100m
         memory: 100Mi
   resources:
+    requests:
+      cpu: 50m
+      memory: 384Mi     # usage đo ~418Mi; request thật để scheduler không binpack
     limits:
-      memory: 300Mi
+      memory: 512Mi
 
 opensearch:
   enabled: true
@@ -1904,7 +1919,8 @@ opensearch:
   resources:
     requests:
       cpu: 250m
-      memory: 512Mi
+      memory: 512Mi     # node obs t3.medium 3.9Gi: request 1Gi làm tổng vượt node -> Pending.
+                        # Right-size thật cần resize node (terraform EKS module) - xem follow-up.
     limits:
       cpu: "1"
       memory: 1100Mi
