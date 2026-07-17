@@ -776,7 +776,9 @@ def get_ai_assistant_response(request_product_id, question, context=None):
             logger.info(f"Returning Bedrock AI assistant response: '{result}'")
 
             # Update cache if enabled
-            if llm_reviews_cache_enabled and valkey_client is not None and result:
+            # Never cache MOCK_SUMMARY_VI (guardrail/deadline/bulkhead fallback) — poisons
+            # Valkey for 7d TTL until a real answer overwrites it (repro'd 17/07).
+            if llm_reviews_cache_enabled and valkey_client is not None and result and result != MOCK_SUMMARY_VI:
                 try:
                     # Review C2: review data la tinh (verified: proto khong co rpc ghi, seed tu init.sql)
                     # -> TTL phang 7d + versioned key; dynamic TTL bo vi khong co gi de no phan ung.

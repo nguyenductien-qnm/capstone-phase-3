@@ -54,6 +54,12 @@ static_resources:
                         # not hold the connection open forever.
                         - match: { prefix: "/oteldemo.ShoppingCopilotService/" }
                           route: { cluster: shopping-copilot, timeout: 30s }
+                        # 30s: cold path measured 17/07 = 16.3s (2x converse round-trips + tool
+                        # calls + output rail ml-guard/ApplyGuardrail). Catch-all's default 15s
+                        # cuts the connection before the backend finishes -> plain-text 504
+                        # ("upstream r...") that breaks frontend JSON.parse.
+                        - match: { prefix: "/api/product-ask-ai-assistant" }
+                          route: { cluster: frontend, timeout: 30s }
                         - match: { prefix: "/" }  # Default/catch-all route - keep last since prefix:"/" matches everything
                           route: { cluster: frontend }
                 http_filters:
