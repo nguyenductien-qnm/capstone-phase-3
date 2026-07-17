@@ -116,7 +116,52 @@ Các cập nhật liên quan tới triển khai AWS Bedrock và A/B Testing:
 
 Vui lòng cấu hình UI xử lý kịp thời để luồng thêm vào giỏ hàng của Agent không bị kẹt.
 
-## 6. Phụ lục 17/07/2026 — Bedrock Guardrails (TF1-61, thay guardrail v3)
+## 7. Phụ lục 17/07/2026 (chiều) — ML Guard Cascade (ADR-013, thay §6)
+
+§6 dưới đây **hạ cấp thành option** (ADR-013): docs AWS xác nhận Bedrock contextual
+grounding chỉ EN/FR/ES (không VN) và prompt-attack VN cần Standard tier → Bedrock
+Guardrails default OFF. Thay bằng cascade: regex T0 → **ml-guard pod (NLI)** →
+**Nova judge**. Eval 18/18 pass (`docs/ai/evals/eval_mandate06_v5_report.md`).
+
+### 7.1 Resource ask gửi CDO — deploy pod `ml-guard` (AI cung cấp image + values)
+
+Số đo thật 17/07 (bench local, fp32, 2 threads): RSS **1148MB**, grounding p50 **1.8s**.
+
+| Thông số | Giá trị đề nghị | Căn cứ đo |
+|---|---|---|
+| CPU request / limit | `500m` / `1000m` | 2 torch threads; serialize 1 inference/lượt |
+| Memory request / limit | `1280Mi` / `1536Mi` | RSS 1148MB + headroom |
+| Replicas | 1 (không HPA — traffic Ask AI 10 view:1 call) | |
+| Port | `8090` HTTP (`/healthz`, `/metrics`, `/v1/grounding`) | |
+| Probes | readiness `/healthz` (model load ~25–90s → `initialDelaySeconds: 60`) | đo local 25s |
+| Image | build từ `techx-corp-platform/src/ml-guard/` — model nướng sẵn, **không egress HF Hub** | |
+| Quota | CDO-42 hiện peak 3.45/4.00 cores → thêm 0.5 = 3.95 **sát trần**. Đề nghị nâng `requests.cpu` quota lên **4.5** hoặc xác nhận chấp nhận rủi ro sát trần | docs/cdo09/cdo-42 |
+
+### 7.2 Env bổ sung cho `product-reviews` + `shopping-copilot`
+
+| Env | Default | Ý nghĩa |
+|---|---|---|
+| `ML_GUARD_URL` | `""` (tắt) | `http://ml-guard:8090` khi pod sẵn sàng; tắt → cascade rơi xuống judge |
+| `LLM_JUDGE_MODEL` | `amazon.nova-micro-v1:0` | grounding judge (đo 4/4 VN) |
+| `LLM_INJECTION_JUDGE_MODEL` | `amazon.nova-lite-v1:0` | injection judge (đo 7/7 VN; Micro chỉ 4/7) |
+| `LLM_INJECTION_JUDGE` | `true` | tắt được để degrade về regex-only |
+| `LLM_BEDROCK_GUARDRAIL` | **`false`** (đổi từ §6) | option Standard-tier sau này |
+
+### 7.3 IAM / region (quan trọng)
+- Judge chạy **`us-east-1`** (Nova đã mở model access — test 17/07 qua profile `default`,
+  acct 384511757667, cùng org). SSO role `Phase3-CDO-PermissionSet` bị `OperationNotAllowed`
+  ở us-east-1 → **CDO cần cấp IRSA/role cho 2 pod app gọi `bedrock:InvokeModel` (Nova Lite +
+  Micro) ở us-east-1**, hoặc mở model access cùng region đang dùng.
+- Pod `ml-guard` KHÔNG cần IAM (model local, không gọi AWS).
+
+### 7.4 TF1-65 — ECR push (phối hợp, không tự đẩy)
+AI team **có quyền admin nhưng không push image ECR trực tiếp**. Cần CDO:
+1. Tạo ECR repo `ml-guard` + policy như các service hiện có.
+2. CI build workflow đã dynamic-detect service mới (`techx-corp-platform/src/ml-guard/`) —
+   chỉ cần approve chạy pipeline build+scan (Trivy gate CRITICAL/HIGH giữ nguyên).
+3. GitOps: thêm component `ml-guard` vào values env sandbox theo thông số §7.1.
+
+## 6. Phụ lục 17/07/2026 — Bedrock Guardrails (TF1-61, thay guardrail v3) — **superseded bởi §7**
 
 Guardrail nội-code (v3 hand-rolled) được thay bằng **Amazon Bedrock Guardrails** managed
 (xem `docs/ai/adr-012-bedrock-guardrails.md`). Áp dụng cho **cả `shopping-copilot` và
