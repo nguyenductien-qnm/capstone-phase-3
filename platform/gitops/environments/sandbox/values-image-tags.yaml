@@ -29,7 +29,7 @@ components:
       tag: 1.0-accounting-f1a4189
   product-reviews:
     imageOverride:
-      tag: 1.0-product-reviews-f1a4189
+      tag: 1.0-product-reviews-8f61b85
   llm:
     imageOverride:
       tag: 1.0-llm-f1a4189
@@ -47,7 +47,7 @@ components:
       tag: 1.0-shipping-f1a4189
   shopping-copilot:
     imageOverride:
-      tag: 1.0-shopping-copilot-f1a4189
+      tag: 1.0-shopping-copilot-8f61b85
   ml-guard:
     imageOverride:
       tag: 1.0-ml-guard-f1a4189
