@@ -51,7 +51,7 @@ def test_cross_account_credentials_refresh(module_path, monkeypatch):
     monkeypatch.setattr(module.boto3, "Session", Mock(return_value=assumed_session))
     monkeypatch.setattr(module, "get_session", Mock(return_value=botocore_session))
 
-    client = module.create_bedrock_runtime_client(region_name="us-east-2")
+    client = module.create_bedrock_runtime_client(region_name="us-east-1")
     refreshed = botocore_session._credentials._refresh_using()
 
     assert client is bedrock_client
@@ -59,5 +59,5 @@ def test_cross_account_credentials_refresh(module_path, monkeypatch):
     assert sts.assume_role.call_count == 2
     module.boto3.Session.assert_called_once_with(botocore_session=botocore_session)
     assumed_session.client.assert_called_once_with(
-        "bedrock-runtime", region_name="us-east-2", config=None
+        "bedrock-runtime", region_name="us-east-1", config=None
     )
