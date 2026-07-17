@@ -9,11 +9,8 @@ logger = logging.getLogger(__name__)
 
 _provider_set = False
 
-def get_routed_model(task_type: str, default_model: str) -> str:
-    """
-    Model Gateway (ADR-010): fractional routing via OpenFeature/flagd.
-    Returns the model ID to use.
-    """
+
+def _ensure_provider():
     global _provider_set
     if not _provider_set:
         api.set_provider(FlagdProvider(
@@ -22,6 +19,19 @@ def get_routed_model(task_type: str, default_model: str) -> str:
         ))
         _provider_set = True
 
+
+def check_feature_flag(flag_name: str, default: bool = False) -> bool:
+    """Boolean flag check via flagd — mirrors product-reviews' check_feature_flag()."""
+    _ensure_provider()
+    return api.get_client().get_boolean_value(flag_name, default)
+
+
+def get_routed_model(task_type: str, default_model: str) -> str:
+    """
+    Model Gateway (ADR-010): fractional routing via OpenFeature/flagd.
+    Returns the model ID to use.
+    """
+    _ensure_provider()
     client = api.get_client()
     # For A/B testing, we expect the flag to return the model ID string.
     # If the flag is not set or flagd is down, it returns default_model.

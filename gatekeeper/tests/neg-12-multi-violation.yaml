@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: neg-multi-violation
+  namespace: techx-tf1
+spec:
+  containers:
+    - name: neg-multi-violation
+      image: nginx:latest          # Vi phạm 1: tag latest trôi nổi
+      # Vi phạm 2: thiếu toàn bộ resources.requests/limits
+      securityContext:
+        runAsUser: 0               # Vi phạm 3: chạy root (uid 0)
+        allowPrivilegeEscalation: true   # Vi phạm 4: bật privilege escalation
+        capabilities:
+          add:
+            - SYS_ADMIN            # Vi phạm 5: add capability nguy hiểm + không drop ALL
+# Policy kỳ vọng: VI PHẠM ĐỒNG THỜI cả 5 policy
+#   - deny-floating-image-tag
+#   - require-cpu-memory-limits-requests
+#   - run-as-non-root
+#   - deny-privilege-escalation
+#   - deny-dangerous-capabilities
+# Mục đích: kiểm tra nhiều constraint cùng báo vi phạm trên 1 đối tượng.

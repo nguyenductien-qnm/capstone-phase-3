@@ -163,6 +163,56 @@
         "off": false
       },
       "defaultVariant": "on"
+    },
+    "aiRecommendationsEnabled": {
+      "state": "ENABLED",
+      "variants": {
+        "on": true,
+        "off": false
+      },
+      "defaultVariant": "on"
+    },
+    "llmModelRouting": {
+      "description": "ADR-010 Model Gateway: shopping-copilot Nova Pro/Lite A/B routing only — do not point product-reviews at this flag, use llmReviewsModelRouting instead",
+      "state": "ENABLED",
+      "variants": {
+        "ab_test_active": {
+          "amazon.nova-lite-v1:0": 80,
+          "amazon.nova-pro-v1:0": 20
+        },
+        "lite_only": {
+          "amazon.nova-lite-v1:0": 100
+        }
+      },
+      "defaultVariant": "ab_test_active"
+    },
+    "llmReviewsModelRouting": {
+      "description": "ADR-004: product-reviews model routing, kept separate from copilot's llmModelRouting A/B flag so copilot's Nova Pro experiment can never leak Pro-priced traffic into the high-volume reviews path",
+      "state": "ENABLED",
+      "variants": {
+        "lite_only": {
+          "amazon.nova-lite-v1:0": 100
+        }
+      },
+      "defaultVariant": "lite_only"
+    },
+    "llmGuardrailLlmJudge": {
+      "description": "MANDATE-06 L2 guardrail: Bedrock LLM-as-judge classifier for product-reviews tool results and shopping-copilot user input (fail-closed, off by default — was referenced in code but never registered here)",
+      "state": "ENABLED",
+      "variants": {
+        "on": true,
+        "off": false
+      },
+      "defaultVariant": "off"
+    },
+    "llmSemanticSimilarityGuard": {
+      "description": "MANDATE-06 L1 guardrail: Titan Embed Text v2 cosine-similarity vs known-attack corpus (mentor 16/07), covers both the static corpus check and copilot's session-history semantic-repetition check. Off until threshold + p95 latency are measured.",
+      "state": "ENABLED",
+      "variants": {
+        "on": true,
+        "off": false
+      },
+      "defaultVariant": "off"
     }
   }
 }

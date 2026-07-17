@@ -31,7 +31,11 @@ from grpc_health.v1 import health, health_pb2, health_pb2_grpc
 import agent
 import tools
 from bedrock_client import create_bedrock_runtime_client
-from guardrails import sanitize_text   # MANDATE-06: L1 input guardrail
+from guardrails import (  # MANDATE-06: L1 / L2 input guardrail
+    sanitize_text, detect_prompt_injection_llm,
+    SessionGuardrail, detect_input_anomaly,       # L1 multi-turn + anomaly detection (mentor 16/07)
+    detect_semantic_similarity_to_known_attacks,  # L1-semantic: corpus check (mentor 16/07)
+)
 import shopping_copilot_pb2 as pb
 import shopping_copilot_pb2_grpc as pb_grpc
 
@@ -77,6 +81,8 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
         self._bedrock = bedrock_client
         self._sessions: dict[str, list] = {}
         self._pending = _PendingStore(CONFIRM_TTL_SECONDS)
+        # L1 multi-turn guardrail: theo doi anomaly per session (mentor feedback 16/07)
+        self._session_guardrail = SessionGuardrail(max_history=20, bedrock_client=bedrock_client)
 
     def ChatWithCopilot(self, request, context):
         # --- Phase 2: user approved a pending write -> execute it, skip the LLM.
@@ -87,9 +93,40 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
         session = self._sessions.setdefault(request.session_id or request.user_id, [])
         # MANDATE-06 L1 Input Guardrail: chặn injection + lọc PII trước khi vào LLM.
         sanitized_question = sanitize_text(request.question)
-        session.append({"role": "user", "content": [{"text": sanitized_question}]})
 
         import model_router
+        # L1-semantic (mentor 16/07): embedding-based checks, gated behind one flag
+        # shared with product-reviews' corpus check — cheap but still a real Bedrock
+        # call, so kept off the hot path unless the flag is on.
+        semantic_guard_enabled = model_router.check_feature_flag("llmSemanticSimilarityGuard")
+
+        # L1 Multi-turn anomaly detection (mentor feedback 16/07): detect layered
+        # attacks, repetition brute-force, privilege escalation across turns.
+        session_id = request.session_id or request.user_id
+        session_anomaly = self._session_guardrail.track_message(
+            session_id, request.question, enable_semantic=semantic_guard_enabled)
+        if session_anomaly['overall_risk'] >= 0.6:
+            logger.warning("[Guardrail L1] Session anomaly detected for session=%s risk=%.2f details=%s",
+                           session_id, session_anomaly['overall_risk'], session_anomaly)
+            sanitized_question = "[filtered]"
+
+        # MANDATE-06 L2 Input Guardrail: Bedrock LLM-judge bắt paraphrase/reorder mà L1 regex miss.
+        # Tái dùng self._bedrock đã có sẵn — không thêm model/dependency mới.
+        if model_router.check_feature_flag("llmGuardrailLlmJudge") and detect_prompt_injection_llm(self._bedrock, sanitized_question):
+            logger.warning("[Guardrail L2] LLM-judge flagged user input for session=%s", session_id)
+            sanitized_question = "[filtered]"
+
+        # L1-semantic corpus check (mentor 16/07): same known-attack corpus used by
+        # product-reviews' direct-question guard, so both services benefit symmetrically.
+        if semantic_guard_enabled:
+            sem = detect_semantic_similarity_to_known_attacks(self._bedrock, sanitized_question)
+            if sem["flagged"]:
+                logger.warning("[Guardrail L1-semantic] session=%s matched known-attack corpus score=%.3f",
+                               session_id, sem["max_similarity"])
+                sanitized_question = "[filtered]"
+
+        session.append({"role": "user", "content": [{"text": sanitized_question}]})
+
         routed_model = model_router.get_routed_model("copilot", MAIN_MODEL)
         logger.info(f"Routed model for copilot: {routed_model}")
 

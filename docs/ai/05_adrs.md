@@ -303,6 +303,8 @@ Bối cảnh của ADR này đã thay đổi do CDO migrate hạ tầng cache:
 
 **ADR-004 (Hybrid routing):** TTFT Nova Lite ghi ~0.4s **sai so với chính nguồn cite** — Artificial Analysis: **TTFT 1.04s, 175.7 tok/s** → 1 call ≈2.2s, luồng tóm tắt 2 vòng converse ≈4.4s điển hình (không phải "2.5s"). Nhóm đã **chốt bỏ Claude (11/07)** — lập luận bảo vệ Nova chuyển sang con số đã verify: **rẻ ~50× Claude Sonnet** ($0.06/$0.24 vs $3/$15 per 1M); bỏ claim credit chưa kiểm chứng. Claude 3.5 Sonnet trong bảng so sánh đã EOL trên Bedrock 03/2026 — nếu còn dùng so sánh, dùng Sonnet 4.x (cùng giá).
 
+**ADR-004 fix (16/07):** PR#61 đưa `llmModelRouting` (Model Gateway ADR-010, A/B copilot) vào flagd, nhưng product-reviews cũng đọc chung flag này → default `ab_test_active` (Lite 80/Pro 20) lộ 20% traffic tóm tắt review sang Nova Pro, ngược premise "reviews = Lite vì tải cao/đơn giản" ở trên. Trên EKS thì flag chưa từng tồn tại trong chart (drift 2 file flagd) nên fallback env `nova-lite` cứu được; trên compose thì ăn giá Pro thật. Đã tách: `product-reviews/model_router.py` giờ đọc flag riêng `llmReviewsModelRouting` (chỉ có variant `lite_only`, 100% Nova Lite); `llmModelRouting` giữ nguyên cho riêng shopping-copilot. Đã sync cả 2 flag mới vào `platform/charts/application/flagd/demo.flagd.json` để hết drift.
+
 **ADR-007 (Drain3 + detector):** Số đo thật (compose + chaos flagd, script `evals/measure_detection_pipeline.py`): ingest lag P50 2.1s; **MTTD poll 30s: mean 19.6s / max 35.4s** — claim "MTTD < 1 phút" giờ có evidence; vùng poll hợp lệ theo error budget: [10s, 60s], chi phí query ~0 (5ms/query). Grid Drain3 trên 19.294 dòng log thật (`evals/drain3_param_grid.py`): **sim_th 0.3 trội 0.4 ở cả 4 tiêu chí** (795 vs 1074 templates, coverage 48.3% vs 47.1%, singleton 56% vs 60%, stability 0.64 vs 0.73); depth 4–6 vô cảm. Đồng bộ 13/07: code default = **0.3** (số đo, env `DRAIN_SIM_TH`), thay vì giữ 0.5 (cũ) hay lùi về 0.4 (spec chưa kiểm). Masking đã thêm vào grid; re-confirm trên 24h log EKS.
 
 **ADR-008 (Semantic search):** Dữ liệu thật: **catalog 10 sản phẩm, 50 reviews** (đếm từ DB). HNSW/pgvector từng bị chê là over-engineering, nhưng **[CẬP NHẬT 14/07]** Ban Kiến trúc sư lật lại quyết định: Triển khai `pgvector` ngay bây giờ để đạt chuẩn Enterprise-grade. Phương án nhét catalog vào prompt (Dynamic Prompting) bị bác bỏ hoàn toàn.
@@ -390,3 +392,101 @@ Tính năng AI (như tóm tắt review, shopping copilot) hiển thị trực ti
 - Hệ thống an toàn tuyệt đối trước nguy cơ AI tự checkout.
 - Đạt 100% yêu cầu MANDATE-06 của Ban Tổ Chức.
 - Các API Frontend và App cần được cập nhật để xử lý `confirmation_token` khi nhận phản hồi từ AI Copilot.
+
+---
+
+# ADR-012: Phương pháp Anomaly Detection & Baseline cho AIOps Detector (MANDATE-07 #7a)
+
+- **Trạng thái:** Chấp nhận (Accepted)
+- **Ngày:** 2026-07-16
+- **Người ký:** Nhóm AI (AIO03) — Task Force 1 · Soạn thảo: Thanh Pham Huu Tien (owner TF1-53/TF1-62)
+- **Trụ:** AI (AIOps) / Reliability / Operational Excellence
+- **Task:** TF1-53 (detector W1) · TF1-62 (deploy EKS) · MANDATE-07 `#7a`
+
+## Context
+MANDATE-07 yêu cầu hệ thống tự phát hiện bất thường trên nhiều tín hiệu (sàn = univariate: mỗi service × 1 tín hiệu có baseline + luật riêng), cảnh báo theo mức ảnh hưởng, không spam. Detector (`aiops/detector/`) đã chạy liên tục trên EKS (ns `techx-tf1`, image `1.1-aiops-detector`), poll Prometheus + backend log mỗi 30s, alert về Discord.
+
+## Decision — phương pháp phát hiện lai (hybrid), 2 lớp cho metric + 1 lớp log
+
+1. **Lớp static SLO-anchored:** ngưỡng tĩnh lấy TRỰC TIẾP từ SLO hợp đồng (`onboarding/SLO.md`), không phải số tự chọn — vd checkout 5xx >1%, storefront 5xx >0.5%, p95 >1s. Lý do: vi phạm SLO là sự cố theo định nghĩa, alert không cần baseline "học".
+2. **Lớp dynamic 3-sigma:** mỗi `rule × service` giữ rolling window 30 mẫu (~15 phút @ poll 30s, cần ≥5 mẫu mới kích hoạt); alert khi giá trị vượt `mean + 3σ` của chính service đó → bắt suy thoái CHƯA chạm SLO + tự thích nghi baseline per-service (yêu cầu "biết thế nào là bình thường" của đề). 3σ ≈ 0.3% FP theo SPC chuẩn.
+3. **Lớp log (5 rule):** đếm phrase/marker máy (`AI_SUMMARY_FALLBACK`, OOMKilled, NXDOMAIN, pool exhaustion, 429) trong cửa sổ 5–10m; `min_count=1` cho lớp sự cố hiếm-nghiêm-trọng (nguyên tắc K2: recall dominates — bỏ lọt = 0 điểm).
+4. **Chống spam:** dedup key `rule×service` + cooldown 600s; poll 30s chọn theo SỐ ĐO: MTTD max 35.4s (chaos 5 vòng), vùng hợp lệ [10s,60s] suy từ error budget, chi phí query 5ms — bảng sensitivity trong `03_specs/golden_signals_detection.md` Phụ lục 3.
+
+## Alternatives considered
+- **EWMA α=0.2 (spec TF1-49 gốc):** phản ứng có trọng số theo thời gian, tốt hơn rolling-mean với drift chậm. CHƯA thay vì cần backtest trên ≥24h dữ liệu Prometheus EKS thật để chọn α có căn cứ (kế hoạch `#7b`, TF1-71); rolling 3σ hiện tại cùng họ SPC, đơn giản, đủ cho sàn univariate của đề. → Defer sang #7b, không phải reject.
+- **Chỉ ngưỡng tĩnh:** mù với suy thoái dưới ngưỡng (slow burn 0.4%/ngày đốt 80% budget không kêu). → Loại, nhưng giữ làm lớp 1.
+- **Realtime stream consumer:** mua được ~15–30s MTTD bằng cả một service chạy 24/7 (state, reconnect, RAM trong trần $300) trong khi poll 30s đã pass target ≤2 phút với biên 3.4×. → Loại (trade-off sai).
+- **Multi-window burn-rate (SRE workbook):** ĐÚNG chuẩn hơn cho error budget — đã có rule DRAFT `error-budget-burn-fast` (14.4× ở cả 5m và 1h), chờ verify semantics trên EKS vì compose không sinh được 5xx thật. → Nâng cấp có kế hoạch ở #7b, không phát minh lại ngưỡng.
+
+## Consequences
+- 13 rule config-driven (`rules.yaml`), thêm tín hiệu không sửa code; mỗi con số có nhãn đo/assumption trong "Sổ đăng ký con số" (05_adrs).
+- Trả giá: rolling-mean nhớ ngắn (~15 phút) → baseline "bình thường" theo giờ-trong-ngày chưa mô hình hoá; chấp nhận ở W2, đánh giá lại sau FP-run 24h (TF1-71).
+- Phụ thuộc mở: backend log trên EKS chưa tồn tại (collector logs pipeline chỉ export debug) → 5 rule log + Drain3 tạm mù trên production; đã escalate CDO (quyết định thay OpenSearch), detector tự hồi phục khi backend lên, không cần redeploy.
+
+---
+
+### Addendum 16/07/2026 — Red-team nội bộ + hardening tối thiểu (không thêm model mới)
+
+Nhận định ban đầu ("Regex + System Prompt đủ hiệu quả") đúng cho case naive
+nhưng **quá cứng trước paraphrase/reorder** — xác nhận bằng attack suite mới
+(`docs/ai/evals/test_guardrails_adversarial.py`), chạy trực tiếp trên
+`guardrails.py` thật, không phải suy đoán:
+
+| Kỹ thuật tấn công | Kết quả thực tế | Ghi chú |
+|---|---|---|
+| Đảo thứ tự câu ("...ignore them" ở cuối) | ⚠️ Bypass L1 | Cần L2 (semantic) — xem dưới |
+| Đồng nghĩa (forget/reveal configuration) | ⚠️ Bypass L1 | Cần L2 |
+| Leetspeak (`1gnore`, `previ0us`) | ⚠️ Bypass L1 | Cần L2 |
+| Zero-width-space chèn giữa từ (`ig<ZWSP>nore`) | ✅ Đã vá | Lớp 0 normalize (NFKC + strip ZW/bidi-control), zero-cost |
+| Ngôn ngữ thứ 3 (tiếng Pháp) | ⚠️ Bypass L1 | Cần L2 |
+| Injection gián tiếp qua roleplay | ⚠️ Bypass L1 | Cần L2 |
+| Payload chia 2 field JSON (title/description) | ⚠️ Bypass L1, **L2 vẫn thấy được** | L2 chạy trên JSON đã ghép (`sanitize_json_for_llm` output), không phải per-field |
+| Leak đúng "khe hở" giữa các đoạn keyword-sample của output guard | ✅ Đã vá | Đổi thuật toán: trượt cửa sổ N-từ qua OUTPUT thay vì sample cố định từ prompt |
+
+**Quyết định đầu tiên (đã đảo ngược sau review):** định thêm Presidio (NER-PII)
++ 1 ONNX classifier riêng làm Lớp 1.5, đổi base image alpine→debian-slim cho
+2 service. **Bị loại bỏ** sau khi cân nhắc lại:
+- Mandate 6 nói thẳng *"đừng quăng model to cho xong"* — thêm 1 model thứ hai
+  (ngoài LLM chính đã trả tiền) đi ngược đúng câu này, dù nhẹ cỡ nào.
+- Đổi base image là đất hạ tầng của CDO (cần co-sign, xem tiền lệ ADR-003),
+  và đụng đúng lúc MANDATE-05 (deadline 17/07, sớm hơn MANDATE-06) cũng đang
+  chạm 2 Dockerfile này.
+- Trong thời gian còn lại không verify được 1 lần inference thật (môi trường
+  dev network không ổn định cho package nặng) — mang thứ chưa test lên sát
+  deadline là rủi ro thật.
+- `product-reviews` đang giới hạn memory 512Mi (`values.yaml`) — không đủ cho
+  spaCy NER + DeBERTa-v3 cùng lúc, rủi ro OOMKill đúng pattern sự cố J1 đã ghi
+  ở ADR-003.
+
+**Quyết định cuối cùng — tái dùng L2 (Bedrock LLM-judge) đã có sẵn thay vì
+thêm model mới:**
+- **Lớp 0 (giữ):** Unicode NFKC normalize + strip zero-width/bidi-control char.
+  Vá được case zero-width, chi phí ~0, không có dependency mới.
+- **Lớp 2 (đăng ký lại + mở rộng phạm vi):** `llmGuardrailLlmJudge` từng tồn
+  tại trong code nhưng **chưa từng được khai báo** trong `demo.flagd.json` —
+  mọi lần gọi âm thầm resolve về `False`. Đã đăng ký đúng vào cả 2 file flagd
+  config. Đồng thời wire thêm vào `copilot_server.py` (trước đây chỉ
+  `product_reviews_server.py` có L2 — copilot chỉ có L1 regex). Dùng lại
+  `self._bedrock` sẵn có của servicer, **không thêm model/dependency mới**.
+- **Output-guard (thuật toán mới, vẫn Lớp 1, không cần L2):** đổi từ "sample n
+  phrase cố định từ system_prompt rồi tìm trong output" sang "trượt cửa sổ
+  6-từ qua OUTPUT rồi tìm trong system_prompt" — bắt được MỌI đoạn liên tục bị
+  leak, không phụ thuộc việc leak có rơi đúng vùng đã sample hay không. Đóng
+  gap chunk-boundary bằng thuật toán, không cần model.
+
+**Còn là KNOWN_GAP, cần bật flag `llmGuardrailLlmJudge` để bắt (chưa đo
+latency, xem dưới):** đảo thứ tự câu, đồng nghĩa, leetspeak, ngôn ngữ thứ 3,
+injection gián tiếp. Split-field JSON: L1 miss nhưng **L2 đã thấy được** vì
+chạy trên toàn bộ JSON đã ghép field.
+
+**Rủi ro SLO chưa đo (ASSUMPTION, theo quy ước Phụ lục 12/07):**
+`llmGuardrailLlmJudge` mặc định OFF cho tới khi benchmark latency Bedrock
+Nova Micro classifier call trên EKS — mandate yêu cầu guardrail không được
+kéo p95 vỡ SLO. Kế hoạch: bật flag ở staging, đo p95 trước khi cân nhắc bật
+mặc định.
+
+**Chưa làm, cần soát trước 18/07 (không liên quan trực tiếp code guardrail
+nhưng chặn việc mentor test được):** `shopping-copilot` đang `enabled: false`
+trong `values.yaml` (comment cũ "no source/image yet" — đã lỗi thời, code đã
+có đầy đủ); `product-reviews` vẫn chạy root (MANDATE-05, deadline 17/07).

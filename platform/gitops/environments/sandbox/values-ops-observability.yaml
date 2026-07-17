@@ -21,7 +21,7 @@ opentelemetry-collector:
     service:
       pipelines:
         logs:
-          exporters: [debug]
+          exporters: [opensearch, debug]
 
 jaeger:
   jaeger:
@@ -86,7 +86,8 @@ grafana:
       operator: Equal
       value: observability
       effect: NoSchedule
-  plugins: []
+  plugins:
+    - grafana-opensearch-datasource
   resources:
     requests:
       cpu: 100m
@@ -104,7 +105,30 @@ grafana:
         memory: 128Mi
 
 opensearch:
-  enabled: false
+  enabled: true
+  nodeSelector:
+    workload-tier: observability
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: observability
+      effect: NoSchedule
+  persistence:
+    enabled: true
+    storageClass: gp3-observability
+    size: 10Gi
+    # Tắt initContainer fsgroup-volume (busybox root chown). Dùng podSecurityContext.fsGroup:1000
+    # (chart default) — kubelet tự chown PVC trên EBS gp3. Bỏ container root =>
+    # hết vi phạm priv-esc/caps/non-root/floating-tag của fsgroup-volume.
+    enableInitChown: false
+  # Resources cho init còn lại (configfile) => thỏa require-cpu-memory.
+  initResources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      cpu: 50m
+      memory: 32Mi
 
 components:
   load-generator:

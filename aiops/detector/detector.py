@@ -43,7 +43,7 @@ def _env_url(env_name):
 metric_history = {}
 
 def eval_metric_rule(rule, prom):
-    """Tra ve list cac alert (dedup_key, message) cho tung series vuot nguong hoac bat thuong dynamic 3-sigma."""
+    """Tra ve list cac alert (dedup_key, message, fields) cho tung series vuot nguong hoac bat thuong dynamic 3-sigma."""
     alerts = []
     try:
         series = prom.query(rule["query"])
@@ -93,10 +93,36 @@ def eval_metric_rule(rule, prom):
                 method_str.append(f"Static (val={value:.4f} > th={threshold})")
             if dynamic_fired:
                 method_str.append(f"3-Sigma (val={value:.4f} > th_dev={dynamic_threshold:.4f}, mean={sum(history[:-1])/len(history[:-1]):.4f})")
-            
-            msg = f"{rule['summary']} | service={svc} | Detected by: {', '.join(method_str)}"
-            alerts.append((dedup_key, msg))
-            
+
+            # Headline theo LOP phat hien (review 16/07: alert cart 6ms tung mang
+            # headline "p95 > 1s" cua lop static du chi lop 3-sigma keu -> gay hieu nham).
+            # - static keu (co/khong kem 3-sigma): dung summary (vi pham nguong SLO that)
+            # - CHI 3-sigma keu: dung summary_dynamic (lech baseline, CHUA cham nguong)
+            if static_fired:
+                headline = rule["summary"]
+            else:
+                headline = rule.get(
+                    "summary_dynamic",
+                    f"Lệch bất thường so với baseline của chính service (CHƯA chạm ngưỡng {threshold})",
+                )
+
+            # Review 17/07: tach du lieu that (service/gia tri/phuong phap) thanh field
+            # rieng cho Discord embed, thay vi nhoi het vao 1 cau van dai.
+            fields = [("🎯 Dịch vụ", svc, True)]
+            if static_fired:
+                fields.append(("📊 Giá trị đo / Ngưỡng SLO", f"{value:.4f} / {threshold}", True))
+            else:
+                # dynamic_fired-only => nhanh `len(history) >= 5` chac chan da chay,
+                # nen mean/std_dev da duoc gan o tren.
+                fields.append((
+                    "📊 Giá trị đo / Baseline (mean ± 3σ)",
+                    f"{value:.4f} / {mean:.4f} ± {3 * std_dev:.4f}",
+                    True,
+                ))
+            fields.append(("🔍 Phương pháp phát hiện", ", ".join(method_str), False))
+
+            alerts.append((dedup_key, headline, fields))
+
     return alerts
 
 
@@ -112,10 +138,13 @@ def eval_log_rule(rule, osc):
 
     if count >= rule.get("min_count", 1):
         dedup_key = rule["id"]
-        msg = f"{rule['summary']} | so log khop={count} trong {rule.get('window_minutes', 5)}m"
+        window_minutes = rule.get("window_minutes", 5)
+        # Review 17/07: tach so dem/log mau thanh field rieng cho Discord embed
+        # (xem alerter.py) thay vi nhoi vao 1 doan text dai.
+        fields = [("🔢 Số log khớp / Cửa sổ", f"{count} / {window_minutes}m", True)]
         if sample:
-            msg += f"\n  vi du log: {str(sample)[:200]}"
-        alerts.append((dedup_key, msg))
+            fields.append(("📝 Bằng chứng (log mẫu)", f"```{str(sample)[:200]}```", False))
+        alerts.append((dedup_key, rule["summary"], fields))
     return alerts
 
 
@@ -129,8 +158,8 @@ def run_cycle(cfg, prom, osc, alerter):
         else:
             log.warning("rule %s co type khong hop le: %s", rule.get("id"), rule.get("type"))
             continue
-        for dedup_key, message in results:
-            if alerter.send(dedup_key, rule["severity"], rule["id"], message):
+        for dedup_key, message, fields in results:
+            if alerter.send(dedup_key, rule["severity"], rule["id"], message, fields=fields):
                 fired += 1
     return fired
 

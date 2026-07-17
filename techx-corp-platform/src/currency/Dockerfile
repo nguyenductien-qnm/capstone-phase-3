@@ -53,6 +53,9 @@ FROM base AS release
 
 COPY --from=builder /usr/local /usr/local
 
+RUN adduser -D -u 1000 app
+USER 1000
+
 EXPOSE ${CURRENCY_PORT}
 
 ENTRYPOINT ["sh", "-c", "./usr/local/bin/currency ${CURRENCY_PORT}"]
