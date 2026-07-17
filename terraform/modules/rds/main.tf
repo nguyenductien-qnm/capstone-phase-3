@@ -188,7 +188,7 @@ resource "aws_serverlessapplicationrepository_cloudformation_stack" "rds_rotatio
 
   parameters = {
     functionName        = "${var.project_name}-${var.environment}-rds-rotation"
-    vpcSubnetIds        = join(",", var.database_subnet_ids)
+    vpcSubnetIds        = join(",", length(var.app_subnet_ids) > 0 ? var.app_subnet_ids : var.database_subnet_ids)
     vpcSecurityGroupIds = var.eks_node_security_group_id
     endpoint            = "https://secretsmanager.${data.aws_region.current.name}.amazonaws.com"
   }

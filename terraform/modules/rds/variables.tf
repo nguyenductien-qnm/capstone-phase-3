@@ -100,3 +100,10 @@ variable "rotation_rules_automatically_after_days" {
   description = "Số ngày tự động xoay vòng secret"
   default     = 30
 }
+
+variable "app_subnet_ids" {
+  type        = list(string)
+  description = "Danh sách ID của các subnets tầng Application để chạy Lambda xoay vòng"
+  default     = []
+}
+
