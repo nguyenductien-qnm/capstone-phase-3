@@ -33,10 +33,10 @@ Dịch vụ `product-reviews` nhận các biến môi trường cấu hình kế
 
 Để đảm bảo tối ưu hóa chi phí vận hành cụm EKS của dự án, pod của dịch vụ `product-reviews` phải tuân thủ giới hạn tài nguyên:
 
-* **CPU Request**: `100m`
-* **CPU Limit**: `500m`
-* **Memory Request**: `128Mi`
-* **Memory Limit**: `512Mi`
+* **CPU Request / Limit**: `100m` / `500m`
+* **Memory Request / Limit**: `128Mi` / `512Mi`
+
+> **CDO đã xác nhận (17/07/2026):** bật Phase-2 Local ML Guard (`LLM_LOCAL_ML_GUARD=true`) **KHÔNG** thay đổi resource của pod này. "Local" nghĩa là *self-hosted trong cluster* (pod `ml-guard` riêng), **không phải in-process**: `guardrails.py` chỉ gọi HTTP sang `ML_GUARD_URL=http://ml-guard:8090` (ClusterIP, namespace `techx-tf1` — giá trị chốt), không load model nào trong pod `product-reviews`. Spec pod `ml-guard` xem `shopping-copilot-integration.md` §3.1 (dùng chung).
 
 ---
 

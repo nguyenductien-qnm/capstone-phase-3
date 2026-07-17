@@ -35,7 +35,10 @@ from botocore.exceptions import ClientError, ConnectTimeoutError, ReadTimeoutErr
 
 import tools
 from bedrock_client import create_bedrock_runtime_client
-from guardrails import sanitize_json_for_llm, redact_pii, leaks_system_prompt, validate_citations
+from guardrails import (
+    sanitize_json_for_llm, redact_pii, leaks_system_prompt, validate_citations,
+    apply_guardrail_output,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -349,6 +352,17 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
                 is_valid, clean_text = validate_citations(clean_text, tool_results_raw)
                 if not is_valid:
                     logger.warning("[Guardrail] Citation validation: fabricated numbers replaced with [unverified]")
+            # OUTPUT rail (TF1-61): Bedrock contextual-grounding — answer over retrieved
+            # reviews/catalog must be faithful; ungrounded → say "không có thông tin".
+            # Fail-OPEN (PII already masked by redact_pii above). Only when tools ran.
+            if tool_results_raw and clean_text:
+                user_query = next((c["text"] for m in reversed(messages) if m.get("role") == "user"
+                                   for c in m.get("content", []) if "text" in c), "")
+                source_text = "\n".join(str(r) for r in tool_results_raw)
+                blocked_out, clean_text = apply_guardrail_output(bedrock_client, clean_text, source_text, user_query)
+                if blocked_out:
+                    logger.warning("AI_COPILOT_FALLBACK stage=output-grounding reason=Ungrounded")
+                    clean_text = "Xin lỗi, tôi không tìm thấy thông tin đó trong dữ liệu sản phẩm."
             return AgentResult(text=clean_text or "(không có phản hồi)", actions_taken=actions,
                                pending=pending)
 
