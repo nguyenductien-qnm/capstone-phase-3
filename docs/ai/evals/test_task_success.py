@@ -3,6 +3,18 @@
 """
 test_task_success.py - Eval task-success cho Shopping Copilot Agent
 ====================================================================
+⚠️  DEPRECATED — TF-64
+    File này dùng run_mock_agent() (keyword matcher) để eval.
+    Kịch bản test viết từ chính keyword của router → 100% là vòng tròn,
+    không chứng minh gì về chất lượng agent thật.
+
+    ➡️  Dùng test_task_success_real.py thay thế (chạy trên Bedrock thật).
+    ➡️  Xem agent_adapter.py cho module gọi agent thật.
+    ➡️  Xem golden_agent_tasks.json cho bộ kịch bản độc lập.
+
+    File này được giữ lại cho backward compatibility (CI sanity check).
+====================================================================
+
 Mô tả   : Đo lường khả năng gọi ĐÚNG tool, ĐÚNG tham số, và dừng lại
            ở Confirmation Gate thay vì tự ghi — đúng tiêu chí §3 trong
            AI_FEATURE.md ("được đánh giá không phải trả lời trôi chảy").
