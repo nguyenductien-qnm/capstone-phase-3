@@ -989,6 +989,7 @@ services:
     ports:
       - "3552:3552"
     environment:
+      - SHOPPING_COPILOT_PORT=3552
       - ML_GUARD_URL=http://ml-guard:8090
       - PRODUCT_CATALOG_ADDR
       - LLM_HOST
