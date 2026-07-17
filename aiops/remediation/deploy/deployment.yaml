@@ -10,7 +10,7 @@
 #   aws ecr get-login-password --region us-east-1 | docker login --username AWS \
 #     --password-stdin 804372444787.dkr.ecr.us-east-1.amazonaws.com
 #   docker buildx build --platform linux/amd64 \
-#     -t 804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.0-aiops-remediation \
+#     -t 804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.1-aiops-remediation \
 #     --push aiops/remediation
 #
 # QUAN TRONG: pod nay khoi dong voi REMEDIATION_DRY_RUN=true (AN TOAN, chi log +
@@ -45,7 +45,7 @@ spec:
       containers:
         - name: aiops-remediation
           # MANDATE-05: pin tag co dinh, khong dung tag troi (:latest).
-          image: 804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.0-aiops-remediation
+          image: 804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.1-aiops-remediation
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false
