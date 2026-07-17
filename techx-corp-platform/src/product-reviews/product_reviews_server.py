@@ -718,7 +718,8 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                 try:
                     final_response = invoke_bedrock_converse_with_fallback(
                         messages=messages,
-                        system_prompt=system_prompt
+                        system_prompt=system_prompt,
+                        tool_config={"tools": tools}
                     )
                     result = final_response["output"]["message"]["content"][0]["text"]
                 except Exception as e:
