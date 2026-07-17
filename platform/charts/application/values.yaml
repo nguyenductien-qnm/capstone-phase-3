@@ -291,7 +291,7 @@ components:
   cart:
     enabled: true
     imageOverride:
-      tag: "1.1-cart" # CDO-80: image mới có gRPC health tách liveness/readiness
+      tag: "1.1-cart-ae89fa2" # CDO-80 gRPC health; incident 2026-07-16: tag tran bi ECR lifecycle xoa, rebuild
     # Image chạy root và đang HOÃN BUILD vì CVE-2026-28387 (xem build-exclusions.yaml)
     # -> không vá được bằng USER trong Dockerfile, phải ép UID từ chart.
     # Template dùng `default` (thay cả block, KHÔNG merge) nên phải lặp lại đủ field
@@ -551,6 +551,8 @@ components:
 
   email:
     enabled: true
+    imageOverride:
+      tag: "1.0-email-ae89fa2" # incident 2026-07-16: tag tran bi ECR lifecycle xoa, image rebuild tu source
     # Image chạy root và đang HOÃN BUILD vì CVE-2026-28387 + CVE-2026-42245 (xem
     # build-exclusions.yaml) -> ép UID từ chart thay vì USER trong Dockerfile.
     # Template dùng `default` (thay cả block, KHÔNG merge) nên phải lặp lại đủ field.
@@ -588,6 +590,8 @@ components:
         memory: 100Mi
   fraud-detection:
     enabled: true
+    imageOverride:
+      tag: "1.0-fraud-detection-ae89fa2" # incident 2026-07-16: tag tran bi ECR lifecycle xoa, image rebuild tu source
     useDefault:
       env: true
     # Consumer Kafka async, KHÔNG HPA (scale nên theo lag, không phải CPU) và ngoài
@@ -663,6 +667,8 @@ components:
 
   frontend:
     enabled: true
+    imageOverride:
+      tag: "1.0-frontend-ae89fa2" # incident 2026-07-16: tag tran bi ECR lifecycle xoa, image rebuild tu source
     useDefault:
       env: true
     service:
@@ -890,6 +896,8 @@ components:
 
   image-provider:
     enabled: true
+    imageOverride:
+      tag: "1.0-image-provider-ae89fa2" # incident 2026-07-16: tag tran bi ECR lifecycle xoa, image rebuild tu source
     useDefault:
       env: true
     service:
@@ -960,6 +968,8 @@ components:
         memory: 500Mi     # P0 right-size: LOCUST_BROWSER_TRAFFIC_ENABLED=false -> HTTP thuần (PR#49, restore sau PR#106)
   payment:
     enabled: true
+    imageOverride:
+      tag: "1.0-payment-ae89fa2" # incident 2026-07-16: tag tran bi ECR lifecycle xoa, image rebuild tu source
     useDefault:
       env: true
     service:
