@@ -2,6 +2,12 @@ import pytest
 from unittest.mock import MagicMock
 import detector
 
+
+def field_values(alert):
+    """Noi tat ca gia tri field (index 2 cua alert tuple) thanh 1 chuoi de assert substring."""
+    return " ".join(str(value) for _, value, _ in alert[2])
+
+
 def test_eval_metric_rule_static():
     # Setup mock Prometheus client
     prom = MagicMock()
@@ -28,7 +34,7 @@ def test_eval_metric_rule_static():
     # With threshold 1.0, checkout (1.5) should fire, storefront (0.5) should not
     assert len(alerts) == 1
     assert "checkout" in alerts[0][0]
-    assert "Static" in alerts[0][1]
+    assert "Static" in field_values(alerts[0])
 
 def test_eval_metric_rule_3sigma():
     prom = MagicMock()
@@ -55,7 +61,7 @@ def test_eval_metric_rule_3sigma():
     alerts = detector.eval_metric_rule(rule, prom)
 
     assert len(alerts) == 1
-    assert "3-Sigma" in alerts[0][1]
+    assert "3-Sigma" in field_values(alerts[0])
     assert "storefront" in alerts[0][0]
 
 def test_eval_log_rule():
@@ -76,7 +82,9 @@ def test_eval_log_rule():
     alerts = detector.eval_log_rule(rule, osc)
     assert len(alerts) == 1
     assert alerts[0][0] == "db-error"
-    assert "số log khớp=5" in alerts[0][1]
+    assert alerts[0][1] == "DB error detected"
+    assert "5 / 5m" in field_values(alerts[0])
+    assert "connection pool timeout" in field_values(alerts[0])
 
 
 def test_metric_rule_dynamic_only_uses_dynamic_headline():

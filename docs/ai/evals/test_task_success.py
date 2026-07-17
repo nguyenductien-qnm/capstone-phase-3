@@ -3,13 +3,19 @@
 """
 test_task_success.py - HARNESS eval task-success cho Shopping Copilot Agent
 ====================================================================
-⚠️ NHÃN TRUNG THỰC (review 12/07): agent trong file này là MOCK (tool-calls
-   trích từ mapping heuristic `extract_tool_calls_from_mock`), vì Copilot thật
-   chưa có code. Số "accuracy" chạy ra hiện tại là SELF-TEST của harness —
-   xác nhận bộ chấm hoạt động — KHÔNG phải eval agent. Cấm trích số này vào
-   pitch/report như kết quả agent. Khi Copilot thật chạy: thay
-   `extract_tool_calls_from_mock` bằng adapter gọi gRPC :50051 thật, và dùng
-   thêm `golden_qa_dataset.json` (24 case grounded/no_info/injection).
+⚠️  DEPRECATED — TF-64
+    File này dùng run_mock_agent() (keyword matcher) để eval.
+    Kịch bản test viết từ chính keyword của router → 100% là vòng tròn,
+    không chứng minh gì về chất lượng agent thật.
+
+    ➡️  Dùng test_task_success_real.py thay thế (chạy trên Bedrock thật).
+    ➡️  Xem agent_adapter.py cho module gọi agent thật.
+    ➡️  Xem golden_agent_tasks.json cho bộ kịch bản độc lập.
+
+    File này được giữ lại cho backward compatibility (CI sanity check).
+====================================================================
+⚠️ NHÃN TRUNG THỰC: số "accuracy" trong file này là SELF-TEST của harness mock,
+   KHÔNG phải eval agent thật.
 
 Mô tả   : Đo lường khả năng gọi ĐÚNG tool, ĐÚNG tham số, và dừng lại
            ở Confirmation Gate thay vì tự ghi — đúng tiêu chí §3 trong
@@ -156,7 +162,10 @@ def extract_tool_calls_from_mock(user_input: str) -> list[dict]:
     # Import tool handlers từ demo_copilot_st
     _script_dir = os.path.dirname(os.path.abspath(__file__))
     _repo_root = os.path.abspath(os.path.join(_script_dir, "..", "..", ".."))
-    sys.path.insert(0, _repo_root)
+    _copilot_poc_dir = os.path.join(_repo_root, "copilot-poc")
+    for path in (_repo_root, _copilot_poc_dir):
+        if path not in sys.path:
+            sys.path.insert(0, path)
 
     tool_calls = []
 

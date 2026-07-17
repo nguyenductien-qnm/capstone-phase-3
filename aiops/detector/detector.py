@@ -43,7 +43,7 @@ def _env_url(env_name):
 metric_history = {}
 
 def eval_metric_rule(rule, prom):
-    """Tra ve list cac alert (dedup_key, message) cho tung series vuot nguong hoac bat thuong dynamic 3-sigma."""
+    """Tra ve list cac alert (dedup_key, message, fields) cho tung series vuot nguong hoac bat thuong dynamic 3-sigma."""
     alerts = []
     try:
         series = prom.query(rule["query"])
@@ -105,9 +105,24 @@ def eval_metric_rule(rule, prom):
                     "summary_dynamic",
                     f"Lệch bất thường so với baseline của chính service (CHƯA chạm ngưỡng {threshold})",
                 )
-            msg = f"{headline} | service={svc} | Detected by: {', '.join(method_str)}"
-            alerts.append((dedup_key, msg))
-            
+
+            # Review 17/07: tach du lieu that (service/gia tri/phuong phap) thanh field
+            # rieng cho Discord embed, thay vi nhoi het vao 1 cau van dai.
+            fields = [("🎯 Dịch vụ", svc, True)]
+            if static_fired:
+                fields.append(("📊 Giá trị đo / Ngưỡng SLO", f"{value:.4f} / {threshold}", True))
+            else:
+                # dynamic_fired-only => nhanh `len(history) >= 5` chac chan da chay,
+                # nen mean/std_dev da duoc gan o tren.
+                fields.append((
+                    "📊 Giá trị đo / Baseline (mean ± 3σ)",
+                    f"{value:.4f} / {mean:.4f} ± {3 * std_dev:.4f}",
+                    True,
+                ))
+            fields.append(("🔍 Phương pháp phát hiện", ", ".join(method_str), False))
+
+            alerts.append((dedup_key, headline, fields))
+
     return alerts
 
 
@@ -123,10 +138,13 @@ def eval_log_rule(rule, osc):
 
     if count >= rule.get("min_count", 1):
         dedup_key = rule["id"]
-        msg = f"{rule['summary']} | số log khớp={count} trong {rule.get('window_minutes', 5)}m"
+        window_minutes = rule.get("window_minutes", 5)
+        # Review 17/07: tach so dem/log mau thanh field rieng cho Discord embed
+        # (xem alerter.py) thay vi nhoi vao 1 doan text dai.
+        fields = [("🔢 Số log khớp / Cửa sổ", f"{count} / {window_minutes}m", True)]
         if sample:
-            msg += f"\n  ví dụ log: {str(sample)[:200]}"
-        alerts.append((dedup_key, msg))
+            fields.append(("📝 Bằng chứng (log mẫu)", f"```{str(sample)[:200]}```", False))
+        alerts.append((dedup_key, rule["summary"], fields))
     return alerts
 
 
@@ -140,8 +158,8 @@ def run_cycle(cfg, prom, osc, alerter):
         else:
             log.warning("rule %s co type khong hop le: %s", rule.get("id"), rule.get("type"))
             continue
-        for dedup_key, message in results:
-            if alerter.send(dedup_key, rule["severity"], rule["id"], message):
+        for dedup_key, message, fields in results:
+            if alerter.send(dedup_key, rule["severity"], rule["id"], message, fields=fields):
                 fired += 1
     return fired
 

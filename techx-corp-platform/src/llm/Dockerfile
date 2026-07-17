@@ -23,6 +23,7 @@ COPY --from=build-venv /venv/ /venv/
 WORKDIR /app
 
 COPY ./src/llm/app.py app.py
+COPY ./src/llm/model_router.py model_router.py
 COPY ./src/llm/product-review-summaries/product-review-summaries.json product-review-summaries.json
 COPY ./src/llm/product-review-summaries/inaccurate-product-review-summaries.json inaccurate-product-review-summaries.json
 

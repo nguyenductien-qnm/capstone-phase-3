@@ -1065,6 +1065,10 @@ components:
     enabled: true
     useDefault:
       env: true
+    serviceAccount:
+      create: true
+      annotations: {}
+      name: product-reviews
     service:
       port: 3551
     podAnnotations:
@@ -1196,11 +1200,33 @@ components:
       maxReplicas: 4
 
   shopping-copilot:
-    enabled: false # no source/image yet (review J2) - re-enable in the PR that ships copilot code
+    enabled: true
+    replicas: 1 # confirmation tokens/session history are in-memory; keep single pod until Valkey-backed.
     useDefault:
       env: true
+    imageOverride:
+      tag: "1.0-shopping-copilot"
+    serviceAccount:
+      create: true
+      annotations: {}
+      name: shopping-copilot
     service:
       port: 50051
+    startupProbe:
+      grpc: { port: 50051 }
+      periodSeconds: 5
+      failureThreshold: 24
+    readinessProbe:
+      grpc: { port: 50051 }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
+    livenessProbe:
+      grpc: { port: 50051 }
+      periodSeconds: 10
+      timeoutSeconds: 2
+      failureThreshold: 6
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
     env:
@@ -1229,6 +1255,8 @@ components:
       - name: PRODUCT_CATALOG_ADDR
         value: product-catalog:8080
       - name: CART_ADDR
+        value: cart:8080
+      - name: CART_SERVICE_ADDR
         value: cart:8080
       - name: PRODUCT_REVIEWS_ADDR
         value: product-reviews:3551
