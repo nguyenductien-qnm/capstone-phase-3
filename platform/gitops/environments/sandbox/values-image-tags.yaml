@@ -5,43 +5,46 @@
 components:
   cart:
     imageOverride:
-      tag: "1.1-cart"
+      # Sua tay 1 lan (incident 2026-07-16): tag tran "1.1-cart" bi ECR lifecycle
+      # policy xoa -> ImagePullBackOff. cart dang HOAN BUILD (build-exclusions) nen
+      # CI khong tu bump; image rebuild tu source, push tag sha. CI se ghi de khi bo hoan.
+      tag: "1.1-cart-ae89fa2"
   checkout:
     imageOverride:
-      tag: "1.0-checkout-4671660"
+      tag: "1.0-checkout-0e26cf2"
   frontend-proxy:
     imageOverride:
-      tag: "1.0-frontend-proxy-4671660"
+      tag: "1.0-frontend-proxy-0e26cf2"
   product-catalog:
     imageOverride:
-      tag: "1.0-product-catalog-4671660"
+      tag: "1.0-product-catalog-0e26cf2"
   ad:
     imageOverride:
-      tag: 1.0-ad-4671660
+      tag: 1.0-ad-0e26cf2
   currency:
     imageOverride:
-      tag: 1.0-currency-4671660
+      tag: 1.0-currency-0e26cf2
   accounting:
     imageOverride:
-      tag: 1.0-accounting-4671660
+      tag: 1.0-accounting-0e26cf2
   product-reviews:
     imageOverride:
-      tag: 1.0-product-reviews-4671660
+      tag: 1.0-product-reviews-0e26cf2
   llm:
     imageOverride:
-      tag: 1.0-llm-4671660
+      tag: 1.0-llm-0e26cf2
   load-generator:
     imageOverride:
-      tag: 1.0-load-generator-4671660
+      tag: 1.0-load-generator-0e26cf2
   quote:
     imageOverride:
-      tag: 1.0-quote-4671660
+      tag: 1.0-quote-0e26cf2
   recommendation:
     imageOverride:
-      tag: 1.0-recommendation-4671660
+      tag: 1.0-recommendation-0e26cf2
   shipping:
     imageOverride:
-      tag: 1.0-shipping-4671660
+      tag: 1.0-shipping-0e26cf2
   shopping-copilot:
     imageOverride:
-      tag: 1.0-shopping-copilot-4671660
+      tag: 1.0-shopping-copilot-0e26cf2
