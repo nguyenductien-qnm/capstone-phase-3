@@ -66,15 +66,19 @@ def nli_scores(premise, hypothesis):
         logits = _state["model"](**inp).logits[0]
     probs = torch.softmax(logits, -1)
     # label order của model này: entailment, neutral, contradiction
-    return probs[0].item(), probs[2].item()
+    return probs[0].item(), probs[1].item(), probs[2].item()
 
 
 def grounding_decision(source, answer):
     with _model_lock:  # 1 vCPU pod — serialize inference, tránh thrash
-        entail, contra = nli_scores(source[:MAX_SOURCE_CHARS], answer[:MAX_ANSWER_CHARS])
+        entail, neutral, contra = nli_scores(source[:MAX_SOURCE_CHARS], answer[:MAX_ANSWER_CHARS])
     if contra >= BLOCK_CONTRA:
         action = "block"
-    elif entail >= PASS_ENTAIL:
+    # Gap (MANDATE-06 re-audit 18/07): entail>=PASS_ENTAIL alone let pure fabrications
+    # through — an unsupported-but-not-contradictory answer (e.g. invented "5G support")
+    # scores low contra AND low-but-passing entail, with neutral actually dominant.
+    # Require entail to be the dominant class too, else it's neutral -> judge decides.
+    elif entail >= PASS_ENTAIL and entail >= neutral:
         action = "pass"
     else:
         action = "judge"
