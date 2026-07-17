@@ -490,3 +490,85 @@ mặc định.
 nhưng chặn việc mentor test được):** `shopping-copilot` đang `enabled: false`
 trong `values.yaml` (comment cũ "no source/image yet" — đã lỗi thời, code đã
 có đầy đủ); `product-reviews` vẫn chạy root (MANDATE-05, deadline 17/07).
+
+---
+
+# ADR-013: Closed-loop Auto-remediation — dry-run → blast-radius → verify → rollback → CB (TF1-72)
+
+- **Trạng thái:** Chấp nhận (Accepted)
+- **Ngày:** 2026-07-17
+- **Người ký:** Nhóm AI (AIO03) — Task Force 1 · Soạn thảo: Thanh Pham Huu Tien (assignee TF1-72)
+- **Trụ:** AI (AIOps) / Reliability / Operational Excellence
+- **Task:** TF1-72 (con của TF1-78) · hiện thực hoá spec TF1-50 `03_specs/anomaly_remediation.md`
+
+## Context
+`RULES.md §4` đặt "vòng tự động hoá xử lý sự cố" (phát hiện → dry-run/blast-radius →
+xử lý → verify → rollback/escalate, chạy liên tục) là **cốt lõi**, không phải mở rộng.
+W1 (`aiops/detector/`, TF1-53) cố tình chỉ detect+alert — comment trong code ghi rõ
+"KHONG tu khac phuc (do la TF1-50)". TF1-72 hiện thực hoá phần còn lại, theo đúng spec
+đã duyệt ở `03_specs/anomaly_remediation.md` (mentor xác nhận khớp nguyên văn §4).
+
+## Decision — component tách riêng `aiops/remediation/`, 1 action, 1 kịch bản demo
+
+1. **Kiến trúc tách biệt khỏi detector:** ServiceAccount/RBAC/Deployment riêng
+   (`aiops-remediation`, Role namespace-scoped chỉ `pods: get/list/watch/delete` +
+   `pods/log: get`). Lý do: detector chạy cố tình với 0 quyền K8s (kể cả đọc) — gộp
+   remediation vào cùng pod sẽ phá ranh giới least-privilege đã document khắp repo.
+   Đúng kiến trúc 4-participant của spec (Monitor/Engine/K8s/Verify).
+2. **Trigger:** tự poll `OpenSearchClient` (tái dùng từ `aiops/detector/sources.py`)
+   cho rule `oom-detected` — không sửa `detector.py`/`alerter.py` (tránh đụng PR đang
+   mở, và giữ nguyên "1 nguồn phát hiện, nhiều bộ tiêu thụ" thay vì nhân đôi logic).
+3. **Xác định pod mục tiêu qua K8s API thật** (`status.containerStatuses[].lastState.
+   terminated.reason == "OOMKilled"`), không suy luận từ text log — log OpenSearch
+   hiện không có field service/pod name trong `_source` (xem `sources.py`), nên dùng
+   trực tiếp K8s API đáng tin cậy hơn parse chuỗi.
+4. **1 action duy nhất: `k8s_restart_pod`** (xoá pod, ReplicaSet tự tạo lại) — đúng
+   action duy nhất có trong spec đã duyệt. Không làm `scale`/`clear cache` (chỉ là ví
+   dụ minh hoạ trong mô tả ticket, không phải trong spec chính thức).
+5. **"Rollback" cho action restart-pod = dừng lại + tăng circuit breaker + escalate
+   người**, không phải `helm rollback` như ví dụ trong spec — vì restart-pod không đổi
+   Helm release/config nào để mà hoàn tác. Quyết định này đã chốt với người phụ trách
+   (không tự bịa 1 hành động rollback không có thật để bám câu chữ spec).
+6. **5 lớp an toàn** (`remediation_policy.yaml`, tái dùng ngưỡng SLO 0.5% đã có cho
+   error-budget thay vì bịa số mới): circuit-breaker check → error-budget check →
+   blast-radius check → dry-run gate → action → verify (120s/poll 20s) → reset CB
+   hoặc tăng fail-count.
+
+## Ràng buộc sinh tử (RULES.md §8, không thương lượng)
+Không module nào trong `aiops/remediation/` được đọc/gọi flagd để quyết định hành vi —
+kể cả circuit-breaker, kể cả "phòng thủ". Tiền lệ trong repo: 1 circuit-breaker khác
+(LLM/product-reviews) từng bị chấm **vi phạm luật** vì đọc cờ `llmRateLimitError`.
+Circuit-breaker/blast-radius ở đây chỉ dựa vào kết quả `verifier.py` đo thật qua K8s
+pod-status + Prometheus — có test tường minh canh việc này
+(`test_no_flagd_or_helm_reference_anywhere_in_remediation_module`).
+
+## Alternatives considered
+- **Gộp vào cùng pod/process với detector:** nhanh hơn (tái dùng vòng poll có sẵn)
+  nhưng phá ranh giới least-privilege đã cố tình giữ; phải cấp quyền ghi K8s vào đúng
+  pod đang chạy detect-only. → Loại.
+- **Detector publish event nội bộ, remediation tiêu thụ:** tránh query OpenSearch 2
+  lần, nhưng phải sửa `detector.py`/`alerter.py` đang có PR mở chờ review, tăng phạm
+  vi thay đổi ngay sát hạn 19/07. → Loại cho vòng này, có thể cân nhắc lại ở #7b.
+  Đánh đổi: query trùng 1 lần/30s, chi phí không đáng kể so với rủi ro đụng code đang
+  review.
+- **Action `helm rollback` thật cho verify-fail:** bám sát chữ "rollback" trong spec
+  hơn, nhưng restart-pod không có "trạng thái cấu hình trước đó" để hoàn tác về — làm
+  vậy sẽ là rollback một thứ không tồn tại. → Loại; dùng dừng+CB+escalate (mục 5).
+- **Áp dụng action cho nhiều rule khác (latency, error-rate...):** đúng tinh thần
+  "action catalog" trong mô tả ticket hơn, nhưng vượt phạm vi 1-kịch-bản-end-to-end mà
+  Done criteria yêu cầu, và mỗi rule cần safety-boundary số riêng chưa được đo. → Defer
+  sang #7b/vòng sau, không phải reject.
+
+## Consequences
+- Config-driven (`remediation_policy.yaml`) — thêm rule→action mới không cần sửa code,
+  giống triết lý `rules.yaml` của detector.
+- RBAC mới lần đầu trong repo dạng K8s Role thuần (không phải IRSA/IAM) — không có
+  tiền lệ để so sánh, cần review kỹ khi lên EKS thật.
+- 3 số an toàn (verify 120s, CB 3-fail, blast-radius 1/namespace/giờ) hiện là GIẢ ĐỊNH
+  từ spec, CHƯA đo thật — kế hoạch đo qua chaos test `emailMemoryLeak` (xem README.md),
+  cập nhật `remediation_policy.yaml` + báo cáo `report/` sau khi đo.
+- Nhận biết đánh đổi: blast-radius (1 action/namespace/giờ) mặc định sẽ khiến circuit
+  breaker (cần 3 fail LIÊN TIẾP) rất khó tự nhiên đạt tới trong vòng chưa đầy 1 giờ vận
+  hành thật — 2 cơ chế này che chắn lẫn nhau theo hướng BẢO THỦ hơn (ít hành động hơn),
+  không phải lỗi logic; cần quan sát thêm khi chạy chaos test thật để quyết định có nên
+  tách 2 phạm vi tính đếm (namespace vs từng service) ở vòng sau hay không.
