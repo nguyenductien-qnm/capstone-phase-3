@@ -8,37 +8,40 @@ components:
       tag: "1.1-cart"
   checkout:
     imageOverride:
-      tag: "1.0-checkout-cd0ee9b"
+      tag: "1.0-checkout-4671660"
   frontend-proxy:
     imageOverride:
-      tag: "1.0-frontend-proxy-cd0ee9b"
+      tag: "1.0-frontend-proxy-4671660"
   product-catalog:
     imageOverride:
-      tag: "1.0-product-catalog-cd0ee9b"
+      tag: "1.0-product-catalog-4671660"
   ad:
     imageOverride:
-      tag: 1.0-ad-cd0ee9b
+      tag: 1.0-ad-4671660
   currency:
     imageOverride:
-      tag: 1.0-currency-cd0ee9b
+      tag: 1.0-currency-4671660
   accounting:
     imageOverride:
-      tag: 1.0-accounting-cd0ee9b
+      tag: 1.0-accounting-4671660
   product-reviews:
     imageOverride:
-      tag: 1.0-product-reviews-1158bb8
+      tag: 1.0-product-reviews-4671660
   llm:
     imageOverride:
-      tag: 1.0-llm-058a84e
+      tag: 1.0-llm-4671660
   load-generator:
     imageOverride:
-      tag: 1.0-load-generator-cd0ee9b
+      tag: 1.0-load-generator-4671660
   quote:
     imageOverride:
-      tag: 1.0-quote-cd0ee9b
+      tag: 1.0-quote-4671660
   recommendation:
     imageOverride:
-      tag: 1.0-recommendation-cd0ee9b
+      tag: 1.0-recommendation-4671660
   shipping:
     imageOverride:
-      tag: 1.0-shipping-cd0ee9b
+      tag: 1.0-shipping-4671660
+  shopping-copilot:
+    imageOverride:
+      tag: 1.0-shopping-copilot-4671660
