@@ -5,7 +5,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY sources.py alerter.py detector.py rules.yaml ./
+COPY sources.py alerter.py k8s_status.py detector.py rules.yaml ./
 
 # MANDATE-05: khong chay root trong container (runAsNonRoot enforce o admission).
 # uid/gid >= 10000 de khong trung user he thong tren node.

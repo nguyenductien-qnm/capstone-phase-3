@@ -86,25 +86,37 @@ def process_oom_policy(policy, rule, cfg, prom, osc, core_v1, alerter, blast_gua
     namespace = k8s_cfg["namespace"]
     service_label_key = k8s_cfg["service_label_key"]
     sb = policy["safety_boundaries"]
+    trigger_cfg = policy.get("trigger", {"type": "opensearch_log"})
+    trigger_type = trigger_cfg.get("type", "opensearch_log")
 
-    # 1. Phat hien: tai dung dung match_phrases cua rule trong detector/rules.yaml,
-    # KHONG dinh nghia lai nguong o day (single source of truth).
+    # Phat hien: tai dung dung match_phrases cua rule trong detector/rules.yaml (neu
+    # co) - KHONG dinh nghia lai nguong o day (single source of truth). Log luon duoc
+    # thu query (neu rule co match_phrases) de lam bang chung phu trong alert, du
+    # trigger_type nao - chi khac o cho co DUNG log de GATE hanh dong hay khong.
+    log_count, log_sample = 0, None
     phrases = rule.get("match_phrases") or rule.get("match_phrase")
-    window_minutes = rule.get("window_minutes", 5)
-    try:
-        count, _sample = osc.count_matches(phrases, window_minutes)
-    except Exception as exc:  # noqa: BLE001
-        log.error("query OpenSearch loi (rule=%s): %s", rule["id"], exc)
-        return
-    if count < rule.get("min_count", 1):
-        return  # chua co dau hieu OOM, khong lam gi
+    if phrases:
+        try:
+            log_count, log_sample = osc.count_matches(phrases, rule.get("window_minutes", 5))
+        except Exception as exc:  # noqa: BLE001
+            log.error("query OpenSearch loi (rule=%s): %s", rule["id"], exc)
+
+    if trigger_type == "opensearch_log":
+        # Hanh vi CU: log la tin hieu CHINH, chua khop nguong thi thoi.
+        if log_count < rule.get("min_count", 1):
+            return
+    # elif trigger_type == "k8s_pod_status": review 17/07 - OOM dot ngot khien app bi
+    # SIGKILL truoc khi kip ghi log, nen KHONG duoc dung log_count de gate o day. K8s
+    # API (find_oom_pods ben duoi) la tin hieu CHINH va DUY NHAT quyet dinh co hanh
+    # dong hay khong; log_count/log_sample o tren chi la bang chung phu dinh kem alert.
 
     # Xac dinh CHINH XAC pod nao dang OOM that qua K8s API (dang tin cay hon parse
-    # text log - xem k8s_actions.find_oom_pods). Neu log rule keu nhung K8s khong
-    # thay pod OOM nao gan day (vd da tu hoi phuc) -> khong hanh dong.
-    oom_pods = find_oom_pods(core_v1, namespace, service_label_key)
+    # text log - xem k8s_actions.find_oom_pods). Neu khong thay pod OOM nao gan day
+    # (vd da tu hoi phuc, hoac log rule (opensearch_log) khop nhung la FP) -> khong
+    # hanh dong.
+    lookback_seconds = trigger_cfg.get("lookback_seconds", 300)
+    oom_pods = find_oom_pods(core_v1, namespace, service_label_key, since_seconds=lookback_seconds)
     if not oom_pods:
-        log.info("rule %s keu (count=%d) nhung khong tim thay pod OOMKilled that qua K8s API, bo qua", rule["id"], count)
         return
 
     for oom in oom_pods:
@@ -112,6 +124,14 @@ def process_oom_policy(policy, rule, cfg, prom, osc, core_v1, alerter, blast_gua
         service_label = oom["service_label"]
         scope_key = namespace if sb["blast_radius"]["scope"] == "namespace" else f"{namespace}:{service_label}"
         dedup_key = f"{rule['id']}:{service_label}"
+
+        # Bang chung: nguon phat hien THAT (K8s API cho k8s_pod_status) + log phu neu
+        # co (co the la 0/None cho OOM dot ngot - do khong phai loi, xem review 17/07).
+        evidence_fields = [("🔍 Nguồn phát hiện", "K8s API (containerStatus.lastState.terminated=OOMKilled)", False)]
+        if log_count > 0:
+            evidence_fields.append(("🔢 Log khớp (bổ sung)", f"{log_count} trong {rule.get('window_minutes', 5)}m", True))
+            if log_sample:
+                evidence_fields.append(("📝 Log mẫu", f"```{str(log_sample)[:200]}```", False))
 
         if breaker.is_open(dedup_key):
             log.warning("circuit breaker DANG MO cho %s - tu choi hanh dong, chi escalate", dedup_key)
@@ -150,6 +170,7 @@ def process_oom_policy(policy, rule, cfg, prom, osc, core_v1, alerter, blast_gua
                 f"remediation-dryrun:{dedup_key}", "info", f"remediation-dry-run:{rule['id']}",
                 f"[DRY-RUN] Sẽ restart pod {pod_name} (service={service_label}, namespace={namespace}) — "
                 f"chưa thực thi thật, đang ở chế độ mô phỏng.",
+                fields=evidence_fields,
             )
             continue
 
@@ -174,6 +195,7 @@ def process_oom_policy(policy, rule, cfg, prom, osc, core_v1, alerter, blast_gua
             alerter.send(
                 f"remediation-success:{dedup_key}", "info", f"remediation-verified:{rule['id']}",
                 f"Đã restart pod {pod_name} (service={service_label}) — verify PASS, service đã hồi phục.",
+                fields=evidence_fields,
             )
         else:
             # 7. "Rollback": action restart-pod khong doi config gi de ma rollback ve -
@@ -185,6 +207,7 @@ def process_oom_policy(policy, rule, cfg, prom, osc, core_v1, alerter, blast_gua
             alerter.send(
                 f"remediation-verify-failed:{dedup_key}:{time.time()}", severity, f"remediation-verify-failed:{rule['id']}",
                 f"Restart pod {pod_name} (service={service_label}) KHÔNG khắc phục được — verify FAIL.{suffix}",
+                fields=evidence_fields,
             )
 
 
