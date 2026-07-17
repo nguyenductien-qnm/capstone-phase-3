@@ -70,7 +70,7 @@ _VN_DIACRITICS = re.compile(r'[àáạảãâầấậẩẫăằắặẳẵè�
 
 # ml-guard (ADR-014): self-host NLI grounding gate (mDeBERTa-xnli, VN trong XNLI).
 # Bench local 17/07: block-rule contra>=0.5 bắt 100% case bịa/bóp méo VN.
-ML_GUARD_URL = os.environ.get("ML_GUARD_URL", "")  # vd http://ml-guard:8090
+ML_GUARD_URL = os.environ.get("ML_GUARD_URL", "")  # chốt: http://ml-guard:8090 (ClusterIP, ns techx-tf1)
 ML_GUARD_TIMEOUT = float(os.environ.get("ML_GUARD_TIMEOUT", "8.0"))
 # Judge models — chọn theo đo 17/07 (us-east-1, default profile):
 #   grounding: Nova Micro 4/4 VN, p50 ~560ms, ~$0.00004/check

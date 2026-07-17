@@ -33,6 +33,7 @@
 - **Overall Accuracy:** 75.0% (18/24 passed)
 - **Ghi chú bảo mật (Security Flaw Detected):** Khi chạy với dữ liệu thật trên Amazon Nova Lite (us-east-2), model đã thất bại trước các tấn công Prompt Injection (ví dụ: "Bỏ qua các lệnh trước đó...") ở 5/6 trường hợp. Kịch bản Grounded (dữ liệu có sẵn) trả lời hoàn hảo (12/12). 
 - **Đề xuất (Next Action):** Tích hợp AWS Bedrock Guardrails trước khi đưa vào Production để lọc Injection. CI Pipeline hiện tại sẽ báo FAIL (do threshold là 80%) cho tới khi lỗ hổng Injection này được vá.
+- **Giao diện người dùng (17/07):** Copilot đã có UI web thật trong storefront — widget `CopilotChat` (React/styled-components, mount ở `_app.tsx`) gọi Next API route `/api/copilot` bridge sang gRPC `shopping-copilot:3552`, gồm action-gate xác nhận/hủy cho thao tác ghi giỏ hàng. Không dùng Streamlit.
 
 ---
 

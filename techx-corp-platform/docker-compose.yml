@@ -553,6 +553,7 @@ services:
       - LLM_HOST
       - LLM_PORT
       - ML_GUARD_URL=http://ml-guard:8090
+      - LLM_LOCAL_ML_GUARD=true
     depends_on:
       ml-guard:
         condition: service_started
@@ -991,6 +992,7 @@ services:
     environment:
       - SHOPPING_COPILOT_PORT=3552
       - ML_GUARD_URL=http://ml-guard:8090
+      - LLM_LOCAL_ML_GUARD=true
       - PRODUCT_CATALOG_ADDR
       - LLM_HOST
       - LLM_PORT

@@ -31,14 +31,12 @@ Dịch vụ `product-reviews` nhận các biến môi trường cấu hình kế
 
 ## 2. Ràng Buộc Tài Nguyên K8s (Kubernetes Resource Limits)
 
-Để đảm bảo tối ưu hóa chi phí vận hành cụm EKS của dự án, pod của dịch vụ `product-reviews` phải tuân thủ giới hạn tài nguyên. Khi bật Phase-2 Local ML Guard (`LLM_LOCAL_ML_GUARD=true`), cấu hình này được tăng lên như sau:
+Để đảm bảo tối ưu hóa chi phí vận hành cụm EKS của dự án, pod của dịch vụ `product-reviews` phải tuân thủ giới hạn tài nguyên:
 
-* **Không bật Local ML Guard (mặc định / fallback):**
-  - **CPU Request / Limit**: `100m` / `500m`
-  - **Memory Request / Limit**: `128Mi` / `512Mi`
-* **Khi bật Local ML Guard (`LLM_LOCAL_ML_GUARD=true`):**
-  - **CPU Request / Limit**: `500m` / `2000m` (để CPU inference cho model ML chạy mượt mà)
-  - **Memory Request / Limit**: `1536Mi` / `2560Mi` (tương đương 1.5Gi / 2.5Gi, tránh OOM khi load model)
+* **CPU Request / Limit**: `100m` / `500m`
+* **Memory Request / Limit**: `128Mi` / `512Mi`
+
+> **CDO đã xác nhận (17/07/2026):** bật Phase-2 Local ML Guard (`LLM_LOCAL_ML_GUARD=true`) **KHÔNG** thay đổi resource của pod này. "Local" nghĩa là *self-hosted trong cluster* (pod `ml-guard` riêng), **không phải in-process**: `guardrails.py` chỉ gọi HTTP sang `ML_GUARD_URL=http://ml-guard:8090` (ClusterIP, namespace `techx-tf1` — giá trị chốt), không load model nào trong pod `product-reviews`. Spec pod `ml-guard` xem `shopping-copilot-integration.md` §3.1 (dùng chung).
 
 ---
 
