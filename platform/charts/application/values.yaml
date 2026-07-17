@@ -1055,6 +1055,10 @@ components:
           secretKeyRef:
             name: db-secret
             key: catalog-db-conn
+      # CDO-TBD2: dual_read = COALESCE(image_url, picture); set read_new after backfill
+      # and BEFORE DROP COLUMN picture (contract). Greenfield init.sql uses image_url only → read_new.
+      - name: CATALOG_SCHEMA_PHASE
+        value: "dual_read"
       - name: OTEL_SEMCONV_STABILITY_OPT_IN
         value: database
       - name: OTEL_EXPORTER_OTLP_ENDPOINT
