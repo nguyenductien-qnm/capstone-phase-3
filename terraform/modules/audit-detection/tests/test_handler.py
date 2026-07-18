@@ -151,6 +151,44 @@ def test_get_webhook_url_ssm(mock_boto):
     url = handler.get_webhook_url()
     assert url == "https://ssm.webhook"
     mock_boto.assert_called_with("ssm")
+    mock_ssm.get_parameter.assert_called_with(Name="test-arn", WithDecryption=True)
+
+@patch("boto3.client")
+@patch.dict(os.environ, {"SLACK_WEBHOOK_PARAMETER_ARN": "arn:aws:ssm:us-east-1:123456789012:parameter/dev/slack_webhook", "SLACK_WEBHOOK_PROVIDER": "ssm"})
+def test_get_webhook_url_ssm_arn(mock_boto):
+    mock_ssm = MagicMock()
+    mock_ssm.get_parameter.return_value = {"Parameter": {"Value": "https://ssm.webhook.arn"}}
+    mock_boto.return_value = mock_ssm
+    
+    handler._SLACK_WEBHOOK_URL = None # reset cache
+    url = handler.get_webhook_url()
+    assert url == "https://ssm.webhook.arn"
+    mock_ssm.get_parameter.assert_called_with(Name="/dev/slack_webhook", WithDecryption=True)
+
+@patch("boto3.client")
+@patch.dict(os.environ, {"SLACK_WEBHOOK_PARAMETER_ARN": "arn:aws:ssm:us-east-1:123456789012:parameter/myparam", "SLACK_WEBHOOK_PROVIDER": "ssm"})
+def test_get_webhook_url_ssm_arn_fallback(mock_boto):
+    mock_ssm = MagicMock()
+    
+    class ParameterNotFound(Exception):
+        pass
+    mock_ssm.exceptions.ParameterNotFound = ParameterNotFound
+    
+    # First call fails with ParameterNotFound, second call succeeds
+    def get_parameter_side_effect(Name, WithDecryption):
+        if Name == "/myparam":
+            raise ParameterNotFound("Not Found")
+        elif Name == "myparam":
+            return {"Parameter": {"Value": "https://ssm.webhook.fallback"}}
+        return {}
+        
+    mock_ssm.get_parameter.side_effect = get_parameter_side_effect
+    mock_boto.return_value = mock_ssm
+    
+    handler._SLACK_WEBHOOK_URL = None # reset cache
+    url = handler.get_webhook_url()
+    assert url == "https://ssm.webhook.fallback"
+    assert mock_ssm.get_parameter.call_count == 2
 
 @patch("boto3.client")
 @patch.dict(os.environ, {"SLACK_WEBHOOK_PARAMETER_ARN": "test-secret", "SLACK_WEBHOOK_PROVIDER": "secretsmanager"})
@@ -163,3 +201,27 @@ def test_get_webhook_url_secretsmanager(mock_boto):
     url = handler.get_webhook_url()
     assert url == "https://sm.webhook"
     mock_boto.assert_called_with("secretsmanager")
+
+@patch("handler.send_to_slack")
+@patch("handler.get_webhook_url")
+def test_lambda_handler_ping_success(mock_get_webhook, mock_send):
+    mock_get_webhook.return_value = "https://test.webhook"
+    
+    response = lambda_handler({"action": "ping"}, None)
+    
+    assert response["statusCode"] == 200
+    assert "Slack ping check succeeded" in response["body"]
+    mock_send.assert_called_once()
+    assert "HEALTH CHECK" in mock_send.call_args[0][1]["text"]
+
+@patch("handler.send_to_slack")
+@patch("handler.get_webhook_url")
+def test_lambda_handler_ping_failure(mock_get_webhook, mock_send):
+    mock_get_webhook.return_value = "https://test.webhook"
+    mock_send.side_effect = Exception("Slack Unavailable")
+    
+    response = lambda_handler({"type": "ping"}, None)
+    
+    assert response["statusCode"] == 500
+    assert "Slack ping check failed: Slack Unavailable" in response["body"]
+    mock_send.assert_called_once()

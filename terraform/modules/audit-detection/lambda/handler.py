@@ -210,7 +210,26 @@ def send_to_slack(webhook_url, payload):
         logger.error(f"Slack delivery failed: {str(e)}")
         raise e
 
+def ping_slack(webhook_url):
+    """Actively send a test health-check message to Slack to verify connectivity."""
+    logger.info("Verifying Slack webhook health via test ping event.")
+    try:
+        ping_payload = {
+            "text": "🔍 *[HEALTH CHECK] Audit Detection Pipeline Slack Webhook Connection test successful!*"
+        }
+        send_to_slack(webhook_url, ping_payload)
+        logger.info("Test ping to Slack succeeded.")
+        return {"statusCode": 200, "body": "Slack ping check succeeded"}
+    except Exception as e:
+        logger.error(f"Test ping to Slack failed: {str(e)}")
+        return {"statusCode": 500, "body": f"Slack ping check failed: {str(e)}"}
+
 def lambda_handler(event, context):
+    # Check if this is a custom direct test/ping invocation
+    if isinstance(event, dict) and (event.get("action") == "ping" or event.get("type") == "ping"):
+        webhook_url = get_webhook_url()
+        return ping_slack(webhook_url)
+
     logger.info(f"Processing {len(event.get('Records', []))} SQS records.")
     
     # Fetch webhook once per batch/warm start
