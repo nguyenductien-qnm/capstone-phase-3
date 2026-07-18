@@ -114,6 +114,10 @@ module "ecr" {
   project_name     = var.project_name
   environment      = var.environment
   ecr_repositories = var.ecr_repositories
+
+  # Node role của cluster develop (account khác) pull image từ ECR chung này.
+  # ARN lấy từ output `eks_managed_node_role_arn` của terraform/environments/develop.
+  pull_principal_arns = var.ecr_pull_principal_arns
 }
 
 # IRSA cho external-dns: quyền ghi record trong ĐÚNG hosted zone của subdomain.
