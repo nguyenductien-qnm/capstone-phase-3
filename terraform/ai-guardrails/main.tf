@@ -88,8 +88,65 @@ resource "aws_bedrock_guardrail" "aio" {
   }
 }
 
-# Immutable numbered version — production MUST pin this, never DRAFT.
+# Pinned production version for TF1-61.
 resource "aws_bedrock_guardrail_version" "aio" {
   guardrail_arn = aws_bedrock_guardrail.aio.guardrail_arn
   description   = "Pinned production version for TF1-61."
 }
+
+# ------------------------------------------------------------------ #
+# IAM Role for Bedrock Invocation in Account B (Cross-Account Access)
+# ------------------------------------------------------------------ #
+
+# IAM Role assumed by EKS Account A to invoke Bedrock
+resource "aws_iam_role" "techx_bedrock_invoke" {
+  name = "techx-bedrock-invoke"
+
+  # Trust policy allowing EKS Account A root to assume and tag session
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "AllowAccountAAssumeRole"
+        Effect    = "Allow"
+        Principal = { AWS = "arn:aws:iam::804372444787:root" }
+        Action    = "sts:AssumeRole"
+        Condition = {
+          StringEquals = { "sts:ExternalId" = "phase3-bedrock-cross-account" }
+        }
+      },
+      {
+        Sid       = "AllowAccountATagSession"
+        Effect    = "Allow"
+        Principal = { AWS = "arn:aws:iam::804372444787:root" }
+        Action    = "sts:TagSession"
+      }
+    ]
+  })
+
+  tags = {
+    Name = "techx-bedrock-invoke"
+  }
+}
+
+# Policy attached to the role allowing Bedrock invocation
+resource "aws_iam_role_policy" "techx_bedrock_invoke" {
+  name = "BedrockInvokeAccess"
+  role = aws_iam_role.techx_bedrock_invoke.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "AllowBedrockInvoke"
+        Effect = "Allow"
+        Action = [
+          "bedrock:InvokeModel",
+          "bedrock:InvokeModelWithResponseStream"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
