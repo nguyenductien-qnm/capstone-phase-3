@@ -1,0 +1,315 @@
+name: Infrastructure Destroy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment cần destroy"
+        required: true
+        type: choice
+        options:
+          - develop
+          - prod
+
+      confirmation:
+        description: 'Nhập chính xác "destroy-develop" hoặc "destroy-prod"'
+        required: true
+        type: string
+
+      terraform_version:
+        description: "Terraform version override, để trống để dùng repository variable"
+        required: false
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+# Chỉ cho phép một thao tác Terraform trên cùng environment tại một thời điểm.
+concurrency:
+  group: terraform-destroy-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  validate-request:
+    name: Validate destroy request
+    runs-on: ubuntu-slim
+
+    outputs:
+      env_name: ${{ steps.validate.outputs.env_name }}
+      tf_working_dir: ${{ steps.validate.outputs.tf_working_dir }}
+      terraform_version: ${{ steps.validate.outputs.terraform_version }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate confirmation and environment
+        id: validate
+        shell: bash
+        env:
+          ENV_NAME: ${{ inputs.environment }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+          INPUT_TF_VERSION: ${{ inputs.terraform_version }}
+          DEFAULT_TF_VERSION: ${{ vars.TF_VERSION }}
+        run: |
+          set -euo pipefail
+
+          EXPECTED_CONFIRMATION="destroy-${ENV_NAME}"
+
+          if [[ "$CONFIRMATION" != "$EXPECTED_CONFIRMATION" ]]; then
+            echo "::error::Invalid confirmation."
+            echo "::error::Expected: ${EXPECTED_CONFIRMATION}"
+            exit 1
+          fi
+
+          case "$ENV_NAME" in
+            develop|prod)
+              ;;
+            *)
+              echo "::error::Unsupported environment: $ENV_NAME"
+              exit 1
+              ;;
+          esac
+
+          TF_DIR="terraform/environments/${ENV_NAME}"
+
+          if [[ ! -d "$TF_DIR" ]]; then
+            echo "::error::Terraform directory not found: $TF_DIR"
+            exit 1
+          fi
+
+          TF_VERSION="$INPUT_TF_VERSION"
+
+          if [[ -z "$TF_VERSION" ]]; then
+            TF_VERSION="${DEFAULT_TF_VERSION:-1.10.0}"
+          fi
+
+          {
+            echo "env_name=$ENV_NAME"
+            echo "tf_working_dir=$TF_DIR"
+            echo "terraform_version=$TF_VERSION"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Destroy request validated:"
+          echo "  Environment: $ENV_NAME"
+          echo "  Directory:   $TF_DIR"
+          echo "  Terraform:   $TF_VERSION"
+
+  terraform-destroy-plan:
+    name: Destroy plan
+    needs: validate-request
+    runs-on: ubuntu-24.04
+    timeout-minutes: ${{ vars.TF_TTL || 30 }}
+
+    # Có thể cấu hình required reviewers cho environment prod.
+    environment:
+      name: ${{ needs.validate-request.outputs.env_name }}
+
+    permissions:
+      contents: read
+      id-token: write
+
+    env: &terraform-env
+      AWS_REGION: ${{ vars.AWS_REGION || secrets.AWS_REGION }}
+      AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN || secrets.AWS_ROLE_ARN }}
+
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+
+      TF_VAR_eks_access_entries: ${{ vars.TF_VAR_eks_access_entries || secrets.TF_VAR_eks_access_entries }}
+      TF_VAR_route53_zone_id: ${{ vars.TF_VAR_route53_zone_id || secrets.TF_VAR_route53_zone_id }}
+      TF_VAR_subdomain: ${{ vars.TF_VAR_subdomain || secrets.TF_VAR_subdomain }}
+      TF_VAR_acm_certificate_arn: ${{ vars.TF_VAR_acm_certificate_arn || secrets.TF_VAR_acm_certificate_arn }}
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ needs.validate-request.outputs.tf_working_dir }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate required configuration
+        run: |
+          set -euo pipefail
+
+          [[ -n "$AWS_REGION" ]] || {
+            echo "::error::AWS_REGION is not configured"
+            exit 1
+          }
+
+          [[ -n "$AWS_ROLE_ARN" ]] || {
+            echo "::error::AWS_ROLE_ARN is not configured"
+            exit 1
+          }
+
+      - name: Setup Terraform tfvars
+        run: |
+          set -euo pipefail
+
+          if [[ -f terraform.tfvars.example && ! -f terraform.tfvars ]]; then
+            cp terraform.tfvars.example terraform.tfvars
+            echo "Copied terraform.tfvars.example to terraform.tfvars"
+          else
+            echo "No terraform.tfvars.example copy required"
+          fi
+
+      - name: AWS Auth OIDC
+        if: ${{ !env.ACT }}
+        uses: ./.github/actions/aws-auth-oidc
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ needs.validate-request.outputs.terraform_version }}
+          terraform_wrapper: false
+
+      - name: Terraform format check
+        run: terraform fmt -check -recursive
+
+      - name: Terraform init
+        run: terraform init -input=false
+
+      - name: Terraform validate
+        run: terraform validate
+
+      - name: Create destroy plan
+        run: |
+          set -euo pipefail
+
+          terraform plan \
+            -destroy \
+            -input=false \
+            -lock-timeout=5m \
+            -out=destroy.tfplan
+
+          terraform show -no-color destroy.tfplan > destroy-plan.txt
+
+      - name: Add destroy plan to summary
+        if: always()
+        run: |
+          {
+            echo "## Terraform destroy plan"
+            echo
+            echo "- Environment: \`${{ needs.validate-request.outputs.env_name }}\`"
+            echo "- Directory: \`${{ needs.validate-request.outputs.tf_working_dir }}\`"
+            echo "- Requested by: \`${{ github.actor }}\`"
+            echo "- Commit: \`${{ github.sha }}\`"
+            echo
+            echo "<details>"
+            echo "<summary>Show destroy plan</summary>"
+            echo
+            echo '```terraform'
+
+            if [[ -f destroy-plan.txt ]]; then
+              cat destroy-plan.txt
+            else
+              echo "Destroy plan was not generated."
+            fi
+
+            echo '```'
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Saved plan có thể chứa dữ liệu nhạy cảm.
+      # Giữ retention ngắn và giới hạn người có quyền đọc workflow artifacts.
+      - name: Upload destroy plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-destroy-plan-${{ needs.validate-request.outputs.env_name }}-${{ github.run_id }}
+          path: |
+            ${{ needs.validate-request.outputs.tf_working_dir }}/destroy.tfplan
+            ${{ needs.validate-request.outputs.tf_working_dir }}/.terraform.lock.hcl
+          if-no-files-found: error
+          retention-days: 1
+
+  terraform-destroy:
+    name: Destroy infrastructure
+    needs:
+      - validate-request
+      - terraform-destroy-plan
+
+    runs-on: ubuntu-24.04
+    timeout-minutes: ${{ vars.TF_TTL || 30 }}
+
+    # Có thể tạo environment riêng, ví dụ prod-destroy,
+    # với required reviewers nghiêm ngặt hơn prod.
+    environment:
+      name: ${{ needs.validate-request.outputs.env_name }}
+
+    permissions:
+      contents: read
+      id-token: write
+
+    env: *terraform-env
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ needs.validate-request.outputs.tf_working_dir }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Terraform tfvars
+        run: |
+          set -euo pipefail
+
+          if [[ -f terraform.tfvars.example && ! -f terraform.tfvars ]]; then
+            cp terraform.tfvars.example terraform.tfvars
+            echo "Copied terraform.tfvars.example to terraform.tfvars"
+          else
+            echo "No terraform.tfvars.example copy required"
+          fi
+
+      - name: AWS Auth OIDC
+        if: ${{ !env.ACT }}
+        uses: ./.github/actions/aws-auth-oidc
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ needs.validate-request.outputs.terraform_version }}
+          terraform_wrapper: false
+
+      - name: Terraform init
+        run: terraform init -input=false
+
+      - name: Download destroy plan
+        uses: actions/download-artifact@v4
+        with:
+          name: terraform-destroy-plan-${{ needs.validate-request.outputs.env_name }}-${{ github.run_id }}
+          path: ${{ needs.validate-request.outputs.tf_working_dir }}
+
+      - name: Verify destroy plan exists
+        run: |
+          set -euo pipefail
+
+          if [[ ! -f destroy.tfplan ]]; then
+            echo "::error::Saved destroy plan was not downloaded"
+            exit 1
+          fi
+
+      - name: Terraform destroy
+        run: |
+          set -euo pipefail
+          terraform apply -input=false -lock-timeout=5m destroy.tfplan
+
+      - name: Destroy summary
+        if: success()
+        run: |
+          {
+            echo "## Infrastructure destroyed"
+            echo
+            echo "- Environment: \`${{ needs.validate-request.outputs.env_name }}\`"
+            echo "- Directory: \`${{ needs.validate-request.outputs.tf_working_dir }}\`"
+            echo "- Requested by: \`${{ github.actor }}\`"
+            echo "- Workflow run: \`${{ github.run_id }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

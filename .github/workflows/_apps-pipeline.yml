@@ -1,0 +1,126 @@
+# =============================================================================
+# Apps Pipeline - Parallel Build & Push Pipeline
+# =============================================================================
+# Tự động phát hiện microservice nào thay đổi → build + push ECR.
+#
+# Flow:
+#   1. detect-changes: git diff → tìm app có file thay đổi trong techx-corp-platform/src/
+#   2. build-apps: matrix strategy → build + scan local image
+#   3. push/sign: chỉ push lên ECR khi chạy push event
+#
+# Trigger: push / pull_request lên main
+# Auth: AWS OIDC (không cần store secrets)
+# =============================================================================
+
+name: Apps Pipeline
+
+on:
+    push:
+        branches:
+            - main
+        paths:
+            - .github/workflows/apps-pipeline.yml
+            - techx-corp-platform/src/**
+    pull_request:
+        branches:
+            - main
+        paths:
+            - .github/workflows/apps-pipeline.yml
+            - techx-corp-platform/src/**
+
+permissions:
+    id-token: write
+    contents: read
+    pull-requests: read
+
+env:
+    apps_path: techx-corp-platform/src
+    build_context: techx-corp-platform
+    aws_region: ap-southeast-1
+    ecr_repository: capstone-phase-3
+    aws_role_arn: ${{ secrets.AWS_ROLE_ARN }}
+
+jobs:
+    # --- JOB 1: TÌM CÁC APP CÓ THAY ĐỔI VỚI DORNY/PATHS-FILTER ---
+    detect-changes:
+        runs-on: ubuntu-latest
+        outputs:
+            matrix: ${{ steps.filter.outputs.changes }}
+        steps:
+            - name: Phát hiện thay đổi của các Microservices
+              uses: dorny/paths-filter@v3
+              id: filter
+              with:
+                  base: main
+                  filters: |
+                      accounting: '${{ env.apps_path }}/accounting/**'
+                      ad: '${{ env.apps_path }}/ad/**'
+                      cart:       '${{ env.apps_path }}/cart/**'
+                      checkout:   '${{ env.apps_path }}/checkout/**'
+                      currency: '${{ env.apps_path }}/currency/**'
+                      email: '${{ env.apps_path }}/email/**'
+                      fraud-detection: '${{ env.apps_path }}/fraud-detection/**'
+                      frontend: '${{ env.apps_path }}/frontend/**'
+                      frontend-proxy: '${{ env.apps_path }}/frontend-proxy/**'
+                      image-provider: '${{ env.apps_path }}/image-provider/**'
+                      load-generator: '${{ env.apps_path }}/load-generator/**'
+                      payment: '${{ env.apps_path }}/payment/**'
+                      product-catalog: '${{ env.apps_path }}/product-catalog/**'
+                      product-reviews: '${{ env.apps_path }}/product-reviews/**'
+                      quote: '${{ env.apps_path }}/quote/**'
+                      recommendation: '${{ env.apps_path }}/recommendation/**'
+                      shipping: '${{ env.apps_path }}/shipping/**'
+                      flagd-ui: '${{ env.apps_path }}/flagd-ui/**'
+                      kafka: '${{ env.apps_path }}/kafka/**'
+                      llm: '${{ env.apps_path }}/llm/**'
+                      opensearch: '${{ env.apps_path }}/opensearch/**'
+
+    # --- JOB 2: BUILD, SCAN, PUSH & SIGN DOCKER IMAGE ---
+    build-apps:
+        needs: detect-changes
+        if: ${{ needs.detect-changes.outputs.matrix != '[]' && needs.detect-changes.outputs.matrix != '' }}
+        runs-on: ubuntu-latest
+        strategy:
+            fail-fast: false
+            matrix:
+                app: ${{ fromJSON(needs.detect-changes.outputs.matrix) }}
+
+        steps:
+            - uses: actions/checkout@v4
+
+            # Build custom hook (nếu app cần steps đặc thù)
+            - name: Custom build hook
+              run: |
+                  cd ${{ env.apps_path }}/${{ matrix.app }}
+                  if [ -f "ci.sh" ]; then
+                    chmod +x ci.sh
+                    ./ci.sh
+                  fi
+
+            # Build + scan local image trước khi đụng AWS/ECR
+            - name: Build & Scan Docker Image
+              id: build-scan
+              uses: ./.github/actions/build-scan-image
+              with:
+                  working-directory: ${{ env.apps_path }}/${{ matrix.app }}
+                  context: ${{ env.build_context }}
+                  image-ref: ${{ env.ecr_repository }}/${{ matrix.app }}:${{ github.sha }}
+                  trivy-severity: "CRITICAL,HIGH"
+                  trivy-exit-code: "1"
+
+            # AWS OIDC auth + ECR login chỉ cần trước lúc push/sign
+            - name: AWS Auth OIDC
+              if: github.event_name == 'push'
+              id: aws-auth
+              uses: ./.github/actions/aws-auth-oidc
+              with:
+                  aws-region: ${{ env.aws_region }}
+                  role-to-assume: ${{ env.aws_role_arn }}
+
+            # Push/sign image đã scan lên ECR
+            - name: Push & Sign ECR Image
+              if: github.event_name == 'push'
+              uses: ./.github/actions/push-sign-ecr
+              with:
+                  local-image: ${{ steps.build-scan.outputs.image-ref }}
+                  remote-image: ${{ steps.aws-auth.outputs.registry }}/${{ steps.build-scan.outputs.image-ref }}
