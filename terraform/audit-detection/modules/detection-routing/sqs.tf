@@ -41,28 +41,28 @@ resource "aws_kms_key" "queue" {
   enable_key_rotation     = true
   policy                  = data.aws_iam_policy_document.queue_kms.json
 
-  tags = merge(local.common_tags, {
-    Name = "${local.name_prefix}-queue"
+  tags = merge(var.tags, {
+    Name = "${var.name_prefix}-queue"
   })
 }
 
 resource "aws_kms_alias" "queue" {
-  name          = "alias/${local.name_prefix}-queue"
+  name          = "alias/${var.name_prefix}-queue"
   target_key_id = aws_kms_key.queue.key_id
 }
 
 resource "aws_sqs_queue" "processing_dlq" {
-  name                      = "${local.name_prefix}-processing-dlq"
+  name                      = "${var.name_prefix}-processing-dlq"
   message_retention_seconds = 1209600
   kms_master_key_id         = aws_kms_key.queue.arn
 
-  tags = merge(local.common_tags, {
-    Name = "${local.name_prefix}-processing-dlq"
+  tags = merge(var.tags, {
+    Name = "${var.name_prefix}-processing-dlq"
   })
 }
 
 resource "aws_sqs_queue" "main" {
-  name                       = "${local.name_prefix}-processing"
+  name                       = "${var.name_prefix}-processing"
   message_retention_seconds  = var.main_queue_retention_seconds
   visibility_timeout_seconds = var.queue_visibility_timeout_seconds
   kms_master_key_id          = aws_kms_key.queue.arn
@@ -79,8 +79,8 @@ resource "aws_sqs_queue" "main" {
     }
   }
 
-  tags = merge(local.common_tags, {
-    Name = "${local.name_prefix}-processing"
+  tags = merge(var.tags, {
+    Name = "${var.name_prefix}-processing"
   })
 }
 
@@ -94,12 +94,12 @@ resource "aws_sqs_queue_redrive_allow_policy" "processing_dlq" {
 }
 
 resource "aws_sqs_queue" "eventbridge_delivery_dlq" {
-  name                      = "${local.name_prefix}-eventbridge-dlq"
+  name                      = "${var.name_prefix}-eventbridge-dlq"
   message_retention_seconds = 1209600
   kms_master_key_id         = aws_kms_key.queue.arn
 
-  tags = merge(local.common_tags, {
-    Name = "${local.name_prefix}-eventbridge-dlq"
+  tags = merge(var.tags, {
+    Name = "${var.name_prefix}-eventbridge-dlq"
   })
 }
 

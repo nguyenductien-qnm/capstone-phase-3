@@ -36,7 +36,7 @@ data "aws_iam_policy_document" "pipeline_health_kms" {
     condition {
       test     = "ArnLike"
       variable = "aws:SourceArn"
-      values   = ["arn:${data.aws_partition.current.partition}:cloudwatch:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:alarm:${local.name_prefix}-*"]
+      values   = ["arn:${data.aws_partition.current.partition}:cloudwatch:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:alarm:${var.name_prefix}-*"]
     }
   }
 
@@ -58,7 +58,7 @@ data "aws_iam_policy_document" "pipeline_health_kms" {
     condition {
       test     = "StringEquals"
       variable = "kms:EncryptionContext:aws:sns:topicArn"
-      values   = ["arn:${data.aws_partition.current.partition}:sns:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:${local.name_prefix}-pipeline-health"]
+      values   = ["arn:${data.aws_partition.current.partition}:sns:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:${var.name_prefix}-pipeline-health"]
     }
   }
 }
@@ -69,22 +69,22 @@ resource "aws_kms_key" "pipeline_health" {
   enable_key_rotation     = true
   policy                  = data.aws_iam_policy_document.pipeline_health_kms.json
 
-  tags = merge(local.common_tags, {
-    Name = "${local.name_prefix}-pipeline-health"
+  tags = merge(var.tags, {
+    Name = "${var.name_prefix}-pipeline-health"
   })
 }
 
 resource "aws_kms_alias" "pipeline_health" {
-  name          = "alias/${local.name_prefix}-pipeline-health"
+  name          = "alias/${var.name_prefix}-pipeline-health"
   target_key_id = aws_kms_key.pipeline_health.key_id
 }
 
 resource "aws_sns_topic" "pipeline_health" {
-  name              = "${local.name_prefix}-pipeline-health"
+  name              = "${var.name_prefix}-pipeline-health"
   kms_master_key_id = aws_kms_key.pipeline_health.arn
 
-  tags = merge(local.common_tags, {
-    Name = "${local.name_prefix}-pipeline-health"
+  tags = merge(var.tags, {
+    Name = "${var.name_prefix}-pipeline-health"
   })
 }
 
@@ -138,7 +138,7 @@ data "aws_iam_policy_document" "pipeline_health_topic" {
     condition {
       test     = "ArnLike"
       variable = "aws:SourceArn"
-      values   = ["arn:${data.aws_partition.current.partition}:cloudwatch:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:alarm:${local.name_prefix}-*"]
+      values   = ["arn:${data.aws_partition.current.partition}:cloudwatch:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:alarm:${var.name_prefix}-*"]
     }
   }
 

@@ -1,14 +1,38 @@
 data "archive_file" "lambda" {
   type        = "zip"
-  source_file = "${path.module}/lambda/handler.py"
+  source_file = var.lambda_source_file
   output_path = "${path.root}/.terraform/${local.lambda_function_name}.zip"
+}
+
+resource "aws_dynamodb_table" "idempotency" {
+  name         = "${var.name_prefix}-idempotency"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "event_id"
+
+  attribute {
+    name = "event_id"
+    type = "S"
+  }
+
+  ttl {
+    attribute_name = "expires_at"
+    enabled        = true
+  }
+
+  server_side_encryption {
+    enabled = true
+  }
+
+  tags = merge(var.tags, {
+    Name = "${var.name_prefix}-idempotency"
+  })
 }
 
 resource "aws_cloudwatch_log_group" "lambda" {
   name              = "/aws/lambda/${local.lambda_function_name}"
   retention_in_days = var.log_retention_days
 
-  tags = merge(local.common_tags, {
+  tags = merge(var.tags, {
     Name = "/aws/lambda/${local.lambda_function_name}"
   })
 }
@@ -30,13 +54,16 @@ resource "aws_lambda_function" "slack_alert" {
 
   environment {
     variables = {
-      LOG_LEVEL                   = var.lambda_log_level
-      SLACK_WEBHOOK_PARAMETER_ARN = var.slack_webhook_parameter_arn
-      SLACK_WEBHOOK_PROVIDER      = local.webhook_is_ssm ? "ssm" : "secretsmanager"
+      LOG_LEVEL                     = var.lambda_log_level
+      IDEMPOTENCY_LEASE_SECONDS     = tostring(var.idempotency_lease_seconds)
+      IDEMPOTENCY_RETENTION_SECONDS = tostring(var.idempotency_retention_seconds)
+      IDEMPOTENCY_TABLE_NAME        = aws_dynamodb_table.idempotency.name
+      SLACK_WEBHOOK_PARAMETER_ARN   = var.slack_webhook_parameter_arn
+      SLACK_WEBHOOK_PROVIDER        = local.webhook_is_ssm ? "ssm" : "secretsmanager"
     }
   }
 
-  tags = merge(local.common_tags, {
+  tags = merge(var.tags, {
     Name = local.lambda_function_name
   })
 
@@ -47,7 +74,7 @@ resource "aws_lambda_function" "slack_alert" {
 }
 
 resource "aws_lambda_event_source_mapping" "processing_queue" {
-  event_source_arn = aws_sqs_queue.main.arn
+  event_source_arn = var.processing_queue_arn
   function_name    = aws_lambda_function.slack_alert.arn
   enabled          = true
 

@@ -1,12 +1,12 @@
 resource "aws_cloudwatch_event_rule" "audit" {
   for_each = local.audit_rules
 
-  name          = substr("${local.name_prefix}-${replace(each.key, "_", "-")}", 0, 64)
+  name          = substr("${var.name_prefix}-${replace(each.key, "_", "-")}", 0, 64)
   description   = each.value.description
   event_pattern = each.value.event_pattern
 
-  tags = merge(local.common_tags, {
-    Name              = substr("${local.name_prefix}-${replace(each.key, "_", "-")}", 0, 64)
+  tags = merge(var.tags, {
+    Name              = substr("${var.name_prefix}-${replace(each.key, "_", "-")}", 0, 64)
     DetectionCategory = each.value.category
   })
 }

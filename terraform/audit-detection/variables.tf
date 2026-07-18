@@ -109,6 +109,28 @@ variable "lambda_log_level" {
   }
 }
 
+variable "idempotency_lease_seconds" {
+  type        = number
+  description = "Lease duration for an in-progress CloudTrail event"
+  default     = 300
+
+  validation {
+    condition     = var.idempotency_lease_seconds >= 60 && var.idempotency_lease_seconds <= 3600
+    error_message = "idempotency_lease_seconds must be between 60 and 3600."
+  }
+}
+
+variable "idempotency_retention_seconds" {
+  type        = number
+  description = "TTL retained for completed CloudTrail event IDs"
+  default     = 86400
+
+  validation {
+    condition     = var.idempotency_retention_seconds >= 3600 && var.idempotency_retention_seconds <= 604800
+    error_message = "idempotency_retention_seconds must be between one hour and seven days."
+  }
+}
+
 variable "log_retention_days" {
   type        = number
   description = "CloudWatch Logs retention for Lambda operational logs"

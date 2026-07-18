@@ -11,11 +11,11 @@ data "aws_iam_policy_document" "lambda_assume_role" {
 }
 
 resource "aws_iam_role" "lambda" {
-  name               = substr("${local.name_prefix}-slack-alert-role", 0, 64)
+  name               = substr("${var.name_prefix}-slack-alert-role", 0, 64)
   assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
 
-  tags = merge(local.common_tags, {
-    Name = substr("${local.name_prefix}-slack-alert-role", 0, 64)
+  tags = merge(var.tags, {
+    Name = substr("${var.name_prefix}-slack-alert-role", 0, 64)
   })
 }
 
@@ -29,7 +29,7 @@ data "aws_iam_policy_document" "lambda" {
       "sqs:GetQueueAttributes",
       "sqs:ReceiveMessage",
     ]
-    resources = [aws_sqs_queue.main.arn]
+    resources = [var.processing_queue_arn]
   }
 
   statement {
@@ -46,7 +46,18 @@ data "aws_iam_policy_document" "lambda" {
     sid       = "DecryptAuditQueueMessages"
     effect    = "Allow"
     actions   = ["kms:Decrypt"]
-    resources = [aws_kms_key.queue.arn]
+    resources = [var.queue_kms_key_arn]
+  }
+
+  statement {
+    sid    = "ManageEventIdempotency"
+    effect = "Allow"
+    actions = [
+      "dynamodb:DeleteItem",
+      "dynamodb:PutItem",
+      "dynamodb:UpdateItem",
+    ]
+    resources = [aws_dynamodb_table.idempotency.arn]
   }
 
   statement {
@@ -69,7 +80,7 @@ data "aws_iam_policy_document" "lambda" {
 }
 
 resource "aws_iam_role_policy" "lambda" {
-  name   = "${local.name_prefix}-slack-alert"
+  name   = "${var.name_prefix}-slack-alert"
   role   = aws_iam_role.lambda.id
   policy = data.aws_iam_policy_document.lambda.json
 }
