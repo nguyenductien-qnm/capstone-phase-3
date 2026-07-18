@@ -185,7 +185,8 @@ _INJ_JUDGE_SYSTEM = (
 _GROUND_JUDGE_SYSTEM = (
     "Bạn là bộ kiểm chứng. Trả lời đúng một từ YES hoặc NO. YES nếu CÂU TRẢ LỜI chỉ dùng "
     "thông tin có trong NGUỒN (kể cả diễn đạt lại). NO nếu CÂU TRẢ LỜI thêm thông tin, "
-    "con số, hay tính năng KHÔNG có trong NGUỒN."
+    "con số, hay tính năng KHÔNG có trong NGUỒN. "
+    "Lưu ý: Nếu CÂU TRẢ LỜI chỉ đơn giản nói rằng không có thông tin, không tìm thấy, hoặc từ chối trả lời, hãy trả về YES."
 )
 
 
@@ -345,7 +346,7 @@ def sanitize_json_for_llm(json_str):
         return json.dumps({"error": "unparseable tool result was withheld by guardrail"})
 
 
-def leaks_system_prompt(output_text, system_prompt, window_words=6):
+def leaks_system_prompt(output_text, system_prompt, window_words=15):
     """Output guard rẻ: sliding-window N-từ của output có nằm trong system_prompt
     không. Bổ trợ cho denied-topic của Bedrock (bắt leak verbatim, không bắt
     paraphrase — đó là việc của Bedrock)."""
