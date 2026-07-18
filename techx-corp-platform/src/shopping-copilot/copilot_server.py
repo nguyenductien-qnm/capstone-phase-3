@@ -25,12 +25,14 @@ import time
 import uuid
 from concurrent import futures
 
-import boto3
 import grpc
+from grpc_health.v1 import health, health_pb2, health_pb2_grpc
 
 import agent
 import tools
-from guardrails import sanitize_text   # MANDATE-06: L1 input guardrail
+from bedrock_client import create_bedrock_runtime_client
+from guardrails import apply_guardrail_input
+import model_router
 import shopping_copilot_pb2 as pb
 import shopping_copilot_pb2_grpc as pb_grpc
 
@@ -39,7 +41,10 @@ logger = logging.getLogger("shopping-copilot")
 
 PORT = os.environ.get("SHOPPING_COPILOT_PORT", "50051")
 AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
-MAIN_MODEL = os.environ.get("LLM_COPILOT_MODEL", "amazon.nova-pro-v1:0")
+MAIN_MODEL = os.environ.get(
+    "LLM_COPILOT_MODEL",
+    os.environ.get("LLM_COPILOT_MAIN_MODEL", "amazon.nova-pro-v1:0"),
+)
 MAX_WORKERS = int(os.environ.get("COPILOT_MAX_WORKERS", "10"))
 CONFIRM_TTL_SECONDS = int(os.environ.get("COPILOT_CONFIRM_TTL", "300"))
 # Keep session context bounded — most recent turns only (context engineering, L4).
@@ -81,11 +86,16 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
 
         # --- Phase 1: normal agent turn.
         session = self._sessions.setdefault(request.session_id or request.user_id, [])
-        # MANDATE-06 L1 Input Guardrail: chặn injection + lọc PII trước khi vào LLM.
-        sanitized_question = sanitize_text(request.question)
+        session_id = request.session_id or request.user_id
+        
+        # MANDATE-06: Unified Input Guardrail
+        blocked, sanitized_question = apply_guardrail_input(self._bedrock, request.question)
+        if blocked:
+            logger.warning("[Guardrail] Blocked input for session=%s", session_id)
+            sanitized_question = "[filtered]"
+
         session.append({"role": "user", "content": [{"text": sanitized_question}]})
 
-        import model_router
         routed_model = model_router.get_routed_model("copilot", MAIN_MODEL)
         logger.info(f"Routed model for copilot: {routed_model}")
 
@@ -143,10 +153,17 @@ def _to_records(actions: list[agent.ToolCall]) -> list:
 
 
 def serve():
-    bedrock = boto3.client("bedrock-runtime", region_name=AWS_REGION)
+    bedrock = create_bedrock_runtime_client(region_name=AWS_REGION)
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=MAX_WORKERS))
     pb_grpc.add_ShoppingCopilotServiceServicer_to_server(
         ShoppingCopilotServicer(bedrock), server)
+    health_servicer = health.HealthServicer()
+    health_pb2_grpc.add_HealthServicer_to_server(health_servicer, server)
+    health_servicer.set("", health_pb2.HealthCheckResponse.SERVING)
+    health_servicer.set(
+        "shopping_copilot.ShoppingCopilotService",
+        health_pb2.HealthCheckResponse.SERVING,
+    )
     server.add_insecure_port(f"[::]:{PORT}")
     
     import signal

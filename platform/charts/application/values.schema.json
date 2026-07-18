@@ -117,6 +117,9 @@
         "product-reviews": {
           "$ref": "#/definitions/Component"
         },
+        "ml-guard": {
+          "$ref": "#/definitions/Component"
+        },
         "quote": {
           "$ref": "#/definitions/Component"
         },
@@ -175,6 +178,24 @@
         },
         "service": {
           "$ref": "#/definitions/Service"
+        },
+        "serviceAccount": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "create": {
+              "type": "boolean"
+            },
+            "annotations": {
+              "type": "object"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "create"
+          ]
         },
         "ports": {
           "type": "array",

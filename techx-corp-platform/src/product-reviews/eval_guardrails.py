@@ -16,6 +16,7 @@ import json
 import sys
 import guardrails
 import os
+from bedrock_client import create_bedrock_runtime_client
 
 # Windows: ensure stdout handles UTF-8 characters in Vietnamese test strings
 if hasattr(sys.stdout, "reconfigure"):
@@ -99,9 +100,7 @@ def run_deterministic_eval(dataset):
 
 def run_llm_judge_eval(dataset):
     """Layer 2: LLM-judge eval — requires AWS Bedrock credentials."""
-    import boto3
-    bedrock_client = boto3.client(
-        service_name="bedrock-runtime",
+    bedrock_client = create_bedrock_runtime_client(
         region_name=os.environ.get("AWS_REGION", "us-east-1")
     )
 

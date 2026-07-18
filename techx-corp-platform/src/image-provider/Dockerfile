@@ -3,6 +3,12 @@
 
 FROM nginxinc/nginx-unprivileged:1.29.0-alpine3.22-otel
 
+# Vá CVE tầng OS: Alpine 3.22 repo đã có bản vá cho libssl3/libcrypto3, libexpat,
+# libpng, libxml2, pcre2, nghttp2, c-ares, zlib, musl. apk cần root -> upgrade
+# trước khi hạ về user không đặc quyền.
+USER root
+RUN apk --no-cache upgrade
+
 USER 101
 
 COPY src/image-provider/static/ /static/

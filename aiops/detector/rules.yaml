@@ -1,9 +1,11 @@
 # TF1-53 [AIOps-W1-T5] - Cau hinh phat hien loi & canh bao van hanh
 # ----------------------------------------------------------------------------
 # Rule config-driven: KHONG hardcode nguong trong code. Them/sua tin hieu tai day.
-# 2 loai rule:
-#   - type: metric  -> query Prometheus (PromQL tra ve vector, so sanh op/threshold trong code)
-#   - type: log     -> dem so log khop match_phrase tren OpenSearch trong cua so window_minutes
+# 3 loai rule:
+#   - type: metric     -> query Prometheus (PromQL tra ve vector, so sanh op/threshold trong code)
+#   - type: log        -> dem so log khop match_phrase tren OpenSearch trong cua so window_minutes
+#   - type: k8s_status -> doc thang trang thai pod tu K8s API (vd OOMKilled) - dung cho
+#                          su co ma app KHONG kip ghi log truoc khi bi kill (xem oom-detected)
 #
 # Nguong bam SLO trong onboarding/SLO.md:
 #   - storefront p95 < 1s ; non-5xx >= 99.5% (err < 0.5%) ; checkout >= 99% (err < 1%)
@@ -46,29 +48,87 @@ rules:
     op: gt
     threshold: 1.0
 
-  - id: error-rate-high
+  - id: error-budget-burn-fast-standard
     type: metric
     severity: critical
     summary: "Tỉ lệ lỗi 5xx > 0.5% — VI PHẠM SLO non-5xx (≥ 99.5%)"
     summary_dynamic: "Tỉ lệ lỗi 5xx TĂNG BẤT THƯỜNG so với baseline (chưa vượt SLO 0.5% — cảnh báo sớm)"
     query: >-
-      sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", http_response_status_code=~"5.."}[5m]))
-      /
-      clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp"}[5m])), 0.001)
+      (
+        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout", http_response_status_code=~"5.."}[5m]))
+        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout"}[5m])), 0.001)
+        <
+        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout", http_response_status_code=~"5.."}[1h]))
+        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout"}[1h])), 0.001)
+      )
+      or
+      (
+        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout", http_response_status_code=~"5.."}[1h]))
+        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout"}[1h])), 0.001)
+      )
     op: gt
-    threshold: 0.005
+    threshold: 0.072
 
-  - id: checkout-failure-high
+  - id: error-budget-burn-fast-checkout
     type: metric
     severity: critical
     summary: "Tỉ lệ lỗi checkout > 1% — luồng RA TIỀN đang vỡ SLO (≥ 99%)"
     summary_dynamic: "Lỗi checkout TĂNG BẤT THƯỜNG so với baseline (chưa vượt SLO 1% — theo dõi sát)"
     query: >-
-      sum (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout", http_response_status_code=~"5.."}[5m]))
-      /
-      clamp_min(sum (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout"}[5m])), 0.001)
+      (
+        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout", http_response_status_code=~"5.."}[5m]))
+        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout"}[5m])), 0.001)
+        <
+        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout", http_response_status_code=~"5.."}[1h]))
+        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout"}[1h])), 0.001)
+      )
+      or
+      (
+        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout", http_response_status_code=~"5.."}[1h]))
+        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout"}[1h])), 0.001)
+      )
     op: gt
-    threshold: 0.01
+    threshold: 0.144
+
+  - id: error-budget-burn-slow-standard
+    type: metric
+    severity: warning
+    summary: "Slow burn rate > 6x (30m/6h) - TICKET! (Non-checkout)"
+    query: >-
+      (
+        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout", http_response_status_code=~"5.."}[30m]))
+        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout"}[30m])), 0.001)
+        <
+        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout", http_response_status_code=~"5.."}[6h]))
+        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout"}[6h])), 0.001)
+      )
+      or
+      (
+        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout", http_response_status_code=~"5.."}[6h]))
+        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout"}[6h])), 0.001)
+      )
+    op: gt
+    threshold: 0.03
+
+  - id: error-budget-burn-slow-checkout
+    type: metric
+    severity: warning
+    summary: "Slow burn rate > 6x (30m/6h) - TICKET! (Checkout)"
+    query: >-
+      (
+        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout", http_response_status_code=~"5.."}[30m]))
+        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout"}[30m])), 0.001)
+        <
+        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout", http_response_status_code=~"5.."}[6h]))
+        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout"}[6h])), 0.001)
+      )
+      or
+      (
+        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout", http_response_status_code=~"5.."}[6h]))
+        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout"}[6h])), 0.001)
+      )
+    op: gt
+    threshold: 0.06
 
   # ---- COST SIGNAL (chi phi LLM) ----
   - id: bedrock-cost-high
@@ -134,10 +194,21 @@ rules:
     window_minutes: 10
     min_count: 1
 
+  # Review 17/07 (chaos test that voi service `ad`): rule log-based cu KHONG BAO GIO
+  # khop cho OOM dot ngot - kernel SIGKILL container truoc khi no kip ghi log ve cai
+  # chet cua chinh no (xac nhan: log cua `ad` dung han truoc OOM, im lang tuyet doi qua
+  # 7 lan OOMKilled that lien tiep). Doi sang k8s_status: doc thang
+  # containerStatuses[].lastState.terminated tu K8s API - du lieu K8s tu ghi nhan, khong
+  # phu thuoc app co log duoc hay khong. Xem ADR-012 addendum.
   - id: oom-detected
-    type: log
+    type: k8s_status
     severity: critical
     summary: "OutOfMemory / OOMKilled — pod bị giết vì hết RAM (INC-2/S07)"
+    k8s_namespace: techx-tf1
+    service_label_key: "opentelemetry.io/name"
+    lookback_seconds: 300
+    # Giu lai match_phrases lam tai lieu/du phong tuong lai (vd neu sau nay co
+    # container hook ghi log truoc khi bi kill) - KHONG con dung de gate nua.
     match_phrases:
       - "OutOfMemory"
       - "OOMKilled"

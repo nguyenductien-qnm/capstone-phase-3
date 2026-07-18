@@ -32,6 +32,10 @@ RUN dotnet publish ./src/cart.csproj -r linux-musl-$TARGETARCH --no-restore -o /
 # https://mcr.microsoft.com/v2/dotnet/runtime-deps/tags/list
 FROM mcr.microsoft.com/dotnet/runtime-deps:10.0-alpine3.22
 
+# Vá CVE tầng OS: Alpine 3.22 repo đã có bản vá (libssl3/libcrypto3 3.5.7-r0,
+# musl 1.2.5-r12, zlib 1.3.2-r0). Base image giữ package cũ -> upgrade tại build.
+RUN apk --no-cache upgrade
+
 WORKDIR /usr/src/app/
 COPY --from=builder /cart/ ./
 

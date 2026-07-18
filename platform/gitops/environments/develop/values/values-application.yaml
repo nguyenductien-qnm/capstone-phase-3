@@ -1,0 +1,6 @@
+# Develop starts without a public ALB, Product-like ACM certificate or DNS name.
+# Enable ingress only after a Develop-owned certificate and hostname are approved.
+components:
+  frontend-proxy:
+    ingress:
+      enabled: false

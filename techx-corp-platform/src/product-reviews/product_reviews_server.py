@@ -7,6 +7,7 @@
 # Python
 import os
 import json
+import re
 from concurrent import futures
 import random
 
@@ -29,7 +30,11 @@ import demo_pb2_grpc
 from grpc_health.v1 import health_pb2
 from grpc_health.v1 import health_pb2_grpc
 from database import fetch_product_reviews, fetch_product_reviews_from_db, fetch_avg_product_review_score_from_db, fetch_reviews_fingerprint
-from guardrails import sanitize_json_for_llm, leaks_system_prompt, redact_pii, detect_prompt_injection_llm
+from bedrock_client import create_bedrock_runtime_client
+from guardrails import (
+    sanitize_json_for_llm, leaks_system_prompt, redact_pii, sanitize_text, validate_citations,
+    apply_guardrail_input, apply_guardrail_output,
+)
 
 from openfeature import api
 from openfeature.contrib.provider.flagd import FlagdProvider
@@ -44,7 +49,6 @@ from openai import OpenAI
 # Model Router
 from model_router import ModelRouter
 
-import boto3
 from botocore.exceptions import ClientError, ReadTimeoutError, ConnectTimeoutError, BotoCoreError
 from botocore.config import Config
 import redis
@@ -66,8 +70,16 @@ llm_model = None
 # --- Define the tool for the OpenAI API ---
 valkey_client = None
 
-SYSTEM_PROMPT = "You are a helpful assistant that answers related to a specific product. Use tools as needed to fetch the product reviews and product information. Keep the response brief with no more than 1-2 sentences. If you don't know the answer, just say you don't know."
-MOCK_SUMMARY_VI = "Hiện tại hệ thống không thể tạo tóm tắt đánh giá. Vui lòng tham khảo các đánh giá chi tiết bên dưới."
+SYSTEM_PROMPT = (
+    "You are a helpful assistant that answers questions about a specific product. "
+    "Use tools as needed to fetch the product reviews and product information. "
+    "Answer in the same language as the question. Give a comprehensive and well-structured answer: "
+    "when reviews are relevant, clearly cite the average rating and review count, and provide "
+    "a detailed breakdown of the concrete pros and cons reviewers reported. Only use information "
+    "returned by the tools — never invent details. If the reviews and product data do not cover "
+    "the question, say clearly that the reviews do not mention it."
+)
+MOCK_SUMMARY_VI = "Hệ thống trợ lý AI đang gặp gián đoạn tạm thời nên không thể tổng hợp đánh giá lúc này. Xin lỗi vì sự bất tiện. Vui lòng tham khảo thông tin sản phẩm và các đánh giá chi tiết bên dưới, hoặc thử lại sau ít phút."
 # Review C1: version cache key theo model/prompt THUC dang dung — doi qua env la key tu doi,
 # khong con hang so chet lam versioned-key mat tac dung.
 model_ver = os.environ.get('LLM_REVIEWS_MAIN_MODEL', os.environ.get('AWS_BEDROCK_MODEL', 'arn:aws:bedrock:us-east-1:804372444787:application-inference-profile/krbq2wsgp11t'))
@@ -95,7 +107,7 @@ CB_COOLDOWN_SECONDS = float(os.environ.get('LLM_CB_COOLDOWN', '30'))
 # - topP 0.9: voi temp 0.1 phan phoi da rat nhon, topP gan nhu khong tac dong — giu muc pho bien,
 #   KHONG phai tham so dieu khien chinh (doi temp truoc neu can chinh hanh vi).
 INFERENCE_CONFIG = {
-    "maxTokens": int(os.environ.get('LLM_MAX_TOKENS', '1024')),
+    "maxTokens": int(os.environ.get('LLM_MAX_TOKENS', '2048')),
     "temperature": float(os.environ.get('LLM_TEMPERATURE', '0.1')),
     "topP": float(os.environ.get('LLM_TOP_P', '0.9')),
 }
@@ -277,7 +289,7 @@ def get_bedrock_primary_client():
         aws_region = os.environ.get('AWS_REGION', 'us-east-1')
         main_timeout = float(os.environ.get('LLM_REVIEWS_TIMEOUT', '4.0'))
         primary_config = Config(connect_timeout=1.0, read_timeout=main_timeout, retries={'max_attempts': 0})
-        bedrock_primary_client = boto3.client(service_name="bedrock-runtime", region_name=aws_region, config=primary_config)
+        bedrock_primary_client = create_bedrock_runtime_client(region_name=aws_region, config=primary_config)
     return bedrock_primary_client
 
 def get_bedrock_fallback_client():
@@ -286,7 +298,7 @@ def get_bedrock_fallback_client():
         aws_region = os.environ.get('AWS_REGION', 'us-east-1')
         fallback_timeout = float(os.environ.get('LLM_REVIEWS_FALLBACK_TIMEOUT', '2.0'))
         fallback_config = Config(connect_timeout=1.0, read_timeout=fallback_timeout, retries={'max_attempts': 0})
-        bedrock_fallback_client = boto3.client(service_name="bedrock-runtime", region_name=aws_region, config=fallback_config)
+        bedrock_fallback_client = create_bedrock_runtime_client(region_name=aws_region, config=fallback_config)
     return bedrock_fallback_client
 
 def _record_bedrock_metrics(response, model_id, status="success"):
@@ -483,6 +495,12 @@ def invoke_bedrock_converse_with_fallback(messages, system_prompt, tool_config=N
     # 3. If we reach here, both primary and fallback failed
     raise Exception("All model attempts exhausted or failed.")
 
+def build_ai_assistant_cache_key(request_product_id, model_ver, prompt_ver, content_fp, question):
+    """Content-addressed Valkey key. Must include `question` — two different
+    questions about the same product are two different answers, not one."""
+    question_fp = hashlib.sha256(question.strip().lower().encode()).hexdigest()[:16]
+    return f"reviews:summary:{request_product_id}:{model_ver}:{prompt_ver}:{content_fp}:{question_fp}"
+
 def get_ai_assistant_response(request_product_id, question, context=None):
 
     with tracer.start_as_current_span("get_ai_assistant_response") as span:
@@ -491,6 +509,15 @@ def get_ai_assistant_response(request_product_id, question, context=None):
 
         span.set_attribute("app.product.id", request_product_id)
         span.set_attribute("app.product.question", question)
+
+        # --- INPUT rail (TF1-61): Bedrock ApplyGuardrail on the direct user question
+        # (prompt-attack + PII mask + denied-topic). Fail-CLOSED: block on error while
+        # enabled. Guardrail off → sanitize_text regex fallback. ---
+        blocked_in, question = apply_guardrail_input(get_bedrock_primary_client(), sanitize_text(question))
+        if blocked_in:
+            logger.warning(f"[Guardrail INPUT] blocked direct question for product_id={request_product_id}")
+            question = "[filtered]"
+        # -----------------------------------------------------------------------
 
         # Lớp 4: Context-Aware Dynamic Deadlines
         if context is not None:
@@ -517,7 +544,7 @@ def get_ai_assistant_response(request_product_id, question, context=None):
         except Exception as e:
             logger.error(f"Reviews fingerprint error (skip cache this call): {e}")
             content_fp = None
-        cache_key = f"reviews:summary:{request_product_id}:{model_ver}:{prompt_ver}:{content_fp}"
+        cache_key = build_ai_assistant_cache_key(request_product_id, model_ver, prompt_ver, content_fp, question)
         llm_reviews_cache_enabled = check_feature_flag("llmReviewsCacheEnabled", default=True) and content_fp is not None
         logger.info(f"llmReviewsCacheEnabled feature flag: {llm_reviews_cache_enabled}")
 
@@ -536,6 +563,7 @@ def get_ai_assistant_response(request_product_id, question, context=None):
 
         result = None
         is_mock_rate_limit = False
+        tool_results_raw = []
 
         llm_rate_limit_error = check_feature_flag("llmRateLimitError")
         logger.info(f"llmRateLimitError feature flag: {llm_rate_limit_error}")
@@ -637,29 +665,35 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                         function_response = fetch_product_reviews(
                             product_id=tool_input.get("product_id")
                         )
-                        # --- INPUT GUARDRAIL (Lớp 1: always-on, deterministic, per-field) ---
+                        # --- INPUT rail L1: always-on regex sanitize (PII + obvious injection, per-field) ---
                         function_response = sanitize_json_for_llm(function_response)
                         logger.info(f"[Guardrail L1] review sanitized for product_id={tool_input.get('product_id')}")
-                        # --- INPUT GUARDRAIL (Lớp 2: optional LLM-judge, sau feature flag) ---
-                        if check_feature_flag("llmGuardrailLlmJudge"):
-                            if detect_prompt_injection_llm(get_bedrock_primary_client(), function_response):
-                                logger.warning(f"[Guardrail L2] LLM-judge malicious for product_id={tool_input.get('product_id')}. Blocking.")
-                                function_response = json.dumps({"error": "Content blocked by security guardrail."})
+                        # --- INPUT rail L2 (TF1-61): Bedrock prompt-attack on untrusted review text.
+                        # Fail-CLOSED while enabled → block on error. Off → L1 regex already applied. ---
+                        blocked_rev, _ = apply_guardrail_input(get_bedrock_primary_client(), function_response)
+                        if blocked_rev:
+                            logger.warning(f"[Guardrail INPUT] Bedrock blocked review for product_id={tool_input.get('product_id')}.")
+                            function_response = json.dumps({"error": "Content blocked by security guardrail."})
                         # -----------------------------------------------------------------------
                         logger.info(f"Function response for fetch_product_reviews: '{function_response}'")
                     elif tool_name == "fetch_product_info":
                         function_response = fetch_product_info(
                             product_id=tool_input.get("product_id")
                         )
+                        function_response = sanitize_json_for_llm(function_response)
                         logger.info(f"Function response for fetch_product_info: '{function_response}'")
                     else:
                         raise Exception(f'Received unexpected tool call request: {tool_name}')
 
+                    tool_results_raw.append(function_response)
+                    parsed_res = json.loads(function_response)
+                    if not isinstance(parsed_res, dict):
+                        parsed_res = {"result": parsed_res}
                     tool_results.append({
                         "toolUseId": tool_use_id,
-                        # Guardrail Phan A: tool result (review/catalog) la du lieu khong tin cay —
-                        # loc PII + prompt-injection per-field truoc khi vao prompt, giu JSON hop le.
-                        "content": [{"json": json.loads(sanitize_json_for_llm(function_response))}],
+                        # function_response is already sanitized above (both branches) —
+                        # reuse it instead of re-sanitizing the same string twice.
+                        "content": [{"json": parsed_res}],
                     })
 
                 llm_inaccurate_response = check_feature_flag("llmInaccurateResponse")
@@ -699,7 +733,8 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                 try:
                     final_response = invoke_bedrock_converse_with_fallback(
                         messages=messages,
-                        system_prompt=system_prompt
+                        system_prompt=system_prompt,
+                        tool_config={"tools": tools}
                     )
                     result = final_response["output"]["message"]["content"][0]["text"]
                 except Exception as e:
@@ -715,17 +750,48 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                 text_parts = [b["text"] for b in content_blocks if "text" in b]
                 result = "\n".join(text_parts) if text_parts else ""
 
+            # Bug (reproduced live 17/07): model doi khi tra <thinking>...</thinking>
+            # lam van ban thuong thay vi reasoning block rieng -> leak thang ra UI.
+            # Strip truoc moi guard/cache/return khac.
+            if result:
+                result = re.sub(r"<thinking>.*?</thinking>\s*", "", result, flags=re.DOTALL).strip()
+
             # Guardrail Phan A: output guard — chặn lộ system prompt + redact PII khỏi khách.
             result = redact_pii(result)
             if leaks_system_prompt(result, SYSTEM_PROMPT):
                 logger.error("AI_SUMMARY_FALLBACK stage=output-guard reason=SystemPromptLeak")
                 result = MOCK_SUMMARY_VI
 
+            # Citation validator (mentor 16/07): kiem tra so lieu trong output co khop tool result
+            if tool_results_raw and result:
+                is_valid, result = validate_citations(result, tool_results_raw)
+                if not is_valid:
+                    logger.warning(f"[Guardrail] Citation validation: fabricated numbers replaced with [unverified] for product_id={request_product_id}")
+
+            # --- OUTPUT rail (TF1-61): Bedrock contextual-grounding (faithfulness).
+            # Answer must be grounded in the source reviews; below threshold = hallucination
+            # → fallback "review không đề cập". Fail-OPEN (still PII-masked by redact_pii above). ---
+            if tool_results_raw and result:
+                source_text = "\n".join(str(r) for r in tool_results_raw)
+                blocked_out, result = apply_guardrail_output(
+                    get_bedrock_primary_client(), result, source_text, question
+                )
+                if blocked_out:
+                    logger.warning(f"AI_SUMMARY_FALLBACK stage=output-grounding reason=Ungrounded product_id={request_product_id}")
+                    # Not MOCK_SUMMARY_VI: an ungrounded answer means the reviews don't
+                    # cover the question — tell the customer that instead of claiming
+                    # the whole summary system is down.
+                    result = ("Xin lỗi, các đánh giá và dữ liệu của sản phẩm này không đề cập "
+                              "thông tin bạn hỏi. Bạn có thể hỏi về chất lượng, ưu nhược điểm "
+                              "hoặc trải nghiệm sử dụng được nêu trong review.")
+
             ai_assistant_response.response = result
             logger.info(f"Returning Bedrock AI assistant response: '{result}'")
 
             # Update cache if enabled
-            if llm_reviews_cache_enabled and valkey_client is not None and result:
+            # Never cache MOCK_SUMMARY_VI (guardrail/deadline/bulkhead fallback) — poisons
+            # Valkey for 7d TTL until a real answer overwrites it (repro'd 17/07).
+            if llm_reviews_cache_enabled and valkey_client is not None and result and result != MOCK_SUMMARY_VI:
                 try:
                     # Review C2: review data la tinh (verified: proto khong co rpc ghi, seed tu init.sql)
                     # -> TTL phang 7d + versioned key; dynamic TTL bo vi khong co gi de no phan ung.
@@ -805,7 +871,7 @@ if __name__ == "__main__":
     health_pb2_grpc.add_HealthServicer_to_server(service, server)
 
     aws_region = os.environ.get('AWS_REGION', 'us-east-1')
-    bedrock_client = boto3.client(service_name="bedrock-runtime", region_name=aws_region)
+    bedrock_client = create_bedrock_runtime_client(region_name=aws_region)
 
     valkey_addr = os.environ.get('VALKEY_ADDR', 'valkey-cart:6379')
     try:

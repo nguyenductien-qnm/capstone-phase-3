@@ -154,6 +154,15 @@
         "on": true
       }
     },
+    "llmSemanticSimilarityGuard": {
+      "defaultVariant": "off",
+      "description": "MANDATE-06 L1 guardrail: Titan Embed Text v2 cosine-similarity vs known-attack corpus (mentor 16/07), covers both the static corpus check and copilot's session-history semantic-repetition check. Off until threshold + p95 latency are measured.",
+      "state": "ENABLED",
+      "variants": {
+        "off": false,
+        "on": true
+      }
+    },
     "loadGeneratorFloodHomepage": {
       "defaultVariant": "off",
       "description": "Flood the frontend with a large amount of requests.",

@@ -306,19 +306,46 @@ func main() {
 	logger.Info("Product Catalog gRPC server stopped")
 }
 
+// productPictureSQLExpr maps DB columns into the protobuf Product.picture field.
+//
+// CDO-TBD2 expand-contract (picture → image_url):
+//
+//   - dual_read (default): COALESCE(image_url, picture) — safe after ADD COLUMN +
+//     during backfill while both columns exist.
+//   - read_new / image_url: only image_url — use after backfill and after DROP picture
+//     (set env CATALOG_SCHEMA_PHASE=read_new before contract DROP).
+//
+// gRPC/API field name stays "picture" so frontend/proto do not need a rename.
+func productPictureSQLExpr() string {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("CATALOG_SCHEMA_PHASE"))) {
+	case "read_new", "image_url":
+		return "p.image_url"
+	default:
+		// dual_read: prefer new column when set, else legacy picture
+		return "COALESCE(NULLIF(BTRIM(p.image_url), ''), p.picture)"
+	}
+}
+
+func productSelectSQL(where, order string) string {
+	// where/order must be static trusted fragments (no user input interpolation).
+	return fmt.Sprintf(`
+			SELECT p.id, p.name, p.description, %s AS picture,
+			       p.price_currency_code, p.price_units, p.price_nanos, p.categories
+			FROM catalog.products p
+			%s
+			%s
+		`, productPictureSQLExpr(), where, order)
+}
+
 func loadProductsFromDB(ctx context.Context) ([]*pb.Product, error) {
 	if db == nil {
 		return nil, fmt.Errorf("database connection not initialized")
 	}
 
+	q := productSelectSQL("", "ORDER BY p.id")
 	var products []*pb.Product
 	err := withDBRetry(ctx, "loadProducts", func() error {
-		rows, qerr := db.QueryContext(ctx, `
-			SELECT p.id, p.name, p.description, p.picture, 
-			       p.price_currency_code, p.price_units, p.price_nanos, p.categories
-			FROM catalog.products p
-			ORDER BY p.id
-		`)
+		rows, qerr := db.QueryContext(ctx, q)
 		if qerr != nil {
 			return fmt.Errorf("failed to query products: %w", qerr)
 		}
@@ -340,15 +367,13 @@ func searchProductsFromDB(ctx context.Context, query string) ([]*pb.Product, err
 	}
 
 	searchPattern := "%" + strings.ToLower(query) + "%"
+	q := productSelectSQL(
+		"WHERE LOWER(p.name) LIKE $1 OR LOWER(p.description) LIKE $1",
+		"ORDER BY p.id",
+	)
 	var products []*pb.Product
 	err := withDBRetry(ctx, "searchProducts", func() error {
-		rows, qerr := db.QueryContext(ctx, `
-			SELECT p.id, p.name, p.description, p.picture, 
-			       p.price_currency_code, p.price_units, p.price_nanos, p.categories
-			FROM catalog.products p
-			WHERE LOWER(p.name) LIKE $1 OR LOWER(p.description) LIKE $1
-			ORDER BY p.id
-		`, searchPattern)
+		rows, qerr := db.QueryContext(ctx, q, searchPattern)
 		if qerr != nil {
 			return fmt.Errorf("failed to query products: %w", qerr)
 		}
@@ -369,14 +394,10 @@ func getProductFromDB(ctx context.Context, productID string) (*pb.Product, error
 		return nil, fmt.Errorf("database connection not initialized")
 	}
 
+	q := productSelectSQL("WHERE p.id = $1", "")
 	var product *pb.Product
 	err := withDBRetry(ctx, "getProduct", func() error {
-		row := db.QueryRowContext(ctx, `
-			SELECT p.id, p.name, p.description, p.picture, 
-			       p.price_currency_code, p.price_units, p.price_nanos, p.categories
-			FROM catalog.products p
-			WHERE p.id = $1
-		`, productID)
+		row := db.QueryRowContext(ctx, q, productID)
 
 		var id, name, description, picture, currencyCode, categoriesStr string
 		var units int64

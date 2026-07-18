@@ -215,11 +215,11 @@ components:
         value: "false"
     resources:
       requests:
-        cpu: 10m
-        memory: 32Mi
+        cpu: 100m         # P0 right-size: OOMKilled 36 lần, .NET cần RAM cao (PR#49, restore sau PR#106)
+        memory: 128Mi
       limits:
-        cpu: 100m
-        memory: 120Mi
+        cpu: 200m
+        memory: 256Mi
     initContainers:
       - name: wait-for-kafka
         image: busybox:1.38.0   # Pinned: do NOT use :latest — breaks reproducibility.
@@ -291,7 +291,7 @@ components:
   cart:
     enabled: true
     imageOverride:
-      tag: "1.1-cart" # CDO-80: image mới có gRPC health tách liveness/readiness
+      tag: "1.1-cart-ae89fa2" # CDO-80 gRPC health; incident 2026-07-16: tag tran bi ECR lifecycle xoa, rebuild
     # Image chạy root và đang HOÃN BUILD vì CVE-2026-28387 (xem build-exclusions.yaml)
     # -> không vá được bằng USER trong Dockerfile, phải ép UID từ chart.
     # Template dùng `default` (thay cả block, KHÔNG merge) nên phải lặp lại đủ field
@@ -363,10 +363,10 @@ components:
         value: http://$(OTEL_COLLECTOR_NAME):4317
     resources:
       requests:
-        cpu: 10m
-        memory: 32Mi
+        cpu: 100m         # CDO-42: cart ghi/đọc mỗi session, tải tăng theo user -> HPA (PR#49, restore sau PR#106)
+        memory: 64Mi      # P0 right-size: thêm request, giữ limit
       limits:
-        cpu: 100m
+        cpu: 200m
         memory: 160Mi
     hpa:
       enabled: true
@@ -551,6 +551,8 @@ components:
 
   email:
     enabled: true
+    imageOverride:
+      tag: "1.0-email-ae89fa2" # incident 2026-07-16: tag tran bi ECR lifecycle xoa, image rebuild tu source
     # Image chạy root và đang HOÃN BUILD vì CVE-2026-28387 + CVE-2026-42245 (xem
     # build-exclusions.yaml) -> ép UID từ chart thay vì USER trong Dockerfile.
     # Template dùng `default` (thay cả block, KHÔNG merge) nên phải lặp lại đủ field.
@@ -588,6 +590,8 @@ components:
         memory: 100Mi
   fraud-detection:
     enabled: true
+    imageOverride:
+      tag: "1.0-fraud-detection-ae89fa2" # incident 2026-07-16: tag tran bi ECR lifecycle xoa, image rebuild tu source
     useDefault:
       env: true
     # Consumer Kafka async, KHÔNG HPA (scale nên theo lag, không phải CPU) và ngoài
@@ -663,6 +667,8 @@ components:
 
   frontend:
     enabled: true
+    imageOverride:
+      tag: "1.0-frontend-ae89fa2" # incident 2026-07-16: tag tran bi ECR lifecycle xoa, image rebuild tu source
     useDefault:
       env: true
     service:
@@ -720,6 +726,8 @@ components:
         value: recommendation:8080
       - name: SHIPPING_ADDR
         value: http://shipping:8080
+      - name: SHOPPING_COPILOT_ADDR
+        value: shopping-copilot:50051
       - name: FLAGD_HOST
         value: flagd
       - name: FLAGD_PORT
@@ -890,6 +898,8 @@ components:
 
   image-provider:
     enabled: true
+    imageOverride:
+      tag: "1.0-image-provider-ae89fa2" # incident 2026-07-16: tag tran bi ECR lifecycle xoa, image rebuild tu source
     useDefault:
       env: true
     service:
@@ -957,9 +967,59 @@ components:
         memory: 256Mi
       limits:
         cpu: 500m
-        memory: 1500Mi
+        memory: 500Mi     # P0 right-size: LOCUST_BROWSER_TRAFFIC_ENABLED=false -> HTTP thuần (PR#49, restore sau PR#106)
+  ml-guard:
+    # Self-hosted ML Guard cascade stage (ADR-014, MANDATE-06 §7.1): Presidio PII +
+    # ProtectAI prompt-injection classifier + mDeBERTa-xnli grounding NLI, called over
+    # HTTP by product-reviews/shopping-copilot's guardrails.py (ML_GUARD_URL). Model
+    # load takes 25-90s -> startupProbe covers warm-up before readiness is checked,
+    # same convention as product-catalog's Postgres-wait startupProbe below.
+    enabled: true
+    useDefault:
+      env: true
+    imageOverride:
+      tag: "1.0-ml-guard"
+    # no serviceAccount block: model is local, no AWS calls (docs §7.3)
+    service:
+      port: 8090
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: techx-corp
+    startupProbe:
+      httpGet: { path: /healthz, port: 8090 }
+      periodSeconds: 5
+      failureThreshold: 24
+    readinessProbe:
+      httpGet: { path: /healthz, port: 8090 }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
+    livenessProbe:
+      httpGet: { path: /healthz, port: 8090 }
+      periodSeconds: 10
+      timeoutSeconds: 2
+      failureThreshold: 6
+    env:
+      - name: ML_GUARD_PORT
+        value: "8090"
+    resources:
+      requests:
+        cpu: 1000m
+        memory: 1536Mi
+      limits:
+        cpu: 2000m
+        memory: 2048Mi
+    hpa:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 2
+    podDisruptionBudget:
+      maxUnavailable: 1
+    topologySpread: true
   payment:
     enabled: true
+    imageOverride:
+      tag: "1.0-payment-ae89fa2" # incident 2026-07-16: tag tran bi ECR lifecycle xoa, image rebuild tu source
     useDefault:
       env: true
     service:
@@ -980,10 +1040,14 @@ components:
     resources:
       requests:
         cpu: 50m
-        memory: 64Mi
+        memory: 96Mi
       limits:
         cpu: 100m
-        memory: 140Mi
+        # 140Mi -> 256Mi: image fix-CVE (bump @opentelemetry/sdk-node 0.217 +
+        # auto-instrumentations-node 0.75) tăng heap Node.js -> OOMKilled (exit 137)
+        # CrashLoop -> endpoint payment rỗng -> checkout dial refused -> 504.
+        # Ngang tầm frontend (250Mi) cho service Node.js + OTel mới.
+        memory: 256Mi
     securityContext:
       runAsUser: 1000 # node
       runAsGroup: 1000
@@ -1045,6 +1109,10 @@ components:
           secretKeyRef:
             name: db-secret
             key: catalog-db-conn
+      # CDO-TBD2: dual_read = COALESCE(image_url, picture); set read_new after backfill
+      # and BEFORE DROP COLUMN picture (contract). Greenfield init.sql uses image_url only → read_new.
+      - name: CATALOG_SCHEMA_PHASE
+        value: "dual_read"
       - name: OTEL_SEMCONV_STABILITY_OPT_IN
         value: database
       - name: OTEL_EXPORTER_OTLP_ENDPOINT
@@ -1065,6 +1133,10 @@ components:
     enabled: true
     useDefault:
       env: true
+    serviceAccount:
+      create: true
+      annotations: {}
+      name: product-reviews
     service:
       port: 3551
     podAnnotations:
@@ -1117,6 +1189,14 @@ components:
           secretKeyRef:
             name: valkey-secret
             key: auth_token
+      - name: ML_GUARD_URL
+        value: http://ml-guard:8090
+      - name: LLM_LOCAL_ML_GUARD
+        value: "true"
+      - name: LLM_JUDGE_MODEL
+        value: us.amazon.nova-micro-v1:0
+      - name: LLM_INJECTION_JUDGE_MODEL
+        value: us.amazon.nova-lite-v1:0
     resources:
       requests:
         cpu: 100m
@@ -1150,7 +1230,7 @@ components:
         memory: 32Mi
       limits:
         cpu: 100m
-        memory: 40Mi
+        memory: 128Mi     # P0 right-size (PR#49, restore sau PR#106)
     securityContext:
       runAsUser: 33 # www-data
       runAsGroup: 33
@@ -1196,11 +1276,33 @@ components:
       maxReplicas: 4
 
   shopping-copilot:
-    enabled: false # no source/image yet (review J2) - re-enable in the PR that ships copilot code
+    enabled: true
+    replicas: 1 # confirmation tokens/session history are in-memory; keep single pod until Valkey-backed.
     useDefault:
       env: true
+    imageOverride:
+      tag: "1.0-shopping-copilot"
+    serviceAccount:
+      create: true
+      annotations: {}
+      name: shopping-copilot
     service:
       port: 50051
+    startupProbe:
+      grpc: { port: 50051 }
+      periodSeconds: 5
+      failureThreshold: 24
+    readinessProbe:
+      grpc: { port: 50051 }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
+    livenessProbe:
+      grpc: { port: 50051 }
+      periodSeconds: 10
+      timeoutSeconds: 2
+      failureThreshold: 6
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
     env:
@@ -1230,6 +1332,8 @@ components:
         value: product-catalog:8080
       - name: CART_ADDR
         value: cart:8080
+      - name: CART_SERVICE_ADDR
+        value: cart:8080
       - name: PRODUCT_REVIEWS_ADDR
         value: product-reviews:3551
       - name: FLAGD_HOST
@@ -1242,6 +1346,14 @@ components:
         value: "true"
       - name: OTEL_EXPORTER_OTLP_ENDPOINT
         value: http://$(OTEL_COLLECTOR_NAME):4317
+      - name: ML_GUARD_URL
+        value: http://ml-guard:8090
+      - name: LLM_LOCAL_ML_GUARD
+        value: "true"
+      - name: LLM_JUDGE_MODEL
+        value: us.amazon.nova-micro-v1:0
+      - name: LLM_INJECTION_JUDGE_MODEL
+        value: us.amazon.nova-lite-v1:0
     resources:
       requests:
         cpu: 10m
@@ -1689,8 +1801,8 @@ jaeger:
         cpu: 100m # P0 right-size: memory storage phình
         memory: 256Mi
       limits:
-        cpu: 100m
-        memory: 100Mi
+        cpu: 200m
+        memory: 1Gi       # PR#49 restore; limit cũ 100Mi < request 256Mi -> spec invalid, K8s reject
   userconfig:
     service:
       extensions: [jaeger_storage, jaeger_query, healthcheckv2]
@@ -1811,13 +1923,15 @@ prometheus:
       enabled: false
     service:
       servicePort: 9090
+    # Right-size theo usage đo thực tế (~1Gi, retention 7d): request thấp giả tạo
+    # làm scheduler binpack cả obs stack lên 1 node -> node 96% mem, chết chùm.
     resources:
       requests:
-        cpu: 10m
-        memory: 32Mi
-      limits:
         cpu: 100m
-        memory: 100Mi
+        memory: 1200Mi
+      limits:
+        cpu: 500m
+        memory: 1500Mi
 grafana:
   enabled: true
   fullnameOverride: grafana
@@ -1851,8 +1965,11 @@ grafana:
         cpu: 100m
         memory: 100Mi
   resources:
+    requests:
+      cpu: 50m
+      memory: 384Mi     # usage đo ~418Mi; request thật để scheduler không binpack
     limits:
-      memory: 300Mi
+      memory: 512Mi
 
 opensearch:
   enabled: true
@@ -1876,7 +1993,8 @@ opensearch:
   resources:
     requests:
       cpu: 250m
-      memory: 512Mi
+      memory: 512Mi     # node obs t3.medium 3.9Gi: request 1Gi làm tổng vượt node -> Pending.
+                        # Right-size thật cần resize node (terraform EKS module) - xem follow-up.
     limits:
       cpu: "1"
       memory: 1100Mi

@@ -25,7 +25,11 @@ resource "aws_ecr_repository" "this" {
   }
 }
 
-# Lifecycle Policy cho ECR để dọn dẹp ảnh cũ, tối ưu chi phí lưu trữ
+# Lifecycle Policy cho ECR để dọn dẹp ảnh cũ, tối ưu chi phí lưu trữ.
+# CHÚ Ý (incident 2026-07-16): tagStatus="any" + imageCountMoreThan từng xóa cả
+# image ĐANG DEPLOY (repo >100 ảnh -> mất 7 tag đang chạy, email/cart/aiops-detector
+# chết ImagePullBackOff). Chỉ được expire ảnh UNTAGGED — ảnh có tag là ảnh còn
+# được tham chiếu (deploy hoặc cosign .sig), không bao giờ tự xóa theo số lượng.
 resource "aws_ecr_lifecycle_policy" "this" {
   for_each = toset(var.ecr_repositories)
 
@@ -35,11 +39,12 @@ resource "aws_ecr_lifecycle_policy" "this" {
     rules = [
       {
         rulePriority = 1
-        description  = "Chi giu lai toi da 100 images de tiet kiem chi phi"
+        description  = "Expire UNTAGGED images only, 7 days"
         selection = {
-          tagStatus   = "any"
-          countType   = "imageCountMoreThan"
-          countNumber = 100
+          tagStatus   = "untagged"
+          countType   = "sinceImagePushed"
+          countUnit   = "days"
+          countNumber = 7
         }
         action = {
           type = "expire"
