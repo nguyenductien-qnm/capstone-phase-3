@@ -142,7 +142,9 @@ resource "aws_iam_role_policy" "techx_bedrock_invoke" {
         Effect = "Allow"
         Action = [
           "bedrock:InvokeModel",
-          "bedrock:InvokeModelWithResponseStream"
+          "bedrock:InvokeModelWithResponseStream",
+          "bedrock:ApplyGuardrail",
+          "bedrock:GetGuardrail"
         ]
         Resource = "*"
       }
