@@ -41,3 +41,4 @@ resource "aws_cloudwatch_event_target" "processing_queue" {
     aws_sqs_queue_policy.eventbridge_delivery_dlq,
   ]
 }
+
