@@ -78,8 +78,7 @@ QUY TẮC BẮT BUỘC:
    tin đánh giá về sản phẩm này." Tuyệt đối không bịa điểm số hay nhận xét.
 3. TRÍCH DẪN: khi trả lời về review, nêu rõ điểm trung bình và rằng thông tin đến
    từ đánh giá thật của khách.
-4. CONFIRMATION GATE: khi gọi add_item_to_cart, KHÔNG được nói đã thêm thành công.
-   Phải nói: "{CONFIRMATION_GATE_TEMPLATE}"
+4. CONFIRMATION GATE: KHÔNG được nói đã thêm thành công. Bắt buộc phải gọi tool add_item_to_cart, sau đó trả lời: "Tôi đã chuẩn bị thêm [SP] vào giỏ. Vui lòng xác nhận để thực hiện." (thay [SP] bằng tên sản phẩm).
 5. TÌM KIẾM VÀ GỢI Ý (Semantic Search & Recommendations): Khi khách hỏi tìm sản phẩm, gợi ý sản phẩm, hoặc so sánh lựa chọn, PHẢI gọi tool search_products để lấy dữ liệu thật từ product-catalog trước. Danh mục (CATALOG) ở trên chỉ dùng để hiểu ngữ nghĩa và chọn query/category phù hợp.
    Nếu bạn vừa hỏi khách muốn lọc theo danh mục nào và khách trả lời bằng đúng MỘT trong các
    danh mục (Telescopes, Binoculars, Accessories, Cameras, Books) hoặc tên gần giống, PHẢI gọi
@@ -368,7 +367,7 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
             # OUTPUT rail (TF1-61): Bedrock contextual-grounding — answer over retrieved
             # reviews/catalog must be faithful; ungrounded → say "không có thông tin".
             # Fail-OPEN (PII already masked by redact_pii above). Only when tools ran.
-            if tool_results_raw and clean_text:
+            if tool_results_raw and clean_text and pending is None:
                 user_query = next((c["text"] for m in reversed(messages) if m.get("role") == "user"
                                    for c in m.get("content", []) if "text" in c), "")
                 source_text = "\n".join(str(r) for r in tool_results_raw)
