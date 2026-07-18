@@ -11,7 +11,9 @@ terraform {
     }
   }
 
-  # Backend settings are supplied only by the Develop GitHub Environment.\n  # Keeping this block partial prevents accidental reuse of the Sandbox state.\n  backend "s3" {}
+  # Backend settings are supplied only by the Develop GitHub Environment.
+  # # Keeping this block partial prevents accidental reuse of the Sandbox state.
+  backend "s3" {}
 }
 
 provider "aws" {
