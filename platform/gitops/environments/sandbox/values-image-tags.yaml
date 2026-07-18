@@ -8,58 +8,58 @@ components:
       # Sua tay 1 lan (incident 2026-07-16): tag tran "1.1-cart" bi ECR lifecycle
       # policy xoa -> ImagePullBackOff. cart dang HOAN BUILD (build-exclusions) nen
       # CI khong tu bump; image rebuild tu source, push tag sha. CI se ghi de khi bo hoan.
-      tag: "1.0-cart-9e7e552"
+      tag: "1.0-cart-aadff38"
   checkout:
     imageOverride:
-      tag: "1.0-checkout-f1a4189"
+      tag: "1.0-checkout-aadff38"
   frontend-proxy:
     imageOverride:
-      tag: "1.0-frontend-proxy-88f5e70"
+      tag: "1.0-frontend-proxy-aadff38"
   product-catalog:
     imageOverride:
-      tag: "1.0-product-catalog-f1a4189"
+      tag: "1.0-product-catalog-aadff38"
   ad:
     imageOverride:
-      tag: 1.0-ad-f1a4189
+      tag: 1.0-ad-aadff38
   currency:
     imageOverride:
-      tag: 1.0-currency-f1a4189
+      tag: 1.0-currency-aadff38
   accounting:
     imageOverride:
-      tag: 1.0-accounting-f1a4189
+      tag: 1.0-accounting-aadff38
   product-reviews:
     imageOverride:
-      tag: 1.0-product-reviews-88f5e70
+      tag: 1.0-product-reviews-aadff38
   llm:
     imageOverride:
-      tag: 1.0-llm-f1a4189
+      tag: 1.0-llm-aadff38
   load-generator:
     imageOverride:
-      tag: 1.0-load-generator-f1a4189
+      tag: 1.0-load-generator-aadff38
   quote:
     imageOverride:
-      tag: 1.0-quote-f1a4189
+      tag: 1.0-quote-aadff38
   recommendation:
     imageOverride:
-      tag: 1.0-recommendation-f1a4189
+      tag: 1.0-recommendation-aadff38
   shipping:
     imageOverride:
-      tag: 1.0-shipping-f1a4189
+      tag: 1.0-shipping-aadff38
   shopping-copilot:
     imageOverride:
-      tag: 1.0-shopping-copilot-8f61b85
+      tag: 1.0-shopping-copilot-aadff38
   ml-guard:
     imageOverride:
-      tag: 1.0-ml-guard-f1a4189
+      tag: 1.0-ml-guard-aadff38
   fraud-detection:
     imageOverride:
-      tag: 1.0-fraud-detection-9e7e552
+      tag: 1.0-fraud-detection-aadff38
   frontend:
     imageOverride:
-      tag: 1.0-frontend-9e7e552
+      tag: 1.0-frontend-aadff38
   image-provider:
     imageOverride:
-      tag: 1.0-image-provider-9e7e552
+      tag: 1.0-image-provider-aadff38
   payment:
     imageOverride:
-      tag: 1.0-payment-9e7e552
+      tag: 1.0-payment-aadff38
