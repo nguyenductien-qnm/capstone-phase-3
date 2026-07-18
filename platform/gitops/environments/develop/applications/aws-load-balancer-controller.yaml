@@ -1,0 +1,43 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: develop-aws-load-balancer-controller
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: default
+  source:
+    repoURL: https://aws.github.io/eks-charts
+    chart: aws-load-balancer-controller
+    # This release supports Kubernetes 1.22+ and its upstream IAM policy is
+    # action-for-action compatible with the policy already provisioned by the
+    # EKS Terraform module. Product-like keeps its independent pinned chart.
+    targetRevision: 3.3.0
+    helm:
+      values: |
+        clusterName: ecommerce-develop-dev-eks
+        region: us-east-1
+        vpcId: vpc-044e615975d068b12
+        replicaCount: 1
+        # The public Service declares loadBalancerClass explicitly; do not
+        # mutate unrelated Develop LoadBalancer Services through a webhook.
+        enableServiceMutatorWebhook: false
+        serviceAccount:
+          create: true
+          name: aws-load-balancer-controller
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 250m
+            memory: 256Mi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  # Manual sync is intentional during the initial Develop rollout.
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
