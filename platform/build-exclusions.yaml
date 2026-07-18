@@ -15,38 +15,14 @@
 #   trivy image --severity CRITICAL,HIGH <image>   (xem cột "Fixed Version")
 
 exclusions:
-  - service: cart
-    reason: "CVE-2026-28387 (libssl3/libcrypto3, HIGH) - OpenSSL DANE TLSA use-after-free, upstream chưa có bản vá"
-    cves: ["CVE-2026-28387"]
-    review_by: "2026-08-16"
-
+  # email là service DUY NHẤT còn thật sự kẹt: CVE-2026-41316 nằm ở `erb`, một
+  # DEFAULT GEM đi kèm Ruby. CVE tầng OS (apk upgrade) và net-imap/zlib (bump
+  # ruby:3.4.9 + pin Gemfile) đều vá được, nhưng erb 4.0.4 là default gem mà CHƯA
+  # tag Ruby nào ship bản vá 4.0.4.1 (default gem không gỡ được bằng gem cleanup,
+  # không đè được bằng bundle). Bản vá có trên rubygems nhưng Ruby chưa nhúng.
+  # Bỏ hoãn: khi Ruby ship 3.4.x kèm erb >= 4.0.4.1 -> bump base + pin gem -> xóa entry.
   - service: email
-    reason: "CVE-2026-28387 (libssl3, HIGH) + CVE-2026-42245 (net-imap, HIGH) - cả hai upstream chưa có bản vá"
-    cves: ["CVE-2026-28387", "CVE-2026-42245"]
+    reason: "CVE-2026-41316 (erb, HIGH) - erb là default gem của Ruby 3.4.x, chưa tag Ruby nào ship bản vá 4.0.4.1; không gỡ/đè được default gem qua bundle"
+    cves: ["CVE-2026-41316"]
     review_by: "2026-08-16"
 
-  - service: fraud-detection
-    # Khác các entry kia: CVE Java (netty/jackson) ĐÃ vá bằng BOM trong build.gradle.kts,
-    # chỉ còn CVE tầng OS chặn. gcr.io/distroless/java17-debian12 đứng im ở openjdk
-    # 17.0.18 + liblcms2 2.14-2 dù Debian đã phát hành deb12u2/deb12u1 -> không tag nào
-    # sạch, mà distroless không có package manager để apt-get upgrade. Chờ Google rebuild.
-    # Bỏ hoãn: scan lại base, hết CVE thì xóa entry (KHÔNG đổi base sang temurin —
-    # team giữ distroless để không có shell trong image).
-    reason: "CVE-2026-22016/34282 (openjdk-17-jre-headless, HIGH) + CVE-2026-41254 (liblcms2, HIGH) - base distroless chưa rebuild với bản vá Debian, image không có package manager để tự vá"
-    cves: ["CVE-2026-22016", "CVE-2026-34282", "CVE-2026-41254"]
-    review_by: "2026-08-16"
-
-  - service: frontend
-    reason: "CVE-2026-28387 (libssl3, HIGH) - OpenSSL DANE TLSA use-after-free, upstream chưa có bản vá"
-    cves: ["CVE-2026-28387"]
-    review_by: "2026-08-16"
-
-  - service: image-provider
-    reason: "CVE-2026-28387 (libssl3/libcrypto3, HIGH) - OpenSSL DANE TLSA use-after-free, upstream chưa có bản vá"
-    cves: ["CVE-2026-28387"]
-    review_by: "2026-08-16"
-
-  - service: payment
-    reason: "CVE-2026-28387 (libssl3, HIGH) - OpenSSL DANE TLSA use-after-free, upstream chưa có bản vá"
-    cves: ["CVE-2026-28387"]
-    review_by: "2026-08-16"
