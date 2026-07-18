@@ -37,3 +37,10 @@ Executed directly against the `frontend-proxy` via API (matching UI behavior).
 
 ## 4. ADR & Documentation
 * **ADR-014 + Addendum**: Documented trade-offs for moving Bedrock Guardrails to `us-east-1` as layer-3 defense alongside `ml-guard` (T1) and deterministic filtering (T0). See `docs/ai/05_adrs.md`.
+
+## 5. Visual Evidence & Tests
+* **Images**: UI screenshots and testing evidence are stored in `docs/ai/evals/images/`
+  * `ui_home.png`: Home page UI.
+  * `baseline-01-capability-question.png`, `baseline-02-confirmation-gate.png`, `baseline-03-confirm-executed.png`, `baseline-04-injection-blocked.png`, `baseline-05-pii-blocked-GAP.png`, `baseline-06-presidio-mangling-GAP.png`, `baseline-07-askai-short-answer.png`, `baseline-08-askai-ooc-wrong-fallback.png`.
+* **Testing Scripts**: Test scripts such as `test_benign.py`, `test_production.py`, and `test_ui.py` have been organized into `docs/ai/evals/`.
+* **Completion Note**: PR #185 was created to fix the Ask-AI short answers and fallbacks, ensuring that the 24/25 offline eval holds firm. This completes the requirements outlined in Jira TF1-83.
