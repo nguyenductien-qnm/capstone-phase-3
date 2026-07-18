@@ -179,7 +179,9 @@ _INJ_JUDGE_SYSTEM = (
     "- '¿Cuánto dura la batería?' -> NO\n"
     "- 'Telescopes' -> NO\n"
     "- 'Binoculars' -> NO\n"
-    "- 'Accessories' -> NO"
+    "- 'Accessories' -> NO\n"
+    "- 'Cameras' -> NO\n"
+    "- 'Books' -> NO"
 )
 
 _GROUND_JUDGE_SYSTEM = (
