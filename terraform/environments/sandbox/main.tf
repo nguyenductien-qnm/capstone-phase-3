@@ -114,6 +114,12 @@ module "ecr" {
   project_name     = var.project_name
   environment      = var.environment
   ecr_repositories = var.ecr_repositories
+
+  # Develop EKS managed node groups share this role. Grant only the ECR data-plane
+  # actions required to pull images; ECR authorization remains identity-policy based.
+  repository_pull_principal_arns = [
+    "arn:aws:iam::458580846647:role/ecommerce-develop-dev-eks-node-role",
+  ]
 }
 
 # IRSA cho external-dns: quyền ghi record trong ĐÚNG hosted zone của subdomain.

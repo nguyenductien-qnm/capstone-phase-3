@@ -25,6 +25,35 @@ resource "aws_ecr_repository" "this" {
   }
 }
 
+data "aws_iam_policy_document" "cross_account_pull" {
+  for_each = length(var.repository_pull_principal_arns) > 0 ? toset(var.ecr_repositories) : toset([])
+
+  statement {
+    sid    = "CrossAccountPull"
+    effect = "Allow"
+
+    principals {
+      type        = "AWS"
+      identifiers = var.repository_pull_principal_arns
+    }
+
+    actions = [
+      "ecr:BatchCheckLayerAvailability",
+      "ecr:BatchGetImage",
+      "ecr:GetDownloadUrlForLayer",
+    ]
+
+    resources = [aws_ecr_repository.this[each.key].arn]
+  }
+}
+
+resource "aws_ecr_repository_policy" "cross_account_pull" {
+  for_each = data.aws_iam_policy_document.cross_account_pull
+
+  repository = aws_ecr_repository.this[each.key].name
+  policy     = each.value.json
+}
+
 # Lifecycle Policy cho ECR để dọn dẹp ảnh cũ, tối ưu chi phí lưu trữ.
 # CHÚ Ý (incident 2026-07-16): tagStatus="any" + imageCountMoreThan từng xóa cả
 # image ĐANG DEPLOY (repo >100 ảnh -> mất 7 tag đang chạy, email/cart/aiops-detector
