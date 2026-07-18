@@ -72,7 +72,6 @@ env:
   TF_VAR_rds_multi_az: ${{ vars.TF_VAR_RDS_MULTI_AZ }}
   TF_VAR_kafka_version: ${{ vars.TF_VAR_KAFKA_VERSION }}
   TF_VAR_valkey_node_type: ${{ vars.TF_VAR_VALKEY_NODE_TYPE }}
-  TF_VAR_valkey_num_cache_clusters: ${{ vars.TF_VAR_VALKEY_NUM_CACHE_CLUSTERS }}
   # Public ingress is intentionally disabled for the first Develop rollout.
   TF_VAR_enable_cloudfront: "false"
 
@@ -168,7 +167,6 @@ jobs:
             TF_VAR_rds_multi_az
             TF_VAR_kafka_version
             TF_VAR_valkey_node_type
-            TF_VAR_valkey_num_cache_clusters
           )
           missing=0
           for name in "${required_tf_vars[@]}"; do
@@ -320,7 +318,7 @@ jobs:
             echo "- AWS account: `$(terraform output -raw aws_account_id)`"
             echo "- EKS cluster: `$(terraform output -raw eks_cluster_name)`"
             echo "- Managed node role: `$(terraform output -raw eks_managed_node_role_arn)`"
-            echo "- Karpenter node role: `$(terraform output -raw eks_karpenter_node_role_arn)`"
+            echo "- Karpenter runtime: disabled for the initial Develop phase (IAM scaffold retained)"
           } >> "$GITHUB_STEP_SUMMARY"
 
   bootstrap-argocd:
