@@ -1,7 +1,7 @@
 variable "aws_region" {
   description = "Region hosting the guardrail. Must match where Nova/Titan are invoked."
   type        = string
-  default     = "us-east-2"
+  default     = "us-east-1"
 }
 
 variable "guardrail_name" {
