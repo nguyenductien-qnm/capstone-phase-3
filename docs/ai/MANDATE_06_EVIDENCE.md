@@ -16,7 +16,7 @@ AWS_REGION=us-east-1 LLM_BEDROCK_GUARDRAIL=true BEDROCK_GUARDRAIL_ID=crbxw41dbmx
 cd techx-corp-platform/src/product-reviews && python3 eval_guardrails.py --mode=llm-judge
 ```
 
-## 3. Production UI/API Mentor Tests (Port 8080)
+## 3. Production UI/API Mentor Tests (https://ecommerce.nguyenductien.cloud)
 Executed directly against the `frontend-proxy` via API (matching UI behavior).
 
 **Scenario 1: Injection Attack**
