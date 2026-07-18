@@ -14,7 +14,7 @@ components:
       tag: "1.0-checkout-aadff38"
   frontend-proxy:
     imageOverride:
-      tag: "1.0-frontend-proxy-aadff38"
+      tag: "1.0-frontend-proxy-f0697b2"
   product-catalog:
     imageOverride:
       tag: "1.0-product-catalog-aadff38"
@@ -47,7 +47,7 @@ components:
       tag: 1.0-shipping-aadff38
   shopping-copilot:
     imageOverride:
-      tag: 1.0-shopping-copilot-057647c
+      tag: 1.0-shopping-copilot-f0697b2
   ml-guard:
     imageOverride:
       tag: 1.0-ml-guard-057647c
