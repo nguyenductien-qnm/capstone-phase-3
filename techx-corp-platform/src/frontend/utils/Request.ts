@@ -26,7 +26,18 @@ const request = async <T>({
 
   const responseText = await response.text();
 
-  if (!!responseText) return JSON.parse(responseText);
+  if (!response.ok) {
+    throw new Error(responseText || `HTTP error: ${response.status} ${response.statusText}`);
+  }
+
+  if (!!responseText) {
+    try {
+      return JSON.parse(responseText);
+    } catch (e) {
+      console.error('JSON parse error in Request.ts:', e);
+      return responseText as unknown as T;
+    }
+  }
 
   return undefined as unknown as T;
 };

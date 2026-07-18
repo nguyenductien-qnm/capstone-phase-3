@@ -2,10 +2,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
-FROM docker.io/library/python:3.12-alpine3.22 AS build-venv
+FROM docker.io/library/python:3.12-slim-bookworm AS build-venv
 
-RUN apk update && \
-    apk add gcc g++ linux-headers
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends gcc g++ && \
+    rm -rf /var/lib/apt/lists/*
 
 COPY ./src/product-reviews/requirements.txt requirements.txt
 
@@ -14,11 +15,10 @@ RUN python -m venv venv && \
 
 RUN venv/bin/opentelemetry-bootstrap -a install
 
-FROM docker.io/library/python:3.12-alpine3.22
+FROM docker.io/library/python:3.12-slim-bookworm
 
-# Vá CVE ở package hệ thống của base image (vd CVE-2026-45447 libcrypto3).
-# Base image tag không đổi nhưng repo alpine đã có bản vá -> upgrade lúc build.
-RUN apk upgrade --no-cache
+# Patch OS packages from the base image.
+RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build-venv /venv/ /venv/
 
@@ -35,7 +35,7 @@ COPY ./src/product-reviews/metrics.py metrics.py
 COPY ./src/product-reviews/model_router.py model_router.py
 
 
-RUN adduser -D -u 1000 app
+RUN useradd -u 1000 -m app
 USER 1000
 
 EXPOSE ${PRODUCT_REVIEWS_PORT}

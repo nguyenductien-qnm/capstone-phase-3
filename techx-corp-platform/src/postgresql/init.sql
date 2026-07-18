@@ -127,11 +127,13 @@ CREATE SCHEMA catalog;
 GRANT USAGE ON SCHEMA catalog TO otelu;
 
 -- Product Catalog Service: create tables
+-- CDO-TBD2 final shape for greenfield installs (image_url replaces legacy picture).
+-- Existing RDS: run docs/shared/ops-reviews/tbd2-sql/* expand-contract under load.
 CREATE TABLE catalog.products (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     description TEXT,
-    picture TEXT,
+    image_url TEXT NOT NULL,
     price_currency_code TEXT NOT NULL,
     price_units BIGINT NOT NULL,
     price_nanos INT NOT NULL,
@@ -142,7 +144,7 @@ CREATE TABLE catalog.products (
 GRANT SELECT ON ALL TABLES IN SCHEMA catalog TO otelu;
 
 -- Product Catalog Service: add product data
-INSERT INTO catalog.products (id, name, description, picture, price_currency_code, price_units, price_nanos, categories)
+INSERT INTO catalog.products (id, name, description, image_url, price_currency_code, price_units, price_nanos, categories)
 VALUES
     ('OLJCESPC7Z', 'National Park Foundation Explorascope', 'The National Park Foundation''s (NPF) Explorascope 60AZ is a manual alt-azimuth, refractor telescope perfect for celestial viewing on the go. The NPF Explorascope 60 can view the planets, moon, star clusters and brighter deep sky objects like the Orion Nebula and Andromeda Galaxy.', 'NationalParkFoundationExplorascope.jpg', 'USD', 101, 960000000, 'telescopes'),
     ('66VCHSJNUP', 'Starsense Explorer Refractor Telescope', 'The first telescope that uses your smartphone to analyze the night sky and calculate its position in real time. StarSense Explorer is ideal for beginners thanks to the app''s user-friendly interface and detailed tutorials. It''s like having your own personal tour guide of the night sky', 'StarsenseExplorer.jpg', 'USD', 349, 950000000, 'telescopes'),

@@ -54,6 +54,21 @@ static_resources:
                         # not hold the connection open forever.
                         - match: { prefix: "/oteldemo.ShoppingCopilotService/" }
                           route: { cluster: shopping-copilot, timeout: 30s }
+                        # 30s: cold path measured 17/07 = 16.3s (2x converse round-trips + tool
+                        # calls + output rail ml-guard/ApplyGuardrail). Catch-all's default 15s
+                        # cuts the connection before the backend finishes -> plain-text 504
+                        # ("upstream r...") that breaks frontend JSON.parse.
+                        - match: { prefix: "/api/product-ask-ai-assistant" }
+                          route: { cluster: frontend, timeout: 30s }
+                        # Same class of bug as /api/product-ask-ai-assistant above: this Next.js
+                        # route (pages/api/copilot.ts) makes its own internal gRPC call to
+                        # shopping-copilot with no client-side deadline, so it inherits whatever
+                        # Envoy gives it here — NOT the /oteldemo.ShoppingCopilotService/ route
+                        # above, which only matches direct gRPC-web calls, not this HTTP proxy hop.
+                        # Confirmed live 18/07: 6/8 manual test cases 504'd at ~15.3-15.8s (tool
+                        # calls / judge round-trips routinely exceed the 15s catch-all default).
+                        - match: { prefix: "/api/copilot" }
+                          route: { cluster: frontend, timeout: 30s }
                         - match: { prefix: "/" }  # Default/catch-all route - keep last since prefix:"/" matches everything
                           route: { cluster: frontend }
                 http_filters:

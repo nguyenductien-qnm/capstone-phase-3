@@ -1,0 +1,419 @@
+name: Develop Infra (Terraform + optional ArgoCD bootstrap)
+
+on:
+  pull_request:
+    branches: ["develop"]
+    paths:
+      - "terraform/environments/develop/**"
+      - "terraform/bootstrap/develop/**"
+      - "terraform/modules/**"
+      - ".github/workflows/infra-develop.yaml"
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Apply the reviewed Develop Terraform plan"
+        required: true
+        default: false
+        type: boolean
+      bootstrap_argocd:
+        description: "Install ArgoCD and register the Develop root application"
+        required: true
+        default: false
+        type: boolean
+      confirm:
+        description: 'Type "apply-develop" to authorize a mutation in account 458580846647'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: develop-infra-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID || '458580846647' }}
+  TF_VERSION: "1.14.8"
+  TF_LOCK_TIMEOUT: "10m"
+  TF_ROOT: terraform/environments/develop
+  CLUSTER_NAME: ${{ vars.EKS_CLUSTER_NAME || 'ecommerce-develop-dev-eks' }}
+  TF_BACKEND_BUCKET: ${{ vars.TF_BACKEND_BUCKET }}
+  TF_BACKEND_KEY: ${{ vars.TF_BACKEND_KEY || 'develop/terraform.tfstate' }}
+  TF_BACKEND_REGION: ${{ vars.TF_BACKEND_REGION || 'us-east-1' }}
+  TF_VAR_aws_account_id: ${{ vars.AWS_ACCOUNT_ID || '458580846647' }}
+  TF_VAR_aws_region: ${{ vars.TF_VAR_AWS_REGION || 'us-east-1' }}
+  TF_VAR_project_name: ${{ vars.TF_VAR_PROJECT_NAME || 'ecommerce-develop' }}
+  TF_VAR_environment: ${{ vars.TF_VAR_ENVIRONMENT || 'dev' }}
+  TF_VAR_vpc_cidr: ${{ vars.TF_VAR_VPC_CIDR }}
+  TF_VAR_public_subnets: ${{ vars.TF_VAR_PUBLIC_SUBNETS }}
+  TF_VAR_private_app_subnets: ${{ vars.TF_VAR_PRIVATE_APP_SUBNETS }}
+  TF_VAR_private_data_subnets: ${{ vars.TF_VAR_PRIVATE_DATA_SUBNETS }}
+  TF_VAR_private_mq_subnets: ${{ vars.TF_VAR_PRIVATE_MQ_SUBNETS }}
+  TF_VAR_enable_nat_gateway: ${{ vars.TF_VAR_ENABLE_NAT_GATEWAY }}
+  TF_VAR_single_nat_gateway: ${{ vars.TF_VAR_SINGLE_NAT_GATEWAY }}
+  TF_VAR_public_subnet_tags: ${{ vars.TF_VAR_PUBLIC_SUBNET_TAGS || '{}' }}
+  TF_VAR_private_subnet_tags: ${{ vars.TF_VAR_PRIVATE_SUBNET_TAGS || '{}' }}
+  TF_VAR_eks_cluster_version: ${{ vars.TF_VAR_EKS_CLUSTER_VERSION }}
+  TF_VAR_eks_node_capacity_type: ${{ vars.TF_VAR_EKS_NODE_CAPACITY_TYPE }}
+  TF_VAR_eks_endpoint_public_access: ${{ vars.TF_VAR_EKS_ENDPOINT_PUBLIC_ACCESS }}
+  TF_VAR_eks_public_access_cidrs: ${{ vars.TF_VAR_EKS_PUBLIC_ACCESS_CIDRS }}
+  TF_VAR_eks_control_plane_log_retention_days: ${{ vars.TF_VAR_EKS_CONTROL_PLANE_LOG_RETENTION_DAYS }}
+  TF_VAR_eks_access_entries: ${{ vars.TF_VAR_EKS_ACCESS_ENTRIES || '{}' }}
+  TF_VAR_db_name: ${{ vars.TF_VAR_DB_NAME }}
+  TF_VAR_db_username: ${{ vars.TF_VAR_DB_USERNAME }}
+  TF_VAR_rds_instance_class: ${{ vars.TF_VAR_RDS_INSTANCE_CLASS }}
+  TF_VAR_rds_allocated_storage: ${{ vars.TF_VAR_RDS_ALLOCATED_STORAGE }}
+  TF_VAR_enable_read_replica: ${{ vars.TF_VAR_ENABLE_READ_REPLICA }}
+  TF_VAR_replica_instance_class: ${{ vars.TF_VAR_REPLICA_INSTANCE_CLASS }}
+  TF_VAR_enable_rds_proxy: ${{ vars.TF_VAR_ENABLE_RDS_PROXY }}
+  TF_VAR_rds_multi_az: ${{ vars.TF_VAR_RDS_MULTI_AZ }}
+  TF_VAR_kafka_version: ${{ vars.TF_VAR_KAFKA_VERSION }}
+  TF_VAR_valkey_node_type: ${{ vars.TF_VAR_VALKEY_NODE_TYPE }}
+  TF_VAR_valkey_num_cache_clusters: ${{ vars.TF_VAR_VALKEY_NUM_CACHE_CLUSTERS }}
+  # Public ingress is intentionally disabled for the first Develop rollout.
+  TF_VAR_enable_cloudfront: "false"
+
+jobs:
+  terraform-static-checks:
+    name: Terraform static checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Terraform format check
+        run: terraform fmt -check -recursive terraform/environments/develop terraform/bootstrap/develop terraform/modules
+
+      - name: Terraform validate Develop root
+        run: |
+          terraform -chdir="$TF_ROOT" init -backend=false -input=false
+          terraform -chdir="$TF_ROOT" validate
+
+      - name: Terraform validate bootstrap root
+        run: |
+          terraform -chdir=terraform/bootstrap/develop init -backend=false -input=false
+          terraform -chdir=terraform/bootstrap/develop validate
+
+  terraform-plan:
+    name: Terraform plan (Develop account only)
+    needs: terraform-static-checks
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    environment: develop
+    concurrency:
+      group: terraform-develop-state
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: ${{ env.TF_ROOT }}
+    outputs:
+      has_changes: ${{ steps.plan.outputs.has_changes }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Validate GitHub Environment configuration
+        env:
+          TF_AWS_ROLE_ARN: ${{ vars.TF_AWS_ROLE_ARN }}
+        run: |
+          set -euo pipefail
+          : "${TF_AWS_ROLE_ARN:?Set TF_AWS_ROLE_ARN in the GitHub Environment develop}"
+          : "${TF_BACKEND_BUCKET:?Set TF_BACKEND_BUCKET in the GitHub Environment develop}"
+          if [ "$AWS_ACCOUNT_ID" != "458580846647" ]; then
+            echo "::error::Develop workflow is locked to AWS account 458580846647."
+            exit 1
+          fi
+          if [ "$TF_BACKEND_KEY" != "develop/terraform.tfstate" ]; then
+            echo "::error::TF_BACKEND_KEY must be develop/terraform.tfstate."
+            exit 1
+          fi
+          if [ "$TF_BACKEND_BUCKET" = "terraform-state-phase-3" ]; then
+            echo "::error::Refusing to reuse the Product-like Terraform state bucket."
+            exit 1
+          fi
+
+          required_tf_vars=(
+            TF_VAR_vpc_cidr
+            TF_VAR_public_subnets
+            TF_VAR_private_app_subnets
+            TF_VAR_private_data_subnets
+            TF_VAR_private_mq_subnets
+            TF_VAR_enable_nat_gateway
+            TF_VAR_single_nat_gateway
+            TF_VAR_eks_cluster_version
+            TF_VAR_eks_node_capacity_type
+            TF_VAR_eks_endpoint_public_access
+            TF_VAR_eks_public_access_cidrs
+            TF_VAR_eks_control_plane_log_retention_days
+            TF_VAR_db_name
+            TF_VAR_db_username
+            TF_VAR_rds_instance_class
+            TF_VAR_rds_allocated_storage
+            TF_VAR_enable_read_replica
+            TF_VAR_replica_instance_class
+            TF_VAR_enable_rds_proxy
+            TF_VAR_rds_multi_az
+            TF_VAR_kafka_version
+            TF_VAR_valkey_node_type
+            TF_VAR_valkey_num_cache_clusters
+          )
+          missing=0
+          for name in "${required_tf_vars[@]}"; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Missing Develop GitHub Environment variable for $name."
+              missing=1
+            fi
+          done
+          test "$missing" -eq 0
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.TF_AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-develop-plan-${{ github.run_id }}
+          allowed-account-ids: ${{ env.AWS_ACCOUNT_ID }}
+
+      - name: Verify active AWS account
+        run: |
+          set -euo pipefail
+          actual_account="$(aws sts get-caller-identity --query Account --output text)"
+          if [ "$actual_account" != "$AWS_ACCOUNT_ID" ]; then
+            echo "::error::Expected Develop account $AWS_ACCOUNT_ID, got $actual_account."
+            exit 1
+          fi
+          if [ "$actual_account" = "804372444787" ]; then
+            echo "::error::Refusing to run Develop Terraform in the Product-like account."
+            exit 1
+          fi
+          aws s3api head-bucket --bucket "$TF_BACKEND_BUCKET"
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Terraform init
+        run: |
+          terraform init -input=false -reconfigure \
+            -backend-config="bucket=$TF_BACKEND_BUCKET" \
+            -backend-config="key=$TF_BACKEND_KEY" \
+            -backend-config="region=$TF_BACKEND_REGION" \
+            -backend-config="encrypt=true" \
+            -backend-config="use_lockfile=true"
+
+      - name: Terraform plan
+        id: plan
+        run: |
+          set +e
+          terraform plan -no-color -input=false -lock-timeout="$TF_LOCK_TIMEOUT" \
+            -var-file="develop-capacity.tfvars" \
+            -detailed-exitcode -out=tfplan
+          plan_exit="$?"
+          set -e
+          case "$plan_exit" in
+            0) echo "has_changes=false" >> "$GITHUB_OUTPUT" ;;
+            2) echo "has_changes=true" >> "$GITHUB_OUTPUT" ;;
+            *) exit "$plan_exit" ;;
+          esac
+          terraform show -no-color tfplan > tfplan.txt
+          {
+            echo "### Develop Terraform plan"
+            echo
+            grep -E '^Plan:|^No changes\.' tfplan.txt || true
+            echo
+            echo "Target account: `$AWS_ACCOUNT_ID`"
+            echo "State key: `$TF_BACKEND_KEY`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload reviewed plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-develop-plan
+          path: |
+            ${{ env.TF_ROOT }}/tfplan
+            ${{ env.TF_ROOT }}/tfplan.txt
+          retention-days: 7
+          if-no-files-found: error
+
+  terraform-apply:
+    name: Terraform apply (manual Develop gate)
+    needs: terraform-plan
+    if: >-
+      needs.terraform-plan.outputs.has_changes == 'true' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/develop' &&
+      inputs.apply == true &&
+      inputs.confirm == 'apply-develop'
+    runs-on: ubuntu-latest
+    environment: develop
+    concurrency:
+      group: terraform-develop-state
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: ${{ env.TF_ROOT }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.TF_AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-develop-apply-${{ github.run_id }}
+          allowed-account-ids: ${{ env.AWS_ACCOUNT_ID }}
+
+      - name: Verify active AWS account
+        run: |
+          set -euo pipefail
+          actual_account="$(aws sts get-caller-identity --query Account --output text)"
+          test "$actual_account" = "458580846647"
+          test "$actual_account" != "804372444787"
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Download reviewed plan
+        uses: actions/download-artifact@v4
+        with:
+          name: terraform-develop-plan
+          path: ${{ env.TF_ROOT }}
+
+      - name: Terraform init
+        run: |
+          terraform init -input=false -reconfigure \
+            -backend-config="bucket=$TF_BACKEND_BUCKET" \
+            -backend-config="key=$TF_BACKEND_KEY" \
+            -backend-config="region=$TF_BACKEND_REGION" \
+            -backend-config="encrypt=true" \
+            -backend-config="use_lockfile=true"
+
+      - name: Terraform apply reviewed plan
+        run: terraform apply -input=false -lock-timeout="$TF_LOCK_TIMEOUT" tfplan
+
+      - name: Record non-sensitive outputs
+        run: |
+          {
+            echo "### Develop infrastructure"
+            echo
+            echo "- AWS account: `$(terraform output -raw aws_account_id)`"
+            echo "- EKS cluster: `$(terraform output -raw eks_cluster_name)`"
+            echo "- Managed node role: `$(terraform output -raw eks_managed_node_role_arn)`"
+            echo "- Karpenter node role: `$(terraform output -raw eks_karpenter_node_role_arn)`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  bootstrap-argocd:
+    name: Bootstrap ArgoCD (manual, Develop only)
+    needs: [terraform-plan, terraform-apply]
+    if: >-
+      always() &&
+      needs.terraform-plan.result == 'success' &&
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/develop' &&
+      inputs.bootstrap_argocd == true &&
+      inputs.confirm == 'apply-develop' &&
+      (needs.terraform-apply.result == 'success' || needs.terraform-plan.outputs.has_changes == 'false')
+    runs-on: ubuntu-latest
+    environment: develop
+    env:
+      ARGOCD_NAMESPACE: argocd
+      ARGOCD_CHART_VERSION: "7.8.26"
+      ROOT_APP_PATH: platform/gitops/environments/develop/bootstrap/root-app.yaml
+      ARGOCD_REPO_TOKEN: ${{ secrets.ARGOCD_REPO_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.TF_AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-develop-argocd-${{ github.run_id }}
+          allowed-account-ids: ${{ env.AWS_ACCOUNT_ID }}
+
+      - name: Verify account and Git revision
+        run: |
+          set -euo pipefail
+          test "$(aws sts get-caller-identity --query Account --output text)" = "458580846647"
+          test "$GITHUB_REF" = "refs/heads/develop"
+          : "${ARGOCD_REPO_TOKEN:?Set ARGOCD_REPO_TOKEN in the GitHub Environment develop}"
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: "v1.31.0"
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: "v3.17.0"
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --region "$AWS_REGION" --name "$CLUSTER_NAME"
+
+      - name: Install or upgrade ArgoCD
+        run: |
+          set -euo pipefail
+          helm repo add argo https://argoproj.github.io/argo-helm --force-update
+          helm repo update
+          helm upgrade --install argocd argo/argo-cd \
+            --namespace "$ARGOCD_NAMESPACE" \
+            --create-namespace \
+            --version "$ARGOCD_CHART_VERSION" \
+            --set server.service.type=ClusterIP \
+            --wait \
+            --wait-for-jobs \
+            --timeout 10m
+
+      - name: Configure private Git repository
+        run: |
+          set -euo pipefail
+          kubectl create secret generic develop-repository \
+            --namespace "$ARGOCD_NAMESPACE" \
+            --from-literal=type=git \
+            --from-literal=url=https://github.com/nguyenductien-qnm/capstone-phase-3.git \
+            --from-literal=username=x-access-token \
+            --from-literal=password="$ARGOCD_REPO_TOKEN" \
+            --dry-run=client -o yaml \
+            | kubectl apply -f -
+          kubectl label secret develop-repository \
+            --namespace "$ARGOCD_NAMESPACE" \
+            argocd.argoproj.io/secret-type=repository \
+            --overwrite
+
+      - name: Register Develop root application
+        run: |
+          set -euo pipefail
+          kubectl wait --for=condition=established crd/applications.argoproj.io --timeout=90s
+          kubectl apply -f "$ROOT_APP_PATH"
+          {
+            echo "### ArgoCD bootstrap"
+            echo
+            echo "The Develop root application was registered."
+            echo "Automated sync, prune and self-heal are intentionally disabled."
+            echo "Review and manually sync the root application before creating child resources."
+          } >> "$GITHUB_STEP_SUMMARY"

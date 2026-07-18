@@ -58,6 +58,16 @@ class TestFallbackRetry(unittest.TestCase):
         }
         product_reviews_server.check_feature_flag = lambda name, default=False: self.flags.get(name, default)
 
+        # Mock guardrails
+        self.patcher1 = patch('product_reviews_server.apply_guardrail_input', return_value=(False, "Tóm tắt review"))
+        self.patcher2 = patch('product_reviews_server.apply_guardrail_output', return_value=(False, "Summary output"))
+        self.patcher1.start()
+        self.patcher2.start()
+
+    def tearDown(self):
+        self.patcher1.stop()
+        self.patcher2.stop()
+
     def test_scenario_1_success_primary(self):
         """1. Success Flow: Calls primary model successfully on first attempt."""
         mock_response = {

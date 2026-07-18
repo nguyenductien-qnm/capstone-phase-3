@@ -1,0 +1,49 @@
+# Develop snapshot of image tags that currently exist in the shared ECR account.
+# This file is isolated from the Sandbox CI tag-bump path. Update it only after
+# verifying the new image tag exists in account 804372444787.
+components:
+  cart:
+    imageOverride:
+      # Sua tay 1 lan (incident 2026-07-16): tag tran "1.1-cart" bi ECR lifecycle
+      # policy xoa -> ImagePullBackOff. cart dang HOAN BUILD (build-exclusions) nen
+      # CI khong tu bump; image rebuild tu source, push tag sha. CI se ghi de khi bo hoan.
+      tag: "1.1-cart-ae89fa2"
+  checkout:
+    imageOverride:
+      tag: "1.0-checkout-9b5c297"
+  frontend-proxy:
+    imageOverride:
+      tag: "1.0-frontend-proxy-9b5c297"
+  product-catalog:
+    imageOverride:
+      tag: "1.0-product-catalog-9b5c297"
+  ad:
+    imageOverride:
+      tag: 1.0-ad-9b5c297
+  currency:
+    imageOverride:
+      tag: 1.0-currency-9b5c297
+  accounting:
+    imageOverride:
+      tag: 1.0-accounting-9b5c297
+  product-reviews:
+    imageOverride:
+      tag: 1.0-product-reviews-60e8c59
+  llm:
+    imageOverride:
+      tag: 1.0-llm-9b5c297
+  load-generator:
+    imageOverride:
+      tag: 1.0-load-generator-9b5c297
+  quote:
+    imageOverride:
+      tag: 1.0-quote-9b5c297
+  recommendation:
+    imageOverride:
+      tag: 1.0-recommendation-9b5c297
+  shipping:
+    imageOverride:
+      tag: 1.0-shipping-9b5c297
+  shopping-copilot:
+    imageOverride:
+      tag: 1.0-shopping-copilot-60e8c59

@@ -24,7 +24,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        module: [log_clustering, detector]
+        module: [log_clustering, detector, remediation]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

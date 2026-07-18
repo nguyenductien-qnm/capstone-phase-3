@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: develop-techx-corp
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/nguyenductien-qnm/capstone-phase-3.git
+    targetRevision: develop
+    path: platform/charts/application
+    helm:
+      valueFiles:
+        - ../../gitops/environments/develop/values/values-application.yaml
+        - ../../gitops/environments/develop/values/values-ops-observability.yaml
+        - ../../gitops/environments/develop/values/values-external-secrets.yaml
+        - ../../gitops/environments/develop/values/values-single-replica.yaml
+        - ../../gitops/environments/develop/values/values-image-tags.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: techx-develop
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+
+  # Automated sync/prune/self-heal is intentionally disabled until this
+  # isolated manifest set has been reviewed against the live Develop cluster.
