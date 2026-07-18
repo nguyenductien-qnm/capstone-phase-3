@@ -70,7 +70,15 @@ llm_model = None
 # --- Define the tool for the OpenAI API ---
 valkey_client = None
 
-SYSTEM_PROMPT = "You are a helpful assistant that answers related to a specific product. Use tools as needed to fetch the product reviews and product information. Keep the response brief with no more than 1-2 sentences. If you don't know the answer, just say you don't know."
+SYSTEM_PROMPT = (
+    "You are a helpful assistant that answers questions about a specific product. "
+    "Use tools as needed to fetch the product reviews and product information. "
+    "Answer in the same language as the question. Give a substantive answer of 2-4 sentences: "
+    "when reviews are relevant, cite the average rating and review count, and mention the "
+    "concrete pros/cons reviewers reported. Only use information returned by the tools — "
+    "never invent details. If the reviews and product data do not cover the question, "
+    "say clearly that the reviews do not mention it."
+)
 MOCK_SUMMARY_VI = "Hiện tại hệ thống không thể tạo tóm tắt đánh giá. Vui lòng tham khảo các đánh giá chi tiết bên dưới."
 # Review C1: version cache key theo model/prompt THUC dang dung — doi qua env la key tu doi,
 # khong con hang so chet lam versioned-key mat tac dung.
@@ -770,7 +778,12 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                 )
                 if blocked_out:
                     logger.warning(f"AI_SUMMARY_FALLBACK stage=output-grounding reason=Ungrounded product_id={request_product_id}")
-                    result = MOCK_SUMMARY_VI
+                    # Not MOCK_SUMMARY_VI: an ungrounded answer means the reviews don't
+                    # cover the question — tell the customer that instead of claiming
+                    # the whole summary system is down.
+                    result = ("Xin lỗi, các đánh giá và dữ liệu của sản phẩm này không đề cập "
+                              "thông tin bạn hỏi. Bạn có thể hỏi về chất lượng, ưu nhược điểm "
+                              "hoặc trải nghiệm sử dụng được nêu trong review.")
 
             ai_assistant_response.response = result
             logger.info(f"Returning Bedrock AI assistant response: '{result}'")
