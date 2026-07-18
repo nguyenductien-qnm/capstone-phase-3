@@ -110,12 +110,11 @@ valkey_num_cache_clusters = 2
 # ============================================================
 # Cấu hình ECR
 # ============================================================
-ecr_repositories = ["<REPO_NAME>"]   # vd: ["techx-corp"]
+ecr_repositories = ["techx-corp"]
 # Node role cluster develop được pull cross-account từ ECR chung.
 # Lấy ARN: cd terraform/environments/develop && terraform output -raw eks_managed_node_role_arn
 # (thêm cả eks_karpenter_node_role_arn khi bật Karpenter ở develop)
 ecr_pull_principal_arns = []   # vd: ["arn:aws:iam::<DEVELOP_ACCOUNT_ID>:role/<PROJECT>-develop-eks-node-role"]
-ecr_repositories = ["techx-corp"]
 
 # ============================================================
 # Cấu hình CloudFront & Custom Domain
