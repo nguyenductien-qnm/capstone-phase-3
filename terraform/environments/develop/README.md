@@ -37,11 +37,11 @@ The workflow also expects the same Terraform input variables used by Product-lik
 - network: `TF_VAR_VPC_CIDR`, `TF_VAR_PUBLIC_SUBNETS`, `TF_VAR_PRIVATE_APP_SUBNETS`, `TF_VAR_PRIVATE_DATA_SUBNETS`, `TF_VAR_PRIVATE_MQ_SUBNETS`, `TF_VAR_ENABLE_NAT_GATEWAY`, `TF_VAR_SINGLE_NAT_GATEWAY`;
 - EKS: `TF_VAR_EKS_CLUSTER_VERSION`, `TF_VAR_EKS_NODE_CAPACITY_TYPE`, `TF_VAR_EKS_ENDPOINT_PUBLIC_ACCESS`, `TF_VAR_EKS_PUBLIC_ACCESS_CIDRS`, `TF_VAR_EKS_CONTROL_PLANE_LOG_RETENTION_DAYS`, `TF_VAR_EKS_ACCESS_ENTRIES`;
 - RDS: `TF_VAR_DB_NAME`, `TF_VAR_DB_USERNAME`, `TF_VAR_RDS_INSTANCE_CLASS`, `TF_VAR_RDS_ALLOCATED_STORAGE`, `TF_VAR_ENABLE_READ_REPLICA`, `TF_VAR_REPLICA_INSTANCE_CLASS`, `TF_VAR_ENABLE_RDS_PROXY`, `TF_VAR_RDS_MULTI_AZ`;
-- Valkey/MSK: `TF_VAR_VALKEY_NODE_TYPE`, `TF_VAR_VALKEY_NUM_CACHE_CLUSTERS`, `TF_VAR_KAFKA_VERSION`.
+- Valkey/MSK: `TF_VAR_VALKEY_NODE_TYPE`, `TF_VAR_KAFKA_VERSION`.
 
 Subnet variables and access entries are Terraform JSON values. Do not copy the Product-like CIDRs blindly: verify the selected Develop CIDR does not overlap Product-like, VPN, peered VPCs or internal networks. The private application subnet map must contain key `app-2`, which is the default location of the dedicated observability node.
 
-`develop-capacity.tfvars` deliberately fixes the primary node group at desired/min `1`, max `3`, and keeps one dedicated observability node required by the current EKS module.
+`develop-capacity.tfvars` deliberately fixes the primary workload node group at desired/min/max `2` and keeps one dedicated observability node required by the current EKS module. This results in three `t3.large` workers in total, with no scaling range configured for either managed node group. The same file fixes Develop Valkey at two cache nodes because the shared module enables automatic failover and Multi-AZ; the GitHub Environment value `TF_VAR_VALKEY_NUM_CACHE_CLUSTERS` is intentionally unused.
 
 ## Safe execution order
 
