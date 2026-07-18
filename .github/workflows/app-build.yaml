@@ -352,6 +352,8 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
           cache-from: type=gha,scope=${{ matrix.service }}
+          sbom: true
+          provenance: mode=max
 
       - name: Cosign keyless sign (by digest)
         if: github.event_name != 'pull_request'
@@ -439,7 +441,7 @@ jobs:
             DIGEST=$(cut -d= -f2 "/tmp/image-digests/$svc.env")
             [[ "$DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo "invalid digest for $svc"; exit 1; }
             echo "== $svc -> $DIGEST =="
-            yq -i ".components.\"$svc\".imageOverride.tag = \"$TAG\" | .components.\"$svc\".imageOverride.digest = \"$DIGEST\" | .components.\"$svc\".podAnnotations.\"delivery.techx.io/source-repository\" = \"${{ github.server_url }}/${{ github.repository }}\" | .components.\"$svc\".podAnnotations.\"delivery.techx.io/commit\" = \"${{ github.sha }}\" | .components.\"$svc\".podAnnotations.\"delivery.techx.io/pr-number\" = \"$PR_NUMBER\" | .components.\"$svc\".podAnnotations.\"delivery.techx.io/workflow\" = \"${{ github.workflow }}\" | .components.\"$svc\".podAnnotations.\"delivery.techx.io/run-id\" = \"${{ github.run_id }}\" | .components.\"$svc\".podAnnotations.\"delivery.sigstore.dev/identity\" = \"https://github.com/${{ github.repository }}/.github/workflows/app-build.yaml@refs/heads/develop\" | .components.\"$svc\".podAnnotations.\"delivery.sigstore.dev/issuer\" = \"https://token.actions.githubusercontent.com\" | .components.\"$svc\".podAnnotations.\"delivery.supply-chain/sbom\" = \"oci://${ECR_REGISTRY}/${ECR_REPOSITORY}:sha256-$DIGEST.sbom\" | .components.\"$svc\".podAnnotations.\"delivery.supply-chain/provenance\" = \"oci://${ECR_REGISTRY}/${ECR_REPOSITORY}:sha256-$DIGEST.provenance\"" "$TAGS_FILE"
+            yq -i ".components.\"$svc\".imageOverride.tag = \"$TAG\" | .components.\"$svc\".imageOverride.digest = \"$DIGEST\" | .components.\"$svc\".podAnnotations.\"delivery.techx.io/source-repository\" = \"${{ github.server_url }}/${{ github.repository }}\" | .components.\"$svc\".podAnnotations.\"delivery.techx.io/commit\" = \"${{ github.sha }}\" | .components.\"$svc\".podAnnotations.\"delivery.techx.io/pr-number\" = \"$PR_NUMBER\" | .components.\"$svc\".podAnnotations.\"delivery.techx.io/workflow\" = \"${{ github.workflow }}\" | .components.\"$svc\".podAnnotations.\"delivery.techx.io/run-id\" = \"${{ github.run_id }}\" | .components.\"$svc\".podAnnotations.\"delivery.sigstore.dev/identity\" = \"https://github.com/${{ github.repository }}/.github/workflows/app-build.yaml@refs/heads/develop\" | .components.\"$svc\".podAnnotations.\"delivery.sigstore.dev/issuer\" = \"https://token.actions.githubusercontent.com\" | .components.\"$svc\".podAnnotations.\"delivery.supply-chain/sbom\" = \"oci://${ECR_REGISTRY}/${ECR_REPOSITORY}@${DIGEST}\" | .components.\"$svc\".podAnnotations.\"delivery.supply-chain/provenance\" = \"oci://${ECR_REGISTRY}/${ECR_REPOSITORY}@${DIGEST}\"" "$TAGS_FILE"
           done
 
       - name: Commit & push
