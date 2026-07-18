@@ -7,7 +7,7 @@
 
 # IAM Role assumed by EKS Pod Identity Agent for AI services
 resource "aws_iam_role" "shopping_copilot_bedrock" {
-  name = "${var.project_name}-${var.environment}-shopping-copilot-bedrock-role"
+  name = "shopping-copilot-bedrock-role"
 
   # Trust policy permitting EKS Pod Identity Service to assume this role
   assume_role_policy = jsonencode({
@@ -27,7 +27,7 @@ resource "aws_iam_role" "shopping_copilot_bedrock" {
   })
 
   tags = {
-    Name        = "${var.project_name}-${var.environment}-shopping-copilot-bedrock-role"
+    Name        = "shopping-copilot-bedrock-role"
     Environment = var.environment
   }
 }
