@@ -47,10 +47,10 @@ components:
       tag: 1.0-shipping-aadff38
   shopping-copilot:
     imageOverride:
-      tag: 1.0-shopping-copilot-2898018
+      tag: 1.0-shopping-copilot-057647c
   ml-guard:
     imageOverride:
-      tag: 1.0-ml-guard-aadff38
+      tag: 1.0-ml-guard-057647c
   fraud-detection:
     imageOverride:
       tag: 1.0-fraud-detection-aadff38
