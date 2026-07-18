@@ -89,6 +89,11 @@ output "karpenter_node_role_name" {
   value       = aws_iam_role.karpenter_node.name
 }
 
+output "karpenter_node_role_arn" {
+  description = "IAM role ARN used by Karpenter-managed EC2 nodes"
+  value       = aws_iam_role.karpenter_node.arn
+}
+
 output "karpenter_node_instance_profile_name" {
   description = "IAM instance profile name used by the Karpenter EC2NodeClass"
   value       = aws_iam_instance_profile.karpenter_node.name
