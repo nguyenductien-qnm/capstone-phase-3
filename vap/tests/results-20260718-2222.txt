@@ -1,0 +1,123 @@
+kubectl context : arn:aws:eks:us-east-1:804372444787:cluster/ecommerce-dev-eks
+namespace       : techx-tf1
+chế độ          : --dry-run=server (read-only, không tạo pod)
+
+============================================================
+>>> neg-01-root.yaml
+------------------------------------------------------------
+Warning: Validation failed for ValidatingAdmissionPolicy 'run-as-non-root' with binding 'run-as-non-root-binding': containers must run as non-root (runAsNonRoot: true or runAsUser != 0): app
+pod/vaptest-neg-01-root created (server dry run)
+
+✅ PASS — khớp kỳ vọng [run-as-non-root]
+
+============================================================
+>>> neg-02-image-latest.yaml
+------------------------------------------------------------
+Warning: Validation failed for ValidatingAdmissionPolicy 'deny-floating-image-tag' with binding 'deny-floating-image-tag-binding': container has disallowed image tag or no tag specified: app (nginx:latest)
+pod/vaptest-neg-02-image-latest created (server dry run)
+
+✅ PASS — khớp kỳ vọng [deny-floating-image-tag]
+
+============================================================
+>>> neg-03-missing-resources.yaml
+------------------------------------------------------------
+Warning: Validation failed for ValidatingAdmissionPolicy 'require-resources' with binding 'require-resources-binding': containers must have CPU and Memory requests and limits defined: app
+pod/vaptest-neg-03-missing-resources created (server dry run)
+
+✅ PASS — khớp kỳ vọng [require-resources]
+
+============================================================
+>>> neg-04-privesc-caps.yaml
+------------------------------------------------------------
+Warning: Validation failed for ValidatingAdmissionPolicy 'deny-privilege-escalation' with binding 'deny-privilege-escalation-binding': containers must have allowPrivilegeEscalation set to false: app
+Warning: Validation failed for ValidatingAdmissionPolicy 'psp-capabilities' with binding 'psp-capabilities-binding': containers must drop ALL capabilities and can only add NET_BIND_SERVICE: app
+pod/vaptest-neg-04-priv-esc created (server dry run)
+
+✅ PASS — khớp kỳ vọng [deny-privilege-escalation psp-capabilities]
+
+============================================================
+>>> neg-05-multi.yaml
+------------------------------------------------------------
+Warning: Validation failed for ValidatingAdmissionPolicy 'run-as-non-root' with binding 'run-as-non-root-binding': containers must run as non-root (runAsNonRoot: true or runAsUser != 0): bad
+Warning: Validation failed for ValidatingAdmissionPolicy 'deny-floating-image-tag' with binding 'deny-floating-image-tag-binding': container has disallowed image tag or no tag specified: bad (busybox:latest)
+Warning: Validation failed for ValidatingAdmissionPolicy 'deny-privilege-escalation' with binding 'deny-privilege-escalation-binding': containers must have allowPrivilegeEscalation set to false: bad
+Warning: Validation failed for ValidatingAdmissionPolicy 'psp-capabilities' with binding 'psp-capabilities-binding': containers must drop ALL capabilities and can only add NET_BIND_SERVICE: bad
+Warning: Validation failed for ValidatingAdmissionPolicy 'require-resources' with binding 'require-resources-binding': containers must have CPU and Memory requests and limits defined: bad
+pod/vaptest-neg-05-multi created (server dry run)
+
+✅ PASS — khớp kỳ vọng [run-as-non-root deny-floating-image-tag require-resources deny-privilege-escalation psp-capabilities]
+
+============================================================
+>>> neg-06-initcontainer-latest.yaml
+------------------------------------------------------------
+Warning: Validation failed for ValidatingAdmissionPolicy 'deny-floating-image-tag' with binding 'deny-floating-image-tag-binding': container has disallowed image tag or no tag specified: init-bad (busybox:latest)
+pod/vaptest-neg-06-initcontainer-latest created (server dry run)
+
+✅ PASS — khớp kỳ vọng [deny-floating-image-tag]
+
+============================================================
+>>> neg-07-privesc-absent.yaml
+------------------------------------------------------------
+Warning: Validation failed for ValidatingAdmissionPolicy 'deny-privilege-escalation' with binding 'deny-privilege-escalation-binding': containers must have allowPrivilegeEscalation set to false: app
+pod/vaptest-neg-07-privesc-absent created (server dry run)
+
+✅ PASS — khớp kỳ vọng [deny-privilege-escalation]
+
+============================================================
+>>> neg-08-no-caps-block.yaml
+------------------------------------------------------------
+Warning: Validation failed for ValidatingAdmissionPolicy 'psp-capabilities' with binding 'psp-capabilities-binding': containers must drop ALL capabilities and can only add NET_BIND_SERVICE: app
+pod/vaptest-neg-08-no-caps-block created (server dry run)
+
+✅ PASS — khớp kỳ vọng [psp-capabilities]
+
+============================================================
+>>> neg-09-partial-resources.yaml
+------------------------------------------------------------
+Warning: Validation failed for ValidatingAdmissionPolicy 'require-resources' with binding 'require-resources-binding': containers must have CPU and Memory requests and limits defined: app
+pod/vaptest-neg-09-partial-resources created (server dry run)
+
+✅ PASS — khớp kỳ vọng [require-resources]
+
+============================================================
+>>> neg-10-podlevel-root.yaml
+------------------------------------------------------------
+Warning: Validation failed for ValidatingAdmissionPolicy 'run-as-non-root' with binding 'run-as-non-root-binding': containers must run as non-root (runAsNonRoot: true or runAsUser != 0): app
+pod/vaptest-neg-10-podlevel-root created (server dry run)
+
+✅ PASS — khớp kỳ vọng [run-as-non-root]
+
+============================================================
+>>> pos-01-valid.yaml
+------------------------------------------------------------
+pod/vaptest-pos-01-valid created (server dry run)
+
+✅ PASS — khớp kỳ vọng [không warning]
+
+============================================================
+>>> pos-02-podlevel-nonroot.yaml
+------------------------------------------------------------
+pod/vaptest-pos-02-podlevel-nonroot created (server dry run)
+
+✅ PASS — khớp kỳ vọng [không warning]
+
+============================================================
+>>> pos-03-otel-exempt.yaml
+------------------------------------------------------------
+pod/vaptest-pos-03-otel-exempt created (server dry run)
+
+✅ PASS — khớp kỳ vọng [không warning]
+
+============================================================
+>>> pos-04-digest-netbind.yaml
+------------------------------------------------------------
+pod/vaptest-pos-04-digest-netbind created (server dry run)
+
+✅ PASS — khớp kỳ vọng [không warning]
+
+============================================================
+TỔNG KẾT:  PASS=14  FAIL=0  / 14 case
+Lưu ý: binding đang ở action=Warn -> vi phạm hiện dạng Warning,
+       pod vẫn 'configured (server dry run)'. Khi bật Deny (Phase 3)
+       các case neg sẽ bị TỪ CHỐI (error) thật.
+============================================================

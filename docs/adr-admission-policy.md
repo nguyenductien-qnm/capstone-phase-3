@@ -37,12 +37,12 @@ Chúng ta cần lựa chọn công cụ kiểm soát chính sách đầu vào (A
 ---
 
 ## 3. Quyết định (Decision)
-Nhóm quyết định chọn **Phương án A: OPA Gatekeeper** làm Policy Engine chính cho Mandate 5.
+Nhóm quyết định chọn **Phương án C: Kubernetes ValidatingAdmissionPolicy (VAP)** làm Policy Engine chính cho Mandate 5, thay thế cho đề xuất ban đầu (OPA Gatekeeper).
 
 ### Lý do lựa chọn:
-1. **Tính phổ biến & Độ tin cậy**: OPA Gatekeeper là chuẩn công nghiệp được kiểm định thực tế qua rất nhiều dự án lớn, giúp đội vận hành yên tâm hơn khi sử dụng.
-2. **Tiết kiệm thời gian triển khai**: Tận dụng được các file mẫu chuẩn hóa từ thư viện mã nguồn mở của OPA, đảm bảo hoàn thành sớm trước deadline thứ Sáu.
-3. **Giải pháp tối ưu tài nguyên**: Để tránh phát sinh chi phí, OPA Gatekeeper sẽ được giới hạn tài nguyên ở mức tối thiểu (`resources.limits` nhỏ: CPU 100m, RAM 256Mi) khi deploy lên namespace `gatekeeper-system`.
+1. **Không dựng thêm service:** OPA Gatekeeper yêu cầu deploy thêm các webhook controller pod, vi phạm ràng buộc không sinh thêm hạ tầng/service mới của Directive #5. VAP chạy trực tiếp trong API Server sử dụng CEL, **tài nguyên tiêu thụ bằng 0** và không tạo thêm bất kỳ pod/service nào.
+2. **Áp dụng toàn bộ cluster (Cluster-wide):** Phù hợp với yêu cầu thực thi chính sách trên toàn bộ cluster, chỉ loại trừ các namespace hệ thống (`kube-system`, `argocd`, v.v.) bằng `namespaceSelector` thay vì giới hạn chỉ 1 namespace như trước.
+3. **Tối ưu chi phí:** Tránh hoàn toàn việc sử dụng tài nguyên của node cho việc chạy Admission Controller webhook.
 
 ---
 

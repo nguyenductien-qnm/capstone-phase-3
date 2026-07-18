@@ -1,34 +1,27 @@
-# Gatekeeper Negative-Test Package (Directive #5 — Runtime Hardening)
+# Native ValidatingAdmissionPolicy Negative-Test Package (Directive #5 — Runtime Hardening)
 
-Bộ manifest để mentor **tự apply và tận mắt thấy bị từ chối** bởi 5 policy Gatekeeper
-(`enforcementAction: deny`, namespace `techx-tf1`). Tham chiếu: ADR-002, ADR-003, IMPL-001 §6.
+Bộ manifest để mentor **tự apply và tận mắt thấy bị từ chối** bởi 5 Kubernetes native ValidatingAdmissionPolicies (VAP) áp dụng toàn cluster.
 
-**Thiết kế:** mỗi file negative vi phạm **đúng 1 luật** — mọi field còn lại hợp lệ — để deny
-message chỉ ra chính xác luật nào bắn. Vì pod vi phạm bị từ chối **ngay tại admission**, không
-có gì được tạo ra trong namespace prod → không cần dọn dẹp sau test. Pod hợp lệ (positive)
-kiểm bằng `--dry-run=server` nên cũng không tạo pod thật.
+**Thiết kế:** mỗi file negative vi phạm **đúng 1 luật** — mọi field còn lại hợp lệ — để deny message chỉ ra chính xác luật nào bắn. Vì pod vi phạm bị từ chối **ngay tại admission**, không có gì được tạo ra trong cluster → không cần dọn dẹp sau test. Pod hợp lệ (positive) kiểm bằng `--dry-run=server` nên cũng không tạo pod thật.
 
 ## Điều kiện tiên quyết
 
 ```bash
-# Gatekeeper controller đang chạy
-kubectl get pods -n gatekeeper-system
+# 5 ValidatingAdmissionPolicy + 5 ValidatingAdmissionPolicyBinding đã apply (từ thư mục gốc capstone-phase-3/)
+kubectl apply -f vap/
 
-# 5 ConstraintTemplate + 5 Constraint đã apply (từ thư mục gốc capstone-phase-3/)
-kubectl apply -f gatekeeper/ConstraintTemplate/
-kubectl apply -f gatekeeper/constraints/
-
-# Đợi template được compile (vài giây), xác nhận đủ 5 constraint, tất cả deny:
-kubectl get constraints
+# Xác nhận đủ 5 policy và binding:
+kubectl get validatingadmissionpolicy
+kubectl get validatingadmissionpolicybinding
 ```
 
 ## Danh sách test
 
-| File | Vi phạm | Constraint chặn | Kỳ vọng |
+| File | Vi phạm | Policy chặn | Kỳ vọng |
 |---|---|---|:--:|
 | `neg-01-root.yaml` | `runAsUser: 0` (chạy root) | `run-as-non-root` | ❌ REJECT |
 | `neg-02-image-latest.yaml` | image `nginx:latest` (tag trôi) | `deny-floating-image-tag` | ❌ REJECT |
-| `neg-03-missing-resources.yaml` | không khai `resources` | `require-cpu-memory-limits-requests` | ❌ REJECT |
+| `neg-03-missing-resources.yaml` | không khai `resources` | `require-resources` | ❌ REJECT |
 | `neg-04-privilege-escalation.yaml` | `allowPrivilegeEscalation: true` | `deny-privilege-escalation` | ❌ REJECT |
 | `neg-05-added-capabilities.yaml` | `capabilities.add: [SYS_ADMIN]` | `psp-capabilities` | ❌ REJECT |
 | `pos-01-valid.yaml` | không vi phạm gì (pass cả 5 luật) | — | ✅ PASS |
@@ -48,57 +41,34 @@ kubectl apply --dry-run=server -f tests/gatekeeper/pos-01-valid.yaml
 # Kỳ vọng: pod/pos-01-valid created (server dry run)
 ```
 
-## Deny message kỳ vọng (nguyên văn từ Rego trong ConstraintTemplate)
+## Deny message kỳ vọng
 
-**neg-01** (`run-As-Non-Root.yaml`):
+**neg-01** (`run-as-non-root`):
 ```
-Error from server (Forbidden): ... admission webhook "validation.gatekeeper.sh" denied the request:
-[run-as-non-root] Container neg-root is attempting to run as disallowed user 0.
-Allowed runAsUser: {"rule": "MustRunAsNonRoot"}
+ValidatingAdmissionPolicy 'run-as-non-root' with binding 'run-as-non-root-binding' denied request: containers must run as non-root (runAsNonRoot: true or runAsUser != 0): neg-root
 ```
 
-**neg-02** (`reject-floating-image-tag.yaml`):
+**neg-02** (`deny-floating-image-tag`):
 ```
-[deny-floating-image-tag] container <neg-latest> uses a disallowed tag <nginx:latest>;
-disallowed tags are ["latest", "dev", "master", "main", "stable", "edge"]
-```
-
-**neg-03** (`k8s-required-resources.yaml` — ra 2 dòng, thiếu cả limits lẫn requests):
-```
-[require-cpu-memory-limits-requests] container <neg-noresources> does not have <{"cpu", "memory"}> limits defined
-[require-cpu-memory-limits-requests] container <neg-noresources> does not have <{"cpu", "memory"}> requests defined
+ValidatingAdmissionPolicy 'deny-floating-image-tag' with binding 'deny-floating-image-tag-binding' denied request: container has disallowed image tag or no tag specified: neg-latest (nginx:latest)
 ```
 
-**neg-04** (`allow-Privilege-Escalation.yaml`):
+**neg-03** (`require-resources`):
 ```
-[deny-privilege-escalation] Privilege escalation container is not allowed: neg-privesc
-```
-
-**neg-05** (`k8s-psp-capabilities.yaml`):
-```
-[psp-capabilities] container <neg-caps> has a disallowed capability. Allowed capabilities are ["NET_BIND_SERVICE"]
+ValidatingAdmissionPolicy 'require-resources' with binding 'require-resources-binding' denied request: containers must have CPU and Memory requests and limits defined: neg-noresources
 ```
 
-> Wording có thể lệch nhẹ theo version Gatekeeper (phần prefix `Error from server`);
-> phần trong `[...]` và nội dung message lấy đúng từ Rego của repo này.
+**neg-04** (`deny-privilege-escalation`):
+```
+ValidatingAdmissionPolicy 'deny-privilege-escalation' with binding 'deny-privilege-escalation-binding' denied request: containers must have allowPrivilegeEscalation set to false: neg-privesc
+```
 
-## Xác nhận cluster đang chạy không còn workload vi phạm
-
-```bash
-# Tổng số vi phạm còn tồn tại theo từng constraint (audit định kỳ của Gatekeeper).
-# Kỳ vọng: TOTAL-VIOLATIONS = 0 ở cả 5 dòng.
-kubectl get constraints
-
-# Nếu có vi phạm, xem chi tiết pod nào:
-kubectl get constraint <tên-constraint> -o jsonpath='{.status.violations}' | jq
+**neg-05** (`psp-capabilities`):
+```
+ValidatingAdmissionPolicy 'psp-capabilities' with binding 'psp-capabilities-binding' denied request: containers must drop ALL capabilities and can only add NET_BIND_SERVICE: neg-caps
 ```
 
 ## Ghi chú
 
-- Bad pod nhắm thẳng vào `techx-tf1` là **chủ ý**: chứng minh policy chặn ở đúng namespace
-  prod. Deny tại admission nghĩa là **không có object nào được tạo** — an toàn tuyệt đối,
-  không đụng workload thật, không cần rollback.
-- Không dùng namespace test riêng vì cả 5 Constraint chỉ `match.namespaces: [techx-tf1]` —
-  apply vào namespace khác sẽ PASS oan (false negative), làm demo mất giá trị.
-- Image dùng `busybox:1.38.0` / `nginx:latest` — không cần pull image về vì pod bị chặn
-  trước khi scheduler/kubelet chạy (riêng pos-01 là dry-run).
+- Deny tại admission nghĩa là **không có object nào được tạo** — an toàn tuyệt đối, không đụng workload thật, không cần rollback.
+- Image dùng `busybox:1.38.0` / `nginx:latest` — không cần pull image về vì pod bị chặn trước khi scheduler/kubelet chạy.

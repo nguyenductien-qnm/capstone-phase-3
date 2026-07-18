@@ -1,0 +1,69 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: "deny-privilege-escalation"
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups:   [""]
+      apiVersions: ["v1"]
+      operations:  ["CREATE", "UPDATE"]
+      resources:   ["pods"]
+    namespaceSelector:
+      matchExpressions:
+      - key: kubernetes.io/metadata.name
+        operator: NotIn
+        values:
+        - kube-system
+        - kube-public
+        - kube-node-lease
+        - gatekeeper-system
+        - argocd
+  variables:
+  - name: containers
+    expression: 'object.spec.containers'
+  - name: initContainers
+    expression: 'has(object.spec.initContainers) ? object.spec.initContainers : []'
+  - name: ephemeralContainers
+    expression: 'has(object.spec.ephemeralContainers) ? object.spec.ephemeralContainers : []'
+  - name: allContainers
+    expression: 'variables.containers + variables.initContainers + variables.ephemeralContainers'
+  validations:
+  - expression: |
+      variables.allContainers.all(c, 
+        c.image.contains('google_containers/pause') || 
+        c.image.contains('prometheus/prometheus') || 
+        c.image.contains('otel/opentelemetry-collector-contrib') || 
+        c.image.contains('jaegertracing/jaeger') || 
+        c.image.contains('opensearchproject/opensearch') ||
+        (
+          has(c.securityContext) && 
+          has(c.securityContext.allowPrivilegeEscalation) && 
+          c.securityContext.allowPrivilegeEscalation == false
+        )
+      )
+    messageExpression: |
+      "containers must have allowPrivilegeEscalation set to false: " + 
+      variables.allContainers.filter(c, 
+        !(
+          c.image.contains('google_containers/pause') || 
+          c.image.contains('prometheus/prometheus') || 
+          c.image.contains('otel/opentelemetry-collector-contrib') || 
+          c.image.contains('jaegertracing/jaeger') || 
+          c.image.contains('opensearchproject/opensearch') ||
+          (
+            has(c.securityContext) && 
+            has(c.securityContext.allowPrivilegeEscalation) && 
+            c.securityContext.allowPrivilegeEscalation == false
+          )
+        )
+      ).map(c, c.name).join(", ")
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: "deny-privilege-escalation-binding"
+spec:
+  policyName: "deny-privilege-escalation"
+  validationActions: [Deny]

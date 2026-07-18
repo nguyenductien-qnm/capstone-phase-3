@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: vaptest-pos-02-podlevel-nonroot
+  labels: { vaptest: "true" }
+spec:
+  # runAsNonRoot đặt ở POD-level, container không set -> CEL fallback phải cho PASS.
+  # Đây là pattern phổ biến nhất trên cluster hiện tại (checkout, currency, shipping...)
+  securityContext:
+    runAsNonRoot: true
+  containers:
+  - name: app
+    image: ecommerce-dev-techx-corp:1.0-cart-aadff38
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities: { drop: ["ALL"] }
+    resources:
+      requests: { cpu: "10m", memory: "16Mi" }
+      limits: { cpu: "50m", memory: "32Mi" }

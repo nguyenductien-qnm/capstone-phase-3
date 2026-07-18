@@ -1,0 +1,75 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: "run-as-non-root"
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups:   [""]
+      apiVersions: ["v1"]
+      operations:  ["CREATE", "UPDATE"]
+      resources:   ["pods"]
+    namespaceSelector:
+      matchExpressions:
+      - key: kubernetes.io/metadata.name
+        operator: NotIn
+        values:
+        - kube-system
+        - kube-public
+        - kube-node-lease
+        - gatekeeper-system
+        - argocd
+  variables:
+  - name: containers
+    expression: 'object.spec.containers'
+  - name: initContainers
+    expression: 'has(object.spec.initContainers) ? object.spec.initContainers : []'
+  - name: ephemeralContainers
+    expression: 'has(object.spec.ephemeralContainers) ? object.spec.ephemeralContainers : []'
+  - name: allContainers
+    expression: 'variables.containers + variables.initContainers + variables.ephemeralContainers'
+  validations:
+  - expression: |
+      variables.allContainers.all(c, 
+        c.image.contains('otel/opentelemetry-collector-contrib') ||
+        c.image.contains('kiwigrid/k8s-sidecar') ||
+        c.image.contains('stakater/reloader') ||
+        c.image.contains('kube-state-metrics') ||
+        c.image.endsWith('-aiops-detector') ||
+        c.image.endsWith('-aiops-remediation') ||
+        (
+          (has(c.securityContext) && has(c.securityContext.runAsUser) ? c.securityContext.runAsUser : (has(object.spec.securityContext) && has(object.spec.securityContext.runAsUser) ? object.spec.securityContext.runAsUser : -1)) != 0
+        ) &&
+        (
+          (has(c.securityContext) && has(c.securityContext.runAsUser) ? c.securityContext.runAsUser : (has(object.spec.securityContext) && has(object.spec.securityContext.runAsUser) ? object.spec.securityContext.runAsUser : -1)) != -1 ||
+          (has(c.securityContext) && has(c.securityContext.runAsNonRoot) ? c.securityContext.runAsNonRoot : (has(object.spec.securityContext) && has(object.spec.securityContext.runAsNonRoot) ? object.spec.securityContext.runAsNonRoot : false)) == true
+        )
+      )
+    messageExpression: |
+      "containers must run as non-root (runAsNonRoot: true or runAsUser != 0): " + 
+      variables.allContainers.filter(c, 
+        !(
+          c.image.contains('otel/opentelemetry-collector-contrib') ||
+          c.image.contains('kiwigrid/k8s-sidecar') ||
+          c.image.contains('stakater/reloader') ||
+          c.image.contains('kube-state-metrics') ||
+          c.image.endsWith('-aiops-detector') ||
+          c.image.endsWith('-aiops-remediation') ||
+          (
+            (has(c.securityContext) && has(c.securityContext.runAsUser) ? c.securityContext.runAsUser : (has(object.spec.securityContext) && has(object.spec.securityContext.runAsUser) ? object.spec.securityContext.runAsUser : -1)) != 0
+          ) &&
+          (
+            (has(c.securityContext) && has(c.securityContext.runAsUser) ? c.securityContext.runAsUser : (has(object.spec.securityContext) && has(object.spec.securityContext.runAsUser) ? object.spec.securityContext.runAsUser : -1)) != -1 ||
+            (has(c.securityContext) && has(c.securityContext.runAsNonRoot) ? c.securityContext.runAsNonRoot : (has(object.spec.securityContext) && has(object.spec.securityContext.runAsNonRoot) ? object.spec.securityContext.runAsNonRoot : false)) == true
+          )
+        )
+      ).map(c, c.name).join(", ")
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: "run-as-non-root-binding"
+spec:
+  policyName: "run-as-non-root"
+  validationActions: [Deny]
