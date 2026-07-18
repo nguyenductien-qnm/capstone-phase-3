@@ -51,4 +51,4 @@ components:
             name: bedrock-config
             key: external_id
       - name: AWS_REGION
-        value: "us-east-1"
+        value: "us-east-2"
