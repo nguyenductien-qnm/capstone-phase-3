@@ -395,7 +395,7 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
                 blocked_out, clean_text = apply_guardrail_output(bedrock_client, clean_text, source_text, user_query)
                 if blocked_out:
                     logger.warning("AI_COPILOT_FALLBACK stage=output-grounding reason=Ungrounded")
-                    clean_text = ("Xin lỗi, tôi không tìm thấy thông tin đó trong dữ liệu sản phẩm hiện có. "
+                    clean_text = ("Xin lỗi, tôi chưa có thông tin đó trong dữ liệu sản phẩm hiện có. "
                                   "Bạn có thể hỏi tôi về giá, đánh giá, hoặc gợi ý sản phẩm theo danh mục "
                                   "(Telescopes, Binoculars, Accessories, Cameras, Books).")
             if not clean_text:
