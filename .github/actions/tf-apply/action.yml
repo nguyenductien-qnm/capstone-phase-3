@@ -1,0 +1,79 @@
+name: 'Terraform Apply'
+description: 'Run terraform init and apply'
+
+inputs:
+  working-directory:
+    description: 'Terraform working directory'
+    required: true
+  terraform-version:
+    description: 'Terraform version'
+    required: false
+    default: 'latest'
+  var-file:
+    description: 'Terraform var file (e.g. terraform.tfvars)'
+    required: false
+    default: ''
+  extra-args:
+    description: 'Additional terraform apply arguments'
+    required: false
+    default: ''
+  use-cache:
+    description: 'Enable or disable Terraform provider caching'
+    required: false
+    default: 'true'
+  auto-approve:
+    description: 'Auto-approve apply (no interactive prompt)'
+    required: false
+    default: 'false'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v4
+      with:
+        terraform_version: ${{ inputs.terraform-version }}
+
+    - name: Set up Terraform Cache Dir
+      if: ${{ inputs.use-cache == 'true' }}
+      shell: bash
+      run: |
+        CACHE_DIR="${{ github.workspace }}/.terraform.d/plugin-cache"
+        mkdir -p "$CACHE_DIR"
+        echo "TF_PLUGIN_CACHE_DIR=$CACHE_DIR" >> "$GITHUB_ENV"
+
+    - name: Cache Terraform Providers
+      if: ${{ inputs.use-cache == 'true' }}
+      uses: actions/cache@v6
+      with:
+        path: ${{ github.workspace }}/.terraform.d/plugin-cache
+        key: ${{ runner.os }}-tf-${{ inputs.terraform-version }}-${{ hashFiles(format('{0}/.terraform.lock.hcl', inputs.working-directory)) }}
+        restore-keys: |
+          ${{ runner.os }}-tf-${{ inputs.terraform-version }}-
+
+    - name: Terraform Init
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: terraform init -input=false
+
+    - name: Terraform Apply
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        VAR_FILE: ${{ inputs.var-file }}
+        EXTRA_ARGS: ${{ inputs.extra-args }}
+        AUTO_APPROVE: ${{ inputs.auto-approve }}
+      run: |
+        set -euo pipefail
+
+        VAR_FILE_FLAG=""
+        if [ -n "$VAR_FILE" ]; then
+          VAR_FILE_FLAG="-var-file=$VAR_FILE"
+        fi
+
+        APPROVE_FLAG=""
+        if [ "$AUTO_APPROVE" == "true" ]; then
+          APPROVE_FLAG="-auto-approve"
+        fi
+
+        terraform apply -input=false $APPROVE_FLAG $VAR_FILE_FLAG $EXTRA_ARGS
