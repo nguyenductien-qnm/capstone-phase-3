@@ -47,7 +47,7 @@ components:
       tag: 1.0-shipping-aadff38
   shopping-copilot:
     imageOverride:
-      tag: 1.0-shopping-copilot-aadff38
+      tag: 1.0-shopping-copilot-2898018
   ml-guard:
     imageOverride:
       tag: 1.0-ml-guard-aadff38
