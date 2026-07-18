@@ -57,6 +57,13 @@ spec:
             msg := sprintf("container <%v> didn't specify an image tag <%v>", [container.name, container.image])
         }
 
+        violation[{"msg": msg}] {
+            container := input_containers[_]
+            not is_exempt(container)
+            not contains(container.image, "@sha256:")
+            msg := sprintf("container <%v> must use an immutable @sha256 digest: <%v>", [container.name, container.image])
+        }
+
         input_containers[c] {
             c := input.review.object.spec.containers[_]
         }
@@ -87,4 +94,3 @@ spec:
               prefix := trim_suffix(exemption, "*")
               startswith(img, prefix)
           }
-

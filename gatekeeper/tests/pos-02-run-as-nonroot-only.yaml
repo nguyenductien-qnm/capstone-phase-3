@@ -6,7 +6,7 @@ metadata:
 spec:
   containers:
     - name: pos-run-as-nonroot-only
-      image: public.ecr.aws/docker/library/nginx:1.27
+      image: public.ecr.aws/docker/library/nginx@sha256:0000000000000000000000000000000000000000000000000000000000000000
       resources:
         requests:
           cpu: 10m

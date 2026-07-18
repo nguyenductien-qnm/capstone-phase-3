@@ -3,6 +3,16 @@ variable "aws_region" {
   description = "AWS Region triển khai"
 }
 
+variable "ecr_image_mutability" {
+  type        = string
+  description = "ECR tag mutability; deployable application repositories must be immutable."
+  default     = "IMMUTABLE"
+  validation {
+    condition     = contains(["MUTABLE", "IMMUTABLE"], var.ecr_image_mutability)
+    error_message = "ecr_image_mutability must be MUTABLE or IMMUTABLE."
+  }
+}
+
 variable "project_name" {
   type        = string
   description = "Tên dự án sử dụng cho resource tagging"

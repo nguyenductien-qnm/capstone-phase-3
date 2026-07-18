@@ -1,0 +1,28 @@
+{
+  "metadata": {
+    "name": "checkout-7f8c9d",
+    "namespace": "techx-tf1",
+    "labels": {},
+    "annotations": {
+      "delivery.techx.io/source-repository": "https://github.com/example/platform",
+      "delivery.techx.io/commit": "0123456789abcdef0123456789abcdef01234567",
+      "delivery.techx.io/pr-number": "123",
+      "delivery.techx.io/workflow": "App Build",
+      "delivery.techx.io/run-id": "456789",
+      "delivery.sigstore.dev/identity": "https://github.com/example/platform/.github/workflows/app-build.yaml@refs/heads/develop",
+      "delivery.sigstore.dev/issuer": "https://token.actions.githubusercontent.com",
+      "delivery.supply-chain/sbom": "oci://example/checkout@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "delivery.supply-chain/provenance": "oci://example/checkout@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    }
+  },
+  "spec": {
+    "containers": [
+      {"name": "checkout", "image": "example/checkout@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"}
+    ]
+  },
+  "status": {
+    "containerStatuses": [
+      {"name": "checkout", "imageID": "docker-pullable://example/checkout@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"}
+    ]
+  }
+}

@@ -501,6 +501,11 @@
         "tag": {
           "type": "string"
         },
+        "digest": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$",
+          "description": "Immutable image digest. When set, tag is ignored."
+        },
         "pullPolicy": {
           "type": "string"
         },

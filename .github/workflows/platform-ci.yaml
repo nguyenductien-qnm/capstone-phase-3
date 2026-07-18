@@ -98,3 +98,20 @@ jobs:
             exit 1
           fi
           echo "✅ Chart render OK ($(wc -l < /tmp/techx-corp-rendered.yaml) dòng)"
+
+  delivery-gate:
+    name: delivery-gate
+    needs: [secret-scan, unit-test, helm]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail closed when a required delivery check failed
+        run: |
+          set -euo pipefail
+          results='${{ toJSON(needs) }}'
+          echo "$results"
+          if jq -e 'to_entries | any(.value.result == "failure" or .value.result == "cancelled")' <<< "$results" >/dev/null; then
+            echo "A required delivery check failed or was cancelled."
+            exit 1
+          fi
+          echo "delivery-gate passed"

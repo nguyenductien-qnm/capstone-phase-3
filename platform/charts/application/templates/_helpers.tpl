@@ -94,10 +94,29 @@ Fails helm template if any image uses :latest or has no tag.
 {{- if not $image -}}
   {{- fail (printf "VALIDATION FAIL: %s has an empty image reference" $context) -}}
 {{- end -}}
+
 {{- if hasSuffix ":latest" $image -}}
   {{- fail (printf "VALIDATION FAIL: %s uses :latest tag: %s" $context $image) -}}
 {{- end -}}
+
 {{- if not (contains ":" $image) -}}
   {{- fail (printf "VALIDATION FAIL: %s has no tag (defaults to :latest): %s" $context $image) -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Return an image reference without appending a tag to a digest. */}}
+{{- define "techx-corp.imageReference" -}}
+{{- $image := index . 0 -}}
+{{- $context := index . 1 -}}
+{{- $repository := $image.repository -}}
+{{- $digest := $image.digest | default "" -}}
+{{- $tag := $image.tag | default "" -}}
+{{- if $digest -}}
+{{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $digest) -}}
+{{- fail (printf "VALIDATION FAIL: %s digest must match sha256:<64 lowercase hex> (got %s)" $context $digest) -}}
+{{- end -}}
+{{- printf "%s@%s" $repository $digest -}}
+{{- else -}}
+{{- printf "%s:%s" $repository ($tag | default "latest") -}}
 {{- end -}}
 {{- end -}}

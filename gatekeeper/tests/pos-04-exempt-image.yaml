@@ -6,7 +6,7 @@ metadata:
 spec:
   containers:
     - name: pos-exempt-image
-      image: gcr.io/google_containers/pause:3.9   # Khớp exemptImages của deny-privilege-escalation
+      image: gcr.io/google_containers/pause@sha256:0000000000000000000000000000000000000000000000000000000000000000   # Khớp exemptImages của deny-privilege-escalation
       resources:
         requests:
           cpu: 10m

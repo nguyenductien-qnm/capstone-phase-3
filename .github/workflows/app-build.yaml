@@ -335,7 +335,7 @@ jobs:
           format: table
           severity: CRITICAL,HIGH
           exit-code: "1"
-          ignore-unfixed: true
+          ignore-unfixed: false
 
       # Chỉ push khi không phải PR. Push by-digest để ký theo digest (chuẩn immutable).
       - name: Push image
@@ -366,6 +366,21 @@ jobs:
             --fulcio-url https://fulcio.sigstore.dev \
             "$REF"
           echo "✅ Signed $REF"
+
+      - name: Publish digest evidence
+        if: github.event_name != 'pull_request'
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/digest-evidence
+          printf '%s\n' "${{ matrix.service }}=${{ steps.push.outputs.digest }}" > "/tmp/digest-evidence/${{ matrix.service }}.env"
+
+      - name: Upload digest evidence
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-digest-${{ matrix.service }}
+          path: /tmp/digest-evidence/${{ matrix.service }}.env
+          if-no-files-found: error
 
   # ------------------------------------------------------------------ #
   # CDO-142: bump tag vào Git -> ArgoCD selfHeal sync.                  #
@@ -401,18 +416,30 @@ jobs:
       - name: Install yq
         uses: mikefarah/yq@v4
 
+      - name: Download image digests
+        uses: actions/download-artifact@v4
+        with:
+          pattern: image-digest-*
+          path: /tmp/image-digests
+          merge-multiple: true
+
       - name: Bump imageOverride.tag từng service
         env:
           MATRIX: ${{ needs.detect.outputs.matrix }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           SHORT_SHA=$(git rev-parse --short HEAD)
+          PR_NUMBER=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/pulls" --jq '.[0].number // empty' 2>/dev/null || true)
+          PR_NUMBER="${PR_NUMBER:-unknown}"
 
           # Duyệt service trong matrix, map -> đúng key trong file tags riêng.
           for svc in $(echo "$MATRIX" | yq -r '.include[].service'); do
             TAG="${IMAGE_VERSION}-${svc}-${SHORT_SHA}"
-            echo "== $svc -> $TAG =="
-            yq -i ".components.\"$svc\".imageOverride.tag = \"$TAG\"" "$TAGS_FILE"
+            DIGEST=$(cut -d= -f2 "/tmp/image-digests/$svc.env")
+            [[ "$DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo "invalid digest for $svc"; exit 1; }
+            echo "== $svc -> $DIGEST =="
+            yq -i ".components.\"$svc\".imageOverride.tag = \"$TAG\" | .components.\"$svc\".imageOverride.digest = \"$DIGEST\" | .components.\"$svc\".podAnnotations.\"delivery.techx.io/source-repository\" = \"${{ github.server_url }}/${{ github.repository }}\" | .components.\"$svc\".podAnnotations.\"delivery.techx.io/commit\" = \"${{ github.sha }}\" | .components.\"$svc\".podAnnotations.\"delivery.techx.io/pr-number\" = \"$PR_NUMBER\" | .components.\"$svc\".podAnnotations.\"delivery.techx.io/workflow\" = \"${{ github.workflow }}\" | .components.\"$svc\".podAnnotations.\"delivery.techx.io/run-id\" = \"${{ github.run_id }}\" | .components.\"$svc\".podAnnotations.\"delivery.sigstore.dev/identity\" = \"https://github.com/${{ github.repository }}/.github/workflows/app-build.yaml@refs/heads/develop\" | .components.\"$svc\".podAnnotations.\"delivery.sigstore.dev/issuer\" = \"https://token.actions.githubusercontent.com\" | .components.\"$svc\".podAnnotations.\"delivery.supply-chain/sbom\" = \"oci://${ECR_REGISTRY}/${ECR_REPOSITORY}:sha256-$DIGEST.sbom\" | .components.\"$svc\".podAnnotations.\"delivery.supply-chain/provenance\" = \"oci://${ECR_REGISTRY}/${ECR_REPOSITORY}:sha256-$DIGEST.provenance\"" "$TAGS_FILE"
           done
 
       - name: Commit & push
