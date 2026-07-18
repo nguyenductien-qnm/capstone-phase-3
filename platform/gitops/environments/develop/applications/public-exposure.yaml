@@ -1,0 +1,22 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: develop-frontend-proxy-nlb
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/nguyenductien-qnm/capstone-phase-3.git
+    targetRevision: develop
+    path: platform/gitops/environments/develop/public-exposure
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: techx-develop
+  # Manual sync is intentional. This Application owns only the Develop NLB
+  # Service; frontend-proxy Pods may be added in a later phase.
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
