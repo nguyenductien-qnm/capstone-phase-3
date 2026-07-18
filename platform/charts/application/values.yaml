@@ -1040,10 +1040,14 @@ components:
     resources:
       requests:
         cpu: 50m
-        memory: 64Mi
+        memory: 96Mi
       limits:
         cpu: 100m
-        memory: 140Mi
+        # 140Mi -> 256Mi: image fix-CVE (bump @opentelemetry/sdk-node 0.217 +
+        # auto-instrumentations-node 0.75) tăng heap Node.js -> OOMKilled (exit 137)
+        # CrashLoop -> endpoint payment rỗng -> checkout dial refused -> 504.
+        # Ngang tầm frontend (250Mi) cho service Node.js + OTel mới.
+        memory: 256Mi
     securityContext:
       runAsUser: 1000 # node
       runAsGroup: 1000
