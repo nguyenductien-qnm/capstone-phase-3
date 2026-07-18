@@ -347,10 +347,16 @@ def sanitize_json_for_llm(json_str):
         return json.dumps({"error": "unparseable tool result was withheld by guardrail"})
 
 
-def leaks_system_prompt(output_text, system_prompt, window_words=6):
+def leaks_system_prompt(output_text, system_prompt, window_words=6, allowlist=None):
     """Output guard rẻ: sliding-window N-từ của output có nằm trong system_prompt
     không. Bổ trợ cho denied-topic của Bedrock (bắt leak verbatim, không bắt
-    paraphrase — đó là việc của Bedrock)."""
+    paraphrase — đó là việc của Bedrock).
+
+    allowlist: câu template mà system_prompt CHỦ ĐỘNG yêu cầu model nói nguyên văn
+    cho khách (vd. câu xác nhận giỏ hàng) — không phải bí mật bị lộ. Gap tái audit
+    18/07: rule "CONFIRMATION GATE" nhét câu template thẳng vào system prompt, nên
+    model tuân lệnh và lặp lại y hệt sẽ luôn tự-trigger leak-detector. Window nằm
+    trong allowlist thì bỏ qua, các window khác vẫn bị bắt bình thường."""
     if not output_text or not system_prompt:
         return False
 
@@ -361,12 +367,15 @@ def leaks_system_prompt(output_text, system_prompt, window_words=6):
     prompt_norm = _norm(system_prompt)
     if not out_words or not prompt_norm:
         return False
+    allow_norm = [_norm(a) for a in (allowlist or [])]
     windows = (
         [" ".join(out_words[i:i + window_words]) for i in range(len(out_words) - window_words + 1)]
         if len(out_words) >= window_words else [" ".join(out_words)]
     )
     for w in windows:
         if len(w) >= 20 and w in prompt_norm:
+            if any(w in a for a in allow_norm):
+                continue
             logger.warning("System prompt leakage detected (matched: %r…)", w[:30])
             return True
     return False

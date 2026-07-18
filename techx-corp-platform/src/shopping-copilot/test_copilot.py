@@ -55,6 +55,12 @@ def test_confirmation_gate_two_phase():
     tools.execute_add_item = lambda uid, pid, qty: executed.append((uid, pid, qty)) or '{"status":"success"}'
     try:
         bedrock = FakeBedrock([
+            # ChatWithCopilot runs apply_guardrail_input's T2 injection judge on the
+            # user's message BEFORE run_agent's own converse loop starts, and it shares
+            # this same FakeBedrock — so it consumes the first scripted item too. Without
+            # this, the judge call silently eats the tool_use response meant for run_agent
+            # and add_item_to_cart never fires (repro'd 18/07, MANDATE-06 re-audit).
+            _end("NO"),
             _tool_use("add_item_to_cart", {"product_id": "OLJCESPC7Z", "quantity": 2}),
             _end("Tôi đã chuẩn bị thêm vào giỏ. Vui lòng xác nhận."),
         ])
