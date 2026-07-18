@@ -2,6 +2,9 @@ data "aws_iam_role" "github_terraform" {
   name = var.github_terraform_role_name
 }
 
+data "aws_region" "current" {}
+data "aws_caller_identity" "current" {}
+
 locals {
   github_terraform_access_entry = {
     github_terraform = {
@@ -206,6 +209,7 @@ module "external_secrets_irsa" {
     module.elasticache.secret_arn,
     module.msk.msk_secret_arn,
     module.msk.msk_endpoint_secret_arn,
+    "arn:aws:secretsmanager:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secret:${var.project_name}-${var.environment}-bedrock-config-*"
   ]
 
   # Secret MSK mã hoá bằng KMS key riêng của module msk -> ESO cần kms:Decrypt trên
