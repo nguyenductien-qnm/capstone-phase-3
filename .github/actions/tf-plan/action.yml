@@ -21,6 +21,26 @@ inputs:
     description: "Enable or disable Terraform provider caching"
     required: false
     default: "true"
+  run-iac-scan:
+    description: "Run Trivy and Checkov scans against the Terraform working directory"
+    required: false
+    default: "true"
+  trivy-severity:
+    description: "Trivy severity levels to report"
+    required: false
+    default: "CRITICAL,HIGH"
+  trivy-exit-code:
+    description: "Exit code when Trivy finds a misconfiguration"
+    required: false
+    default: "0"
+  checkov-soft-fail:
+    description: "Allow Checkov findings without failing the job"
+    required: false
+    default: "true"
+  checkov-quiet:
+    description: "Reduce Checkov output"
+    required: false
+    default: "true"
 
 outputs:
   plan-exit-code:
@@ -67,6 +87,25 @@ runs:
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: terraform validate
+
+    - name: Trivy IaC scan
+      if: ${{ inputs.run-iac-scan == 'true' }}
+      uses: aquasecurity/trivy-action@v0.36.0
+      with:
+        scan-type: config
+        scan-ref: ${{ inputs.working-directory }}
+        severity: ${{ inputs.trivy-severity }}
+        exit-code: ${{ inputs.trivy-exit-code }}
+        format: table
+
+    - name: Checkov scan
+      if: ${{ inputs.run-iac-scan == 'true' }}
+      uses: bridgecrewio/checkov-action@v12
+      with:
+        directory: ${{ inputs.working-directory }}
+        framework: terraform
+        soft_fail: ${{ inputs.checkov-soft-fail }}
+        quiet: ${{ inputs.checkov-quiet }}
 
     - name: Terraform Plan
       id: plan
