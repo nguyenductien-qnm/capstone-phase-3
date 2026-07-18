@@ -13,6 +13,9 @@ No AWS, no live gRPC. A scripted fake Bedrock client drives the agent loop and
 Run: ``python test_copilot.py``
 """
 
+import os
+os.environ["LLM_INJECTION_JUDGE"] = "false"
+
 import copilot_server as srv
 import agent
 import tools
