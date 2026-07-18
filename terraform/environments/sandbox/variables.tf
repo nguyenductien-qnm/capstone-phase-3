@@ -349,7 +349,7 @@ variable "audit_operator_role_names" {
 variable "rds_enable_rotation" {
   type        = bool
   description = "Bật/Tắt xoay vòng secret tự động cho RDS"
-  default     = false
+  default     = true
 }
 
 variable "rds_rotation_lambda_arn" {
