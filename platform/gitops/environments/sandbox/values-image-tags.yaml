@@ -8,7 +8,7 @@ components:
       # Sua tay 1 lan (incident 2026-07-16): tag tran "1.1-cart" bi ECR lifecycle
       # policy xoa -> ImagePullBackOff. cart dang HOAN BUILD (build-exclusions) nen
       # CI khong tu bump; image rebuild tu source, push tag sha. CI se ghi de khi bo hoan.
-      tag: "1.1-cart-ae89fa2"
+      tag: "1.0-cart-9e7e552"
   checkout:
     imageOverride:
       tag: "1.0-checkout-f1a4189"
@@ -51,3 +51,15 @@ components:
   ml-guard:
     imageOverride:
       tag: 1.0-ml-guard-f1a4189
+  fraud-detection:
+    imageOverride:
+      tag: 1.0-fraud-detection-9e7e552
+  frontend:
+    imageOverride:
+      tag: 1.0-frontend-9e7e552
+  image-provider:
+    imageOverride:
+      tag: 1.0-image-provider-9e7e552
+  payment:
+    imageOverride:
+      tag: 1.0-payment-9e7e552
