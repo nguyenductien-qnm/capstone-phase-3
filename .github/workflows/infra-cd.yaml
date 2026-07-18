@@ -12,15 +12,17 @@ on:
   push:
     branches: ["develop", "main"]
     paths:
-      - "terraform/**"
+      - "terraform/environments/sandbox/**"
+      - "terraform/modules/**"
       - ".github/workflows/infra-cd.yaml"
   pull_request:
     branches: ["develop", "main"]
     paths:
-      - "terraform/**"
+      - "terraform/environments/sandbox/**"
+      - "terraform/modules/**"
       - ".github/workflows/infra-cd.yaml"
   schedule:
-    # 07:17 ICT (UTC+7) hằng ngày — chống drift (auto-apply nếu có thay đổi).
+    # 07:17 ICT (UTC+7) hằng ngày — phát hiện drift bằng plan, không tự apply.
     - cron: "17 0 * * *"
   workflow_dispatch:
     inputs:
@@ -212,6 +214,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.TF_AWS_ROLE_ARN }}
+          allowed-account-ids: "804372444787"
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: gha-${{ github.actor }}-${{ github.run_id }}
 
@@ -274,29 +277,17 @@ jobs:
             });
 
   # ------------------------------------------------------------------ #
-  # Apply: gated. Chạy khi:                                            #
-  #   - push develop/main (auto-apply)                                 #
-  #   - schedule (chống drift)                                         #
-  #   - dispatch apply=true & confirm=apply-sandbox                    #
-  # Chỉ khi plan có thay đổi.                                          #
+  # Apply: chỉ chạy thủ công khi plan có thay đổi và người vận hành    #
+  # chọn apply=true, đồng thời nhập confirm=apply-sandbox.              #
   # ------------------------------------------------------------------ #
   terraform-apply:
     name: Terraform apply sandbox
     needs: terraform-plan
     if: |
       needs.terraform-plan.outputs.has_changes == 'true' &&
-      (
-        github.event_name == 'schedule' ||
-        (
-          github.event_name == 'push' &&
-          (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')
-        ) ||
-        (
-          github.event_name == 'workflow_dispatch' &&
-          github.event.inputs.apply == 'true' &&
-          github.event.inputs.confirm == 'apply-sandbox'
-        )
-      )
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.apply == 'true' &&
+      github.event.inputs.confirm == 'apply-sandbox'
     runs-on: ubuntu-latest
     environment: sandbox
     concurrency:
@@ -315,6 +306,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.TF_AWS_ROLE_ARN }}
+          allowed-account-ids: "804372444787"
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: gha-${{ github.actor }}-${{ github.run_id }}
 
@@ -369,6 +361,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.TF_AWS_ROLE_ARN }}
+          allowed-account-ids: "804372444787"
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: gha-${{ github.actor }}-${{ github.run_id }}
 
@@ -484,6 +477,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.TF_AWS_ROLE_ARN }}
+          allowed-account-ids: "804372444787"
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: gha-${{ github.actor }}-${{ github.run_id }}
 
