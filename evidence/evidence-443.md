@@ -208,15 +208,15 @@ Nếu trong quá trình tạo blip kết nối có kiểm soát, hệ thống ph
 
 #### Minh chứng Kịch bản 1: Reboot Read Replica DB (Bị lỗi HTTP 500)
 * **Bảng thống kê hiệu năng Locust (Before)**: Chứng minh luồng `product-catalog` gặp 9 lỗi (3.2%):
-![Bảng Thống kê Hiệu năng Locust KB1 Before](./capstone-phase-3/evidence/img/locust_stats_top_1784347378284.png)
+![Bảng Thống kê Hiệu năng Locust KB1 Before](./img/locust_stats_top_1784347378284.png)
 * **Chi tiết thông báo lỗi trên Locust (Before)**: Xác nhận lỗi HTTP 500:
-![Chi tiết lỗi Locust KB1 Before](./capstone-phase-3/evidence/img/locust_failures_table_1784347452059.png)
+![Chi tiết lỗi Locust KB1 Before](./img/locust_failures_table_1784347452059.png)
 
 #### Minh chứng Kịch bản 2: Valkey Failover (Bị lỗi HTTP 504)
 * **Bảng thống kê hiệu năng Locust (Before)**: Chứng minh luồng `cart` gặp 5 lỗi (timeout):
-![Bảng Thống kê Hiệu năng Locust KB2 Before](./capstone-phase-3/evidence/img/locust_stats_sc2_1784348040669.png)
+![Bảng Thống kê Hiệu năng Locust KB2 Before](./img/locust_stats_sc2_1784348040669.png)
 * **Chi tiết thông báo lỗi trên Locust (Before)**: Xác nhận lỗi HTTP 504:
-![Chi tiết lỗi Locust KB2 Before](./capstone-phase-3/evidence/img/locust_failures_sc2_1784348066758.png)
+![Chi tiết lỗi Locust KB2 Before](./img/locust_failures_sc2_1784348066758.png)
 
 ---
 
@@ -224,23 +224,24 @@ Nếu trong quá trình tạo blip kết nối có kiểm soát, hệ thống ph
 
 #### Minh chứng Kịch bản 1: Reboot Read Replica DB (Đạt 0% lỗi)
 * **Bảng thống kê hiệu năng Locust (After)**: Chứng minh luồng storefront (`GET /api/products` và `GET /api/reviews`) đạt 0% lỗi:
-![Bảng Thống kê Hiệu năng Locust KB1 After](./capstone-phase-3/evidence/img/locust_stats_sc1_after.png)
+![Bảng Thống kê Hiệu năng Locust KB1 After](./img/locust_stats_sc1_after.png)
 * **Biểu đồ giám sát Grafana (After)**: Xác nhận các chỉ số APM (Request Rate, Latency, Error Rate) của các dịch vụ ổn định (0% lỗi) trong suốt quá trình DB reboot (15:45):
-![Biểu đồ giám sát Grafana KB1 After](./capstone-phase-3/evidence/img/grafana_sc1_after.png)
+![Biểu đồ giám sát Grafana KB1 After](./img/grafana_sc1_after.png)
 
 #### Minh chứng Kịch bản 2: Valkey Failover (Đạt 0% lỗi)
 * **Bảng thống kê hiệu năng Locust (After)**: Chứng minh luồng storefront (`GET /api/cart` và `POST /api/cart`) đạt 0% lỗi:
-![Bảng Thống kê Hiệu năng Locust KB2 After](./capstone-phase-3/evidence/img/locust_stats_sc2_after.png)
+![Bảng Thống kê Hiệu năng Locust KB2 After](./img/locust_stats_sc2_after.png)
 * **Biểu đồ giám sát Grafana (After)**: Xác nhận các chỉ số APM ổn định (0% lỗi) trong suốt quá trình Valkey failover (16:05):
-![Biểu đồ giám sát Grafana KB2 After](./capstone-phase-3/evidence/img/grafana_sc2_after.png)
+![Biểu đồ giám sát Grafana KB2 After](./img/grafana_sc2_after.png)
 
 #### Minh chứng Kịch bản 3: Secrets Rotation (Đạt 0% lỗi)
 * **Bảng thống kê hiệu năng Locust (After)**: Chứng minh luồng storefront đạt 0% lỗi:
-![Bảng Thống kê Hiệu năng Locust KB3 After](./capstone-phase-3/evidence/img/locust_stats_sc3_final.png)
+![Bảng Thống kê Hiệu năng Locust KB3 After](./img/locust_stats_sc3_final.png)
 * **Chi tiết thông báo lỗi trên Locust (After)**: Xác nhận không phát sinh lỗi liên quan đến xác thực DB:
-![Chi tiết lỗi Locust KB3 After](./capstone-phase-3/evidence/img/locust_failures_sc3_final.png)
+![Chi tiết lỗi Locust KB3 After](./img/locust_failures_sc3_final.png)
 * **Biểu đồ giám sát Grafana (After)**: Xác nhận các chỉ số APM ổn định (0% lỗi) trong suốt quá trình xoay vòng mật khẩu (15:25):
-![Biểu đồ giám sát Grafana KB3 After](./capstone-phase-3/evidence/img/grafana_sc3_final.png)
+![Biểu đồ giám sát Grafana KB3 After](./img/grafana_sc3_final.png)
+
 
 
 
