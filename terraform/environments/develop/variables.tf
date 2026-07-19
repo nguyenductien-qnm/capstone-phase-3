@@ -286,6 +286,7 @@ variable "enable_cloudfront" {
 variable "rds_multi_az" {
   type        = bool
   description = "Bật/Tắt chế độ Multi-AZ cho Primary DB"
+  default     = true
 }
 variable "eks_enabled_cluster_log_types" {
   type        = list(string)
