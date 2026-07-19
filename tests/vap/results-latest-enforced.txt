@@ -33,9 +33,9 @@ The pods "vaptest-neg-04-priv-esc" is invalid: : ValidatingAdmissionPolicy 'deny
 ============================================================
 >>> neg-05-multi.yaml
 ------------------------------------------------------------
-The pods "vaptest-neg-05-multi" is invalid: : ValidatingAdmissionPolicy 'deny-floating-image-tag' with binding 'deny-floating-image-tag-binding' denied request: container has disallowed image tag or no tag specified: bad (busybox:latest)
+The pods "vaptest-neg-05-multi" is invalid: : ValidatingAdmissionPolicy 'deny-privilege-escalation' with binding 'deny-privilege-escalation-binding' denied request: containers must have allowPrivilegeEscalation set to false: bad
 
-✅ PASS — bị từ chối bởi: deny-floating-image-tag (kỳ vọng: run-as-non-root deny-floating-image-tag require-resources deny-privilege-escalation psp-capabilities)
+✅ PASS — bị từ chối bởi: deny-privilege-escalation (kỳ vọng: run-as-non-root deny-floating-image-tag require-resources deny-privilege-escalation psp-capabilities)
 
 ============================================================
 >>> neg-06-initcontainer-latest.yaml
