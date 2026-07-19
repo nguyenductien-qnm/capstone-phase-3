@@ -1,0 +1,151 @@
+name: App Attest (đóng dấu promoted-develop theo digest)
+
+# Bước C của deploy model build-once-promote (xem app-build.yaml): sau khi develop
+# chạy ổn định, operator dispatch workflow này để cosign attest predicate
+# "promoted-develop" vào DIGEST của từng image đang chạy ở develop (đọc từ
+# values-image-tags.yaml develop -> resolve tag -> digest trên ECR).
+# app-promote.yaml sẽ verify-attestation này trước khi mở PR bump tag prod
+# -> prod CHỈ nhận digest đã build+scan+ký (app-build) VÀ đã chạy thử ở develop.
+#
+# ECR IMMUTABLE: cosign lưu attestation ở tag sha256-<digest>.att — tag immutable
+# nên chỉ attest được 1 LẦN/digest (push .att lần 2 bị ECR chặn). Digest đã có
+# .att -> skip, không fail: chạy lại workflow sau khi bump vài service là bình thường.
+
+on:
+  workflow_dispatch:
+    inputs:
+      services:
+        description: "Service cần attest (space-separated), rỗng = tất cả trong tags file develop"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  # 2 run song song có thể đua nhau push cùng .att tag -> chạy tuần tự.
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  ECR_REGISTRY: ${{ vars.ECR_REGISTRY || '804372444787.dkr.ecr.us-east-1.amazonaws.com' }}
+  ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY || 'ecommerce-dev-techx-corp' }}
+  TAGS_FILE: platform/gitops/environments/develop/values/values-image-tags.yaml
+  # predicateType của attestation — app-promote.yaml phải verify ĐÚNG URI này.
+  PREDICATE_TYPE: https://github.com/nguyenductien-qnm/capstone-phase-3/promoted-develop/v1
+  OIDC_ISSUER: https://token.actions.githubusercontent.com
+
+jobs:
+  attest:
+    name: Attest promoted-develop
+    # Guard: chỉ dispatch từ develop — attest nghĩa là "đã chạy ổn ở develop",
+    # ref khác vừa vô nghĩa vừa đọc sai tags file.
+    if: github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    # Trust policy của GitHubTerraformSandboxRole khóa sub theo environment:sandbox
+    # (giống app-build). Cần quyền push .att lên ECR repo.
+    environment: sandbox
+    permissions:
+      contents: read
+      id-token: write # OIDC cho AWS + Cosign keyless (Fulcio)
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install yq
+        uses: mikefarah/yq@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.TF_AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-attest-${{ github.actor }}-${{ github.run_id }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3.5.0
+
+      - name: Attest từng digest
+        env:
+          DISPATCH_SERVICES: ${{ github.event.inputs.services }}
+          # Danh tính đã ký image ở app-build — verify chữ ký build TRƯỚC khi đóng
+          # dấu promote: không attest image lạ/không rõ nguồn gốc lỡ có trên ECR.
+          BUILD_IDENTITY: https://github.com/${{ github.repository }}/.github/workflows/app-build.yaml@refs/heads/develop
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          if [ -n "${DISPATCH_SERVICES:-}" ]; then
+            read -ra SERVICES <<< "$DISPATCH_SERVICES"
+          else
+            mapfile -t SERVICES < <(yq -r '.components | keys | .[]' "$TAGS_FILE")
+          fi
+
+          attested=0 skipped=0 failed=0
+          echo "## Attest promoted-develop" >> "$GITHUB_STEP_SUMMARY"
+          echo "| service | tag | digest | kết quả |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
+
+          for svc in "${SERVICES[@]}"; do
+            TAG=$(yq -r ".components.\"$svc\".imageOverride.tag // \"\"" "$TAGS_FILE")
+            if [ -z "$TAG" ]; then
+              echo "::error::'$svc' không có tag trong $TAGS_FILE."
+              failed=$((failed+1)); continue
+            fi
+
+            DIGEST=$(aws ecr describe-images \
+              --repository-name "$ECR_REPOSITORY" \
+              --image-ids imageTag="$TAG" \
+              --query 'imageDetails[0].imageDigest' --output text 2>/dev/null) || {
+              echo "::error::'$svc': tag $TAG không có trên ECR."
+              failed=$((failed+1)); continue
+            }
+            REF="${ECR_REGISTRY}/${ECR_REPOSITORY}@${DIGEST}"
+
+            # Immutable: digest đã có .att -> đã attest lần trước -> skip.
+            ATT_TAG="${DIGEST/:/-}.att"
+            if aws ecr describe-images --repository-name "$ECR_REPOSITORY" \
+                 --image-ids imageTag="$ATT_TAG" >/dev/null 2>&1; then
+              echo "⏭️  $svc: $DIGEST đã có attestation, skip."
+              echo "| $svc | $TAG | \`$DIGEST\` | ⏭️ đã có, skip |" >> "$GITHUB_STEP_SUMMARY"
+              skipped=$((skipped+1)); continue
+            fi
+
+            if ! cosign verify \
+                   --certificate-identity "$BUILD_IDENTITY" \
+                   --certificate-oidc-issuer "$OIDC_ISSUER" \
+                   "$REF" >/dev/null 2>&1; then
+              echo "::error::'$svc': $REF KHÔNG có chữ ký hợp lệ từ app-build — không attest."
+              echo "| $svc | $TAG | \`$DIGEST\` | ❌ thiếu chữ ký build |" >> "$GITHUB_STEP_SUMMARY"
+              failed=$((failed+1)); continue
+            fi
+
+            cat > /tmp/predicate.json <<EOF
+          {
+            "environment": "develop",
+            "service": "$svc",
+            "tag": "$TAG",
+            "digest": "$DIGEST",
+            "gitSha": "${{ github.sha }}",
+            "attestedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "attestedBy": "$RUN_URL"
+          }
+          EOF
+            cosign attest --yes \
+              --type "$PREDICATE_TYPE" \
+              --predicate /tmp/predicate.json \
+              --rekor-url https://rekor.sigstore.dev \
+              --fulcio-url https://fulcio.sigstore.dev \
+              "$REF"
+            echo "✅ $svc: attested $DIGEST"
+            echo "| $svc | $TAG | \`$DIGEST\` | ✅ attested |" >> "$GITHUB_STEP_SUMMARY"
+            attested=$((attested+1))
+          done
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Attested: $attested — skip: $skipped — lỗi: $failed**" >> "$GITHUB_STEP_SUMMARY"
+          [ "$failed" -eq 0 ] || exit 1
