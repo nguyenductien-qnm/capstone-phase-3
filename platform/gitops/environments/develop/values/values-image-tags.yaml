@@ -7,58 +7,58 @@ components:
       # Sua tay 1 lan (incident 2026-07-16): tag tran "1.1-cart" bi ECR lifecycle
       # policy xoa -> ImagePullBackOff. cart dang HOAN BUILD (build-exclusions) nen
       # CI khong tu bump; image rebuild tu source, push tag sha. CI se ghi de khi bo hoan.
-      tag: "1.0-cart-37f65a2"
+      tag: "1.0-cart-3392b08"
   checkout:
     imageOverride:
-      tag: "1.0-checkout-37f65a2"
+      tag: "1.0-checkout-3392b08"
   frontend-proxy:
     imageOverride:
-      tag: "1.0-frontend-proxy-37f65a2"
+      tag: "1.0-frontend-proxy-3392b08"
   product-catalog:
     imageOverride:
-      tag: "1.0-product-catalog-37f65a2"
+      tag: "1.0-product-catalog-3392b08"
   ad:
     imageOverride:
-      tag: 1.0-ad-37f65a2
+      tag: 1.0-ad-3392b08
   currency:
     imageOverride:
-      tag: 1.0-currency-37f65a2
+      tag: 1.0-currency-3392b08
   accounting:
     imageOverride:
-      tag: 1.0-accounting-37f65a2
+      tag: 1.0-accounting-3392b08
   product-reviews:
     imageOverride:
-      tag: 1.0-product-reviews-37f65a2
+      tag: 1.0-product-reviews-3392b08
   llm:
     imageOverride:
-      tag: 1.0-llm-37f65a2
+      tag: 1.0-llm-3392b08
   load-generator:
     imageOverride:
-      tag: 1.0-load-generator-37f65a2
+      tag: 1.0-load-generator-3392b08
   quote:
     imageOverride:
-      tag: 1.0-quote-37f65a2
+      tag: 1.0-quote-3392b08
   recommendation:
     imageOverride:
-      tag: 1.0-recommendation-37f65a2
+      tag: 1.0-recommendation-3392b08
   shipping:
     imageOverride:
-      tag: 1.0-shipping-37f65a2
+      tag: 1.0-shipping-3392b08
   shopping-copilot:
     imageOverride:
-      tag: 1.0-shopping-copilot-37f65a2
+      tag: 1.0-shopping-copilot-3392b08
   fraud-detection:
     imageOverride:
-      tag: 1.0-fraud-detection-37f65a2
+      tag: 1.0-fraud-detection-3392b08
   frontend:
     imageOverride:
-      tag: 1.0-frontend-37f65a2
+      tag: 1.0-frontend-3392b08
   image-provider:
     imageOverride:
-      tag: 1.0-image-provider-37f65a2
+      tag: 1.0-image-provider-3392b08
   ml-guard:
     imageOverride:
-      tag: 1.0-ml-guard-37f65a2
+      tag: 1.0-ml-guard-3392b08
   payment:
     imageOverride:
-      tag: 1.0-payment-37f65a2
+      tag: 1.0-payment-3392b08
