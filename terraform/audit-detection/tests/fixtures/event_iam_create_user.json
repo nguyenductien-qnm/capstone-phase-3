@@ -3,17 +3,17 @@
   "id": "12345678-1234-1234-1234-123456789012",
   "detail-type": "AWS API Call via CloudTrail",
   "source": "aws.iam",
-  "account": "111122223333",
+  "account": "804372444787",
   "time": "2026-07-18T16:00:00Z",
   "region": "us-east-1",
-  "resources": ["arn:aws:events:us-east-1:111122223333:rule/audit-detection-rule"],
+  "resources": ["arn:aws:events:us-east-1:804372444787:rule/audit-detection-rule"],
   "detail": {
     "eventVersion": "1.08",
     "userIdentity": {
       "type": "IAMUser",
       "principalId": "AIDA11111111111111111",
-      "arn": "arn:aws:iam::111122223333:user/test-admin",
-      "accountId": "111122223333",
+      "arn": "arn:aws:iam::804372444787:user/test-admin",
+      "accountId": "804372444787",
       "accessKeyId": "AKIA1111111111111111",
       "userName": "test-admin"
     },
@@ -29,7 +29,7 @@
     "responseElements": {
       "user": {
         "userName": "backdoor-user",
-        "arn": "arn:aws:iam::111122223333:user/backdoor-user"
+        "arn": "arn:aws:iam::804372444787:user/backdoor-user"
       }
     },
     "requestID": "req-123",

@@ -47,18 +47,18 @@ def sqs_payload():
 
 def test_parse_identity_iam(iam_create_user_event):
     who, context = parse_identity(iam_create_user_event["detail"]["userIdentity"])
-    assert "arn:aws:iam::111122223333:user/test-admin" in who
+    assert "arn:aws:iam::804372444787:user/test-admin" in who
     assert context == "Human (IAM User)"
 
 def test_parse_identity_eks_automation(eks_automation_event):
     who, context = parse_identity(eks_automation_event["detail"]["userIdentity"])
     assert "gha-actor" in who
-    assert "(Issuer: arn:aws:iam::111122223333:role/GitHubTerraformSandboxRole)" in who
+    assert "(Issuer: arn:aws:iam::804372444787:role/GitHubTerraformSandboxRole)" in who
     assert context == "Automation (GitHub Actions)"
 
 def test_parse_identity_root(root_login_event):
     who, context = parse_identity(root_login_event["detail"]["userIdentity"])
-    assert "arn:aws:iam::111122223333:root" in who
+    assert "arn:aws:iam::804372444787:root" in who
     assert context == "Root Account"
 
 def test_parse_identity_missing():
