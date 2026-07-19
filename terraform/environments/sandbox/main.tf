@@ -114,6 +114,17 @@ module "ecr" {
   project_name     = var.project_name
   environment      = var.environment
   ecr_repositories = var.ecr_repositories
+
+  # Tag convention <version>-<svc>-<sha> + Cosign ký digest GIẢ ĐỊNH tag không bị
+  # ghi đè -> bật IMMUTABLE cho khớp (trước giờ repo đang MUTABLE dù comment CI
+  # nói ngược lại). Đánh đổi: tag cosign sha256-*.sig/.att cũng chỉ ghi được 1
+  # lần -> re-run sign/attest trên CÙNG digest sẽ fail (exclusion filter cần AWS
+  # provider mới hơn ~> 4.0 đang pin, chưa dùng được).
+  image_mutability = "IMMUTABLE"
+
+  # Node role của cluster develop (account khác) pull image từ ECR chung này.
+  # ARN lấy từ output `eks_managed_node_role_arn` của terraform/environments/develop.
+  pull_principal_arns = var.ecr_pull_principal_arns
 }
 
 # IRSA cho external-dns: quyền ghi record trong ĐÚNG hosted zone của subdomain.
