@@ -31,10 +31,14 @@ declare -A EXPECT=(
   ["neg-09-partial-resources.yaml"]="require-resources"
   ["neg-10-podlevel-root.yaml"]="run-as-non-root"
   ["neg-11-uppercase-tag.yaml"]="deny-floating-image-tag"
+  ["neg-12-deploy-root.yaml"]="run-as-non-root"
+  ["neg-13-cronjob-latest.yaml"]="deny-floating-image-tag"
   ["pos-01-valid.yaml"]=""
   ["pos-02-podlevel-nonroot.yaml"]=""
   ["pos-03-otel-exempt.yaml"]=""
   ["pos-04-digest-netbind.yaml"]=""
+  ["pos-05-deploy-valid.yaml"]=""
+  ["pos-06-cronjob-valid.yaml"]=""
 )
 
 ORDER=(neg-01-root.yaml neg-02-image-latest.yaml neg-03-missing-resources.yaml \
@@ -42,8 +46,10 @@ ORDER=(neg-01-root.yaml neg-02-image-latest.yaml neg-03-missing-resources.yaml \
        neg-06-initcontainer-latest.yaml neg-07-privesc-absent.yaml \
        neg-08-no-caps-block.yaml neg-09-partial-resources.yaml \
        neg-10-podlevel-root.yaml neg-11-uppercase-tag.yaml \
+       neg-12-deploy-root.yaml neg-13-cronjob-latest.yaml \
        pos-01-valid.yaml pos-02-podlevel-nonroot.yaml \
-       pos-03-otel-exempt.yaml pos-04-digest-netbind.yaml)
+       pos-03-otel-exempt.yaml pos-04-digest-netbind.yaml \
+       pos-05-deploy-valid.yaml pos-06-cronjob-valid.yaml)
 
 PASS=0; FAIL=0
 

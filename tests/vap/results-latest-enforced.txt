@@ -33,9 +33,9 @@ The pods "vaptest-neg-04-priv-esc" is invalid: : ValidatingAdmissionPolicy 'deny
 ============================================================
 >>> neg-05-multi.yaml
 ------------------------------------------------------------
-The pods "vaptest-neg-05-multi" is invalid: : ValidatingAdmissionPolicy 'require-resources' with binding 'require-resources-binding' denied request: containers must have CPU and Memory requests and limits defined: bad
+The pods "vaptest-neg-05-multi" is invalid: : ValidatingAdmissionPolicy 'deny-floating-image-tag' with binding 'deny-floating-image-tag-binding' denied request: container has disallowed image tag or no tag specified: bad (busybox:latest)
 
-✅ PASS — bị từ chối bởi: require-resources (kỳ vọng: run-as-non-root deny-floating-image-tag require-resources deny-privilege-escalation psp-capabilities)
+✅ PASS — bị từ chối bởi: deny-floating-image-tag (kỳ vọng: run-as-non-root deny-floating-image-tag require-resources deny-privilege-escalation psp-capabilities)
 
 ============================================================
 >>> neg-06-initcontainer-latest.yaml
@@ -80,6 +80,20 @@ The pods "vaptest-neg-11-uppercase-tag" is invalid: : ValidatingAdmissionPolicy 
 ✅ PASS — bị từ chối bởi: deny-floating-image-tag (kỳ vọng: deny-floating-image-tag)
 
 ============================================================
+>>> neg-12-deploy-root.yaml
+------------------------------------------------------------
+The deployments "vaptest-neg-12-deploy-root" is invalid: : ValidatingAdmissionPolicy 'run-as-non-root' with binding 'run-as-non-root-binding' denied request: containers must run as non-root (runAsNonRoot: true or runAsUser != 0): app
+
+✅ PASS — bị từ chối bởi: run-as-non-root (kỳ vọng: run-as-non-root)
+
+============================================================
+>>> neg-13-cronjob-latest.yaml
+------------------------------------------------------------
+The cronjobs "vaptest-neg-13-cronjob-latest" is invalid: : ValidatingAdmissionPolicy 'deny-floating-image-tag' with binding 'deny-floating-image-tag-binding' denied request: container has disallowed image tag or no tag specified: app (nginx:latest)
+
+✅ PASS — bị từ chối bởi: deny-floating-image-tag (kỳ vọng: deny-floating-image-tag)
+
+============================================================
 >>> pos-01-valid.yaml
 ------------------------------------------------------------
 pod/vaptest-pos-01-valid created (server dry run)
@@ -108,7 +122,21 @@ pod/vaptest-pos-04-digest-netbind created (server dry run)
 ✅ PASS — hợp lệ, không luật nào bắt
 
 ============================================================
-TỔNG KẾT:  PASS=15  FAIL=0  / 15 case
+>>> pos-05-deploy-valid.yaml
+------------------------------------------------------------
+deployment.apps/vaptest-pos-05-deploy-valid created (server dry run)
+
+✅ PASS — hợp lệ, không luật nào bắt
+
+============================================================
+>>> pos-06-cronjob-valid.yaml
+------------------------------------------------------------
+cronjob.batch/vaptest-pos-06-cronjob-valid created (server dry run)
+
+✅ PASS — hợp lệ, không luật nào bắt
+
+============================================================
+TỔNG KẾT:  PASS=19  FAIL=0  / 19 case
 Mode enforcement = Deny: manifest vi phạm bị TỪ CHỐI ngay lúc apply.
 Deny short-circuit ở luật đầu tiên nên case đa-vi-phạm chỉ hiện 1 luật.
 ============================================================
