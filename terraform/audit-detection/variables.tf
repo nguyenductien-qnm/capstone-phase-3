@@ -87,14 +87,14 @@ variable "lambda_memory_size_mb" {
   }
 }
 
-variable "lambda_reserved_concurrency" {
+variable "lambda_maximum_concurrency" {
   type        = number
-  description = "Reserved concurrency for the Slack delivery Lambda"
+  description = "Maximum concurrency for the SQS event source without consuming account reserved concurrency"
   default     = 2
 
   validation {
-    condition     = var.lambda_reserved_concurrency >= 1
-    error_message = "lambda_reserved_concurrency must be at least 1."
+    condition     = var.lambda_maximum_concurrency >= 2 && var.lambda_maximum_concurrency <= 1000
+    error_message = "lambda_maximum_concurrency must be between 2 and 1000."
   }
 }
 

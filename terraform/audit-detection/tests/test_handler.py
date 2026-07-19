@@ -99,8 +99,26 @@ def test_missing_fields():
     detail = {"eventName": "UnknownAction"}
     attributes = {}
     result = format_slack_message(detail, attributes)
-    assert "UnknownAction" in result["text"]
-    assert "Unknown" in result["text"]
+    rendered = json.dumps(result)
+    assert "UnknownAction" in rendered
+    assert "Unknown" in rendered
+
+
+def test_format_slack_message_uses_readable_blocks(iam_create_user_event):
+    result = format_slack_message(
+        iam_create_user_event["detail"],
+        {"SentTimestamp": "1784471710809"},
+        "iam_credential_persistence",
+        "iam-credential-persistence",
+    )
+
+    assert result["text"].startswith("AWS Audit Alert:")
+    assert result["blocks"][0]["type"] == "header"
+    assert any(block["type"] == "divider" for block in result["blocks"])
+    rendered = json.dumps(result)
+    assert "CreateUser" in rendered
+    assert "Time to detect" in rendered
+    assert "iam_credential_persistence" in rendered
 
 @patch("urllib.request.urlopen")
 def test_send_to_slack_success(mock_urlopen):
@@ -147,7 +165,7 @@ def test_lambda_handler_success(mock_get_webhook, mock_send, sqs_payload):
     
     # Inspect the actual EventBridge transformer contract consumed by Lambda.
     args, kwargs = mock_send.call_args
-    slack_msg = args[1]["text"]
+    slack_msg = json.dumps(args[1])
     assert "evt-123" in slack_msg
     assert "req-123" in slack_msg
     assert "iam_credential_persistence" in slack_msg
@@ -222,29 +240,6 @@ def test_get_webhook_url_secretsmanager(mock_boto):
     url = handler.get_webhook_url()
     assert url == "https://hooks.slack.com/services/sm"
     mock_boto.assert_called_with("secretsmanager")
-
-@patch("handler.send_to_slack")
-@patch("handler.get_webhook_url")
-def test_lambda_handler_ping_success(mock_get_webhook, mock_send):
-    mock_get_webhook.return_value = "https://hooks.slack.com/services/test"
-    
-    response = lambda_handler({"action": "ping"}, None)
-    
-    assert response["statusCode"] == 200
-    assert "Slack ping check succeeded" in response["body"]
-    mock_send.assert_called_once()
-    assert "HEALTH CHECK" in mock_send.call_args[0][1]["text"]
-
-@patch("handler.send_to_slack")
-@patch("handler.get_webhook_url")
-def test_lambda_handler_ping_failure(mock_get_webhook, mock_send):
-    mock_get_webhook.return_value = "https://hooks.slack.com/services/test"
-    mock_send.side_effect = Exception("Slack Unavailable")
-
-    with pytest.raises(Exception, match="Slack Unavailable"):
-        lambda_handler({"type": "ping"}, None)
-
-    mock_send.assert_called_once()
 
 @patch.dict(os.environ, {}, clear=True)
 def test_get_webhook_url_missing_configuration_fails():

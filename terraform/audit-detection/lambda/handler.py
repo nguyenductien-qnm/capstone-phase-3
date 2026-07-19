@@ -216,7 +216,7 @@ def format_slack_message(
     detection_category="unknown_detection",
     rule_key="unknown_rule",
 ):
-    """Format the audit alert contract as a bounded Slack message."""
+    """Format the audit alert contract as a readable, bounded Block Kit message."""
     event_name = detail.get("eventName", "Unknown")
     event_source = detail.get("eventSource", "Unknown")
     event_time = detail.get("eventTime", "Unknown")
@@ -243,26 +243,124 @@ def format_slack_message(
         event_time, sqs_attributes.get("SentTimestamp")
     )
 
-    text = (
-        "🚨 *AWS Audit Detection Alert* 🚨\n"
-        f"*Nhóm phát hiện:* `{_slack_safe(detection_category)}` "
-        f"(rule: `{_slack_safe(rule_key)}`)\n"
-        f"*Caller Context:* `{_slack_safe(caller_context)}`\n"
-        f"*Ai:* `{_slack_safe(who, 1500)}`\n"
-        f"*Làm gì:* `{_slack_safe(event_source)}` - `{_slack_safe(event_name)}`\n"
-        f"*Khi nào:* `{_slack_safe(event_time)}`\n"
-        f"*Từ đâu:* `{_slack_safe(source_ip)}` (Region: `{_slack_safe(region)}`) - "
-        f"`{_slack_safe(user_agent, 500)}`\n"
-        f"*Kết quả:* `{_slack_safe(outcome)}` (MFA: `{_slack_safe(mfa_used)}`)\n"
-        f"*Tài nguyên:* `{_slack_safe(resources, 3500)}`\n"
-        f"*Tương quan:* EventID: `{_slack_safe(event_id)}`, "
-        f"RequestID: `{_slack_safe(request_id)}`\n"
-        f"*TTD:* DetectedAt: `{_slack_safe(detected_at)}`, "
-        f"Processing TTD: `{_slack_safe(processing_ttd)}`, "
-        f"Queue Age: `{_slack_safe(queue_age)}`\n"
-        "*Hướng xử lý:* Investigation runbook"
+    status_icon = "✅" if outcome == "Success" else "⚠️"
+    fallback_text = (
+        f"AWS Audit Alert: {event_name} by {caller_context} from {source_ip} "
+        f"in {region} — {outcome}"
     )
-    return {"text": text[:12000]}
+
+    blocks = [
+        {
+            "type": "header",
+            "text": {
+                "type": "plain_text",
+                "text": "🚨 AWS Audit Detection Alert",
+                "emoji": True,
+            },
+        },
+        {
+            "type": "section",
+            "fields": [
+                {
+                    "type": "mrkdwn",
+                    "text": (
+                        "*Hành động*\n"
+                        f"`{_slack_safe(event_source, 350)}` · "
+                        f"`{_slack_safe(event_name, 350)}`"
+                    ),
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": (
+                        f"*Kết quả*\n{status_icon} "
+                        f"`{_slack_safe(outcome, 700)}` · MFA `{_slack_safe(mfa_used)}`"
+                    ),
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": f"*Người gọi*\n`{_slack_safe(caller_context, 500)}`",
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": (
+                        "*Nguồn*\n"
+                        f"`{_slack_safe(source_ip, 300)}` · `{_slack_safe(region, 100)}`"
+                    ),
+                },
+            ],
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"*Identity*\n`{_slack_safe(who, 1500)}`",
+            },
+        },
+        {"type": "divider"},
+        {
+            "type": "section",
+            "fields": [
+                {
+                    "type": "mrkdwn",
+                    "text": f"*Thời điểm sự kiện*\n`{_slack_safe(event_time, 300)}`",
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": (
+                        "*Time to detect*\n"
+                        f"`{_slack_safe(processing_ttd, 100)}` "
+                        f"(queue `{_slack_safe(queue_age, 100)}`)"
+                    ),
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": (
+                        "*Nhóm phát hiện*\n"
+                        f"`{_slack_safe(detection_category, 500)}`"
+                    ),
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": f"*Rule*\n`{_slack_safe(rule_key, 500)}`",
+                },
+            ],
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"*Tài nguyên / tham số*\n```{_slack_safe(resources, 2400)}```",
+            },
+        },
+        {
+            "type": "context",
+            "elements": [
+                {
+                    "type": "mrkdwn",
+                    "text": (
+                        f"EventID `{_slack_safe(event_id, 500)}` · "
+                        f"RequestID `{_slack_safe(request_id, 500)}`"
+                    ),
+                },
+                {
+                    "type": "mrkdwn",
+                    "text": (
+                        f"Detected `{_slack_safe(detected_at, 300)}` · "
+                        f"Agent `{_slack_safe(user_agent, 500)}`"
+                    ),
+                },
+            ],
+        },
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": "*Bước tiếp theo:* mở investigation runbook và xác minh actor.",
+            },
+        },
+    ]
+
+    return {"text": _slack_safe(fallback_text, 1000), "blocks": blocks}
 
 
 def send_to_slack(webhook_url, payload):
@@ -288,15 +386,6 @@ def send_to_slack(webhook_url, payload):
     except error.URLError as exc:
         logger.error("Slack delivery connection error: %s", exc.reason)
         raise
-
-
-def ping_slack(webhook_url):
-    """Perform an explicit Slack delivery check; failures are Lambda failures."""
-    send_to_slack(
-        webhook_url,
-        {"text": "🔍 *[HEALTH CHECK] Audit Detection Slack delivery succeeded.*"},
-    )
-    return {"statusCode": 200, "body": "Slack ping check succeeded"}
 
 
 def _get_idempotency_table():
@@ -395,11 +484,6 @@ def _unwrap_eventbridge_message(message_body):
 
 
 def lambda_handler(event, context):
-    if isinstance(event, dict) and (
-        event.get("action") == "ping" or event.get("type") == "ping"
-    ):
-        return ping_slack(get_webhook_url())
-
     records = event.get("Records", []) if isinstance(event, dict) else []
     if not records:
         raise ValueError("Expected at least one SQS record")

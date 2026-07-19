@@ -101,10 +101,12 @@ data "aws_iam_policy_document" "pipeline_health_topic" {
     sid    = "AccountAdministration"
     effect = "Allow"
     actions = [
+      "sns:AddPermission",
       "sns:DeleteTopic",
       "sns:GetTopicAttributes",
       "sns:ListSubscriptionsByTopic",
       "sns:Publish",
+      "sns:RemovePermission",
       "sns:SetTopicAttributes",
       "sns:Subscribe",
     ]
@@ -143,9 +145,20 @@ data "aws_iam_policy_document" "pipeline_health_topic" {
   }
 
   statement {
-    sid     = "DenyInsecureTransport"
-    effect  = "Deny"
-    actions = ["sns:*"]
+    sid    = "DenyInsecureTransport"
+    effect = "Deny"
+    # SNS topic policies reject the service-wide wildcard as out of scope.
+    # Enumerate the complete, long-supported topic-policy action set instead.
+    actions = [
+      "sns:AddPermission",
+      "sns:DeleteTopic",
+      "sns:GetTopicAttributes",
+      "sns:ListSubscriptionsByTopic",
+      "sns:Publish",
+      "sns:RemovePermission",
+      "sns:SetTopicAttributes",
+      "sns:Subscribe",
+    ]
 
     principals {
       type        = "*"

@@ -36,7 +36,7 @@ module "processor" {
   slack_webhook_kms_key_arn     = var.slack_webhook_kms_key_arn
   lambda_timeout_seconds        = var.lambda_timeout_seconds
   lambda_memory_size_mb         = var.lambda_memory_size_mb
-  lambda_reserved_concurrency   = var.lambda_reserved_concurrency
+  lambda_maximum_concurrency    = var.lambda_maximum_concurrency
   lambda_log_level              = var.lambda_log_level
   log_retention_days            = var.log_retention_days
   idempotency_lease_seconds     = var.idempotency_lease_seconds

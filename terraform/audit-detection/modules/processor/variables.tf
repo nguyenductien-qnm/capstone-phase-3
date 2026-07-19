@@ -45,9 +45,9 @@ variable "lambda_memory_size_mb" {
   description = "Lambda memory allocation"
 }
 
-variable "lambda_reserved_concurrency" {
+variable "lambda_maximum_concurrency" {
   type        = number
-  description = "Lambda reserved concurrency"
+  description = "Maximum SQS event-source concurrency"
 }
 
 variable "lambda_log_level" {

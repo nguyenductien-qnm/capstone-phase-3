@@ -48,9 +48,8 @@ resource "aws_lambda_function" "slack_alert" {
   filename         = data.archive_file.lambda.output_path
   source_code_hash = data.archive_file.lambda.output_base64sha256
 
-  memory_size                    = var.lambda_memory_size_mb
-  timeout                        = var.lambda_timeout_seconds
-  reserved_concurrent_executions = var.lambda_reserved_concurrency
+  memory_size = var.lambda_memory_size_mb
+  timeout     = var.lambda_timeout_seconds
 
   environment {
     variables = {
@@ -80,4 +79,8 @@ resource "aws_lambda_event_source_mapping" "processing_queue" {
 
   batch_size                         = 1
   maximum_batching_window_in_seconds = 0
+
+  scaling_config {
+    maximum_concurrency = var.lambda_maximum_concurrency
+  }
 }
