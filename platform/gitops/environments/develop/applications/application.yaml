@@ -22,8 +22,8 @@ spec:
     server: https://kubernetes.default.svc
     namespace: techx-develop
   syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
     syncOptions:
       - CreateNamespace=true
-
-  # Automated sync/prune/self-heal is intentionally disabled until this
-  # isolated manifest set has been reviewed against the live Develop cluster.

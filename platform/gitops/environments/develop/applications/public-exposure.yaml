@@ -15,8 +15,11 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: techx-develop
-  # Manual sync is intentional. This Application owns only the Develop NLB
-  # Service; frontend-proxy Pods may be added in a later phase.
+  # App này chỉ own Service NLB public cho frontend-proxy (đã có Pod chạy
+  # trong develop-techx-corp từ 2026-07-19).
   syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
     syncOptions:
       - CreateNamespace=true
