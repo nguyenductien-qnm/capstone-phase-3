@@ -82,3 +82,10 @@ variable "eks_node_security_group_id" {
   type        = string
   description = "EKS node security group ID to allow access to RDS"
 }
+
+variable "enable_logical_replication" {
+  type        = bool
+  description = "Enable logical replication (creates custom parameter group)"
+  default     = false
+}
+
