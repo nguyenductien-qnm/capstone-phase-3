@@ -238,6 +238,12 @@ variable "ecr_repositories" {
   description = "Danh sách tên các repositories cần khởi tạo trên ECR"
 }
 
+variable "ecr_pull_principal_arns" {
+  type        = list(string)
+  description = "IAM role ARN cross-account được phép pull image từ ECR chung (vd managed node role + karpenter node role của cluster develop). Rỗng = không tạo repository policy."
+  default     = []
+}
+
 variable "route53_zone_id" {
   type        = string
   description = "Route53 hosted zone ID của subdomain — external-dns được cấp quyền ghi record ĐÚNG zone này (least-privilege)"
