@@ -76,4 +76,4 @@ metadata:
   name: "require-resources-binding"
 spec:
   policyName: "require-resources"
-  validationActions: [Warn]
+  validationActions: [Deny]

@@ -25,8 +25,8 @@ Chúng ta sử dụng tính năng native **Kubernetes ValidatingAdmissionPolicy 
 * **Không dựng thêm service:** OPA Gatekeeper yêu cầu chạy thêm các controller và audit pods, vi phạm ràng buộc không sinh thêm hạ tầng/service mới của Directive #5. VAP chạy trực tiếp trong Kubernetes API Server sử dụng CEL, **tài nguyên tiêu thụ thêm bằng 0** và không sinh thêm bất kỳ pod/service nào trong cluster.
 * **Áp dụng toàn bộ cluster (Cluster-wide):** Khác với cấu hình Gatekeeper cũ bị giới hạn ở 1 namespace `techx-tf1`, các chính sách VAP mới được áp dụng ở cấp độ toàn bộ cluster (Cluster-wide), chỉ loại trừ các namespace hệ thống thông qua `namespaceSelector`.
 
-### Các luật được triển khai (Deployed Rules - Warn-first mode):
-Năm chính sách (policies) sau đây được triển khai lên cụm thật 804 (main cluster) ở chế độ cảnh báo (validationActions: [Warn]) để theo dõi. Kế hoạch là sẽ chuyển sang chế độ chặn (validationActions: [Deny]) sau thời gian quan sát:
+### Các luật đang thực thi (Enforced Rules - Deny mode):
+Năm chính sách (policies) sau đây đã được triển khai lên cluster ở chế độ **chặn thật sự (validationActions: [Deny])** kể từ 19/07/2026. Bất kỳ manifest vi phạm nào sẽ bị API Server từ chối ngay tại lệnh `kubectl apply`:
 * `psp-capabilities`: Chặn tất cả các capabilities ngoại trừ các cấu hình đặc biệt được cho phép (bắt buộc drop ALL, chỉ cho phép add NET_BIND_SERVICE).
 * `deny-privilege-escalation`: Bắt buộc thiết lập `allowPrivilegeEscalation: false`.
 * `run-as-non-root`: Bắt buộc thiết lập `runAsNonRoot: true` hoặc `runAsUser > 0`.
