@@ -6,7 +6,7 @@
 # =============================================================================
 set -uo pipefail
 
-NS="techx-tf1"
+NS="${NS:-default}"
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$DIR"
 
@@ -56,15 +56,17 @@ for f in "${ORDER[@]}"; do
   echo "$OUT"
   echo
 
-  # 1) Policy kỳ vọng phải xuất hiện trong output
-  missing=""
+  # Chế độ enforcement: Deny short-circuit ở luật ĐẦU TIÊN fail -> output chỉ
+  # chứa 1 policy dù manifest vi phạm nhiều luật. Vì vậy:
+  #   - case neg (EXPECT không rỗng): PASS nếu output chứa ÍT NHẤT 1 luật kỳ vọng
+  #     và KHÔNG chứa luật ngoài danh sách kỳ vọng.
+  #   - case pos (EXPECT rỗng): PASS nếu output KHÔNG chứa luật nào (pod created).
+  hit=""      # luật kỳ vọng đã xuất hiện
   for pol in ${EXPECT[$f]}; do
-    if ! grep -q "$pol" <<<"$OUT"; then
-      missing="$missing $pol"
-    fi
+    grep -q "$pol" <<<"$OUT" && hit="$hit $pol"
   done
 
-  # 2) Policy NGOÀI kỳ vọng không được xuất hiện (chống nhiễu chéo / false positive)
+  # Policy NGOÀI kỳ vọng không được xuất hiện (chống nhiễu chéo / false positive)
   unexpected=""
   for pol in run-as-non-root deny-floating-image-tag require-resources \
              deny-privilege-escalation psp-capabilities; do
@@ -73,14 +75,18 @@ for f in "${ORDER[@]}"; do
     fi
   done
 
-  if [[ -n "$missing" ]]; then
-    echo "❌ FAIL — thiếu warning kỳ vọng:$missing"
+  if [[ -n "$unexpected" ]]; then
+    echo "❌ FAIL — xuất hiện luật ngoài kỳ vọng:$unexpected"
     ((FAIL++))
-  elif [[ -n "$unexpected" ]]; then
-    echo "❌ FAIL — case hợp lệ nhưng bị bắt:$unexpected"
+  elif [[ -n "${EXPECT[$f]}" && -z "$hit" ]]; then
+    echo "❌ FAIL — case vi phạm nhưng KHÔNG bị luật nào bắt (kỳ vọng: ${EXPECT[$f]})"
     ((FAIL++))
   else
-    echo "✅ PASS — khớp kỳ vọng [${EXPECT[$f]:-không warning}]"
+    if [[ -n "${EXPECT[$f]}" ]]; then
+      echo "✅ PASS — bị từ chối bởi:$hit (kỳ vọng: ${EXPECT[$f]})"
+    else
+      echo "✅ PASS — hợp lệ, không luật nào bắt"
+    fi
     ((PASS++))
   fi
   echo
@@ -88,7 +94,6 @@ done
 
 echo "============================================================"
 echo "TỔNG KẾT:  PASS=$PASS  FAIL=$FAIL  / ${#ORDER[@]} case"
-echo "Lưu ý: binding đang ở action=Warn -> vi phạm hiện dạng Warning,"
-echo "       pod vẫn 'configured (server dry run)'. Khi bật Deny (Phase 3)"
-echo "       các case neg sẽ bị TỪ CHỐI (error) thật."
+echo "Mode enforcement = Deny: manifest vi phạm bị TỪ CHỐI ngay lúc apply."
+echo "Deny short-circuit ở luật đầu tiên nên case đa-vi-phạm chỉ hiện 1 luật."
 echo "============================================================"

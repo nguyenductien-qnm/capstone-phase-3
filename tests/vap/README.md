@@ -5,10 +5,27 @@ KHÔNG ghi gì vào cluster (an toàn với workload đang chạy).
 
 ## Cách chạy
 
+Chạy **từ trong thư mục `tests/vap/`** (script sẽ tự `cd` về đúng chỗ chứa các
+manifest, nhưng tên file phải gọi đúng vị trí):
+
 ```bash
+cd tests/vap
 bash run-dry-run-tests.sh
 # hoặc lưu evidence:
 bash run-dry-run-tests.sh 2>&1 | tee "results-$(date +%Y%m%d-%H%M).txt"
+```
+
+Nếu đang đứng ở thư mục `tests/` (thư mục cha), gọi kèm đường dẫn `vap/`:
+
+```bash
+bash vap/run-dry-run-tests.sh
+```
+
+Mặc định test chạy trên namespace `default`. Để test đúng namespace production
+`techx-tf1`, đặt biến `NS` ở đầu lệnh:
+
+```bash
+NS=techx-tf1 bash run-dry-run-tests.sh
 ```
 
 Yêu cầu: SSO đã đăng nhập, kubectl trỏ cluster `ecommerce-dev-eks`, có quyền
