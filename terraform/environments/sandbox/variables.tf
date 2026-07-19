@@ -150,7 +150,7 @@ variable "eks_ops_node_subnet_key" {
 variable "eks_ops_node_instance_types" {
   type        = list(string)
   description = "EC2 instance types for the observability node group"
-  default     = ["t3.medium"]
+  default     = ["t3.large"]
 }
 
 variable "eks_ops_node_disk_size_gib" {
