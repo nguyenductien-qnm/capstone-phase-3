@@ -256,7 +256,7 @@ BƯỚC 4: CONTRACT       → Drop cột picture cũ
 
 ---
 
-## 8. Khuyến nghị vận hành (điền sau khi có số thật)
+## 8. Khuyến nghị vận hành 
 
 - **Chunk size khuyến nghị:** `100` (Giúp giải phóng khóa dòng nhanh chóng và giữ CPU sử dụng dưới 7%).
 - **Sleep interval khuyến nghị:** `100 ms` (Đảm bảo cho các request mua hàng của người dùng chen vào xử lý bình thường giữa các batch).
