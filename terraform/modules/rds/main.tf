@@ -61,6 +61,34 @@ resource "aws_security_group_rule" "db_ingress_proxy" {
   description              = "Allow connection from RDS Proxy to database"
 }
 
+# Custom Parameter Group để bật logical replication.
+# Bắt buộc cho Blue/Green deployment (RDS cần logical replication để đồng bộ Blue -> Green)
+# và cho các use-case CDC/logical replication khác.
+# rds.logical_replication là static parameter -> yêu cầu reboot để có hiệu lực.
+resource "aws_db_parameter_group" "this" {
+  count       = var.enable_logical_replication ? 1 : 0
+  name_prefix = "${var.project_name}-${var.environment}-postgres-pg-"
+  family      = "postgres${split(".", var.engine_version)[0]}"
+  description = "Custom parameter group cho PostgreSQL - bat logical replication"
+
+  parameter {
+    name         = "rds.logical_replication"
+    value        = "1"
+    apply_method = "pending-reboot"
+  }
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-postgres-pg"
+    Environment = var.environment
+    Project     = var.project_name
+  }
+
+  # Đổi engine major version sẽ đổi family -> tạo group mới trước khi xóa group cũ
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
 # Primary Database Instance
 resource "aws_db_instance" "this" {
   identifier           = "${var.project_name}-${var.environment}-postgres"
@@ -72,6 +100,7 @@ resource "aws_db_instance" "this" {
   username             = var.db_username
   password             = random_password.db_password.result
   db_subnet_group_name = aws_db_subnet_group.this.name
+  parameter_group_name = var.enable_logical_replication ? aws_db_parameter_group.this[0].name : null
   skip_final_snapshot  = true
   multi_az             = var.multi_az
   storage_encrypted    = true
@@ -101,6 +130,7 @@ resource "aws_db_instance" "replica" {
   instance_class       = var.replica_instance_class
   skip_final_snapshot  = true
   db_subnet_group_name = null # replica tự động thừa hưởng subnet group của primary
+  parameter_group_name = var.enable_logical_replication ? aws_db_parameter_group.this[0].name : null
   storage_encrypted    = true
 
   vpc_security_group_ids = [aws_security_group.db.id]
