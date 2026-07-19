@@ -211,17 +211,10 @@ module "external_secrets_irsa" {
   ]
 }
 
-# Unbind old PG16 DB instance from state (state rm) without deleting it from AWS
-removed {
-  from = module.rds.aws_db_instance.this
-  lifecycle {
-    destroy = false
-  }
-}
-
 # Import active PG17 DB instance into state
 import {
   to = module.rds.aws_db_instance.this
   id = "ecommerce-develop-dev-postgres"
 }
+
 
