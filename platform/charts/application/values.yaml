@@ -420,17 +420,17 @@ components:
       rollingUpdate:
         maxUnavailable: 0
         maxSurge: 1
-    startupProbe: # CDO-80: che boot chờ kafka (<=150s)
-      grpc: { port: 8080, service: "readiness" }
+    startupProbe: # Process startup must not inherit Kafka-dependent readiness.
+      grpc: { port: 8080, service: "liveness" }
       periodSeconds: 5
       failureThreshold: 30
-    readinessProbe: # CDO-80: gate traffic theo dependency
+    readinessProbe: # Process readiness; Kafka post-processing degrades via telemetry.
       grpc: { port: 8080, service: "readiness" }
       periodSeconds: 5
       timeoutSeconds: 2
       failureThreshold: 3
       successThreshold: 1
-    livenessProbe: # CDO-80: chỉ process sống — KHÔNG phụ thuộc kafka (Option C)
+    livenessProbe: # Process-only; never depends on Kafka.
       grpc: { port: 8080, service: "liveness" }
       periodSeconds: 10
       timeoutSeconds: 2

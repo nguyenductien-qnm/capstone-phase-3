@@ -35,7 +35,6 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/contrib/instrumentation/runtime"
 	"go.opentelemetry.io/otel"
-	otelcodes "go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
@@ -46,17 +45,15 @@ import (
 	sdkresource "go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
+	pb "github.com/open-telemetry/techx-corp/src/checkout/genproto/oteldemo"
+	"github.com/open-telemetry/techx-corp/src/checkout/kafka"
+	"github.com/open-telemetry/techx-corp/src/checkout/money"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/proto"
-
-	pb "github.com/open-telemetry/techx-corp/src/checkout/genproto/oteldemo"
-	"github.com/open-telemetry/techx-corp/src/checkout/kafka"
-	"github.com/open-telemetry/techx-corp/src/checkout/money"
 )
 
 //go:generate go install google.golang.org/protobuf/cmd/protoc-gen-go
@@ -142,7 +139,7 @@ type checkout struct {
 	paymentSvcAddr        string
 	kafkaBrokerSvcAddr    string
 	pb.UnimplementedCheckoutServiceServer
-	KafkaProducerClient     sarama.AsyncProducer
+	orderEventPublisher     OrderEventPublisher
 	shippingSvcClient       pb.ShippingServiceClient
 	productCatalogSvcClient pb.ProductCatalogServiceClient
 	cartSvcClient           pb.CartServiceClient
@@ -233,10 +230,16 @@ func main() {
 
 	if svc.kafkaBrokerSvcAddr != "" {
 		brokers := strings.Split(svc.kafkaBrokerSvcAddr, ",")
-		svc.KafkaProducerClient, err = kafka.CreateKafkaProducer(brokers, logger)
-		if err != nil {
-			logger.Error(err.Error())
+		producer, producerErr := kafka.CreateKafkaProducer(brokers, logger)
+		svc.orderEventPublisher = newKafkaOrderEventPublisher(producer, kafkaPublishTimeout())
+		if producerErr != nil {
+			logger.Error(producerErr.Error())
 		}
+		defer func() {
+			if closeErr := svc.orderEventPublisher.Close(); closeErr != nil {
+				logger.Error(fmt.Sprintf("failed to close Kafka publisher: %v", closeErr))
+			}
+		}()
 	}
 
 	logger.Info(fmt.Sprintf("service config: %+v", svc))
@@ -251,47 +254,8 @@ func main() {
 	)
 	pb.RegisterCheckoutServiceServer(srv, svc)
 
-	healthcheck := health.NewServer()
+	healthcheck := newCheckoutHealthServer()
 	healthpb.RegisterHealthServer(srv, healthcheck)
-
-	// CDO-80 (Option C): tách liveness khỏi readiness để dependency (Kafka) giật
-	// không gây restart pod (cascade-restart). Liveness chỉ phản ánh "process còn sống".
-	healthcheck.SetServingStatus("liveness", healthpb.HealthCheckResponse_SERVING)
-	// Giữ tương thích ngược cho probe không truyền service name.
-	healthcheck.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
-
-	// Readiness ĐỘNG: kiểm tra kết nối TCP tới broker Kafka định kỳ (giống initContainer
-	// wait-for-kafka). Kafka mất → NOT_SERVING (pod bị kéo khỏi Endpoints) nhưng KHÔNG
-	// restart; Kafka hồi → SERVING trở lại. sarama.AsyncProducer không có API ping nên
-	// dùng net.DialTimeout thay vì phụ thuộc internals của producer.
-	go func() {
-		ticker := time.NewTicker(10 * time.Second)
-		defer ticker.Stop()
-		updateReadiness := func() {
-			if svc.kafkaBrokerSvcAddr == "" { // không cấu hình Kafka → coi như sẵn sàng
-				healthcheck.SetServingStatus("readiness", healthpb.HealthCheckResponse_SERVING)
-				return
-			}
-			reachable := false
-			for _, broker := range strings.Split(svc.kafkaBrokerSvcAddr, ",") {
-				conn, err := net.DialTimeout("tcp", broker, 2*time.Second)
-				if err == nil {
-					conn.Close()
-					reachable = true
-					break
-				}
-			}
-			if reachable {
-				healthcheck.SetServingStatus("readiness", healthpb.HealthCheckResponse_SERVING)
-			} else {
-				healthcheck.SetServingStatus("readiness", healthpb.HealthCheckResponse_NOT_SERVING)
-			}
-		}
-		updateReadiness()
-		for range ticker.C {
-			updateReadiness()
-		}
-	}()
 
 	logger.Info(fmt.Sprintf("starting to listen on tcp: %q", lis.Addr().String()))
 	err = srv.Serve(lis)
@@ -310,6 +274,17 @@ func main() {
 
 	srv.GracefulStop()
 	logger.Info("Checkout gRPC server stopped")
+}
+
+func newCheckoutHealthServer() *health.Server {
+	healthcheck := health.NewServer()
+	// Kafka post-processing is degraded independently through publisher metrics
+	// and logs. It must not remove the revenue path from service endpoints.
+	healthcheck.SetServingStatus("liveness", healthpb.HealthCheckResponse_SERVING)
+	healthcheck.SetServingStatus("readiness", healthpb.HealthCheckResponse_SERVING)
+	// Keep compatibility with probes that omit the service name.
+	healthcheck.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
+	return healthcheck
 }
 
 func mustMapEnv(target *string, envKey string) {
@@ -427,7 +402,9 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 	// send to kafka only if kafka broker address is set
 	if cs.kafkaBrokerSvcAddr != "" {
 		logger.Info("sending to postProcessor")
-		cs.sendToPostProcessor(ctx, orderResult)
+		if publishErr := cs.sendToPostProcessor(ctx, orderResult); publishErr != nil {
+			logger.Warn(fmt.Sprintf("failed to publish order post-processing event: %v", publishErr))
+		}
 	}
 
 	resp := &pb.PlaceOrderResponse{Order: orderResult}
@@ -650,74 +627,40 @@ func (cs *checkout) shipOrder(ctx context.Context, address *pb.Address, items []
 	return shipResp.TrackingID, nil
 }
 
-func (cs *checkout) sendToPostProcessor(ctx context.Context, result *pb.OrderResult) {
-	message, err := proto.Marshal(result)
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to marshal message to protobuf: %+v", err))
-		return
+func (cs *checkout) sendToPostProcessor(ctx context.Context, result *pb.OrderResult) error {
+	if cs.orderEventPublisher == nil {
+		return ErrKafkaProducerUnavailable
 	}
 
-	msg := sarama.ProducerMessage{
-		Topic: kafka.Topic,
-		Value: sarama.ByteEncoder(message),
-	}
-
-	// Inject tracing info into message
-	span := createProducerSpan(ctx, &msg)
-	defer span.End()
-
-	// Send message and handle response
-	startTime := time.Now()
-	select {
-	case cs.KafkaProducerClient.Input() <- &msg:
-		select {
-		case successMsg := <-cs.KafkaProducerClient.Successes():
-			span.SetAttributes(
-				attribute.Bool("messaging.kafka.producer.success", true),
-				attribute.Int("messaging.kafka.producer.duration_ms", int(time.Since(startTime).Milliseconds())),
-				attribute.KeyValue(semconv.MessagingKafkaMessageOffset(int(successMsg.Offset))),
-			)
-			logger.Info(fmt.Sprintf("Successful to write message. offset: %v, duration: %v", successMsg.Offset, time.Since(startTime)))
-		case errMsg := <-cs.KafkaProducerClient.Errors():
-			span.SetAttributes(
-				attribute.Bool("messaging.kafka.producer.success", false),
-				attribute.Int("messaging.kafka.producer.duration_ms", int(time.Since(startTime).Milliseconds())),
-			)
-			span.SetStatus(otelcodes.Error, errMsg.Err.Error())
-			logger.Error(fmt.Sprintf("Failed to write message: %v", errMsg.Err))
-		case <-ctx.Done():
-			span.SetAttributes(
-				attribute.Bool("messaging.kafka.producer.success", false),
-				attribute.Int("messaging.kafka.producer.duration_ms", int(time.Since(startTime).Milliseconds())),
-			)
-			span.SetStatus(otelcodes.Error, "Context cancelled: "+ctx.Err().Error())
-			logger.Warn(fmt.Sprintf("Context canceled before success message received: %v", ctx.Err()))
-		}
-	case <-ctx.Done():
-		span.SetAttributes(
-			attribute.Bool("messaging.kafka.producer.success", false),
-			attribute.Int("messaging.kafka.producer.duration_ms", int(time.Since(startTime).Milliseconds())),
-		)
-		span.SetStatus(otelcodes.Error, "Failed to send: "+ctx.Err().Error())
-		logger.Error(fmt.Sprintf("Failed to send message to Kafka within context deadline: %v", ctx.Err()))
-		return
-	}
+	publishErr := cs.orderEventPublisher.Publish(ctx, result)
 
 	ffValue := cs.getIntFeatureFlag(ctx, "kafkaQueueProblems")
 	if ffValue > 0 {
-		logger.Info("Warning: FeatureFlag 'kafkaQueueProblems' is activated, overloading queue now.")
-		for i := 0; i < ffValue; i++ {
-			go func(i int) {
-				cs.KafkaProducerClient.Input() <- &msg
-				_ = <-cs.KafkaProducerClient.Successes()
-			}(i)
-		}
-		logger.Info(fmt.Sprintf("Done with #%d messages for overload simulation.", ffValue))
+		cs.publishKafkaQueueProblems(ctx, result, ffValue)
 	}
+
+	return publishErr
+}
+
+func (cs *checkout) publishKafkaQueueProblems(ctx context.Context, result *pb.OrderResult, ffValue int) {
+	logger.Info("Warning: FeatureFlag 'kafkaQueueProblems' is activated, overloading queue now.")
+	for i := 0; i < ffValue; i++ {
+		go func(i int) {
+			incidentCtx := context.WithoutCancel(ctx)
+			if err := cs.orderEventPublisher.PublishIncident(incidentCtx, result); err != nil {
+				logger.Error(fmt.Sprintf("kafkaQueueProblems publish %d failed: %v", i, err))
+			}
+		}(i)
+	}
+	logger.Info(fmt.Sprintf("Done with #%d messages for overload simulation.", ffValue))
 }
 
 func createProducerSpan(ctx context.Context, msg *sarama.ProducerMessage) trace.Span {
-	spanContext, span := tracer.Start(
+	spanTracer := tracer
+	if spanTracer == nil {
+		spanTracer = otel.Tracer("checkout")
+	}
+	spanContext, span := spanTracer.Start(
 		ctx,
 		fmt.Sprintf("%s publish", msg.Topic),
 		trace.WithSpanKind(trace.SpanKindProducer),
