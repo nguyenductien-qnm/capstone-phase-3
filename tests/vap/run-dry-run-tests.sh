@@ -1,8 +1,8 @@
-#!/usr/bin/env bash
+﻿#!/usr/bin/env bash
 # =============================================================================
-# Mandate 05 - Test VAP bằng server-side dry-run (KHÔNG ghi gì vào cluster)
-# Chạy thủ công:  bash run-dry-run-tests.sh
-# Yêu cầu: đã đăng nhập SSO + kubectl trỏ đúng cluster ecommerce-dev-eks
+# Mandate 05 - VAP test via server-side dry-run (read-only, nothing written to cluster)
+# Usage: bash run-dry-run-tests.sh
+# Requires: SSO logged in + kubectl pointing to ecommerce-develop-dev-eks
 # =============================================================================
 set -uo pipefail
 
@@ -10,15 +10,12 @@ NS="${NS:-default}"
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$DIR"
 
-# Chặn nhầm: chỉ cho phép chạy nếu context đúng
 CTX="$(kubectl.exe config current-context 2>/dev/null)"
 echo "kubectl context : $CTX"
 echo "namespace       : $NS"
-echo "chế độ          : --dry-run=server (read-only, không tạo pod)"
+echo "mode            : --dry-run=server (read-only, no pod created)"
 echo
 
-# manifest -> danh sách policy kỳ vọng bị bắt (phân tách bởi khoảng trắng).
-# Rỗng = kỳ vọng KHÔNG có warning nào (case hợp lệ).
 declare -A EXPECT=(
   ["neg-01-root.yaml"]="run-as-non-root"
   ["neg-02-image-latest.yaml"]="deny-floating-image-tag"
@@ -58,22 +55,15 @@ for f in "${ORDER[@]}"; do
   echo ">>> $f"
   echo "------------------------------------------------------------"
 
-  # apply dry-run=server: stdout+stderr gộp lại (warning của VAP nằm ở stderr)
   OUT="$(kubectl.exe apply -f "$f" --dry-run=server -n "$NS" 2>&1)"
   echo "$OUT"
   echo
 
-  # Chế độ enforcement: Deny short-circuit ở luật ĐẦU TIÊN fail -> output chỉ
-  # chứa 1 policy dù manifest vi phạm nhiều luật. Vì vậy:
-  #   - case neg (EXPECT không rỗng): PASS nếu output chứa ÍT NHẤT 1 luật kỳ vọng
-  #     và KHÔNG chứa luật ngoài danh sách kỳ vọng.
-  #   - case pos (EXPECT rỗng): PASS nếu output KHÔNG chứa luật nào (pod created).
-  hit=""      # luật kỳ vọng đã xuất hiện
+  hit=""
   for pol in ${EXPECT[$f]}; do
     grep -q "$pol" <<<"$OUT" && hit="$hit $pol"
   done
 
-  # Policy NGOÀI kỳ vọng không được xuất hiện (chống nhiễu chéo / false positive)
   unexpected=""
   for pol in run-as-non-root deny-floating-image-tag require-resources \
              deny-privilege-escalation psp-capabilities; do
@@ -83,16 +73,16 @@ for f in "${ORDER[@]}"; do
   done
 
   if [[ -n "$unexpected" ]]; then
-    echo "❌ FAIL — xuất hiện luật ngoài kỳ vọng:$unexpected"
+    echo "FAIL -- unexpected policy fired:$unexpected"
     ((FAIL++))
   elif [[ -n "${EXPECT[$f]}" && -z "$hit" ]]; then
-    echo "❌ FAIL — case vi phạm nhưng KHÔNG bị luật nào bắt (kỳ vọng: ${EXPECT[$f]})"
+    echo "FAIL -- violation not caught (expected: ${EXPECT[$f]})"
     ((FAIL++))
   else
     if [[ -n "${EXPECT[$f]}" ]]; then
-      echo "✅ PASS — bị từ chối bởi:$hit (kỳ vọng: ${EXPECT[$f]})"
+      echo "PASS -- denied by:$hit (expected: ${EXPECT[$f]})"
     else
-      echo "✅ PASS — hợp lệ, không luật nào bắt"
+      echo "PASS -- valid manifest, no policy triggered"
     fi
     ((PASS++))
   fi
@@ -100,7 +90,7 @@ for f in "${ORDER[@]}"; do
 done
 
 echo "============================================================"
-echo "TỔNG KẾT:  PASS=$PASS  FAIL=$FAIL  / ${#ORDER[@]} case"
-echo "Mode enforcement = Deny: manifest vi phạm bị TỪ CHỐI ngay lúc apply."
-echo "Deny short-circuit ở luật đầu tiên nên case đa-vi-phạm chỉ hiện 1 luật."
+echo "TOTAL:  PASS=$PASS  FAIL=$FAIL  / ${#ORDER[@]} cases"
+echo "Enforcement = Deny: violations are REJECTED immediately on apply."
+echo "Deny short-circuits at first failing rule (multi-violation shows 1 rule)."
 echo "============================================================"
