@@ -217,4 +217,11 @@ import {
   id = "ecommerce-develop-dev-postgres"
 }
 
+# Import active PG17 parameter group into state
+import {
+  to = module.rds.aws_db_parameter_group.this[0]
+  id = "ecommerce-develop-dev-postgres-pg-20260719112656901300000001"
+}
+
+
 
