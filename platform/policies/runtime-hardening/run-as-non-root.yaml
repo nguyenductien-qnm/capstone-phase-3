@@ -88,4 +88,4 @@ metadata:
   name: "run-as-non-root-binding"
 spec:
   policyName: "run-as-non-root"
-  validationActions: [Warn]
+  validationActions: [Deny]

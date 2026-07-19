@@ -82,4 +82,4 @@ metadata:
   name: "deny-privilege-escalation-binding"
 spec:
   policyName: "deny-privilege-escalation"
-  validationActions: [Warn]
+  validationActions: [Deny]
