@@ -3,9 +3,13 @@ name: App Build (ECR + Trivy + Cosign + GitOps bump)
 # CDO-140 (build+push ECR, tag convention, immutable) + CDO-146 (Trivy + Cosign ký
 # digest) + CDO-142 (bump tag vào Git -> ArgoCD selfHeal sync).
 #
-# Deploy model: CI build -> push ECR (by digest) -> Trivy gate -> Cosign keyless ký
-# DIGEST -> yq bump components.<svc>.imageOverride.tag trong values.yaml -> commit
-# [skip ci] -> ArgoCD tự sync. KHÔNG kubectl tay.
+# Deploy model (build once, promote): CI chỉ chạy trên nhánh develop -> build ->
+# push ECR (by digest) -> Trivy gate -> Cosign keyless ký DIGEST -> yq bump
+# components.<svc>.imageOverride.tag vào tags file của môi trường DEVELOP -> commit
+# [skip ci] -> ArgoCD develop sync. KHÔNG kubectl tay.
+# Prod (env sandbox cũ) KHÔNG có CI bump: chỉ nhận tag qua PR promote (chép tag đã
+# chạy ổn ở develop sang environments/sandbox/values-image-tags.yaml, có review).
+# Không build lại image cho prod -> giữ nguyên digest đã scan + ký + test ở develop.
 #
 # Tag convention: <version>-<service>-<sha>  (version = chart appVersion default.image.tag).
 # ECR: 1 repo chung ecommerce-dev-techx-corp, IMMUTABLE. Ký theo digest, không ký tag.
@@ -18,14 +22,15 @@ name: App Build (ECR + Trivy + Cosign + GitOps bump)
 
 on:
   push:
-    branches: ["develop", "main"]
+    # Chỉ develop: main không rebuild image (build once). Lên prod đi đường promote PR.
+    branches: ["develop"]
     paths:
       - "techx-corp-platform/src/**"
       - "platform/charts/application/values.yaml"
       - "platform/build-exclusions.yaml"
       - ".github/workflows/app-build.yaml"
   pull_request:
-    branches: ["develop", "main"]
+    branches: ["develop"]
     paths:
       - "techx-corp-platform/src/**"
       - "platform/charts/application/values.yaml"
@@ -56,7 +61,8 @@ env:
   BUILD_CONTEXT: techx-corp-platform
   # CI CHỈ ghi file tags tách riêng (không comment) -> yq bump không phá format
   # values.yaml gốc. Helm/ArgoCD load file này SAU values.yaml để override tag.
-  TAGS_FILE: platform/gitops/environments/sandbox/values-image-tags.yaml
+  # Bump vào tags file của DEVELOP; tags file sandbox (prod) chỉ đổi qua promote PR.
+  TAGS_FILE: platform/gitops/environments/develop/values/values-image-tags.yaml
 
 jobs:
   # ------------------------------------------------------------------ #
@@ -206,19 +212,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: azure/setup-helm@v4
+      # Validate với ĐÚNG bộ values mà ArgoCD develop dùng (xem
+      # environments/develop/applications/application.yaml) — render lệch bộ
+      # values thật thì gate vô nghĩa.
       - name: Lint chart
         run: >-
           helm lint platform/charts/application
-          -f platform/gitops/environments/sandbox/values-observability.yaml
-          -f platform/gitops/environments/sandbox/values-flagd-sync.yaml
-          -f platform/gitops/environments/sandbox/values-image-tags.yaml
+          -f platform/gitops/environments/develop/values/values-application.yaml
+          -f platform/gitops/environments/develop/values/values-ops-observability.yaml
+          -f platform/gitops/environments/develop/values/values-external-secrets.yaml
+          -f platform/gitops/environments/develop/values/values-single-replica.yaml
+          -f platform/gitops/environments/develop/values/values-image-tags.yaml
       - name: Render chart (fail nếu rỗng)
         run: |
           set -euo pipefail
           helm template techx-corp platform/charts/application \
-            -f platform/gitops/environments/sandbox/values-observability.yaml \
-            -f platform/gitops/environments/sandbox/values-flagd-sync.yaml \
-            -f platform/gitops/environments/sandbox/values-image-tags.yaml \
+            -f platform/gitops/environments/develop/values/values-application.yaml \
+            -f platform/gitops/environments/develop/values/values-ops-observability.yaml \
+            -f platform/gitops/environments/develop/values/values-external-secrets.yaml \
+            -f platform/gitops/environments/develop/values/values-single-replica.yaml \
+            -f platform/gitops/environments/develop/values/values-image-tags.yaml \
             > /tmp/rendered.yaml
           [ -s /tmp/rendered.yaml ] || { echo "::error::manifest rỗng"; exit 1; }
           echo "✅ manifest OK"
@@ -287,7 +300,11 @@ jobs:
         id: buildargs
         run: |
           set -euo pipefail
-          ENV_FILE="$BUILD_CONTEXT/.env"
+          if [ -f "$BUILD_CONTEXT/.env" ]; then
+            ENV_FILE="$BUILD_CONTEXT/.env"
+          else
+            ENV_FILE="$BUILD_CONTEXT/.env.example"
+          fi
           {
             echo "args<<EOF"
             grep -E '^(OTEL_JAVA_AGENT_VERSION|OPENTELEMETRY_CPP_VERSION)=' "$ENV_FILE" \

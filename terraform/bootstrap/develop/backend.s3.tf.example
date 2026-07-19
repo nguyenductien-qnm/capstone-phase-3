@@ -1,0 +1,5 @@
+# Activate this block as backend.tf only after the bootstrap has created the
+# Develop state bucket, then migrate the local bootstrap state into S3.
+terraform {
+  backend "s3" {}
+}

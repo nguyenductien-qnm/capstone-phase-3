@@ -1,0 +1,34 @@
+# Controlled Develop baseline: one Pod per application Deployment.
+# HPA is disabled so it cannot override default.replicas during initial testing.
+default:
+  replicas: 1
+
+components:
+  cart:
+    hpa:
+      enabled: false
+      minReplicas: 1
+  checkout:
+    hpa:
+      enabled: false
+      minReplicas: 1
+  currency:
+    hpa:
+      enabled: false
+      minReplicas: 1
+  frontend:
+    hpa:
+      enabled: false
+      minReplicas: 1
+  frontend-proxy:
+    hpa:
+      enabled: false
+      minReplicas: 1
+  product-catalog:
+    hpa:
+      enabled: false
+      minReplicas: 1
+  recommendation:
+    hpa:
+      enabled: false
+      minReplicas: 1

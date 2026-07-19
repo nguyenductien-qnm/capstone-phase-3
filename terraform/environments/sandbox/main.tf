@@ -2,6 +2,9 @@ data "aws_iam_role" "github_terraform" {
   name = var.github_terraform_role_name
 }
 
+data "aws_region" "current" {}
+data "aws_caller_identity" "current" {}
+
 locals {
   github_terraform_access_entry = {
     github_terraform = {
@@ -117,6 +120,17 @@ module "ecr" {
   project_name     = var.project_name
   environment      = var.environment
   ecr_repositories = var.ecr_repositories
+
+  # Tag convention <version>-<svc>-<sha> + Cosign ký digest GIẢ ĐỊNH tag không bị
+  # ghi đè -> bật IMMUTABLE cho khớp (trước giờ repo đang MUTABLE dù comment CI
+  # nói ngược lại). Đánh đổi: tag cosign sha256-*.sig/.att cũng chỉ ghi được 1
+  # lần -> re-run sign/attest trên CÙNG digest sẽ fail (exclusion filter cần AWS
+  # provider mới hơn ~> 4.0 đang pin, chưa dùng được).
+  image_mutability = "IMMUTABLE"
+
+  # Node role của cluster develop (account khác) pull image từ ECR chung này.
+  # ARN lấy từ output `eks_managed_node_role_arn` của terraform/environments/develop.
+  pull_principal_arns = var.ecr_pull_principal_arns
 }
 
 # IRSA cho external-dns: quyền ghi record trong ĐÚNG hosted zone của subdomain.
@@ -212,6 +226,7 @@ module "external_secrets_irsa" {
     module.elasticache.secret_arn,
     module.msk.msk_secret_arn,
     module.msk.msk_endpoint_secret_arn,
+    "arn:aws:secretsmanager:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secret:${var.project_name}-${var.environment}-bedrock-config-*"
   ]
 
   # Secret MSK mã hoá bằng KMS key riêng của module msk -> ESO cần kms:Decrypt trên

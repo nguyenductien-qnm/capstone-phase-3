@@ -1,3 +1,4 @@
+import time
 import pytest
 from unittest.mock import MagicMock
 import detector
@@ -110,3 +111,68 @@ def test_metric_rule_dynamic_only_uses_dynamic_headline():
     assert len(alerts) == 1
     assert "Lệch bất thường" in alerts[0][1]
     assert "VI PHAM SLO" not in alerts[0][1]
+
+
+# ---- k8s_status rule (review 17/07: OOM dot ngot khong log duoc, phai doc K8s API) ----
+
+from types import SimpleNamespace
+
+
+def _make_pod(name, labels, oomkilled=False):
+    container_status = SimpleNamespace(
+        name="main",
+        last_state=SimpleNamespace(
+            terminated=SimpleNamespace(reason="OOMKilled", finished_at=SimpleNamespace(timestamp=lambda: time.time()))
+            if oomkilled else None
+        ),
+    )
+    return SimpleNamespace(
+        metadata=SimpleNamespace(name=name, labels=labels),
+        status=SimpleNamespace(container_statuses=[container_status]),
+    )
+
+
+def test_eval_k8s_status_rule_detects_oomkilled_pod_with_no_log():
+    """Tai hien dung phat hien 17/07: khong co log nao ca (app bi SIGKILL truoc khi
+    kip ghi), nhung K8s API van xac nhan OOMKilled that -> van phai bat duoc."""
+    core_v1 = MagicMock()
+    core_v1.list_namespaced_pod.return_value = SimpleNamespace(
+        items=[_make_pod("ad-64766fcbc6-jbrwh", {"opentelemetry.io/name": "ad"}, oomkilled=True)]
+    )
+    rule = {
+        "id": "oom-detected",
+        "type": "k8s_status",
+        "summary": "OutOfMemory / OOMKilled — pod bị giết vì hết RAM",
+        "k8s_namespace": "techx-tf1",
+        "service_label_key": "opentelemetry.io/name",
+        "lookback_seconds": 300,
+    }
+    alerts = detector.eval_k8s_status_rule(rule, core_v1)
+    assert len(alerts) == 1
+    assert alerts[0][0] == "oom-detected:ad"
+    assert "OutOfMemory" in alerts[0][1]
+    assert "ad-64766fcbc6-jbrwh" in field_values(alerts[0])
+
+
+def test_eval_k8s_status_rule_no_alert_when_no_oom():
+    core_v1 = MagicMock()
+    core_v1.list_namespaced_pod.return_value = SimpleNamespace(
+        items=[_make_pod("ad-64766fcbc6-jbrwh", {"opentelemetry.io/name": "ad"}, oomkilled=False)]
+    )
+    rule = {
+        "id": "oom-detected",
+        "type": "k8s_status",
+        "summary": "OutOfMemory / OOMKilled",
+        "k8s_namespace": "techx-tf1",
+        "service_label_key": "opentelemetry.io/name",
+    }
+    alerts = detector.eval_k8s_status_rule(rule, core_v1)
+    assert alerts == []
+
+
+def test_eval_k8s_status_rule_handles_api_error_gracefully():
+    core_v1 = MagicMock()
+    core_v1.list_namespaced_pod.side_effect = RuntimeError("K8s API khong ket noi duoc")
+    rule = {"id": "oom-detected", "type": "k8s_status", "summary": "x"}
+    alerts = detector.eval_k8s_status_rule(rule, core_v1)
+    assert alerts == []

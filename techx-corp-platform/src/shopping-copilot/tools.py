@@ -30,9 +30,12 @@ import demo_pb2_grpc
 
 logger = logging.getLogger(__name__)
 
-PRODUCT_CATALOG_ADDR = os.environ.get("PRODUCT_CATALOG_ADDR", "product-catalog:3550")
-PRODUCT_REVIEWS_ADDR = os.environ.get("PRODUCT_REVIEWS_ADDR", "product-reviews:8080")
-CART_SERVICE_ADDR = os.environ.get("CART_SERVICE_ADDR", "cart:7070")
+PRODUCT_CATALOG_ADDR = os.environ.get("PRODUCT_CATALOG_ADDR", "product-catalog:8080")
+PRODUCT_REVIEWS_ADDR = os.environ.get("PRODUCT_REVIEWS_ADDR", "product-reviews:3551")
+CART_SERVICE_ADDR = os.environ.get(
+    "CART_SERVICE_ADDR",
+    os.environ.get("CART_ADDR", "cart:8080"),
+)
 
 # Per-RPC deadline. Spec §6: 2s for microservice calls.
 _RPC_TIMEOUT = float(os.environ.get("COPILOT_RPC_TIMEOUT", "2.0"))
