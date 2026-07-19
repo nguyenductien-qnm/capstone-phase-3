@@ -265,8 +265,13 @@ resource "aws_db_proxy_target" "this" {
 # đồng bộ vào cluster. Tách khỏi db_credentials để tránh phụ thuộc vòng: aws_db_proxy
 # đã depends_on secret_version.db_credentials, nên không thể nhét proxy.endpoint vào
 # chính secret đó. Ứng dụng nên kết nối qua proxy_endpoint (pooling).
+# Secret này trước đây chỉ tạo khi enable_rds_proxy=true -> env tắt proxy (develop)
+# có RDS chạy nhưng KHÔNG có secret nào cho ESO -> app không lấy được endpoint.
+# Tạo LUÔN (count=1 giữ nguyên địa chỉ state [0], không destroy/create ở sandbox);
+# proxy_endpoint fallback về host khi không có proxy để chart không phải biết
+# env có proxy hay không (cùng triết lý với replica_endpoint bên dưới).
 resource "aws_secretsmanager_secret" "db_endpoint" {
-  count = var.enable_rds_proxy ? 1 : 0
+  count = 1
 
   name                    = "${var.project_name}-${var.environment}-rds-endpoint"
   recovery_window_in_days = 0
@@ -279,16 +284,16 @@ resource "aws_secretsmanager_secret" "db_endpoint" {
 }
 
 resource "aws_secretsmanager_secret_version" "db_endpoint" {
-  count = var.enable_rds_proxy ? 1 : 0
+  count = 1
 
   secret_id = aws_secretsmanager_secret.db_endpoint[0].id
   secret_string = jsonencode({
     host           = aws_db_instance.this.address
-    proxy_endpoint = aws_db_proxy.this[0].endpoint
+    proxy_endpoint = var.enable_rds_proxy ? aws_db_proxy.this[0].endpoint : aws_db_instance.this.address
     # Replica cho tác vụ chỉ đọc (catalog/reviews) — kết nối trực tiếp vì RDS Proxy
-    # (non-Aurora) chỉ target primary. Fallback về proxy khi env tắt replica để
-    # chart không phải biết env có replica hay không.
-    replica_endpoint = var.enable_read_replica ? aws_db_instance.replica[0].address : aws_db_proxy.this[0].endpoint
+    # (non-Aurora) chỉ target primary. Fallback khi env tắt replica để chart không
+    # phải biết env có replica hay không.
+    replica_endpoint = var.enable_read_replica ? aws_db_instance.replica[0].address : (var.enable_rds_proxy ? aws_db_proxy.this[0].endpoint : aws_db_instance.this.address)
     port             = 5432
     username         = var.db_username
     password         = random_password.db_password.result
