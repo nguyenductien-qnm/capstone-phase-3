@@ -91,6 +91,10 @@ module "rds" {
   enable_rds_proxy           = var.enable_rds_proxy
   multi_az                   = var.rds_multi_az
   eks_node_security_group_id = module.eks.cluster_security_group_id
+
+  enable_rotation                         = var.rds_enable_rotation
+  rotation_lambda_arn                     = var.rds_rotation_lambda_arn
+  rotation_rules_automatically_after_days = var.rds_rotation_rules_automatically_after_days
 }
 
 module "elasticache" {
