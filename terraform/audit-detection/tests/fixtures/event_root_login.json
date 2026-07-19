@@ -1,0 +1,34 @@
+{
+  "version": "0",
+  "id": "33333333-1234-1234-1234-123456789012",
+  "detail-type": "AWS Console Sign In via CloudTrail",
+  "source": "aws.signin",
+  "account": "111122223333",
+  "time": "2026-07-18T16:10:00Z",
+  "region": "us-east-1",
+  "resources": ["arn:aws:events:us-east-1:111122223333:rule/audit-detection-rule"],
+  "detail": {
+    "eventVersion": "1.08",
+    "userIdentity": {
+      "type": "Root",
+      "principalId": "111122223333",
+      "arn": "arn:aws:iam::111122223333:root",
+      "accountId": "111122223333"
+    },
+    "eventTime": "2026-07-18T16:10:00Z",
+    "eventSource": "signin.amazonaws.com",
+    "eventName": "ConsoleLogin",
+    "awsRegion": "us-east-1",
+    "sourceIPAddress": "3.3.3.3",
+    "userAgent": "Mozilla/5.0",
+    "requestParameters": null,
+    "responseElements": {
+      "ConsoleLogin": "Success"
+    },
+    "additionalEventData": {
+      "MFAUsed": "No"
+    },
+    "requestID": "req-345",
+    "eventID": "evt-345"
+  }
+}

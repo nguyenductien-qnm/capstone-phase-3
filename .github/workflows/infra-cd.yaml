@@ -13,12 +13,14 @@ on:
     branches: ["develop", "main"]
     paths:
       - "terraform/environments/sandbox/**"
+      - "terraform/audit-detection/**"
       - "terraform/modules/**"
       - ".github/workflows/infra-cd.yaml"
   pull_request:
     branches: ["develop", "main"]
     paths:
       - "terraform/environments/sandbox/**"
+      - "terraform/audit-detection/**"
       - "terraform/modules/**"
       - ".github/workflows/infra-cd.yaml"
   schedule:
