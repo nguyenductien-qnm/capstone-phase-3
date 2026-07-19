@@ -106,41 +106,40 @@ Rà soát toàn bộ workload trong cụm trước khi bật policy bắt buộc
 
 ## 6. M5-15 — Mentor Negative Test Package
 
-Test package đặt tại **`tests/gatekeeper/`** (giữ nguyên đường dẫn cũ để khớp cấu trúc nộp bài của hệ thống, nhưng đã cập nhật mô tả VAP).
+Test package đặt tại **`tests/vap/`** (đã cập nhật sang VAP).
 
 ### 6.1. Files đã chuẩn bị
 
-Mỗi file negative vi phạm **đúng 1 luật** (các field còn lại hợp lệ) để deny message chỉ rõ luật nào bắn.
+Mỗi file negative vi phạm các luật tương ứng để kiểm thử hệ thống:
 
 | File | Loại | Vi phạm | Policy chặn |
 |---|---|---|---|
-| `tests/gatekeeper/neg-01-root.yaml` | Bad Pod | `runAsUser: 0` | `run-as-non-root` |
-| `tests/gatekeeper/neg-02-image-latest.yaml` | Bad Pod | Image `nginx:latest` | `deny-floating-image-tag` |
-| `tests/gatekeeper/neg-03-missing-resources.yaml` | Bad Pod | Không khai báo `resources` | `require-resources` |
-| `tests/gatekeeper/neg-04-privilege-escalation.yaml` | Bad Pod | `allowPrivilegeEscalation: true` | `deny-privilege-escalation` |
-| `tests/gatekeeper/neg-05-added-capabilities.yaml` | Bad Pod | `capabilities.add: [SYS_ADMIN]` | `psp-capabilities` |
-| `tests/gatekeeper/pos-01-valid.yaml` | Good Pod | Hợp lệ cả 5 luật — phải PASS | — |
-| `tests/gatekeeper/README.md` | Hướng dẫn | Lệnh chạy + expected deny message chi tiết | — |
+| `tests/vap/neg-01-root.yaml` | Bad Pod | `runAsUser: 0` ở container | `run-as-non-root` |
+| `tests/vap/neg-02-image-latest.yaml` | Bad Pod | Image `nginx:latest` | `deny-floating-image-tag` |
+| `tests/vap/neg-03-missing-resources.yaml` | Bad Pod | Không khai báo `resources` | `require-resources` |
+| `tests/vap/neg-04-privesc-caps.yaml` | Bad Pod | `allowPrivilegeEscalation: true` & `capabilities.add: [SYS_ADMIN]` | `deny-privilege-escalation` + `psp-capabilities` |
+| `tests/vap/neg-05-multi.yaml` | Bad Pod | Vi phạm nhiều luật đồng thời | Luật đầu tiên bắt được |
+| `tests/vap/pos-01-valid.yaml` | Good Pod | Hợp lệ cả 5 luật — phải PASS | — |
+| `tests/vap/README.md` | Hướng dẫn | Lệnh chạy + dự kiến deny message chi tiết | — |
 
 ### 6.2. Commands Mentor Thực hiện
 
 ```bash
 # Bước 1: Deploy các ValidatingAdmissionPolicy
-kubectl apply -f vap/
+kubectl apply -f platform/policies/runtime-hardening/
 
 # Bước 2: Xác nhận các policy và binding đã active
 kubectl get validatingadmissionpolicy
 kubectl get validatingadmissionpolicybinding
 
 # Bước 3: Negative tests — TỪNG LỆNH expect "Error from server (Forbidden)"
-kubectl apply -f tests/gatekeeper/neg-01-root.yaml
-kubectl apply -f tests/gatekeeper/neg-02-image-latest.yaml
-kubectl apply -f tests/gatekeeper/neg-03-missing-resources.yaml
-kubectl apply -f tests/gatekeeper/neg-04-privilege-escalation.yaml
-kubectl apply -f tests/gatekeeper/neg-05-added-capabilities.yaml
+kubectl apply -f tests/vap/neg-01-root.yaml
+kubectl apply -f tests/vap/neg-02-image-latest.yaml
+kubectl apply -f tests/vap/neg-03-missing-resources.yaml
+kubectl apply -f tests/vap/neg-04-privesc-caps.yaml
 
 # Bước 4: Positive test — expect PASS (server dry-run, không tạo pod thật)
-kubectl apply --dry-run=server -f tests/gatekeeper/pos-01-valid.yaml
+kubectl apply --dry-run=server -f tests/vap/pos-01-valid.yaml
 ```
 
 ---

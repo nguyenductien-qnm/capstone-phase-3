@@ -36,12 +36,11 @@ Chúng ta đã triển khai toàn bộ các giải pháp kỹ thuật, cấu hì
 * **[adr-runtime-hardening.md](file:///c:/Users/THANH%20TRUNG/Desktop/Phase3/capstone-phase-3/docs/adr-runtime-hardening.md)**: Định nghĩa kế hoạch áp dụng các policy và đăng ký ngoại lệ có thời hạn cụ thể (đến **31/12/2026**) cho các ứng dụng hệ thống đặc thù (như `otel-collector-agent` hay `grafana` sidecars).
 
 ### 2.3. Tạo bộ Test case phục vụ Mentor Nghiệm thu (Yêu cầu 4)
-Đã tạo thư mục **[tests/gatekeeper/](file:///c:/Users/THANH%20TRUNG/Desktop/Phase3/capstone-phase-3/tests/gatekeeper/)** chứa bộ test suite gồm các file để kiểm tra toàn diện cả 5 chính sách bảo mật:
+Đã tạo thư mục **[tests/vap/](file:///c:/Users/KhanhDuy/OneDrive/M%C3%A1y%20t%C3%ADnh/cdo_phase3/capstone-phase-3/tests/vap/)** chứa bộ test suite gồm các file để kiểm tra toàn diện cả 5 chính sách bảo mật:
 * **Cấm chạy Root:** `neg-01-root.yaml` (Negative)
 * **Cấm Tag di động:** `neg-02-image-latest.yaml` (Negative)
 * **Bắt buộc Resource:** `neg-03-missing-resources.yaml` (Negative)
-* **Cấm Privilege Escalation:** `neg-04-privilege-escalation.yaml` (Negative)
-* **Giới hạn Capabilities:** `neg-05-added-capabilities.yaml` (Negative)
+* **Cấm Privilege Escalation & Capabilities:** `neg-04-privesc-caps.yaml` (Negative)
 * **Hợp lệ hoàn toàn:** `pos-01-valid.yaml` (Positive)
 
 ---
@@ -60,26 +59,22 @@ Mentor có thể kiểm tra thực tế tính năng chặn tự động bằng c
 # Bước 1: Apply thử các file cấu hình lỗi (Kỳ vọng: ValidatingAdmissionPolicy chặn lại ngay lập tức)
 
 # 1. Test cấm chạy root:
-kubectl apply -f tests/gatekeeper/neg-01-root.yaml
-# Lỗi kỳ vọng: ValidatingAdmissionPolicy 'run-as-non-root' denied request: containers must run as non-root (runAsNonRoot: true or runAsUser != 0): neg-root
+kubectl apply -f tests/vap/neg-01-root.yaml
+# Lỗi kỳ vọng: ValidatingAdmissionPolicy 'run-as-non-root' denied request: containers must run as non-root (runAsNonRoot: true or runAsUser != 0): app
 
 # 2. Test cấm tag di động (latest):
-kubectl apply -f tests/gatekeeper/neg-02-image-latest.yaml
-# Lỗi kỳ vọng: ValidatingAdmissionPolicy 'deny-floating-image-tag' denied request: container has disallowed image tag or no tag specified: neg-latest (nginx:latest)
+kubectl apply -f tests/vap/neg-02-image-latest.yaml
+# Lỗi kỳ vọng: ValidatingAdmissionPolicy 'deny-floating-image-tag' denied request: container has disallowed image tag or no tag specified: app (nginx:latest)
 
 # 3. Test bắt buộc resource sizing:
-kubectl apply -f tests/gatekeeper/neg-03-missing-resources.yaml
-# Lỗi kỳ vọng: ValidatingAdmissionPolicy 'require-resources' denied request: containers must have CPU and Memory requests and limits defined: neg-noresources
+kubectl apply -f tests/vap/neg-03-missing-resources.yaml
+# Lỗi kỳ vọng: ValidatingAdmissionPolicy 'require-resources' denied request: containers must have CPU and Memory requests and limits defined: app
 
-# 4. Test cấm privilege escalation:
-kubectl apply -f tests/gatekeeper/neg-04-privilege-escalation.yaml
-# Lỗi kỳ vọng: ValidatingAdmissionPolicy 'deny-privilege-escalation' denied request: containers must have allowPrivilegeEscalation set to false: neg-privesc
-
-# 5. Test giới hạn capabilities (không drop ALL):
-kubectl apply -f tests/gatekeeper/neg-05-added-capabilities.yaml
-# Lỗi kỳ vọng: ValidatingAdmissionPolicy 'psp-capabilities' denied request: containers must drop ALL capabilities and can only add NET_BIND_SERVICE: neg-caps
+# 4. Test cấm privilege escalation & capabilities:
+kubectl apply -f tests/vap/neg-04-privesc-caps.yaml
+# Lỗi kỳ vọng: ValidatingAdmissionPolicy 'deny-privilege-escalation' hoặc 'psp-capabilities' denied request
 
 # Bước 2: Apply file cấu hình chuẩn (Kỳ vọng: Thành công)
-kubectl apply --dry-run=server -f tests/gatekeeper/pos-01-valid.yaml
-# Kết quả kỳ vọng: pod/pos-01-valid created (server dry run)
+kubectl apply --dry-run=server -f tests/vap/pos-01-valid.yaml
+# Kết quả kỳ vọng: pod/vaptest-pos-01-valid created (server dry run)
 ```
