@@ -1444,8 +1444,14 @@ components:
             value: yYrECL4qbNwleYInGJYvVnSkwJuSQJ4ijPTx5tirGUXrbznFIBFVJdPl5t6O9ASw
           - name: PHX_HOST
             value: localhost
+        # VAP require-resources (cluster develop) bắt đủ CPU/Mem requests+limits;
+        # flagd-ui là container duy nhất trong chart còn thiếu.
         resources:
+          requests:
+            cpu: 25m
+            memory: 128Mi
           limits:
+            cpu: 200m
             memory: 250Mi
         volumeMounts:
           - name: config-rw
