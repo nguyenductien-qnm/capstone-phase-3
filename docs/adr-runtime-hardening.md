@@ -25,7 +25,8 @@ Chúng ta sử dụng tính năng native **Kubernetes ValidatingAdmissionPolicy 
 * **Không dựng thêm service:** OPA Gatekeeper yêu cầu chạy thêm các controller và audit pods, vi phạm ràng buộc không sinh thêm hạ tầng/service mới của Directive #5. VAP chạy trực tiếp trong Kubernetes API Server sử dụng CEL, **tài nguyên tiêu thụ thêm bằng 0** và không sinh thêm bất kỳ pod/service nào trong cluster.
 * **Áp dụng toàn bộ cluster (Cluster-wide):** Khác với cấu hình Gatekeeper cũ bị giới hạn ở 1 namespace `techx-tf1`, các chính sách VAP mới được áp dụng ở cấp độ toàn bộ cluster (Cluster-wide), chỉ loại trừ các namespace hệ thống thông qua `namespaceSelector`.
 
-### Các luật được thực thi chặn ngay lập tức (Enforced Rules):
+### Các luật được triển khai (Deployed Rules - Warn-first mode):
+Năm chính sách (policies) sau đây được triển khai lên cụm thật 804 (main cluster) ở chế độ cảnh báo (validationActions: [Warn]) để theo dõi. Kế hoạch là sẽ chuyển sang chế độ chặn (validationActions: [Deny]) sau thời gian quan sát:
 * `psp-capabilities`: Chặn tất cả các capabilities ngoại trừ các cấu hình đặc biệt được cho phép (bắt buộc drop ALL, chỉ cho phép add NET_BIND_SERVICE).
 * `deny-privilege-escalation`: Bắt buộc thiết lập `allowPrivilegeEscalation: false`.
 * `run-as-non-root`: Bắt buộc thiết lập `runAsNonRoot: true` hoặc `runAsUser > 0`.
@@ -36,10 +37,10 @@ Chúng ta sử dụng tính năng native **Kubernetes ValidatingAdmissionPolicy 
 
 ## 3. Chính sách Giám sát (Audit-Only Rules)
 * **Luật áp dụng**: `k8s-read-only-root-filesystem` (Yêu cầu hệ thống file chỉ đọc).
-* **Trạng thái**: **Chỉ giám sát (Audit-only / Dryrun)** cho phần lớn các service, ngoại trừ service `ad` đã được chuyển sang **Enforce** thành công.
+* **Trạng thái**: **Chỉ giám sát (validationActions: [Audit]/Warn)** cho phần lớn các service, ngoại trừ service `ad` đã được chuyển sang **Enforce** thành công.
 * **Lý do**: Nhiều microservices của bên thứ ba hoặc các framework phát triển (như NextJS frontend, Envoy proxy) yêu cầu ghi dữ liệu tạm vào các thư mục `/tmp`, `/var/cache` hoặc `.next/cache`. Việc siết chặn ngay lập tức sẽ làm vỡ ứng dụng và gây gián đoạn dịch vụ khách hàng (rớt SLO).
 * **Kế hoạch cắt chuyển (Audit -> Enforce)**:
-  1. Rà quét nhật ký Audit hoặc logs hệ thống/VAP để liệt kê tất cả các thư mục cần ghi file tạm của từng microservice.
+  1. Rà quét API-server audit annotations (logs của VAP) để liệt kê tất cả các thư mục cần ghi file tạm của từng microservice.
   2. Cập nhật Helm Chart để tạo các phân vùng ghi tạm dạng `emptyDir` gắn vào Pod.
   3. Dự kiến chuyển toàn bộ sang chế độ chặn thực tế (Enforce) trước **30/09/2026**.
 
@@ -64,7 +65,7 @@ Chúng ta sử dụng tính năng native **Kubernetes ValidatingAdmissionPolicy 
 * **Tác động**: Đạt điểm tuân thủ bảo mật tối đa cho Directive #5.
 
 ### 5.2. Góc nhìn Vận hành (SRE / Platform)
-* **Rủi ro SLO**: Rủi ro gián đoạn dịch vụ thấp nhờ chiến lược **Rollout 2 giai đoạn (Warn trước, Enforce sau)**. Việc test thử nghiệm qua file dry-run giúp loại bỏ 100% lỗi cấu hình trước khi chạy thực tế.
+* **Rủi ro SLO**: Rủi ro gián đoạn dịch vụ thấp nhờ chiến lược **Rollout 2 giai đoạn (Warn trước, Enforce sau)**. Việc quan sát ở chế độ Warn giúp loại bỏ lỗi cấu hình trước khi áp dụng chặn thực tế.
 * **Kịch bản Khôi phục (Rollback)**: Nếu chính sách chặn gây nghẽn deploy do lỗi False Positive, SRE Team có thể tạm thời chuyển nhanh trường `validationActions` của ValidatingAdmissionPolicyBinding tương ứng về `[Warn]` hoặc chạy lệnh xóa Binding:
   `kubectl delete validatingadmissionpolicybinding <binding-name>`
   Thao tác này khôi phục khả năng deploy tức thì mà không cần cài đặt lại hệ thống.
