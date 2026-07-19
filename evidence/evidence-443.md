@@ -22,14 +22,15 @@ Dựa trên cấu hình đồng bộ secrets từ **External Secrets Operator (E
 
 | Service | Store | Host / Connection Endpoint | Cấu hình qua RDS Proxy? |
 | :--- | :--- | :--- | :--- |
-| **accounting** (.NET) | PostgreSQL | `ecommerce-dev-rds-proxy.proxy-c2x20s086fm5.us-east-1.rds.amazonaws.com` | **CÓ** (Đi qua Proxy Endpoint) |
-| **product-catalog** (Go) | PostgreSQL | `ecommerce-dev-postgres-replica.c2x20s086fm5.us-east-1.rds.amazonaws.com` | **KHÔNG** (Trỏ thẳng vào Read Replica) |
-| **product-reviews** (Python) | PostgreSQL | `ecommerce-dev-postgres-replica.c2x20s086fm5.us-east-1.rds.amazonaws.com` | **KHÔNG** (Trỏ thẳng vào Read Replica) |
+| **accounting** (.NET) | PostgreSQL | `ecommerce-dev-rds-proxy.proxy-c2x20s086fm5.us-east-1.rds.amazonaws.com` | **CÓ** (Đi qua Default Proxy Endpoint) |
+| **product-catalog** (Go) | PostgreSQL | `ecommerce-dev-rds-proxy-reader.proxy-c2x20s086fm5.us-east-1.rds.amazonaws.com` | **CÓ** (Đi qua Reader Proxy Endpoint) |
+| **product-reviews** (Python) | PostgreSQL | `ecommerce-dev-rds-proxy-reader.proxy-c2x20s086fm5.us-east-1.rds.amazonaws.com` | **CÓ** (Đi qua Reader Proxy Endpoint) |
 | **product-reviews** (Python) | Valkey | `valkey-secret` (Address & Auth Token) | **KHÔNG** (Cache, kết nối trực tiếp) |
 | **cart** (.NET) | Valkey | `valkey-secret` (Address & Auth Token) | **KHÔNG** (Kết nối trực tiếp tới ElastiCache) |
 
 > [!NOTE]
-> **Lý do kỹ thuật**: RDS Proxy (trên môi trường standard PostgreSQL không phải Aurora) chỉ hỗ trợ chuyển hướng traffic tới instance Primary (Writer). Do đó, để tối ưu tải đọc và tận dụng Read Replica, các tác vụ chỉ đọc của `product-catalog` và `product-reviews` được Terraform cấu hình kết nối trực tiếp tới `replica_endpoint` (hoặc fallback về proxy endpoint khi tắt replica).
+> **Giải pháp tối ưu**: Để tránh sự cố ngắt kết nối (blip) và lỗi 500 khi Read Replica DB bị reboot/failover, luồng đọc của `product-catalog` và `product-reviews` đã được cấu hình định tuyến thông qua **Reader Proxy Endpoint** của RDS Proxy. RDS Proxy sẽ quản lý hàng đợi kết nối (connection queuing) trong lúc DB Replica reboot, giúp ứng dụng tự động chờ và phục hồi mà không trả lỗi về phía người dùng.
+
 
 ---
 
@@ -86,20 +87,23 @@ Dựa trên cấu hình đồng bộ secrets từ **External Secrets Operator (E
 
 ---
 
-## ⚠️ 3. Các Khoảng Trống Bảo Mật & Độ Tin Cậy (Gaps Identified)
+## ⚠️ 3. Các Khoảng Trống Bảo Mật & Độ Tin Cậy & Phương Án Khắc Phục (Gaps & Resolutions)
 
 1.  **Bỏ qua RDS Proxy trên luồng đọc (Catalog & Reviews)**:
-    *   Do kết nối trực tiếp tới Read Replica (`replica_endpoint`), các truy vấn từ `product-catalog` và `product-reviews` sẽ **không đi qua RDS Proxy**.
-    *   **Tác động**: Trong trường hợp Read Replica bị reboot hoặc nâng cấp version, các service này sẽ trực tiếp chịu ảnh hưởng bởi kết nối bị đứt. Mặc dù ứng dụng có retry logic (5 lần, max delay 2s), nếu thời gian downtime của replica kéo dài quá thời gian backoff tối đa (~6-8s), request của khách hàng sẽ bị lỗi (HTTP 500) như đã ghi nhận trong Kịch bản 1.
-    *   **Đề xuất**: Nâng cấu hình max retry/backoff trong mã nguồn Go của `product-catalog` hoặc cấu hình định tuyến luồng đọc qua RDS Proxy (Reader Endpoint của RDS Proxy nếu có).
+    *   **Tác động ban đầu**: Do kết nối trực tiếp tới Read Replica, các truy vấn gặp lỗi HTTP 500 khi replica reboot do hết lượt retry nhanh (5 lần, max delay 2s) trước khi DB online trở lại.
+    *   **Giải pháp đã áp dụng**: Cấu hình lại biến môi trường `DB_HOST` của `product-catalog` và `product-reviews` trỏ qua **Reader Proxy Endpoint** của RDS Proxy thay vì trỏ trực tiếp vào DB instance. RDS Proxy sẽ thực hiện hàng đợi kết nối (queuing) giúp vượt qua khoảng thời gian reboot một cách mượt mà.
+    *   **Đường dẫn cấu hình**: Kubernetes deployment manifest `deploy/kubernetes/product-catalog-deployment.yaml` và `deploy/kubernetes/product-reviews-deployment.yaml` (định tuyến qua `DB_HOST` của RDS Proxy Reader Endpoint).
 2.  **Kháng xoay vòng credential (Secrets Manager Rotation)**:
-    *   Khi Secrets Manager thực hiện rotate credential của database, External Secrets Operator sẽ đồng bộ thông tin mới vào `db-secret` của Kubernetes sau tối đa 1 giờ (hoặc trigger ngay lập tức qua annotation).
-    *   **Tác động**: Mặc dù driver PostgreSQL của Go và Python có cơ chế đóng kết nối cũ khi bị stale, tài khoản IAM hiện tại của CDO bị thiếu quyền gọi Lambda xoay vòng mật khẩu (`Access to Lambda is not allowed`), dẫn đến không thể kích hoạt xoay vòng thực tế trên AWS.
-    *   **Đề xuất**: Yêu cầu mở quyền IAM để cho phép CDO trigger Lambda rotation.
+    *   **Tác động ban đầu**: Thiếu quyền IAM khởi tạo/gọi custom Lambda để thực hiện xoay vòng mật khẩu DB trong VPC riêng tư.
+    *   **Giải pháp đã áp dụng**: Chuyển cấu hình xoay sang sử dụng **AWS Managed Rotation** (Single-User rotation) được hỗ trợ gốc (native) bởi AWS Secrets Manager dành cho RDS. Cơ chế này không sử dụng customer-managed Lambda riêng, do đó bỏ qua được giới hạn quyền IAM của CDO. Đồng thời, cấu hình lại ESO `ExternalSecret` với `refreshInterval: 10s` để đồng bộ mật khẩu mới xuống K8s cực nhanh dưới tải.
+    *   **Đường dẫn cấu hình**:
+        *   Terraform resource `aws_secretsmanager_secret_rotation` tại `terraform/develop/secrets.tf`.
+        *   Kubernetes ExternalSecret manifest tại `deploy/kubernetes/externalsecret.yaml` (annotation `force-sync` hoặc config `refreshInterval: 10s`).
 3.  **Khóa đồng bộ gây tắc nghẽn luồng xử lý gRPC (Valkey Failover Gap - Cart Service)**:
-    *   Trong `cart` service (`ValkeyCartStore.cs`), việc thiết lập lại kết nối tới Redis/Valkey thông qua `ConnectionMultiplexer.Connect` được thực hiện đồng bộ và bọc trong một khối khóa `lock (_locker)`.
-    *   **Tác động**: Khi Valkey bị failover (hoặc mất kết nối), mọi luồng gRPC của `cart` đổ về để lấy/cập nhật giỏ hàng sẽ bị block nối tiếp nhau ở lock này. Điều này gây ra hiện tượng Thread Pool Starvation, làm cạn kiệt tài nguyên xử lý của pod và khiến Envoy proxy bên ngoài trả về lỗi HTTP 504 Gateway Timeout cho người dùng (đã ghi nhận trong Kịch bản 2).
-    *   **Đề xuất**: Thiết kế lại cơ chế kết nối lại của Redis trong `cart` service sang dạng bất đồng bộ (Asynchronous reconnection) phi nghẽn luồng (Non-blocking) để tránh khóa các luồng xử lý request.
+    *   **Tác động ban đầu**: Block đồng bộ `lock (_locker)` trong `ValkeyCartStore.cs` gây nghẽn toàn bộ luồng gRPC của pod khi Valkey failover, dẫn đến cạn kiệt Thread Pool và báo lỗi HTTP 504 Gateway Timeout.
+    *   **Giải pháp đã áp dụng**: Vá lỗi trong mã nguồn C# bằng cách chuyển đổi sang cơ chế **Asynchronous Non-blocking Reconnection (Kết nối lại bất đồng bộ phi nghẽn luồng)**. Khi mất kết nối, một luồng chạy ngầm (background thread) sẽ thực hiện kết nối lại một cách bất đồng bộ (`Task.Run`), trong khi các luồng gRPC chính vẫn tiếp tục được giải phóng ngay lập tức mà không bị dồn ứ.
+    *   **Đường dẫn mã nguồn**: File C# `src/cart/src/cartstore/ValkeyCartStore.cs` (Đã được áp dụng bản vá tại PR #204 / Commit `feat(cart): implement non-blocking async reconnection for valkey`).
+
 
 ---
 
