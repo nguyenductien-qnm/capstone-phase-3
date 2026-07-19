@@ -4,3 +4,10 @@ components:
   frontend-proxy:
     ingress:
       enabled: false
+  flagd:
+    # Gỡ sidecar flagd-ui như sandbox (values-flagd-sync.yaml): image flagd-ui
+    # chưa từng được CI build (sidecar không phải component top-level nên detect
+    # bỏ qua) -> tag 1.0-flagd-ui không tồn tại trên ECR -> ImagePullBackOff.
+    # flagd core vẫn chạy với flag file local. Muốn có UI ở develop thì phải
+    # thêm đường build image flagd-ui vào CI trước.
+    sidecarContainers: []

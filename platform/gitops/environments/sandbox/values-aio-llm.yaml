@@ -22,7 +22,7 @@ components:
             name: bedrock-config
             key: external_id
       - name: AWS_REGION
-        value: "us-east-2"
+        value: "us-east-1"
   shopping-copilot:
     securityContext:
       allowPrivilegeEscalation: false

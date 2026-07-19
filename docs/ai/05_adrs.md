@@ -712,3 +712,12 @@ Zero-shot NLI cho injection VN đã thử và **loại** (4/7, trượt cả 3 a
 - **Tài nguyên cho Local ML (Phase-2) — CDO xác nhận 17/07/2026:** model chỉ load trong pod `ml-guard` riêng (image ~1.1GB: ProtectAI DeBERTa ~738MB + SpaCy ~400MB). `shopping-copilot` / `product-reviews` **giữ nguyên baseline** — chỉ gọi HTTP, không load model. Spec `ml-guard`: 1 replica, `500m/1000m` CPU, `1280Mi/1536Mi` RAM, port 8090, readinessProbe `initialDelaySeconds: 90`. Tổng chi phí bật ML Guard: **+500m CPU / +1.25Gi RAM toàn hệ thống** — vừa node hiện có, Karpenter không cần bung node. Chi tiết: integration contracts §3.1.
 - Threshold NLI (0.5/0.3) chọn từ bench 17/07 — tune tiếp bằng eval khi có traffic thật.
 - Region judge us-east-1 (default profile / IRSA role tương đương); SSO role bị chặn east-1 — ghi rõ trong integration để CDO cấp IAM đúng region cho pod.
+
+### Addendum ADR-014 (18/07)
+Bedrock Guardrail tái tạo trên `us-east-1` (cùng region model Nova → bỏ cross-region config lệch từng gây lỗi), ID `crbxw41dbmxp`, bật làm lớp 3 defense-in-depth bổ sung cascade T0/T1/T2 — **không thay primary**.
+
+**Trade-off đã cân:**
+- PII filter VN Optimized + prompt-attack EN hoạt động tốt hơn.
+- Grounding VN vẫn do ml-guard NLI đảm nhiệm.
+- Cost per-request được chấp nhận trong budget (ước tính < $15/wk @10.5k req/wk).
+- Rollback an toàn: set `LLM_BEDROCK_GUARDRAIL="false"` (1 dòng trong values).

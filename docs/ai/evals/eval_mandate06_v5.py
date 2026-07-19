@@ -120,7 +120,7 @@ def main():
     total = len(rows)
     report += ["", f"**Tổng: {total - fails}/{total} pass** — latency p50 "
                f"{statistics.median(lat):.0f}ms, max {max(lat):.0f}ms"]
-    out = Path(__file__).parent / "eval_mandate06_v5_report.md"
+    out = Path(__file__).parent / "eval_mandate06_v6_report.md"
     out.write_text("\n".join(report), encoding="utf-8")
     print("\n".join(report))
     print(f"\nreport -> {out}")

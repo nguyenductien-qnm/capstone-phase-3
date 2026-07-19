@@ -1,0 +1,15 @@
+--- techx-corp-platform/src/shopping-copilot/guardrails.py
++++ techx-corp-platform/src/shopping-copilot/guardrails.py
+@@ -348,11 +348,7 @@
+         return json.dumps({"error": "unparseable tool result was withheld by guardrail"})
+ 
+ 
+-<<<<<<< HEAD
+-def leaks_system_prompt(output_text, system_prompt, window_words=6, allowlist=None):
+-=======
+-def leaks_system_prompt(output_text, system_prompt, window_words=15):
+->>>>>>> fix/copilot-category-answer-not-routed
++def leaks_system_prompt(output_text, system_prompt, window_words=15, allowlist=None):
+     """Output guard rẻ: sliding-window N-từ của output có nằm trong system_prompt
+     không. Bổ trợ cho denied-topic của Bedrock (bắt leak verbatim, không bắt
+     paraphrase — đó là việc của Bedrock).

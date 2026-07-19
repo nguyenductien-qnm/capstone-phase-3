@@ -91,6 +91,7 @@ module "rds" {
   enable_rds_proxy           = var.enable_rds_proxy
   multi_az                   = var.rds_multi_az
   eks_node_security_group_id = module.eks.cluster_security_group_id
+  enable_logical_replication = true
 }
 
 module "elasticache" {
@@ -209,3 +210,7 @@ module "external_secrets_irsa" {
     module.msk.kms_key_arn,
   ]
 }
+
+
+
+

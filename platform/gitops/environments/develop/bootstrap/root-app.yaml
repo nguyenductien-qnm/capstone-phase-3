@@ -11,9 +11,15 @@ spec:
     path: platform/gitops/environments/develop/applications
     directory:
       recurse: true
+      # Karpenter is intentionally dormant during the first Develop phase.
+      exclude: '{karpenter-crd.yaml,karpenter.yaml,karpenter-nodepool.yaml}'
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
 
-  # Deliberately no automated sync, prune or self-heal during the initial
-  # Develop rollout. Register first, review the diff, then sync manually.
+  # Bật sau khi vòng develop đã verify đủ (ECR pull, secrets, app Healthy
+  # 2026-07-19): CI bump tag -> commit -> ArgoCD tự sync, không sync tay nữa.
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

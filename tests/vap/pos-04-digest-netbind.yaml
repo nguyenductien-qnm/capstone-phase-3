@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: vaptest-pos-04-digest-netbind
+  labels: { vaptest: "true" }
+spec:
+  # 2 nhánh pass hợp lệ trong 1 case:
+  # 1) Image pin theo DIGEST (@sha256) không có tag -> deny-floating-image-tag phải PASS
+  #    (directive cho phép "pin theo digest hoặc tag cố định")
+  # 2) capabilities add NET_BIND_SERVICE (cap duy nhất được phép) -> psp-capabilities phải PASS
+  containers:
+  - name: app
+    image: nginx@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 101
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop: ["ALL"]
+        add: ["NET_BIND_SERVICE"]
+    resources:
+      requests: { cpu: "10m", memory: "16Mi" }
+      limits: { cpu: "50m", memory: "32Mi" }
