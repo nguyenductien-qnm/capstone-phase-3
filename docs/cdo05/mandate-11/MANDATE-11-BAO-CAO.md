@@ -333,7 +333,7 @@ Tổng số dòng mã nguồn thực tế (LOC) đã triển khai trong dự án
 
 *   ✅ Module TF (detection-routing + processor + monitoring) và Lambda handler đã hiện thực trên `feat/mandate11`.
 *   ✅ Danh mục phát hiện, dedup, self-health alarm, redaction, TTD instrumentation — có trong code.
-*   ⬜ **Chạy thật để lấy số:** nạp webhook secret, apply, chạy 5 TTD trial + resilience test + mentor drill, điền bảng §8.4 và chụp bằng chứng (redact account/IP/webhook/secret).
+*   ⬜ **Chạy thật để lấy số:** nạp webhook secret, apply, chạy 5 TTD trial + resilience test + mentor drill, điền bảng §8.3 và chụp bằng chứng (redact account/IP/webhook/secret).
 *   ⬜ Wire vào environment (`develop`/`sandbox`) + tfvars mẫu (không secret) nếu chưa hoàn tất.
 
 > **Điểm mấu chốt đạt được:** khi ai đó làm điều nguy hiểm, hệ **kêu đúng lúc, đúng người, đủ ngữ cảnh** — chứ không đợi tới lúc ai đó mở log ra mới biết.
