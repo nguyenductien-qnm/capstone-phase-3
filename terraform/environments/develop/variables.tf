@@ -208,7 +208,7 @@ variable "db_username" {
 variable "rds_engine_version" {
   type        = string
   description = "PostgreSQL engine version supported by the target AWS region"
-  default     = "16.14"
+  default     = "17.10"
 }
 
 variable "rds_instance_class" {
