@@ -37,7 +37,11 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: kube-system
-  # Manual sync is intentional during the initial Develop rollout.
+  # Quyền AWS qua EKS Pod Identity (module eks: aws-load-balancer-controller.tf),
+  # association kube-system/aws-load-balancer-controller đã có trên cluster.
   syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
     syncOptions:
       - ServerSideApply=true

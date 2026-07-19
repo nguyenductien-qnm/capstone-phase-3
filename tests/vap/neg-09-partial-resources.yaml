@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: vaptest-neg-09-partial-resources
+  labels: { vaptest: "true" }
+spec:
+  # Có requests nhưng THIẾU limits.memory -> require-resources đòi đủ cả 4 nên phải CHẶN
+  # (đây là lỗi thật phổ biến nhất: dev khai requests rồi quên limits)
+  containers:
+  - name: app
+    image: ecommerce-dev-techx-corp:1.0-cart-aadff38
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      allowPrivilegeEscalation: false
+      capabilities: { drop: ["ALL"] }
+    resources:
+      requests: { cpu: "10m", memory: "16Mi" }
+      limits: { cpu: "50m" }                  # VI PHẠM: thiếu limits.memory

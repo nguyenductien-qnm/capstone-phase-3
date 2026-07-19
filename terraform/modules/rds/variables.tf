@@ -107,3 +107,9 @@ variable "app_subnet_ids" {
   default     = []
 }
 
+variable "enable_logical_replication" {
+  type        = bool
+  description = "Enable logical replication (creates custom parameter group)"
+  default     = false
+}
+

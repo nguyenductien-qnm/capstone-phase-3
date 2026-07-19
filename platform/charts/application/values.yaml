@@ -1283,6 +1283,17 @@ components:
     replicas: 1 # confirmation tokens/session history are in-memory; keep single pod until Valkey-backed.
     useDefault:
       env: true
+    # Dockerfile dùng `USER copilot` (tên chữ, useradd -u 10001) -> kubelet không
+    # verify được runAsNonRoot với user không phải UID số -> CreateContainerConfigError.
+    # Khai UID số ở đây; giữ nguyên các field còn lại của default securityContext
+    # vì component-level securityContext THAY THẾ default, không merge.
+    securityContext:
+      runAsUser: 10001
+      runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
     imageOverride:
       tag: "1.0-shopping-copilot"
     serviceAccount:
@@ -1447,8 +1458,14 @@ components:
             value: yYrECL4qbNwleYInGJYvVnSkwJuSQJ4ijPTx5tirGUXrbznFIBFVJdPl5t6O9ASw
           - name: PHX_HOST
             value: localhost
+        # VAP require-resources (cluster develop) bắt đủ CPU/Mem requests+limits;
+        # flagd-ui là container duy nhất trong chart còn thiếu.
         resources:
+          requests:
+            cpu: 25m
+            memory: 128Mi
           limits:
+            cpu: 200m
             memory: 250Mi
         volumeMounts:
           - name: config-rw

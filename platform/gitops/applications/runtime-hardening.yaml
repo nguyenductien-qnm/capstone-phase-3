@@ -1,25 +1,22 @@
----
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: develop-frontend-proxy-nlb
+  name: runtime-hardening
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-wave: "-3"   # policies before workloads
 spec:
   project: default
   source:
     repoURL: https://github.com/nguyenductien-qnm/capstone-phase-3.git
     targetRevision: develop
-    path: platform/gitops/environments/develop/public-exposure
+    path: platform/policies/runtime-hardening
   destination:
     server: https://kubernetes.default.svc
-    namespace: techx-develop
-  # App này chỉ own Service NLB public cho frontend-proxy (đã có Pod chạy
-  # trong develop-techx-corp từ 2026-07-19).
+    namespace: argocd
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
-      - CreateNamespace=true
+      - ServerSideApply=true

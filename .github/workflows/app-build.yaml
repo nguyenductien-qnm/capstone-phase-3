@@ -377,7 +377,10 @@ jobs:
   bump:
     name: Bump image tags (GitOps)
     needs: [detect, build]
-    if: github.event_name == 'push' && needs.detect.outputs.any == 'true'
+    # push VÀ workflow_dispatch đều bump (dispatch build-all mà không bump thì
+    # image lên ECR nhưng ArgoCD không bao giờ biết — lỗi phát hiện 2026-07-19,
+    # phải bump tay đợt 5e03ae7). Chỉ PR là không bump (không push image).
+    if: github.event_name != 'pull_request' && needs.detect.outputs.any == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write

@@ -1,0 +1,85 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: "psp-capabilities"
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups:   [""]
+      apiVersions: ["v1"]
+      operations:  ["CREATE", "UPDATE"]
+      resources:   ["pods"]
+    - apiGroups:   ["apps"]
+      apiVersions: ["v1"]
+      operations:  ["CREATE", "UPDATE"]
+      resources:   ["deployments", "statefulsets", "daemonsets", "replicasets"]
+    - apiGroups:   ["batch"]
+      apiVersions: ["v1"]
+      operations:  ["CREATE", "UPDATE"]
+      resources:   ["jobs", "cronjobs"]
+    namespaceSelector:
+      matchExpressions:
+      - key: kubernetes.io/metadata.name
+        operator: NotIn
+        values:
+        - kube-system
+        - kube-public
+        - kube-node-lease
+        - gatekeeper-system
+        - argocd
+        - tailscale
+        - external-dns
+        - external-secrets
+  variables:
+  - name: podSpec
+    expression: |
+      object.kind == 'Pod' ? object.spec :
+      (object.kind == 'CronJob' ? object.spec.jobTemplate.spec.template.spec :
+      object.spec.template.spec)
+  - name: containers
+    expression: 'variables.podSpec.containers'
+  - name: initContainers
+    expression: 'has(variables.podSpec.initContainers) ? variables.podSpec.initContainers : []'
+  - name: ephemeralContainers
+    expression: 'has(variables.podSpec.ephemeralContainers) ? variables.podSpec.ephemeralContainers : []'
+  - name: allContainers
+    expression: 'variables.containers + variables.initContainers + variables.ephemeralContainers'
+  validations:
+  - expression: |
+      variables.allContainers.all(c, 
+        c.image.matches('^(quay\\.io/|docker\\.io/)?prometheus/prometheus(:.+)?$') || 
+        c.image.matches('^(docker\\.io/)?otel/opentelemetry-collector-contrib(:.+)?$') || 
+        c.image.matches('^(docker\\.io/)?jaegertracing/jaeger(:.+)?$') ||
+        (
+          has(c.securityContext) && 
+          has(c.securityContext.capabilities) && 
+          has(c.securityContext.capabilities.drop) && 
+          c.securityContext.capabilities.drop.exists(cap, cap.upperAscii() == 'ALL') &&
+          (!has(c.securityContext.capabilities.add) || c.securityContext.capabilities.add.all(cap, cap.upperAscii() == 'NET_BIND_SERVICE'))
+        )
+      )
+    messageExpression: |
+      "containers must drop ALL capabilities and can only add NET_BIND_SERVICE: " + 
+      variables.allContainers.filter(c, 
+        !(
+          c.image.matches('^(quay\\.io/|docker\\.io/)?prometheus/prometheus(:.+)?$') || 
+          c.image.matches('^(docker\\.io/)?otel/opentelemetry-collector-contrib(:.+)?$') || 
+          c.image.matches('^(docker\\.io/)?jaegertracing/jaeger(:.+)?$') ||
+          (
+            has(c.securityContext) && 
+            has(c.securityContext.capabilities) && 
+            has(c.securityContext.capabilities.drop) && 
+            c.securityContext.capabilities.drop.exists(cap, cap.upperAscii() == 'ALL') &&
+            (!has(c.securityContext.capabilities.add) || c.securityContext.capabilities.add.all(cap, cap.upperAscii() == 'NET_BIND_SERVICE'))
+          )
+        )
+      ).map(c, c.name).join(", ")
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: "psp-capabilities-binding"
+spec:
+  policyName: "psp-capabilities"
+  validationActions: [Warn]
