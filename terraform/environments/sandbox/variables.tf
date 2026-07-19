@@ -150,7 +150,7 @@ variable "eks_ops_node_subnet_key" {
 variable "eks_ops_node_instance_types" {
   type        = list(string)
   description = "EC2 instance types for the observability node group"
-  default     = ["t3.medium"]
+  default     = ["t3.large"]
 }
 
 variable "eks_ops_node_disk_size_gib" {
@@ -236,6 +236,12 @@ variable "valkey_num_cache_clusters" {
 variable "ecr_repositories" {
   type        = list(string)
   description = "Danh sách tên các repositories cần khởi tạo trên ECR"
+}
+
+variable "ecr_pull_principal_arns" {
+  type        = list(string)
+  description = "IAM role ARN cross-account được phép pull image từ ECR chung (vd managed node role + karpenter node role của cluster develop). Rỗng = không tạo repository policy."
+  default     = []
 }
 
 variable "route53_zone_id" {

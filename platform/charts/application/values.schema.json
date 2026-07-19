@@ -117,6 +117,9 @@
         "product-reviews": {
           "$ref": "#/definitions/Component"
         },
+        "ml-guard": {
+          "$ref": "#/definitions/Component"
+        },
         "quote": {
           "$ref": "#/definitions/Component"
         },

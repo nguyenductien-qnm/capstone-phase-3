@@ -1,9 +1,11 @@
 # TF1-53 [AIOps-W1-T5] - Cau hinh phat hien loi & canh bao van hanh
 # ----------------------------------------------------------------------------
 # Rule config-driven: KHONG hardcode nguong trong code. Them/sua tin hieu tai day.
-# 2 loai rule:
-#   - type: metric  -> query Prometheus (PromQL tra ve vector, so sanh op/threshold trong code)
-#   - type: log     -> dem so log khop match_phrase tren OpenSearch trong cua so window_minutes
+# 3 loai rule:
+#   - type: metric     -> query Prometheus (PromQL tra ve vector, so sanh op/threshold trong code)
+#   - type: log        -> dem so log khop match_phrase tren OpenSearch trong cua so window_minutes
+#   - type: k8s_status -> doc thang trang thai pod tu K8s API (vd OOMKilled) - dung cho
+#                          su co ma app KHONG kip ghi log truoc khi bi kill (xem oom-detected)
 #
 # Nguong bam SLO trong onboarding/SLO.md:
 #   - storefront p95 < 1s ; non-5xx >= 99.5% (err < 0.5%) ; checkout >= 99% (err < 1%)
@@ -192,10 +194,21 @@ rules:
     window_minutes: 10
     min_count: 1
 
+  # Review 17/07 (chaos test that voi service `ad`): rule log-based cu KHONG BAO GIO
+  # khop cho OOM dot ngot - kernel SIGKILL container truoc khi no kip ghi log ve cai
+  # chet cua chinh no (xac nhan: log cua `ad` dung han truoc OOM, im lang tuyet doi qua
+  # 7 lan OOMKilled that lien tiep). Doi sang k8s_status: doc thang
+  # containerStatuses[].lastState.terminated tu K8s API - du lieu K8s tu ghi nhan, khong
+  # phu thuoc app co log duoc hay khong. Xem ADR-012 addendum.
   - id: oom-detected
-    type: log
+    type: k8s_status
     severity: critical
     summary: "OutOfMemory / OOMKilled — pod bị giết vì hết RAM (INC-2/S07)"
+    k8s_namespace: techx-tf1
+    service_label_key: "opentelemetry.io/name"
+    lookback_seconds: 300
+    # Giu lai match_phrases lam tai lieu/du phong tuong lai (vd neu sau nay co
+    # container hook ghi log truoc khi bi kill) - KHONG con dung de gate nua.
     match_phrases:
       - "OutOfMemory"
       - "OOMKilled"

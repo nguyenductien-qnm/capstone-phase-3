@@ -1,0 +1,60 @@
+# Develop image tags — CI (app-build job bump) ghi file này; đợt 5e03ae7 bump tay
+# một lần do dispatch build-all đầu tiên chạy khi bump job còn điều kiện push-only.
+components:
+  accounting:
+    imageOverride:
+      tag: 1.0-accounting-5e03ae7
+  ad:
+    imageOverride:
+      tag: 1.0-ad-5e03ae7
+  cart:
+    imageOverride:
+      tag: 1.0-cart-5e03ae7
+  checkout:
+    imageOverride:
+      tag: 1.0-checkout-5e03ae7
+  currency:
+    imageOverride:
+      tag: 1.0-currency-5e03ae7
+  fraud-detection:
+    imageOverride:
+      tag: 1.0-fraud-detection-5e03ae7
+  frontend:
+    imageOverride:
+      tag: 1.0-frontend-5e03ae7
+  frontend-proxy:
+    imageOverride:
+      tag: 1.0-frontend-proxy-5e03ae7
+  image-provider:
+    imageOverride:
+      tag: 1.0-image-provider-5e03ae7
+  llm:
+    imageOverride:
+      tag: 1.0-llm-5e03ae7
+  load-generator:
+    imageOverride:
+      tag: 1.0-load-generator-5e03ae7
+  ml-guard:
+    imageOverride:
+      tag: 1.0-ml-guard-5e03ae7
+  payment:
+    imageOverride:
+      tag: 1.0-payment-5e03ae7
+  product-catalog:
+    imageOverride:
+      tag: 1.0-product-catalog-5e03ae7
+  product-reviews:
+    imageOverride:
+      tag: 1.0-product-reviews-5e03ae7
+  quote:
+    imageOverride:
+      tag: 1.0-quote-5e03ae7
+  recommendation:
+    imageOverride:
+      tag: 1.0-recommendation-5e03ae7
+  shipping:
+    imageOverride:
+      tag: 1.0-shipping-5e03ae7
+  shopping-copilot:
+    imageOverride:
+      tag: 1.0-shopping-copilot-5e03ae7

@@ -1,0 +1,40 @@
+# Controlled Develop baseline: one Pod per application Deployment.
+# HPA is disabled so it cannot override default.replicas during initial testing.
+default:
+  replicas: 1
+
+components:
+  cart:
+    hpa:
+      enabled: false
+      minReplicas: 1
+  ml-guard:
+    # HPA min=max=2 trong chart; develop 3 node t3 không đủ CPU cho replica 2
+    # (Pending vì Insufficient cpu) -> 1 replica như các service khác.
+    hpa:
+      enabled: false
+      minReplicas: 1
+  checkout:
+    hpa:
+      enabled: false
+      minReplicas: 1
+  currency:
+    hpa:
+      enabled: false
+      minReplicas: 1
+  frontend:
+    hpa:
+      enabled: false
+      minReplicas: 1
+  frontend-proxy:
+    hpa:
+      enabled: false
+      minReplicas: 1
+  product-catalog:
+    hpa:
+      enabled: false
+      minReplicas: 1
+  recommendation:
+    hpa:
+      enabled: false
+      minReplicas: 1

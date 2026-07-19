@@ -14,6 +14,8 @@ import logging
 import os
 
 import boto3
+from botocore.credentials import RefreshableCredentials
+from botocore.session import get_session
 
 logger = logging.getLogger(__name__)
 
@@ -31,14 +33,24 @@ def create_bedrock_runtime_client(*, region_name: str, config=None):
             assume_role_kwargs["ExternalId"] = external_id
 
         sts = boto3.client("sts")
-        response = sts.assume_role(**assume_role_kwargs)
-        credentials = response["Credentials"]
-        session = boto3.Session(
-            aws_access_key_id=credentials["AccessKeyId"],
-            aws_secret_access_key=credentials["SecretAccessKey"],
-            aws_session_token=credentials["SessionToken"],
+
+        def refresh_credentials():
+            credentials = sts.assume_role(**assume_role_kwargs)["Credentials"]
+            return {
+                "access_key": credentials["AccessKeyId"],
+                "secret_key": credentials["SecretAccessKey"],
+                "token": credentials["SessionToken"],
+                "expiry_time": credentials["Expiration"].isoformat(),
+            }
+
+        botocore_session = get_session()
+        botocore_session._credentials = RefreshableCredentials.create_from_metadata(
+            metadata=refresh_credentials(),
+            refresh_using=refresh_credentials,
+            method="sts-assume-role",
         )
-        logger.info("Using IRSA to assume BEDROCK_AWS_ROLE_ARN for Bedrock runtime")
+        session = boto3.Session(botocore_session=botocore_session)
+        logger.info("Using refreshable assumed-role credentials for Bedrock runtime")
         return session.client("bedrock-runtime", region_name=region_name, config=config)
 
     kwargs = {"service_name": "bedrock-runtime", "region_name": region_name}

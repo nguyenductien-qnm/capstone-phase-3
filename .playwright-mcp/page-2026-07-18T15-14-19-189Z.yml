@@ -1,0 +1,188 @@
+- generic [active] [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - banner [ref=f1e3]:
+      - navigation [ref=f1e4]:
+        - generic [ref=f1e5]:
+          - link [ref=f1e6] [cursor=pointer]:
+            - /url: /
+          - generic [ref=f1e8]:
+            - generic [ref=f1e10]:
+              - generic [ref=f1e11]: $
+              - combobox [ref=f1e12] [cursor=pointer]:
+                - option "AUD"
+                - option "BGN"
+                - option "BRL"
+                - option "CAD"
+                - option "CHF"
+                - option "CNY"
+                - option "CZK"
+                - option "DKK"
+                - option "EUR"
+                - option "GBP"
+                - option "HKD"
+                - option "HRK"
+                - option "HUF"
+                - option "IDR"
+                - option "ILS"
+                - option "INR"
+                - option "ISK"
+                - option "JPY"
+                - option "KRW"
+                - option "MXN"
+                - option "MYR"
+                - option "NOK"
+                - option "NZD"
+                - option "PHP"
+                - option "PLN"
+                - option "RON"
+                - option "RUB"
+                - option "SEK"
+                - option "SGD"
+                - option "THB"
+                - option "TRY"
+                - option "USD" [selected]
+                - option "ZAR"
+              - img "arrow" [ref=f1e13]
+            - img "Cart icon" [ref=f1e15] [cursor=pointer]
+    - main [ref=f1e16]:
+      - generic [ref=f1e17]:
+        - generic [ref=f1e20]:
+          - heading "Solar Filter" [level=5] [ref=f1e21]
+          - paragraph [ref=f1e22]: Enhance your viewing experience with EclipSmart Solar Filter for 8" telescopes. With two Velcro straps and four self-adhesive Velcro pads for added safety, you can be assured that the solar filter cannot be accidentally knocked off and will provide Solar Safe, ISO compliant viewing.
+          - paragraph [ref=f1e23]:
+            - generic [ref=f1e24]: $ 69.95
+          - paragraph [ref=f1e25]: Quantity
+          - generic [ref=f1e26]:
+            - combobox [ref=f1e27] [cursor=pointer]:
+              - option "1" [selected]
+              - option "2"
+              - option "3"
+              - option "4"
+              - option "5"
+              - option "6"
+              - option "7"
+              - option "8"
+              - option "9"
+              - option "10"
+            - img "select" [ref=f1e28]
+          - button [ref=f1e29] [cursor=pointer]:
+            - img "cart" [ref=f1e30]
+            - text: Add To Cart
+        - generic [ref=f1e31]:
+          - region "Ask AI about this product" [ref=f1e32]:
+            - heading "Ask AI About This Product" [level=4] [ref=f1e33]
+            - generic [ref=f1e34]:
+              - textbox "Question to AI" [ref=f1e35]:
+                - /placeholder: Type a question about the product…
+                - text: Pin của điện thoại này dùng bao lâu?
+              - button "Ask" [ref=f1e150] [cursor=pointer]
+            - generic [ref=f1e37]:
+              - button "Can you summarize the product reviews?" [ref=f1e38] [cursor=pointer]
+              - button "What age(s) is this recommended for?" [ref=f1e39] [cursor=pointer]
+              - button "Were there any negative reviews?" [ref=f1e40] [cursor=pointer]
+            - paragraph [ref=f1e151]:
+              - strong [ref=f1e152]: "AI Response:"
+              - text: Hiện tại hệ thống không thể tạo tóm tắt đánh giá. Vui lòng tham khảo các đánh giá chi tiết bên dưới.
+          - heading "Customer Reviews" [level=3] [ref=f1e42]
+          - generic [ref=f1e92]:
+            - generic [ref=f1e93]:
+              - generic [ref=f1e94]: "4.8"
+              - generic "4.8 out of 5 stars" [ref=f1e95]: ★ ★ ★ ★ ★
+              - generic [ref=f1e96]: 5 reviews
+            - generic [ref=f1e97]:
+              - generic [ref=f1e98]:
+                - generic [ref=f1e99]: 1 star
+                - 'generic "1 stars: 0%" [ref=f1e100]'
+                - generic [ref=f1e101]: 0%
+              - generic [ref=f1e102]:
+                - generic [ref=f1e103]: 2 stars
+                - 'generic "2 stars: 0%" [ref=f1e104]'
+                - generic [ref=f1e105]: 0%
+              - generic [ref=f1e106]:
+                - generic [ref=f1e107]: 3 stars
+                - 'generic "3 stars: 0%" [ref=f1e108]'
+                - generic [ref=f1e109]: 0%
+              - generic [ref=f1e110]:
+                - generic [ref=f1e111]: 4 stars
+                - 'generic "4 stars: 0%" [ref=f1e112]'
+                - generic [ref=f1e113]: 0%
+              - generic [ref=f1e114]:
+                - generic [ref=f1e115]: 5 stars
+                - 'generic "5 stars: 100%" [ref=f1e116]'
+                - generic [ref=f1e118]: 100%
+          - list [ref=f1e119]:
+            - listitem [ref=f1e120]:
+              - generic [ref=f1e121]:
+                - strong [ref=f1e122]: solar_safety
+                - generic "5.0 out of 5 stars" [ref=f1e123]: ★ ★ ★ ★ ★
+              - paragraph [ref=f1e124]: Essential for safe solar viewing with my 8-inch telescope. The Velcro straps ensure it stays securely in place. Peace of mind during solar observations.
+            - listitem [ref=f1e125]:
+              - generic [ref=f1e126]:
+                - strong [ref=f1e127]: telescope_upgrade
+                - generic "4.5 out of 5 stars" [ref=f1e128]: ★ ★ ★ ★ ★
+              - paragraph [ref=f1e129]: This EclipSmart filter is a perfect addition to my setup. The ISO compliance is crucial. Highly recommend for anyone looking to view the sun safely.
+            - listitem [ref=f1e130]:
+              - generic [ref=f1e131]:
+                - strong [ref=f1e132]: safe_sun_gazer
+                - generic "5.0 out of 5 stars" [ref=f1e133]: ★ ★ ★ ★ ★
+              - paragraph [ref=f1e134]: Easy to attach and provides crystal clear, safe views of the sun. The build quality is excellent. A must-have accessory for solar enthusiasts.
+            - listitem [ref=f1e135]:
+              - generic [ref=f1e136]:
+                - strong [ref=f1e137]: filter_fan
+                - generic "4.5 out of 5 stars" [ref=f1e138]: ★ ★ ★ ★ ★
+              - paragraph [ref=f1e139]: Works perfectly with my 8-inch scope. No more worries about accidental dislodgement. Great product for protecting your eyes and equipment.
+            - listitem [ref=f1e140]:
+              - generic [ref=f1e141]:
+                - strong [ref=f1e142]: eclipse_ready
+                - generic "5.0 out of 5 stars" [ref=f1e143]: ★ ★ ★ ★ ★
+              - paragraph [ref=f1e144]: Bought this for the upcoming eclipse, and it fits perfectly. Tested it out, and the views are fantastic and safe. Very happy with this purchase.
+        - generic [ref=f1e44]:
+          - heading "You May Also Like" [level=3] [ref=f1e46]
+          - generic [ref=f1e47]:
+            - link "Red Flashlight $ 57.08" [ref=f1e48] [cursor=pointer]:
+              - /url: /product/LS4PSXUNUM
+              - generic [ref=f1e51]:
+                - paragraph [ref=f1e52]: Red Flashlight
+                - paragraph [ref=f1e53]:
+                  - generic [ref=f1e54]: $ 57.08
+            - link "The Comet Book $ 0.99" [ref=f1e55] [cursor=pointer]:
+              - /url: /product/HQTGWGPNH4
+              - generic [ref=f1e58]:
+                - paragraph [ref=f1e59]: The Comet Book
+                - paragraph [ref=f1e60]:
+                  - generic [ref=f1e61]: $ 0.99
+            - link "National Park Foundation Explorascope $ 101.96" [ref=f1e62] [cursor=pointer]:
+              - /url: /product/OLJCESPC7Z
+              - generic [ref=f1e65]:
+                - paragraph [ref=f1e66]: National Park Foundation Explorascope
+                - paragraph [ref=f1e67]:
+                  - generic [ref=f1e68]: $ 101.96
+            - link "Lens Cleaning Kit $ 21.95" [ref=f1e69] [cursor=pointer]:
+              - /url: /product/L9ECAV7KIM
+              - generic [ref=f1e72]:
+                - paragraph [ref=f1e73]: Lens Cleaning Kit
+                - paragraph [ref=f1e74]:
+                  - generic [ref=f1e75]: $ 21.95
+      - link [ref=f1e145] [cursor=pointer]:
+        - /url: /product/L9ECAV7KIM
+        - paragraph [ref=f1e146]: Lens Cleaning Kit for sale. Buy one, get second one for free
+    - contentinfo [ref=f1e77]:
+      - generic [ref=f1e78]:
+        - paragraph [ref=f1e79]: This website is hosted for demo purpose only. It is not an actual shop.
+        - paragraph [ref=f1e80]:
+          - generic [ref=f1e81]: "session-id: 5ddc7e2c-80eb-409f-87f1-8b7ce384b552"
+      - paragraph [ref=f1e82]: "@ 2026 TechX Corp"
+      - generic [ref=f1e83]: kubernetes
+    - generic [ref=f1e84]:
+      - button [ref=f1e85] [cursor=pointer]
+      - generic:
+        - generic:
+          - generic:
+            - heading "Shopping Copilot" [level=3]
+            - generic: Online and ready to assist
+          - button
+        - generic: Hi there! I am your Shopping Copilot. How can I help you find the perfect product today?
+        - generic:
+          - textbox "Ask about products, sizes, or shipping..."
+          - button [disabled]
+  - alert [ref=f1e91]

@@ -21,6 +21,7 @@ spec:
         - ../../gitops/environments/sandbox/values-flagd-sync.yaml
         - ../../gitops/environments/sandbox/values-ops-observability.yaml
         - ../../gitops/environments/sandbox/values-external-secrets.yaml
+        - ../../gitops/environments/sandbox/values-aio-llm.yaml
         # CI-managed image tags (app-build.yaml bump) — load CUỐI để override tag.
         - ../../gitops/environments/sandbox/values-image-tags.yaml
 

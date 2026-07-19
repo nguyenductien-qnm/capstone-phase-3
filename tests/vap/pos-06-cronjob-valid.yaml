@@ -1,0 +1,22 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: vaptest-pos-06-cronjob-valid
+  labels: { vaptest: "true" }
+spec:
+  schedule: "*/5 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: app
+            image: ecommerce-dev-techx-corp:1.0-cart-aadff38
+            securityContext:
+              runAsNonRoot: true
+              allowPrivilegeEscalation: false
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests: { cpu: "10m", memory: "16Mi" }
+              limits: { cpu: "50m", memory: "32Mi" }
+          restartPolicy: OnFailure

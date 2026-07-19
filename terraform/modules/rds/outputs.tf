@@ -25,7 +25,7 @@ output "db_secret_arn" {
 
 output "db_endpoint_secret_arn" {
   description = "ARN Secret chứa endpoint DB (host+proxy) cho ESO"
-  value       = var.enable_rds_proxy ? aws_secretsmanager_secret.db_endpoint[0].arn : null
+  value       = aws_secretsmanager_secret.db_endpoint[0].arn
 }
 
 output "db_password" {

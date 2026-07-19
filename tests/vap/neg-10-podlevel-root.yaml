@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: vaptest-neg-10-podlevel-root
+  labels: { vaptest: "true" }
+spec:
+  # runAsUser: 0 đặt ở POD-level, container KHÔNG set -> CEL fallback xuống
+  # object.spec.securityContext phải bắt được (nhánh fallback 2 tầng)
+  securityContext:
+    runAsUser: 0                              # VI PHẠM run-as-non-root (pod-level)
+  containers:
+  - name: app
+    image: ecommerce-dev-techx-corp:1.0-cart-aadff38
+    securityContext:
+      # không set runAsUser/runAsNonRoot ở container -> kế thừa pod-level
+      allowPrivilegeEscalation: false
+      capabilities: { drop: ["ALL"] }
+    resources:
+      requests: { cpu: "10m", memory: "16Mi" }
+      limits: { cpu: "50m", memory: "32Mi" }
