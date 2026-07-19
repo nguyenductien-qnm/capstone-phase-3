@@ -101,9 +101,11 @@ resource "aws_db_instance" "this" {
   password             = random_password.db_password.result
   db_subnet_group_name = aws_db_subnet_group.this.name
   parameter_group_name = var.enable_logical_replication ? aws_db_parameter_group.this[0].name : null
-  skip_final_snapshot  = true
-  multi_az             = var.multi_az
-  storage_encrypted    = true
+  skip_final_snapshot         = true
+  multi_az                    = var.multi_az
+  storage_encrypted           = true
+  allow_major_version_upgrade = true
+
 
   # Phải bật backup retention để cho phép tạo Read Replica
   backup_retention_period = 7
