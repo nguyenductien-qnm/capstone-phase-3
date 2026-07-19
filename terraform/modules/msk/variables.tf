@@ -23,6 +23,12 @@ variable "eks_security_group_id" {
   description = "Security Group ID của cụm EKS để whitelist kết nối"
 }
 
+variable "lambda_security_group_id" {
+  type = string 
+  description = "Security Group ID of Lambda function for whitelist connection"
+  
+}
+
 variable "broker_instance_type" {
   type        = string
   description = "EC2 instance class của MSK brokers"

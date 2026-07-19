@@ -29,6 +29,16 @@ resource "aws_security_group_rule" "msk_ingress_eks" {
   description              = "Allow connection from EKS nodes to MSK cluster"
 }
 
+resource "aws_security_group_rule" "msk_ingress_lambda" {
+  type = "ingress"
+  from_port = 9096
+  to_port = 9096
+  protocol = "tcp"
+  source_security_group_id = var.lambda_security_group_id
+  security_group_id = aws_security_group.msk.id 
+  description = "Allow Lambda function to push messages over SASL/SCRAM" 
+}
+
 # MSK Configuration: bật auto.create.topics.enable để services tự tạo topic
 resource "aws_msk_configuration" "this" {
   name              = "${var.project_name}-${var.environment}-msk-config-${replace(var.kafka_version, ".", "-")}"

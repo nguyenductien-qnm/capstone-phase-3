@@ -369,3 +369,44 @@ variable "audit_operator_role_names" {
   default     = []
   description = "IAM role names to attach the tamper-deny policy; leave empty for Identity Center manual attachment"
 }
+
+// DynamoDB
+variable "dynamodb_table_name" {
+  description = "Name of the DynamoDB table"
+  type        = string
+}
+
+variable "dynamodb_stream_enabled" {
+  description = "Enable DynamoDB Streams"
+  type        = bool
+  default     = true
+}
+
+variable "dynamodb_billing_mode" {
+  description = "DynamoDB billing mode"
+  type        = string
+  default     = "PAY_PER_REQUEST"
+}
+
+variable "dynamodb_hash_key" {
+  description = "Partition key of a DynamoDB table"
+  type = "string"
+}
+
+variable "dynamodb_range_key" {
+  description = "Sort key of a DynamoDB table"
+  type        = string
+  default     = null 
+}
+
+variable "dynamodb_gsi_name" {
+  description = "Name of a Global Secondary Index"
+  type        = string
+  default     = null 
+}
+
+variable "dynamodb_gsi_projection_type" {
+  description = "Attributes to be projected into the GSI (valid values: ALL, KEYS_ONLY, or INCLUDE)"
+  type = string 
+  default = "ALL"
+}

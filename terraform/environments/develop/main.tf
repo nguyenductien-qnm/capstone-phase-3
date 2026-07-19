@@ -209,3 +209,20 @@ module "external_secrets_irsa" {
     module.msk.kms_key_arn,
   ]
 }
+
+module "dynamodb" {
+  source = "../../modules/dynamodb"
+
+  project_name = var.project_name
+  environment = var.environment
+
+  table_name = var.dynamodb_table_name
+  billing_mode = var.dynamodb_billing_mode
+  stream_enabled = var.dynamodb_stream_enabled
+  
+  hash_key = var.dynamodb_hash_key
+  range_key = var.dynamodb_range_key
+
+  global_secondary_index_name = var.dynamodb_gsi_name
+  global_secondary_index_projection_type = var.dynamodb_gsi_projection_type
+}
