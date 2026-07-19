@@ -5,18 +5,35 @@ KHÔNG ghi gì vào cluster (an toàn với workload đang chạy).
 
 ## Cách chạy
 
+Chạy **từ trong thư mục `tests/vap/`** (script sẽ tự `cd` về đúng chỗ chứa các
+manifest, nhưng tên file phải gọi đúng vị trí):
+
 ```bash
+cd tests/vap
 bash run-dry-run-tests.sh
 # hoặc lưu evidence:
 bash run-dry-run-tests.sh 2>&1 | tee "results-$(date +%Y%m%d-%H%M).txt"
 ```
 
+Nếu đang đứng ở thư mục `tests/` (thư mục cha), gọi kèm đường dẫn `vap/`:
+
+```bash
+bash vap/run-dry-run-tests.sh
+```
+
+Mặc định test chạy trên namespace `default`. Để test đúng namespace production
+`techx-tf1`, đặt biến `NS` ở đầu lệnh:
+
+```bash
+NS=techx-tf1 bash run-dry-run-tests.sh
+```
+
 Yêu cầu: SSO đã đăng nhập, kubectl trỏ cluster `ecommerce-dev-eks`, có quyền
 create Pod trong `techx-tf1` (dry-run vẫn qua RBAC).
 
-## Ma trận test (14 case)
+## Ma trận test (15 case)
 
-### Negative — phải bị bắt (10 case)
+### Negative — phải bị bắt (11 case)
 
 | Case | Luật kích hoạt | Nhánh CEL được test |
 |---|---|---|
@@ -30,6 +47,7 @@ create Pod trong `techx-tf1` (dry-run vẫn qua RBAC).
 | `neg-08-no-caps-block` | psp-capabilities | **không có** `capabilities` block (absent → chặn) |
 | `neg-09-partial-resources` | require-resources | có requests nhưng **thiếu `limits.memory`** (lỗi dev phổ biến nhất) |
 | `neg-10-podlevel-root` | run-as-non-root | `runAsUser: 0` ở **pod-level**, container không set (nhánh fallback) |
+| `neg-11-uppercase-tag` | deny-floating-image-tag | tag floating viết **HOA** (`nginx:LATEST`) → CEL `lowerAscii()` vẫn bắt |
 
 ### Positive — phải PASS sạch, không warning nào (4 case)
 

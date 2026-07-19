@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: vaptest-neg-11-uppercase-tag
+  labels: { vaptest: "true" }
+spec:
+  containers:
+  - name: app
+    image: nginx:LATEST                  
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      allowPrivilegeEscalation: false
+      capabilities: { drop: ["ALL"] }
+    resources:
+      requests: { cpu: "10m", memory: "16Mi" }
+      limits: { cpu: "50m", memory: "32Mi" }

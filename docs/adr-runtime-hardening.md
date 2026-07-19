@@ -3,7 +3,7 @@
 **Mã tài liệu**: CDO-SEC-ADR-003  
 **Trạng thái**: Đã phê duyệt & Thực thi (Approved & Enforced)  
 **Tác giả**: Châu Thành Trung (CDO-05 / Security & DevOps Lead)  
-**Ngày phê duyệt**: 14/07/2026  
+**Ngày phê duyệt**: 18/07/2026  
 
 ---
 
@@ -39,7 +39,7 @@ Chúng ta sử dụng tính năng native **Kubernetes ValidatingAdmissionPolicy 
 * **Trạng thái**: **Chỉ giám sát (Audit-only / Dryrun)** cho phần lớn các service, ngoại trừ service `ad` đã được chuyển sang **Enforce** thành công.
 * **Lý do**: Nhiều microservices của bên thứ ba hoặc các framework phát triển (như NextJS frontend, Envoy proxy) yêu cầu ghi dữ liệu tạm vào các thư mục `/tmp`, `/var/cache` hoặc `.next/cache`. Việc siết chặn ngay lập tức sẽ làm vỡ ứng dụng và gây gián đoạn dịch vụ khách hàng (rớt SLO).
 * **Kế hoạch cắt chuyển (Audit -> Enforce)**:
-  1. Rà quét nhật ký Audit của Gatekeeper để liệt kê tất cả các thư mục cần ghi file tạm của từng microservice.
+  1. Rà quét nhật ký Audit hoặc logs hệ thống/VAP để liệt kê tất cả các thư mục cần ghi file tạm của từng microservice.
   2. Cập nhật Helm Chart để tạo các phân vùng ghi tạm dạng `emptyDir` gắn vào Pod.
   3. Dự kiến chuyển toàn bộ sang chế độ chặn thực tế (Enforce) trước **30/09/2026**.
 
@@ -64,9 +64,9 @@ Chúng ta sử dụng tính năng native **Kubernetes ValidatingAdmissionPolicy 
 * **Tác động**: Đạt điểm tuân thủ bảo mật tối đa cho Directive #5.
 
 ### 5.2. Góc nhìn Vận hành (SRE / Platform)
-* **Rủi ro SLO**: Rủi ro gián đoạn dịch vụ thấp nhờ chiến lược **Rollout 2 giai đoạn (Audit trước, Enforce sau)**. Việc test thử nghiệm qua file render giúp loại bỏ 100% lỗi cú pháp trước khi chạy thực tế.
-* **Kịch bản Khôi phục (Rollback)**: Nếu chính sách chặn gây nghẽn deploy do lỗi False Positive, SRE Team có thể tạm thời chuyển nhanh trường `enforcementAction` của Constraint tương ứng về `dryrun` hoặc chạy lệnh xóa Constraint:
-  `kubectl delete constraint <constraint-name>`
+* **Rủi ro SLO**: Rủi ro gián đoạn dịch vụ thấp nhờ chiến lược **Rollout 2 giai đoạn (Warn trước, Enforce sau)**. Việc test thử nghiệm qua file dry-run giúp loại bỏ 100% lỗi cấu hình trước khi chạy thực tế.
+* **Kịch bản Khôi phục (Rollback)**: Nếu chính sách chặn gây nghẽn deploy do lỗi False Positive, SRE Team có thể tạm thời chuyển nhanh trường `validationActions` của ValidatingAdmissionPolicyBinding tương ứng về `[Warn]` hoặc chạy lệnh xóa Binding:
+  `kubectl delete validatingadmissionpolicybinding <binding-name>`
   Thao tác này khôi phục khả năng deploy tức thì mà không cần cài đặt lại hệ thống.
 
 ### 5.3. Góc nhìn Tài chính (CFO / Budget)
