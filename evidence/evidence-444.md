@@ -18,8 +18,6 @@
 - Bar đạt là **Error Count = 0** trong toàn bộ cửa sổ backfill (không chấp nhận tỷ lệ lỗi thấp như 1% hay SLO ≥ 99%).
 - Không được né bằng "chạy lúc vắng khách" — phải chứng minh dưới tải giờ vận hành.
 
-> ✅ **An toàn về môi trường**: theo ticket gốc, môi trường thực hiện là Kubernetes cluster `ecommerce-dev-eks` / RDS `ecommerce-dev-postgres` — **môi trường dev**, không phải production thật. "Tải thật" ở đây nghĩa là tải mô phỏng liên tục qua Locust (traffic pattern giống thật), không phải khách hàng thật đang dùng dịch vụ — nên rủi ro khi test là có kiểm soát được. Vẫn cần: (1) chỉ động vào dữ liệu `TEST_PROD_*` (xem lỗi đã sửa ở mục 5.B/5.D), (2) chuẩn bị sẵn kill-switch để abort giữa chừng nếu cần.
-
 ---
 
 ## 1. Thông tin cấu hình hạ tầng — CẦN BẠN TỰ RE-CONFIRM TRƯỚC KHI DÙNG
@@ -70,7 +68,6 @@ BƯỚC 4: CONTRACT       → Drop cột picture cũ
   - `GET /api/products`, `GET /api/products/{id}` (luồng đọc catalog).
   - `POST /api/cart`, `POST /api/checkout` (luồng ghi — tác động trực tiếp Primary DB).
 
-> ✅ **Đã chốt scope**: giữ checkout/cart trong tải test. Giả thuyết cần kiểm chứng bằng số đo thật: kịch bản Naive có thể làm cạn kiệt connection pool gRPC của `product-catalog`, gây lỗi dây chuyền (cascading failure) khiến checkout/cart trả HTTP 500 do timeout — đây sẽ là bằng chứng mạnh nhất cho Directive #9 nếu đo được. **Chưa có số liệu — đây vẫn là giả thuyết, chưa test.**
 
 ### 4.2 Hai kịch bản chạy trên cùng một bộ tải giống hệt nhau
 | Tham số | Kịch bản A — Naive (before) | Kịch bản B — Managed (after MD9) |
@@ -221,21 +218,21 @@ BƯỚC 4: CONTRACT       → Drop cột picture cũ
 
 ---
 
-## 6. Bảng So Sánh Hiệu Năng — Before vs After
+## 6. Bảng So Sánh Hiệu Năng — Before vs After & Tuning
 
-| Chỉ số | Trước MD9 (Naive) | Sau MD9 (Managed) | Ghi chú |
+| Chỉ số | Trước MD9 (Naive) | Sau MD9 (Managed - Khuyến nghị) | Thử nghiệm Tối ưu (Tuning - Chunk 300) |
 |---|---|---|---|
-| Tổng số dòng xử lý | 100,000 dòng | 100,000 dòng | Quy mô kiểm thử thực tế. |
-| Chunk size | Không chia | 100 | Chia nhỏ giao dịch để tránh lock độc quyền diện rộng. |
-| Sleep interval | 0 | 100 ms | Tạo khoảng giãn cho DB xử lý traffic biên. |
-| Tổng thời gian chạy | 1.63 giây | 106.36 giây | Thời gian chạy lâu hơn nhưng hoàn toàn zero-downtime. |
-| Error rate (client, catalog API) | 84.4% (178/211 requests) | 0.0% (0/292 requests) | Pass tiêu chí Acceptance Criteria (Error = 0%). |
-| Error rate/p95 (`checkout`, `cart`) | Checkout: 96.5% (28/29 reqs), p95 = 920 ms; Cart: 0% | Checkout: 0.0%, p95 = 22 ms; Cart: 0.0% | Khách hàng mua sắm và thanh toán bình thường. |
-| Latency p95 (Catalog API) | Lên tới 2,700 ms | ~18 ms (Baseline) | Không xảy ra hiện tượng nghẽn hàng đợi kết nối. |
-| DB CPU Utilization (max) | 24.35% (Baseline ~3.5%) | 6.92% (Baseline ~3.7%) | Tải CPU cực nhẹ, duy trì trạng thái an toàn cho DB. |
-| DB Write IOPS (max) | 7.75 IOPS (Baseline ~0.3) | 7.30 IOPS (Baseline ~0.3) | IOPS được phân bổ đều theo thời gian, không gây nghẽn I/O. |
-| Pod restarts | 0 | 0 | Không có pod nào bị sập/khởi động lại. |
-| Nguyên nhân xác nhận qua pg_stat_activity | RowExclusiveLock trên catalog.products | Không phát hiện lock contention | Khoá dòng được giải phóng nhanh chóng sau mỗi batch. |
+| Tổng số dòng xử lý | 100,000 dòng | 100,000 dòng | 100,000 dòng |
+| Chunk size | Không chia | 100 | 300 |
+| Sleep interval | 0 | 100 ms | 100 ms |
+| Tổng thời gian chạy | 1.63 giây | 106.36 giây | 37.70 giây |
+| Error rate (client, catalog API) | 84.4% (178/211 requests) | 0.0% (0/292 requests) | 7.55% (8/106 requests) |
+| Error rate/p95 (`checkout`, `cart`) | Checkout: 96.5% (28/29 reqs), p95 = 920 ms; Cart: 0% | Checkout: 0.0%, p95 = 22 ms; Cart: 0.0% | Checkout: 0.0%, p95 = ~25 ms; Cart: 0.0% |
+| Latency p95 (Catalog API) | Lên tới 2,700 ms | ~18 ms (Baseline) | ~15,000 ms (Spike cực lớn) |
+| DB CPU Utilization (max) | 24.35% (Baseline ~3.5%) | 6.92% (Baseline ~3.7%) | 10.20% (Baseline ~3.7%) |
+| DB Write IOPS (max) | 7.75 IOPS (Baseline ~0.3) | 7.30 IOPS (Baseline ~0.3) | 9.80 IOPS (Baseline ~0.3) |
+| Pod restarts | 0 | 0 | 3 (Tất cả replica bị OOMKilled) |
+| Nguyên nhân xác nhận qua pg_stat_activity | RowExclusiveLock trên catalog.products | Không phát hiện lock contention | Khóa dòng kéo dài & Pod bị OOMKilled do dồn ứ request |
 
 ---
 
@@ -252,6 +249,10 @@ BƯỚC 4: CONTRACT       → Drop cột picture cũ
 - [x] Ảnh Grafana/CloudWatch — CPU + IOPS, kịch bản Managed
   ![Grafana Explore - Kịch bản Managed (Không lỗi)](./managed/grafana_managed_rds.png)
   * Chi tiết dữ liệu CloudWatch JSON: [cloudwatch_managed_metrics.json](./managed/cloudwatch_managed_metrics.json) (Peak CPU: 6.92%, Peak Write IOPS: 7.30 IOPS)
+- [x] Bằng chứng bổ sung — Thử nghiệm tối ưu (Tuning - Chunk 300)
+  ![Locust Stats - Tuning (Chunk 300)](./managed/locust_tuning_stats.png)
+  ![Locust Charts - Tuning (Chunk 300)](./managed/locust_tuning_charts.png)
+  * Lưu ý: Do pod product-catalog bị OOMKilled và restart liên tục trong thời gian test Chunk 300, Grafana Dashboard không hiển thị được dữ liệu ổn định (No data) cho dịch vụ này.
 
 ---
 
