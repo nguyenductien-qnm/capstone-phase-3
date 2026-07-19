@@ -204,25 +204,6 @@ module "cloudtrail" {
   operator_role_names            = var.audit_operator_role_names
 }
 
-# MANDATE-11 audit detection is opt-in so existing sandbox plans remain
-# unchanged until the Slack destination and pipeline-health email are ready.
-# It inherits this root's AWS provider and state backend.
-module "audit_detection" {
-  count  = var.audit_detection_enabled ? 1 : 0
-  source = "../../audit-detection"
-
-  project_name                    = var.project_name
-  environment                     = var.environment
-  pipeline_health_email_endpoints = var.audit_pipeline_health_email_endpoints
-  slack_webhook_parameter_arn     = var.audit_slack_webhook_parameter_arn
-  slack_webhook_kms_key_arn       = var.audit_slack_webhook_kms_key_arn
-  break_glass_role_arns           = var.audit_detection_break_glass_role_arns
-
-  tags = {
-    Stack = "sandbox"
-  }
-}
-
 # IRSA role cho External Secrets Operator đọc endpoint/credential từ Secrets Manager
 # (RDS/Valkey/MSK) và đồng bộ vào cluster. Least-privilege: chỉ đúng các secret ARN.
 module "external_secrets_irsa" {

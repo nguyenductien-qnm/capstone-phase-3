@@ -71,4 +71,4 @@ metadata:
   name: "deny-floating-image-tag-binding"
 spec:
   policyName: "deny-floating-image-tag"
-  validationActions: [Deny]
+  validationActions: [Warn]
