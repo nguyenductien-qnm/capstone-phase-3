@@ -8,6 +8,12 @@ components:
     hpa:
       enabled: false
       minReplicas: 1
+  ml-guard:
+    # HPA min=max=2 trong chart; develop 3 node t3 không đủ CPU cho replica 2
+    # (Pending vì Insufficient cpu) -> 1 replica như các service khác.
+    hpa:
+      enabled: false
+      minReplicas: 1
   checkout:
     hpa:
       enabled: false
