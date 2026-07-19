@@ -114,6 +114,17 @@ module "ecr" {
   project_name     = var.project_name
   environment      = var.environment
   ecr_repositories = var.ecr_repositories
+
+  # Tag convention <version>-<svc>-<sha> + Cosign ký digest GIẢ ĐỊNH tag không bị
+  # ghi đè -> bật IMMUTABLE cho khớp (trước giờ repo đang MUTABLE dù comment CI
+  # nói ngược lại). Đánh đổi: tag cosign sha256-*.sig/.att cũng chỉ ghi được 1
+  # lần -> re-run sign/attest trên CÙNG digest sẽ fail (exclusion filter cần AWS
+  # provider mới hơn ~> 4.0 đang pin, chưa dùng được).
+  image_mutability = "IMMUTABLE"
+
+  # Node role của cluster develop (account khác) pull image từ ECR chung này.
+  # ARN lấy từ output `eks_managed_node_role_arn` của terraform/environments/develop.
+  pull_principal_arns = var.ecr_pull_principal_arns
 }
 
 # IRSA cho external-dns: quyền ghi record trong ĐÚNG hosted zone của subdomain.
@@ -191,25 +202,6 @@ module "cloudtrail" {
   audit_administrator_principals = var.audit_administrator_principals
   break_glass_principals         = var.audit_break_glass_principals
   operator_role_names            = var.audit_operator_role_names
-}
-
-# MANDATE-11 audit detection is opt-in so existing sandbox plans remain
-# unchanged until the Slack destination and pipeline-health email are ready.
-# It inherits this root's AWS provider and state backend.
-module "audit_detection" {
-  count  = var.audit_detection_enabled ? 1 : 0
-  source = "../../audit-detection"
-
-  project_name                    = var.project_name
-  environment                     = var.environment
-  pipeline_health_email_endpoints = var.audit_pipeline_health_email_endpoints
-  slack_webhook_parameter_arn     = var.audit_slack_webhook_parameter_arn
-  slack_webhook_kms_key_arn       = var.audit_slack_webhook_kms_key_arn
-  break_glass_role_arns           = var.audit_detection_break_glass_role_arns
-
-  tags = {
-    Stack = "sandbox"
-  }
 }
 
 # IRSA role cho External Secrets Operator đọc endpoint/credential từ Secrets Manager

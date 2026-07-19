@@ -150,7 +150,7 @@ variable "eks_ops_node_subnet_key" {
 variable "eks_ops_node_instance_types" {
   type        = list(string)
   description = "EC2 instance types for the observability node group"
-  default     = ["t3.medium"]
+  default     = ["t3.large"]
 }
 
 variable "eks_ops_node_disk_size_gib" {
@@ -236,6 +236,12 @@ variable "valkey_num_cache_clusters" {
 variable "ecr_repositories" {
   type        = list(string)
   description = "Danh sách tên các repositories cần khởi tạo trên ECR"
+}
+
+variable "ecr_pull_principal_arns" {
+  type        = list(string)
+  description = "IAM role ARN cross-account được phép pull image từ ECR chung (vd managed node role + karpenter node role của cluster develop). Rỗng = không tạo repository policy."
+  default     = []
 }
 
 variable "route53_zone_id" {
@@ -344,60 +350,4 @@ variable "audit_operator_role_names" {
   type        = list(string)
   default     = []
   description = "IAM role names to attach the tamper-deny policy; leave empty for Identity Center manual attachment"
-}
-
-variable "audit_detection_enabled" {
-  type        = bool
-  default     = false
-  description = "Deploy the MANDATE-11 EventBridge, SQS, Lambda, Slack, and pipeline-health resources"
-}
-
-variable "audit_pipeline_health_email_endpoints" {
-  type        = set(string)
-  default     = []
-  description = "Email recipients for audit pipeline-health alarms; audit violations are sent only to Slack"
-
-  validation {
-    condition = alltrue([
-      for endpoint in var.audit_pipeline_health_email_endpoints : can(regex("^[^@[:space:]]+@[^@[:space:]]+\\.[^@[:space:]]+$", endpoint))
-    ])
-    error_message = "Every audit pipeline-health endpoint must be a valid email address."
-  }
-}
-
-variable "audit_slack_webhook_parameter_arn" {
-  type        = string
-  default     = null
-  nullable    = true
-  description = "SSM Parameter Store or Secrets Manager ARN containing the audit Slack webhook"
-
-  validation {
-    condition     = var.audit_slack_webhook_parameter_arn == null || can(regex("^arn:[^:]+:(ssm|secretsmanager):[^:]+:[0-9]{12}:", var.audit_slack_webhook_parameter_arn))
-    error_message = "audit_slack_webhook_parameter_arn must be null or an SSM/Secrets Manager ARN."
-  }
-}
-
-variable "audit_slack_webhook_kms_key_arn" {
-  type        = string
-  default     = null
-  nullable    = true
-  description = "Optional customer-managed KMS key ARN protecting the Slack webhook value"
-
-  validation {
-    condition     = var.audit_slack_webhook_kms_key_arn == null || can(regex("^arn:[^:]+:kms:[^:]+:[0-9]{12}:key/", var.audit_slack_webhook_kms_key_arn))
-    error_message = "audit_slack_webhook_kms_key_arn must be null or a KMS key ARN."
-  }
-}
-
-variable "audit_detection_break_glass_role_arns" {
-  type        = set(string)
-  default     = []
-  description = "Exact IAM role ARNs whose AssumeRole calls must generate audit alerts"
-
-  validation {
-    condition = alltrue([
-      for arn in var.audit_detection_break_glass_role_arns : can(regex("^arn:[^:]+:iam::[0-9]{12}:role/.+", arn))
-    ])
-    error_message = "Every audit detection break-glass value must be an IAM role ARN."
-  }
 }

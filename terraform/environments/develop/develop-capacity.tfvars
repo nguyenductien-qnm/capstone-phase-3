@@ -14,3 +14,7 @@ eks_ops_node_instance_types = ["t3.large"]
 # The shared Valkey module enables automatic failover and Multi-AZ, which
 # requires at least two cache nodes. Keep this override Develop-only.
 valkey_num_cache_clusters = 2
+
+# Enable Multi-AZ deployment for Primary RDS in Develop
+rds_multi_az = true
+

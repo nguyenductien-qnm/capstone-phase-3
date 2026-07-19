@@ -22,7 +22,7 @@ Tất cả Constraint: `enforcementAction: deny` · scope `techx-tf1` · loại 
 | :-: | :--- | :--- | :-: |
 | 1 | `run-as-non-root` | Cấm chạy root (`MustRunAsNonRoot`) | #1 |
 | 2 | `deny-privilege-escalation` | Bắt buộc `allowPrivilegeEscalation: false` | #1 |
-| 3 | `deny-dangerous-capabilities` | Drop `ALL`; chỉ được add `NET_BIND_SERVICE` | #1 |
+| 3 | `psp-capabilities` | Drop `ALL`; chỉ được add `NET_BIND_SERVICE` | #1 |
 | 4 | `deny-floating-image-tag` | Cấm tag `latest/dev/master/main/stable/edge` | #2 |
 | 5 | `require-cpu-memory-limits-requests` | Đủ 4 field requests+limits × cpu+memory (cả initContainers) | #3 |
 

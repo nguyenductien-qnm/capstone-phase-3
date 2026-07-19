@@ -208,7 +208,7 @@ variable "db_username" {
 variable "rds_engine_version" {
   type        = string
   description = "PostgreSQL engine version supported by the target AWS region"
-  default     = "16.14"
+  default     = "17.10"
 }
 
 variable "rds_instance_class" {
@@ -286,6 +286,7 @@ variable "enable_cloudfront" {
 variable "rds_multi_az" {
   type        = bool
   description = "Bật/Tắt chế độ Multi-AZ cho Primary DB"
+  default     = true
 }
 variable "eks_enabled_cluster_log_types" {
   type        = list(string)
