@@ -1,11 +1,16 @@
 # Non-secret capacity policy for the Develop environment.
-# Keep two application nodes fixed; the EKS module also creates one fixed Ops node.
+# Three application nodes fixed to mirror Production primary MNG for load-test
+# parity (Mandate-19): at 1 replica/service the 2-node baseline already ran CPU
+# requests at 56-95% allocatable and left ml-guard Pending. Enabling prod-like
+# HPA (min=2 on the core flow services) needs the third node to schedule without
+# Pending. Kept min=max=desired so no node is added mid-run (Mandate-19: fixed
+# infrastructure). The EKS module also creates one fixed Ops node.
 eks_node_instance_types = ["t3.large"]
 
 eks_node_scaling = {
-  min_size     = 2
-  max_size     = 2
-  desired_size = 2
+  min_size     = 3
+  max_size     = 3
+  desired_size = 3
 }
 
 # The EKS module currently creates one dedicated observability node group.
