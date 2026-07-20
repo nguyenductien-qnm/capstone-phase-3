@@ -1,0 +1,288 @@
+name: TBD3 Rebind RDS state after Blue Green
+
+on:
+  workflow_dispatch:
+    inputs:
+      execute_rebind:
+        description: "Write the corrected RDS bindings to the sandbox S3 state"
+        required: true
+        default: false
+        type: boolean
+      confirm:
+        description: 'Type "REBIND-TBD3" when execute_rebind is enabled'
+        required: false
+        type: string
+      target_engine_version:
+        description: "Expected active PostgreSQL engine version"
+        required: true
+        default: "17.10"
+        type: string
+      expected_primary_resource_id:
+        description: "Expected live DbiResourceId for ecommerce-dev-postgres"
+        required: true
+        type: string
+      expected_replica_resource_id:
+        description: "Expected live DbiResourceId for ecommerce-dev-postgres-replica"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: terraform-sandbox-state
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  TF_VERSION: "1.14.8"
+  TF_ROOT: terraform/environments/sandbox
+  TF_LOCK_TIMEOUT: "10m"
+  TF_IN_AUTOMATION: "true"
+  STATE_BUCKET: terraform-state-phase-3
+  STATE_KEY: dev/terraform.tfstate
+  PRIMARY_ID: ecommerce-dev-postgres
+  REPLICA_ID: ecommerce-dev-postgres-replica
+  BLUE_GREEN_NAME: ecommerce-dev-pg16-to-17
+  TF_VAR_aws_region: ${{ vars.TF_VAR_AWS_REGION }}
+  TF_VAR_project_name: ${{ vars.TF_VAR_PROJECT_NAME }}
+  TF_VAR_environment: ${{ vars.TF_VAR_ENVIRONMENT }}
+  TF_VAR_vpc_cidr: ${{ vars.TF_VAR_VPC_CIDR }}
+  TF_VAR_public_subnets: ${{ vars.TF_VAR_PUBLIC_SUBNETS }}
+  TF_VAR_private_app_subnets: ${{ vars.TF_VAR_PRIVATE_APP_SUBNETS }}
+  TF_VAR_private_data_subnets: ${{ vars.TF_VAR_PRIVATE_DATA_SUBNETS }}
+  TF_VAR_private_mq_subnets: ${{ vars.TF_VAR_PRIVATE_MQ_SUBNETS }}
+  TF_VAR_enable_nat_gateway: ${{ vars.TF_VAR_ENABLE_NAT_GATEWAY }}
+  TF_VAR_single_nat_gateway: ${{ vars.TF_VAR_SINGLE_NAT_GATEWAY }}
+  TF_VAR_public_subnet_tags: ${{ vars.TF_VAR_PUBLIC_SUBNET_TAGS }}
+  TF_VAR_private_subnet_tags: ${{ vars.TF_VAR_PRIVATE_SUBNET_TAGS }}
+  TF_VAR_eks_cluster_version: ${{ vars.TF_VAR_EKS_CLUSTER_VERSION }}
+  TF_VAR_eks_node_capacity_type: ${{ vars.TF_VAR_EKS_NODE_CAPACITY_TYPE }}
+  TF_VAR_eks_endpoint_public_access: ${{ vars.TF_VAR_EKS_ENDPOINT_PUBLIC_ACCESS }}
+  TF_VAR_eks_public_access_cidrs: ${{ vars.TF_VAR_EKS_PUBLIC_ACCESS_CIDRS }}
+  TF_VAR_eks_control_plane_log_retention_days: ${{ vars.TF_VAR_EKS_CONTROL_PLANE_LOG_RETENTION_DAYS }}
+  TF_VAR_eks_access_entries: ${{ vars.TF_VAR_EKS_ACCESS_ENTRIES }}
+  TF_VAR_ecr_pull_principal_arns: ${{ vars.TF_VAR_ECR_PULL_PRINCIPAL_ARNS || '[]' }}
+  TF_VAR_db_name: ${{ vars.TF_VAR_DB_NAME }}
+  TF_VAR_db_username: ${{ vars.TF_VAR_DB_USERNAME }}
+  TF_VAR_rds_instance_class: ${{ vars.TF_VAR_RDS_INSTANCE_CLASS }}
+  TF_VAR_rds_allocated_storage: ${{ vars.TF_VAR_RDS_ALLOCATED_STORAGE }}
+  TF_VAR_enable_read_replica: ${{ vars.TF_VAR_ENABLE_READ_REPLICA }}
+  TF_VAR_replica_instance_class: ${{ vars.TF_VAR_REPLICA_INSTANCE_CLASS }}
+  TF_VAR_enable_rds_proxy: ${{ vars.TF_VAR_ENABLE_RDS_PROXY }}
+  TF_VAR_rds_multi_az: ${{ vars.TF_VAR_RDS_MULTI_AZ }}
+  TF_VAR_kafka_version: ${{ vars.TF_VAR_KAFKA_VERSION }}
+  TF_VAR_valkey_node_type: ${{ vars.TF_VAR_VALKEY_NODE_TYPE }}
+  TF_VAR_valkey_num_cache_clusters: ${{ vars.TF_VAR_VALKEY_NUM_CACHE_CLUSTERS }}
+  TF_VAR_ecr_repositories: ${{ vars.TF_VAR_ECR_REPOSITORIES }}
+  TF_VAR_route53_zone_id: ${{ vars.TF_VAR_ROUTE53_ZONE_ID }}
+  TF_VAR_subdomain: ${{ vars.TF_VAR_SUBDOMAIN }}
+  TF_VAR_acm_certificate_arn: ${{ vars.TF_VAR_ACM_CERTIFICATE_ARN }}
+  TF_VAR_enable_cloudfront: ${{ vars.TF_VAR_ENABLE_CLOUDFRONT }}
+
+jobs:
+  rebind-rds-state:
+    name: Preflight and rebind RDS state
+    runs-on: ubuntu-latest
+    environment: sandbox
+    env:
+      TF_VAR_audit_slack_webhook_url: ${{ secrets.AUDIT_SLACK_WEBHOOK_URL }}
+      TF_VAR_audit_pipeline_health_email: ${{ secrets.AUDIT_PIPELINE_HEALTH_EMAIL }}
+      TARGET_ENGINE_VERSION: ${{ inputs.target_engine_version }}
+      EXPECTED_PRIMARY_RESOURCE_ID: ${{ inputs.expected_primary_resource_id }}
+      EXPECTED_REPLICA_RESOURCE_ID: ${{ inputs.expected_replica_resource_id }}
+    defaults:
+      run:
+        working-directory: ${{ env.TF_ROOT }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.TF_AWS_ROLE_ARN }}
+          allowed-account-ids: "804372444787"
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-tbd3-rebind-${{ github.actor }}-${{ github.run_id }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Validate execution gate
+        env:
+          EXECUTE_REBIND: ${{ inputs.execute_rebind }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          if [[ "$EXECUTE_REBIND" == "true" && "$CONFIRM" != "REBIND-TBD3" ]]; then
+            echo "::error::execute_rebind=true requires confirm=REBIND-TBD3"
+            exit 1
+          fi
+          if [[ ! "$TARGET_ENGINE_VERSION" =~ ^17\.[0-9]+$ ]]; then
+            echo "::error::Only a PostgreSQL 17.x target is allowed"
+            exit 1
+          fi
+
+      - name: Verify Terraform code is aligned to PostgreSQL 17
+        run: |
+          set -euo pipefail
+          root_default="$(awk '/variable "rds_engine_version"/{found=1} found && /default/{gsub(/["[:space:]]/, "", $3); print $3; exit}' variables.tf)"
+          module_default="$(awk '/variable "engine_version"/{found=1} found && /default/{gsub(/["[:space:]]/, "", $3); print $3; exit}' ../../modules/rds/variables.tf)"
+          if [[ "$root_default" != "$TARGET_ENGINE_VERSION" || "$module_default" != "$TARGET_ENGINE_VERSION" ]]; then
+            echo "::error::Terraform code must be aligned before state rebind. Root=$root_default Module=$module_default Expected=$TARGET_ENGINE_VERSION"
+            exit 1
+          fi
+
+      - name: Terraform init against S3 backend
+        run: terraform init -input=false -reconfigure
+
+      - name: Verify live RDS and completed switchover
+        run: |
+          set -euo pipefail
+          primary_json="$(aws rds describe-db-instances --db-instance-identifier "$PRIMARY_ID" --output json)"
+          replica_json="$(aws rds describe-db-instances --db-instance-identifier "$REPLICA_ID" --output json)"
+
+          primary_resource_id="$(jq -r '.DBInstances[0].DbiResourceId' <<<"$primary_json")"
+          replica_resource_id="$(jq -r '.DBInstances[0].DbiResourceId' <<<"$replica_json")"
+          primary_engine="$(jq -r '.DBInstances[0].EngineVersion' <<<"$primary_json")"
+          replica_engine="$(jq -r '.DBInstances[0].EngineVersion' <<<"$replica_json")"
+          primary_status="$(jq -r '.DBInstances[0].DBInstanceStatus' <<<"$primary_json")"
+          replica_status="$(jq -r '.DBInstances[0].DBInstanceStatus' <<<"$replica_json")"
+          replica_source="$(jq -r '.DBInstances[0].ReadReplicaSourceDBInstanceIdentifier' <<<"$replica_json")"
+          bg_status="$(aws rds describe-blue-green-deployments \
+            --query "BlueGreenDeployments[?BlueGreenDeploymentName=='$BLUE_GREEN_NAME'].Status | [0]" \
+            --output text)"
+
+          [[ "$primary_resource_id" == "$EXPECTED_PRIMARY_RESOURCE_ID" ]] || { echo "::error::Primary DbiResourceId mismatch"; exit 1; }
+          [[ "$replica_resource_id" == "$EXPECTED_REPLICA_RESOURCE_ID" ]] || { echo "::error::Replica DbiResourceId mismatch"; exit 1; }
+          [[ "$primary_engine" == "$TARGET_ENGINE_VERSION" && "$replica_engine" == "$TARGET_ENGINE_VERSION" ]] || { echo "::error::Live engine mismatch"; exit 1; }
+          [[ "$primary_status" == "available" && "$replica_status" == "available" ]] || { echo "::error::Primary and replica must be available"; exit 1; }
+          [[ "$replica_source" == "$PRIMARY_ID" ]] || { echo "::error::Replica does not follow the active primary"; exit 1; }
+          [[ "$bg_status" == "SWITCHOVER_COMPLETED" ]] || { echo "::error::Blue/Green status is $bg_status"; exit 1; }
+
+          echo "Live primary: $PRIMARY_ID / $primary_resource_id / $primary_engine"
+          echo "Live replica: $REPLICA_ID / $replica_resource_id / $replica_engine"
+          echo "Blue/Green: $BLUE_GREEN_NAME / $bg_status"
+
+      - name: Inspect current Terraform bindings
+        id: state
+        run: |
+          set -euo pipefail
+          primary_state="$(terraform state show -no-color module.rds.aws_db_instance.this)"
+          replica_state="$(terraform state show -no-color 'module.rds.aws_db_instance.replica[0]')"
+          state_primary_identifier="$(awk -F'"' '/^[[:space:]]*identifier[[:space:]]*=/{print $2; exit}' <<<"$primary_state")"
+          state_replica_identifier="$(awk -F'"' '/^[[:space:]]*identifier[[:space:]]*=/{print $2; exit}' <<<"$replica_state")"
+          state_primary_resource_id="$(awk -F'"' '/^[[:space:]]*resource_id[[:space:]]*=/{print $2; exit}' <<<"$primary_state")"
+          state_replica_resource_id="$(awk -F'"' '/^[[:space:]]*resource_id[[:space:]]*=/{print $2; exit}' <<<"$replica_state")"
+
+          echo "State primary: $state_primary_identifier / $state_primary_resource_id"
+          echo "State replica: $state_replica_identifier / $state_replica_resource_id"
+
+          if [[ "$state_primary_identifier" == "$PRIMARY_ID" && "$state_replica_identifier" == "$REPLICA_ID" && \
+                "$state_primary_resource_id" == "$EXPECTED_PRIMARY_RESOURCE_ID" && \
+                "$state_replica_resource_id" == "$EXPECTED_REPLICA_RESOURCE_ID" ]]; then
+            echo "needs_rebind=false" >> "$GITHUB_OUTPUT"
+            echo "State already follows the active production resources."
+            exit 0
+          fi
+
+          [[ "$state_primary_identifier" =~ -old[0-9]+$ ]] || { echo "::error::State primary is not an expected *-oldN resource"; exit 1; }
+          [[ "$state_replica_identifier" =~ -old[0-9]+$ ]] || { echo "::error::State replica is not an expected *-oldN resource"; exit 1; }
+          [[ "$state_primary_resource_id" != "$EXPECTED_PRIMARY_RESOURCE_ID" ]] || { echo "::error::Primary state/live identity is inconsistent"; exit 1; }
+          [[ "$state_replica_resource_id" != "$EXPECTED_REPLICA_RESOURCE_ID" ]] || { echo "::error::Replica state/live identity is inconsistent"; exit 1; }
+          echo "needs_rebind=true" >> "$GITHUB_OUTPUT"
+
+      - name: Report preflight-only result
+        if: inputs.execute_rebind != true && steps.state.outputs.needs_rebind == 'true'
+        run: |
+          echo "Preflight passed. State still follows the old Blue resources."
+          echo "Rerun with execute_rebind=true and confirm=REBIND-TBD3 to write the corrected bindings."
+
+      - name: Back up state in S3
+        id: backup
+        if: inputs.execute_rebind == true && steps.state.outputs.needs_rebind == 'true'
+        run: |
+          set -euo pipefail
+          if aws s3api head-object --bucket "$STATE_BUCKET" --key "$STATE_KEY.tflock" >/dev/null 2>&1; then
+            echo "::error::Terraform state is currently locked"
+            exit 1
+          fi
+          backup_key="dev/state-backups/tbd3-pre-rebind-$(date -u +%Y%m%dT%H%M%SZ)-${GITHUB_RUN_ID}.tfstate"
+          aws s3api copy-object \
+            --bucket "$STATE_BUCKET" \
+            --copy-source "$STATE_BUCKET/$STATE_KEY" \
+            --key "$backup_key" \
+            --server-side-encryption AES256 >/dev/null
+          echo "backup_key=$backup_key" >> "$GITHUB_OUTPUT"
+          echo "State backup created at s3://$STATE_BUCKET/$backup_key"
+          echo "### TBD3 state backup" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`s3://$STATE_BUCKET/$backup_key\`" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Rebind primary and replica
+        if: inputs.execute_rebind == true && steps.state.outputs.needs_rebind == 'true'
+        run: |
+          set -euo pipefail
+          terraform state rm -lock-timeout="$TF_LOCK_TIMEOUT" module.rds.aws_db_instance.this
+          terraform import -input=false -lock-timeout="$TF_LOCK_TIMEOUT" \
+            -var-file=primary-capacity.tfvars \
+            -var="rds_engine_version=$TARGET_ENGINE_VERSION" \
+            module.rds.aws_db_instance.this "$PRIMARY_ID"
+
+          terraform state rm -lock-timeout="$TF_LOCK_TIMEOUT" 'module.rds.aws_db_instance.replica[0]'
+          terraform import -input=false -lock-timeout="$TF_LOCK_TIMEOUT" \
+            -var-file=primary-capacity.tfvars \
+            -var="rds_engine_version=$TARGET_ENGINE_VERSION" \
+            'module.rds.aws_db_instance.replica[0]' "$REPLICA_ID"
+
+      - name: Verify new state bindings
+        if: inputs.execute_rebind == true && steps.state.outputs.needs_rebind == 'true'
+        run: |
+          set -euo pipefail
+          primary_state="$(terraform state show -no-color module.rds.aws_db_instance.this)"
+          replica_state="$(terraform state show -no-color 'module.rds.aws_db_instance.replica[0]')"
+          primary_identifier="$(awk -F'"' '/^[[:space:]]*identifier[[:space:]]*=/{print $2; exit}' <<<"$primary_state")"
+          replica_identifier="$(awk -F'"' '/^[[:space:]]*identifier[[:space:]]*=/{print $2; exit}' <<<"$replica_state")"
+          primary_resource_id="$(awk -F'"' '/^[[:space:]]*resource_id[[:space:]]*=/{print $2; exit}' <<<"$primary_state")"
+          replica_resource_id="$(awk -F'"' '/^[[:space:]]*resource_id[[:space:]]*=/{print $2; exit}' <<<"$replica_state")"
+
+          [[ "$primary_identifier" == "$PRIMARY_ID" && "$primary_resource_id" == "$EXPECTED_PRIMARY_RESOURCE_ID" ]] || { echo "::error::Imported primary binding is incorrect"; exit 1; }
+          [[ "$replica_identifier" == "$REPLICA_ID" && "$replica_resource_id" == "$EXPECTED_REPLICA_RESOURCE_ID" ]] || { echo "::error::Imported replica binding is incorrect"; exit 1; }
+          echo "Verified primary: $primary_identifier / $primary_resource_id"
+          echo "Verified replica: $replica_identifier / $replica_resource_id"
+
+      - name: Build normal post-rebind plan without apply
+        if: inputs.execute_rebind == true && steps.state.outputs.needs_rebind == 'true'
+        run: |
+          set +e
+          terraform plan -no-color -input=false -lock-timeout="$TF_LOCK_TIMEOUT" \
+            -var-file=primary-capacity.tfvars \
+            -var="rds_engine_version=$TARGET_ENGINE_VERSION" \
+            -detailed-exitcode -out=tbd3-post-rebind.tfplan
+          plan_exit=$?
+          set -e
+          [[ "$plan_exit" -ne 1 ]] || { echo "::error::Post-rebind plan failed"; exit 1; }
+
+          terraform show -no-color tbd3-post-rebind.tfplan > tbd3-post-rebind.txt
+          if grep -Eq 'ecommerce-dev-postgres(-replica)?-old[0-9]+' tbd3-post-rebind.txt; then
+            echo "::error::Post-rebind plan still mentions an old Blue database"
+            exit 1
+          fi
+          if grep -Eq '^  # module\.rds\.aws_db_instance\.(this|replica\[0\]).*(must be replaced|will be destroyed)' tbd3-post-rebind.txt; then
+            echo "::error::Post-rebind plan replaces or destroys the active RDS primary/replica"
+            exit 1
+          fi
+
+          echo "### TBD3 post-rebind result" >> "$GITHUB_STEP_SUMMARY"
+          echo "State now follows the active PostgreSQL 17 primary and replica." >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$plan_exit" -eq 2 ]]; then
+            echo "The normal plan still has changes and must be reviewed separately. No infrastructure was applied." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "The normal plan has no changes." >> "$GITHUB_STEP_SUMMARY"
+          fi
