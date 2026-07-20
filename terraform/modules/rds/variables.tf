@@ -44,7 +44,7 @@ variable "db_username" {
 variable "engine_version" {
   type        = string
   description = "PostgreSQL engine version supported by the target AWS region"
-  default     = "16.14"
+  default     = "17.10"
 }
 
 variable "instance_class" {
