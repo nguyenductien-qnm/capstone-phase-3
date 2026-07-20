@@ -211,7 +211,8 @@ jobs:
 
           needs_pg_unbind=false
           pg_address='module.rds.aws_db_parameter_group.this[0]'
-          if terraform state list | grep -Fxq "$pg_address"; then
+          state_list="$(terraform state list)"
+          if grep -Fxq "$pg_address" <<<"$state_list"; then
             pg_state="$(terraform state show -no-color "$pg_address")"
             pg_name="$(awk -F'"' '/^[[:space:]]*name[[:space:]]*=/{print $2; exit}' <<<"$pg_state")"
             pg_family="$(awk -F'"' '/^[[:space:]]*family[[:space:]]*=/{print $2; exit}' <<<"$pg_state")"
@@ -315,7 +316,8 @@ jobs:
           echo "Verified primary: $primary_identifier / $primary_resource_id"
           echo "Verified replica: $replica_identifier / $replica_resource_id"
           if [[ "${{ steps.state.outputs.needs_pg_unbind }}" == "true" ]]; then
-            if terraform state list | grep -Fxq 'module.rds.aws_db_parameter_group.this[0]'; then
+            state_list="$(terraform state list)"
+            if grep -Fxq 'module.rds.aws_db_parameter_group.this[0]' <<<"$state_list"; then
               echo "::error::Legacy parameter group is still bound in Terraform state"
               exit 1
             fi
