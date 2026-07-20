@@ -88,3 +88,8 @@ variable "global_secondary_index_projection_type" {
   type = string 
   default = "ALL"
 }
+
+variable "cluster_name" {
+  description = "EKS cluster name for Pod Identity Association"
+  type        = string
+}

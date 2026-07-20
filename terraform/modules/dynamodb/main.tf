@@ -38,16 +38,8 @@ resource "aws_dynamodb_table" "checkout_orders" {
 	global_secondary_index {
 	  name = var.global_secondary_index_name
 	  projection_type = var.global_secondary_index_projection_type
-
-	  key_schema {
-		attribute_name = "reconcile_pk"
-		key_type = "HASH" // Partition key
-	  }
-
-	  key_schema {
-		attribute_name = "reconcile_at"
-		key_type = "RANGE" // Sort key
-	  }
+	  hash_key = "reconcile_pk"
+	  range_key = "reconcile_at"
 	}
 
 	stream_enabled = var.stream_enabled
@@ -63,4 +55,55 @@ resource "aws_dynamodb_table" "checkout_orders" {
 		Environment = var.environment
 		Project = var.project_name
 	}
+}
+
+# IAM Role and Pod Identity for Checkout Service (DynamoDB Access)
+resource "aws_iam_role" "checkout_dynamodb_role" {
+  name = "${var.project_name}-${var.environment}-checkout-dynamodb-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "pods.eks.amazonaws.com"
+        }
+        Action = [
+          "sts:AssumeRole",
+          "sts:TagSession"
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "checkout_dynamodb_policy" {
+  name = "CheckoutDynamoDBAccess"
+  role = aws_iam_role.checkout_dynamodb_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:GetItem"
+        ]
+        Resource = [
+          aws_dynamodb_table.checkout_orders.arn,
+          "${aws_dynamodb_table.checkout_orders.arn}/index/*"
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_eks_pod_identity_association" "checkout" {
+  cluster_name    = var.cluster_name
+  namespace       = "techx-${var.environment}"
+  service_account = "checkout"
+  role_arn        = aws_iam_role.checkout_dynamodb_role.arn
 }

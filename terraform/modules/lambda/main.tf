@@ -30,7 +30,7 @@ resource "aws_iam_role" "outbox_lambda_role" {
 
 # Attach basic VPC execution policies (Allows Lambda to write ENIs for private subnet access)
 resource "aws_iam_role_policy_attachment" "outbox_lambda_vpc_access" {
-	role = aws_iam_role.outbox_lambda_role
+	role = aws_iam_role.outbox_lambda_role.name
 	policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
 }
 

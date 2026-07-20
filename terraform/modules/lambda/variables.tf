@@ -15,30 +15,30 @@ variable "lambda_subnet_ids" {
 
 variable "vpc_id" {
 	description = "VPC id of the project"
-	type = "string"
+	type = string
 }
 
 variable "dynamodb_table_arn" {
 	description = "ARN of Dynamodb table"
-	type = "string"
+	type = string
 }
 
 variable "dynamodb_stream_arn" {
 	description = "ARN of Dynamodb Streams"
-	type = "string"
+	type = string
 }
 
 variable "msk_secret_arn" {
 	description = "ARN of MSK Secret"
-	type = "string"
+	type = string
 }
 
 variable "msk_endpoint_secret_arn" {
 	description = "ARN of MSK Endpoint Secret"
-	type = "string"
+	type = string
 }
 
 variable "kms_key_arn" {
 	description = "KMS Decrypt"
-	type = "string"
+	type = string
 }

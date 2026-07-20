@@ -157,12 +157,13 @@ resource "aws_route53_record" "cloudfront_alias" {
 module "msk" {
   source = "../../modules/msk"
 
-  project_name          = var.project_name
-  environment           = var.environment
-  vpc_id                = module.vpc.vpc_id
-  mq_subnet_ids         = values(module.vpc.private_mq_subnet_ids)
-  eks_security_group_id = module.eks.cluster_security_group_id
-  kafka_version         = var.kafka_version
+  project_name             = var.project_name
+  environment              = var.environment
+  vpc_id                   = module.vpc.vpc_id
+  mq_subnet_ids            = values(module.vpc.private_mq_subnet_ids)
+  eks_security_group_id    = module.eks.cluster_security_group_id
+  lambda_security_group_id = module.lambda.lambda_security_group_id
+  kafka_version            = var.kafka_version
 }
 
 module "cloudtrail" {
@@ -215,6 +216,7 @@ module "dynamodb" {
 
   project_name = var.project_name
   environment = var.environment
+  cluster_name = module.eks.cluster_name
 
   table_name = var.dynamodb_table_name
   billing_mode = var.dynamodb_billing_mode
@@ -226,6 +228,7 @@ module "dynamodb" {
   global_secondary_index_name = var.dynamodb_gsi_name
   global_secondary_index_projection_type = var.dynamodb_gsi_projection_type
 }
+
 module "lambda" {
   source = "../../modules/lambda"
 

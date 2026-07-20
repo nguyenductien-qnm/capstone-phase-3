@@ -390,7 +390,7 @@ variable "dynamodb_billing_mode" {
 
 variable "dynamodb_hash_key" {
   description = "Partition key of a DynamoDB table"
-  type = "string"
+  type = string
 }
 
 variable "dynamodb_range_key" {
