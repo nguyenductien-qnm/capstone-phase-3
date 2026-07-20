@@ -40,6 +40,8 @@ resource "aws_dynamodb_table" "checkout_orders" {
 	  projection_type = var.global_secondary_index_projection_type
 	  hash_key = "reconcile_pk"
 	  range_key = "reconcile_at"
+	  read_capacity = var.billing_mode == "PROVISIONED" ? var.read_capacity : null
+	  write_capacity = var.billing_mode == "PROVISIONED" ? var.write_capacity : null
 	}
 
 	stream_enabled = var.stream_enabled

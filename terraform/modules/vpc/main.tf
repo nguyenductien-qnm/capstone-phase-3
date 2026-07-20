@@ -204,3 +204,22 @@ resource "aws_route_table_association" "private_data" {
   subnet_id      = aws_subnet.private_data[each.key].id
   route_table_id = aws_route_table.private_isolated.id
 }
+
+# VPC Endpoints
+data "aws_region" "current" {}
+
+resource "aws_vpc_endpoint" "dynamodb" {
+  vpc_id       = aws_vpc.this.id
+  service_name = "com.amazonaws.${data.aws_region.current.name}.dynamodb"
+  vpc_endpoint_type = "Gateway"
+  route_table_ids = compact(concat(
+    [aws_route_table.public.id, aws_route_table.private_isolated.id],
+    [for rt in aws_route_table.private : rt.id]
+  ))
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-dynamodb-vpce"
+    Environment = var.environment
+    Project     = var.project_name
+  }
+}
