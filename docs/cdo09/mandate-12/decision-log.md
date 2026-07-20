@@ -600,3 +600,56 @@ Sửa docs:
 **Outcome**
 
 Docs khớp implementation hiện tại và giảm rủi ro reviewer/teammate hiểu nhầm rằng phải apply/test runtime trên develop trước khi sandbox.
+
+## Entry 021 — Đồng bộ develop và hoàn tất validation trước khi cập nhật PR
+
+**User concern**
+
+User xác nhận phạm vi hiện tại chỉ là hoàn thiện PR để teammate review, approve và merge vào `develop`; không deploy hoặc chạy Terraform apply local. User cũng yêu cầu kiểm tra lại sau khi `origin/develop` có thay đổi mới trong workflow CI/CD.
+
+**Phản hồi kỹ thuật**
+
+`origin/develop` bổ sung chế độ Terraform `refresh_only` trong `.github/workflows/infra-cd.yaml`, trong khi Mandate-12 bổ sung mapping `TF_VAR_mandate_12_alert_email` vào cùng workflow. Hai thay đổi có thể cùng tồn tại:
+
+- `refresh_only` điều khiển plan mode và bỏ qua ArgoCD bootstrap khi chỉ refresh state;
+- `TF_VAR_mandate_12_alert_email` truyền GitHub Environment secret vào Terraform plan/apply;
+- không thay đổi kiến trúc hoặc scope Mandate-12.
+
+Local validation cần provider cache, nên chạy `terraform init -backend=false` trước `terraform validate`. Thao tác này không kết nối Terraform backend, không chạy plan/apply và không thay đổi AWS.
+
+**Quyết định**
+
+- Tạo checkpoint commit `94868bc` cho implementation Mandate-12.
+- Merge `origin/develop` bằng merge commit `b455251`; merge thành công, không có conflict.
+- Giữ cả thay đổi `refresh_only` từ develop và secret mapping Mandate-12 trong workflow.
+- Chạy format, whitespace check và validate module/root configuration.
+- Không commit thay đổi lockfile phát sinh ngoài scope.
+
+**Commands đã chạy**
+
+```bash
+git merge origin/develop
+terraform fmt -check -recursive terraform
+git diff --check
+terraform -chdir=terraform/modules/cloudtrail init -backend=false -input=false
+terraform -chdir=terraform/modules/cloudtrail validate
+terraform -chdir=terraform/environments/sandbox init -backend=false -input=false
+terraform -chdir=terraform/environments/sandbox validate
+terraform -chdir=terraform/environments/develop validate
+git restore -- terraform/environments/sandbox/.terraform.lock.hcl
+git status --short --branch
+git diff --check
+```
+
+Lockfile mới trong `terraform/modules/cloudtrail` do local init tạo ra đã được xóa sau validation. Sandbox lockfile được khôi phục về đúng phiên bản trong Git.
+
+**Outcome**
+
+- Merge develop: pass, không conflict.
+- `terraform fmt -check -recursive terraform`: pass.
+- `git diff --check`: pass.
+- CloudTrail module validate: pass; chỉ có warning cũ `data.aws_region.current.name` deprecated.
+- Sandbox root validate: pass; chỉ có warning local `terraform.tfvars` chứa `nlb_dns_name` chưa declare.
+- Develop root validate: pass.
+- Không chạy Terraform plan/apply/destroy và không thay đổi AWS.
+- Sau cleanup, working tree sạch trước khi cập nhật decision log.
