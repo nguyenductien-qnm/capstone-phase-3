@@ -1,9 +1,3 @@
-data "archive_file" "lambda" {
-  type        = "zip"
-  source_file = var.lambda_source_file
-  output_path = "${path.root}/.terraform/${local.lambda_function_name}.zip"
-}
-
 resource "aws_dynamodb_table" "idempotency" {
   name         = "${var.name_prefix}-idempotency"
   billing_mode = "PAY_PER_REQUEST"
@@ -45,8 +39,10 @@ resource "aws_lambda_function" "slack_alert" {
   runtime       = "python3.12"
   architectures = ["arm64"]
 
-  filename         = data.archive_file.lambda.output_path
-  source_code_hash = data.archive_file.lambda.output_base64sha256
+  # Keep the deployment artifact in the repository because the reviewed plan
+  # and apply run in separate GitHub Actions jobs with separate filesystems.
+  filename         = var.lambda_package_file
+  source_code_hash = filebase64sha256(var.lambda_package_file)
 
   memory_size = var.lambda_memory_size_mb
   timeout     = var.lambda_timeout_seconds
