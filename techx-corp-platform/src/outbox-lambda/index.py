@@ -6,13 +6,15 @@ from kafka import KafkaProducer
 # Define in a global scope (warm start)
 secrets_client = boto3.client('secretsmanager')
 
-MSK_CREDENTIALS_SECRET_ARN = os.environ['MSK_CREDENTAILS_SECRET_ARN']
+MSK_CREDENTIALS_SECRET_ARN = os.environ['MSK_CREDENTIALS_SECRET_ARN']
 MSK_ENDPOINT_SECRET_ARN = os.environ['MSK_ENDPOINT_SECRET_ARN']
 KAFKA_TOPIC = os.environ.get('KAFKA_TOPIC', 'orders')
 
+producer = None
+
 # Get secret from AWS Secrets Manager 
 def get_secret(secret_arn):
-	response = secrets_client.get_secret_value(secret_arn)
+	response = secrets_client.get_secret_value(SecretId=secret_arn)
 	return json.loads(response['SecretString'])
 
 # Initialize Kafka Producer
@@ -29,10 +31,10 @@ def init_producer():
 	
 	producer = KafkaProducer(
 		bootstrap_servers=brokers,
-		security_protocal='SASL_SSL',
+		security_protocol='SASL_SSL',
 		sasl_mechanism='SCRAM-SHA-512',
-		sasl_plan_username=msk_credentials['username'],
-
+		sasl_plain_username=msk_credentials['username'],
+		sasl_plain_password=msk_credentials['password'],
 		key_serializer=lambda k: k.encode('utf-8'),
 		value_serializer=lambda v: v.encode('utf-8')
 	)
