@@ -1194,9 +1194,9 @@ components:
       - name: LLM_LOCAL_ML_GUARD
         value: "true"
       - name: LLM_JUDGE_MODEL
-        value: us.amazon.nova-micro-v1:0
+        value: amazon.nova-micro-v1:0
       - name: LLM_INJECTION_JUDGE_MODEL
-        value: us.amazon.nova-lite-v1:0
+        value: amazon.nova-lite-v1:0
     resources:
       requests:
         cpu: 100m
@@ -1362,9 +1362,9 @@ components:
       - name: LLM_LOCAL_ML_GUARD
         value: "true"
       - name: LLM_JUDGE_MODEL
-        value: us.amazon.nova-micro-v1:0
+        value: amazon.nova-micro-v1:0
       - name: LLM_INJECTION_JUDGE_MODEL
-        value: us.amazon.nova-lite-v1:0
+        value: amazon.nova-lite-v1:0
     resources:
       requests:
         cpu: 10m

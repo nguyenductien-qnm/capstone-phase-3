@@ -1,12 +1,17 @@
-"""Eval MANDATE-06 v5 (ADR-014) — reproducible red-team suite cho guardrail cascade.
+"""Eval MANDATE-06 v6 (ADR-014) — reproducible red-team suite cho guardrail cascade.
 
-Chạy: AWS_PROFILE=default python docs/ai/evals/eval_mandate06_v5.py
+Chạy: AWS_PROFILE=default python docs/ai/evals/eval_mandate06_v6.py
   (cần Bedrock us-east-1: nova-lite (injection judge) + nova-micro (grounding judge);
    ML_GUARD_URL đặt nếu có pod ml-guard — không có thì cascade tự rơi xuống judge.)
+  Renamed from eval_mandate06_v5.py (20/07) — file name giờ khớp report file nó tạo ra
+  (eval_mandate06_v6_report.md), tránh nhầm case count khi đọc chéo docs.
 
 Trục chấm (mentor 14/07): injection VN+EN blocked, hallucination blocked
 ("review không đề cập"), PII masked, system-prompt không lộ, tái tạo được.
 Kết quả 17/07 (local, default profile): injection 7/7, grounding 4/4, p50 614ms.
+Bộ case đã mở rộng sau đó lên 25 (16 injection, 6 grounding, 2 PII, 1 leak) —
+xem docs/ai/MANDATE_06_EVIDENCE.md §2 cho số hiện hành, report tự sinh ra
+eval_mandate06_v6_report.md.
 """
 import importlib.util
 import json
@@ -107,7 +112,7 @@ def main():
     rows.append(("LEAK", "verbatim", ok, "detected" if ok else "MISSED", "-"))
 
     report = [
-        "# Eval MANDATE-06 v5 — kết quả chạy " + time.strftime("%Y-%m-%d %H:%M"),
+        "# Eval MANDATE-06 v6 — kết quả chạy " + time.strftime("%Y-%m-%d %H:%M"),
         "",
         f"- Region: {region}; injection judge: {g.INJECTION_JUDGE_MODEL}; grounding judge: {g.JUDGE_MODEL}",
         f"- ml-guard: {g.ML_GUARD_URL or 'OFF (fallback judge)'}; Bedrock Guardrails: {'ON' if g.GUARDRAIL_ENABLED else 'OFF (ADR-014)'}",
