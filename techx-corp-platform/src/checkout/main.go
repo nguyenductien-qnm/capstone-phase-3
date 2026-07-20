@@ -57,6 +57,10 @@ import (
 	pb "github.com/open-telemetry/techx-corp/src/checkout/genproto/oteldemo"
 	"github.com/open-telemetry/techx-corp/src/checkout/kafka"
 	"github.com/open-telemetry/techx-corp/src/checkout/money"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+    "github.com/aws/aws-sdk-go-v2/config"
+    "github.com/aws/aws-sdk-go-v2/service/dynamodb"
 )
 
 //go:generate go install google.golang.org/protobuf/cmd/protoc-gen-go
@@ -149,6 +153,10 @@ type checkout struct {
 	currencySvcClient       pb.CurrencyServiceClient
 	emailSvcClient          pb.EmailServiceClient
 	paymentSvcClient        pb.PaymentServiceClient
+
+	// DynamoDB 
+	dynamoClient *dynamodb.Client
+	tableName string
 }
 
 func main() {
@@ -199,6 +207,16 @@ func main() {
 
 	svc := new(checkout)
 
+	// Load AWS Config and initialize DynamoDB Client
+	cfg, err := config.LoadDefaultConfig(context.Background())
+	if err != nil {
+		logger.Error(fmt.Sprintf("Unable to load AWS SDK config: %v", err))
+	}
+	svc.dynamoClient = dynamodb.NewFromConfig(cfg)
+ 
+	// Get Dynamodb table name from environment variable
+	mustMapEnv(&svc.tableName, "DYNAMODB_TABLE_NAME")
+
 	mustMapEnv(&svc.shippingSvcAddr, "SHIPPING_ADDR")
 	c := mustCreateClient(svc.shippingSvcAddr)
 	svc.shippingSvcClient = pb.NewShippingServiceClient(c)
@@ -229,15 +247,15 @@ func main() {
 	svc.paymentSvcClient = pb.NewPaymentServiceClient(c)
 	defer c.Close()
 
-	svc.kafkaBrokerSvcAddr = os.Getenv("KAFKA_ADDR")
+	// svc.kafkaBrokerSvcAddr = os.Getenv("KAFKA_ADDR")
 
-	if svc.kafkaBrokerSvcAddr != "" {
-		brokers := strings.Split(svc.kafkaBrokerSvcAddr, ",")
-		svc.KafkaProducerClient, err = kafka.CreateKafkaProducer(brokers, logger)
-		if err != nil {
-			logger.Error(err.Error())
-		}
-	}
+	// if svc.kafkaBrokerSvcAddr != "" {
+	// 	brokers := strings.Split(svc.kafkaBrokerSvcAddr, ",")
+	// 	svc.KafkaProducerClient, err = kafka.CreateKafkaProducer(brokers, logger)
+	// 	if err != nil {
+	// 		logger.Error(err.Error())
+	// 	}
+	// }
 
 	logger.Info(fmt.Sprintf("service config: %+v", svc))
 
@@ -259,6 +277,10 @@ func main() {
 	healthcheck.SetServingStatus("liveness", healthpb.HealthCheckResponse_SERVING)
 	// Giữ tương thích ngược cho probe không truyền service name.
 	healthcheck.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
+
+	// When checkout pod restarts and opens gRPC port
+	// it is ready to handle users' traffic
+	healthcheck.SetServingStatus("readiness", healthpb.HealthCheckResponse_SERVING) 
 
 	// Readiness ĐỘNG: kiểm tra kết nối TCP tới broker Kafka định kỳ (giống initContainer
 	// wait-for-kafka). Kafka mất → NOT_SERVING (pod bị kéo khỏi Endpoints) nhưng KHÔNG
@@ -368,9 +390,62 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		total = money.Must(money.Sum(total, multPrice))
 	}
 
-	txID, err := cs.chargeCard(ctx, total, req.CreditCard)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to charge card: %+v", err)
+	// PHASE 1: CREATE ORDER
+	reconcileAt := time.Now().Add(10 * time.Minute).Format(time.RFC3339) //String
+	_ = cs.putOrderState(
+		ctx,
+		orderID,
+		"PROCESSING",
+		"NOT_STARTED",
+		"NOT_STARTED",
+		"PENDING",
+		reconcileAt,
+		nil,
+		nil,
+	)
+
+	maxRetries := 3
+
+	// PHASE 2: PAYMENT SERVICE
+	var txID string
+	var paymentErr error
+	for i := 0; i < maxRetries; i++{
+		txID, paymentErr = cs.chargeCard(ctx, total, req.CreditCard)
+		if paymentErr == nil{
+			break // done
+		}
+		logger.Warn(fmt.Sprintf("Payment attempt %d failed: %v. Retrying...", i, paymentErr))
+		time.Sleep(500 * time.Millisecond) // Backoff 0.5s
+	}
+	if paymentErr != nil{
+		logger.Error("Payment completely failed after retries. Applying fallback")
+
+		span.AddEvent(
+			"payment_fallback_applied",
+			trace.WithAttributes(attribute.String("app.payment.transaction.id", txID)),
+		)
+
+		_ = cs.putOrderState(
+			ctx,
+			orderID,
+			"PENDING_PAYMENT", 
+			"NOT_STARTED", 
+			"FAILED", 
+			"PENDING", 
+			reconcileAt, 
+			req, 
+			nil,
+		)
+
+		orderResult := &pb.OrderResult{
+			OrderId: orderID.String(),
+			ShippingTrackingId: "PAYMENT_PROCESSING",
+			ShippingCost: prep.shippingCostLocalized,
+			ShippingAddress: req.Address,
+			Items: prep.orderItems,
+		}
+
+		return &pb.PlaceOrderResponse{Order: orderResult}, nil
 	}
 
 	span.AddEvent("charged",
@@ -381,15 +456,69 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		slog.String("transaction_id", txID),
 	)
 
-	shippingTrackingID, err := cs.shipOrder(ctx, req.Address, prep.cartItems)
-	if err != nil {
-		return nil, status.Errorf(codes.Unavailable, "shipping error: %+v", err)
+	// PHASE 3: MONEY TAKEN, NEXT IS SHIPPING
+	_ = cs.putOrderState(
+		ctx, 
+		orderID, 
+		"PENDING_SHIPPING", 
+		"NOT_STARTED", 
+		"SUCCESS", 
+		"PENDING", 
+		reconcileAt, 
+		nil,
+		nil,
+	)
+
+	var shippingTrackingID string
+	var shippingErr error
+	for i := 0; i < maxRetries; i++ {
+		shippingTrackingID, shippingErr = cs.shipOrder(ctx, req.Address, prep.cartItems)
+		if shippingErr == nil{
+			break
+		}
+		logger.Warn(fmt.Sprintf("Shipping attempt %d failed: %v. Retrying...", i, shippingTrackingID))
+		time.Sleep(500 * time.Millisecond)
+
 	}
-	shippingTrackingAttribute := attribute.String("app.shipping.tracking.id", shippingTrackingID)
-	span.AddEvent("shipped", trace.WithAttributes(shippingTrackingAttribute))
+	if shippingErr != nil{
+		logger.Error("Shipping completely failed after retries. Applying fallback.")
+		shippingTrackingID = "SHIPPING_PROCESSING"
 
-	_ = cs.emptyUserCart(ctx, req.UserId)
+		span.AddEvent(
+			"shipping_fallback_applied",
+			trace.WithAttributes(attribute.String("app.payment.transaction.id", txID)),
+		)
 
+		_ = cs.putOrderState(
+			ctx, 
+			orderID, 
+			"PENDING_SHIPPING", 
+			"FAILED", 
+			"SUCCESS", 
+			"PENDING", 
+			reconcileAt, 
+			req, 
+			nil,
+		)
+
+		orderResult := &pb.OrderResult{
+			OrderId: orderID.String(),
+			ShippingTrackingId: shippingTrackingID,
+			ShippingCost: prep.shippingCostLocalized,
+			ShippingAddress: req.Address,
+			Items: prep.orderItems,
+		}
+
+		return &pb.PlaceOrderResponse{Order: orderResult}, nil
+
+	}
+	
+	span.AddEvent(
+		"shipped", 
+		trace.WithAttributes(attribute.String("app.shipping.tracking.id", shippingTrackingID)),
+	)
+
+	// PHRAE 3: CREATE ORDER RESULT
 	orderResult := &pb.OrderResult{
 		OrderId:            orderID.String(),
 		ShippingTrackingId: shippingTrackingID,
@@ -406,7 +535,6 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		attribute.Float64("app.shipping.amount", shippingCostFloat),
 		attribute.Float64("app.order.amount", totalPriceFloat),
 		attribute.Int("app.order.items.count", len(prep.orderItems)),
-		shippingTrackingAttribute,
 	)
 	logger.LogAttrs(
 		ctx,
@@ -418,16 +546,24 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		slog.String("app.shipping.tracking.id", shippingTrackingID),
 	)
 
+	// PHASE 4: READY TO BE PUSHED TO KAFKA BY LAMBDA
+	_ = cs.putOrderState(
+		ctx, 
+		orderID, 
+		"COMPLETED", 
+		"SUCCESS", 
+		"SUCCESS", 
+		"DONE", 
+		reconcileAt, 
+		nil, 
+		orderResult,
+	)
+
+	_ = cs.emptyUserCart(ctx, req.UserId)
 	if err := cs.sendOrderConfirmation(ctx, req.Email, orderResult); err != nil {
 		logger.Warn(fmt.Sprintf("failed to send order confirmation to %q: %+v", req.Email, err))
 	} else {
 		logger.Info(fmt.Sprintf("order confirmation email sent to %q", req.Email))
-	}
-
-	// send to kafka only if kafka broker address is set
-	if cs.kafkaBrokerSvcAddr != "" {
-		logger.Info("sending to postProcessor")
-		cs.sendToPostProcessor(ctx, orderResult)
 	}
 
 	resp := &pb.PlaceOrderResponse{Order: orderResult}
