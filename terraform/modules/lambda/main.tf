@@ -18,7 +18,7 @@ resource "aws_iam_role" "outbox_lambda_role" {
 	name = "${var.project_name}-${var.environment}-outbox-lambda-role"
 	
 	// Lambda runs Python code
-	assume_role_policy = jsondecode({
+	assume_role_policy = jsonencode({
 		Version = "2012-10-17"
 		Statement = [{
 			Action = "sts:AssumeRole"
@@ -39,7 +39,7 @@ resource "aws_iam_role_policy" "outbox_lambda_custome_policy" {
 	name = "OutboxLambdaCustomPolicy"
 	role = aws_iam_role.outbox_lambda_role.id
 
-	policy = jsondecode({
+	policy = jsonencode({
 		Version = "2012-10-17"
 		Statement = [
 			# Lambda needs these permissions to interact with DynamoDB
@@ -74,11 +74,31 @@ resource "aws_iam_role_policy" "outbox_lambda_custome_policy" {
 	})
 }
 
+# Packaging Lambda
+resource "null_resource" "pip_install" {
+  triggers = {
+    requirements = filemd5("${path.root}/../../../techx-corp-platform/src/outbox-lambda/requirements.txt")
+  }
+
+  provisioner "local-exec" {
+    command = "pip install -r ${path.root}/../../../techx-corp-platform/src/outbox-lambda/requirements.txt -t ${path.root}/../../../techx-corp-platform/src/outbox-lambda"
+  }
+}
+
+data "archive_file" "lambda_zip" {
+  type        = "zip"
+  source_dir  = "${path.root}/../../../techx-corp-platform/src/outbox-lambda"
+  output_path = "${path.module}/lambda_outbox_processor.zip"
+  depends_on  = [null_resource.pip_install]
+}
+
+
 # Lambda Function Definition 
 resource "aws_lambda_function" "outbox_processor" {
-	filename = "lambda_outbox_processor.zip" # Packaged application artifact
+	filename = data.archive_file.lambda_zip.output_path
+	source_code_hash = data.archive_file.lambda_zip.output_base64sha256
 	function_name = "${var.project_name}-${var.environment}-outbox-to-msk"
-	role = aws_iam_role.lambda_role.arn
+	role = aws_iam_role.outbox_lambda_role.arn
 	handler = "index.handler"
 	runtime = "python3.11"
 	timeout = 30 
@@ -106,7 +126,7 @@ resource "aws_lambda_event_source_mapping" "dynamodb_stream_trigger" {
 	# Filter Pattern matching: order_status == COMPLETED
 	filter_criteria {
 	  	filter {
-			pattern = jsondecode({
+			pattern = jsonencode({
 				eventName = ["INSERT", "MODIFY"]
 				dynamodb = {
 					NewImage = {

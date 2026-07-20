@@ -226,3 +226,16 @@ module "dynamodb" {
   global_secondary_index_name = var.dynamodb_gsi_name
   global_secondary_index_projection_type = var.dynamodb_gsi_projection_type
 }
+module "lambda" {
+  source = "../../modules/lambda"
+
+  project_name            = var.project_name
+  environment             = var.environment
+  vpc_id                  = module.vpc.vpc_id
+  lambda_subnet_ids       = values(module.vpc.private_mq_subnet_ids)
+  dynamodb_table_arn      = module.dynamodb.dynamodb_table_arn
+  dynamodb_stream_arn     = module.dynamodb.dynamodb_stream_arn
+  msk_secret_arn          = module.msk.msk_secret_arn
+  msk_endpoint_secret_arn = module.msk.msk_endpoint_secret_arn
+  kms_key_arn             = module.msk.kms_key_arn
+}
