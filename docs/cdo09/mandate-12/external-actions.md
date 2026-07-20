@@ -6,11 +6,54 @@ File này liệt kê các việc có thể cần người ngoài code-change own
 
 ## Cần trước khi mentor verify
 
-### 1. Approve/run Terraform apply qua GitHub protected workflow
+### 1. Cấu hình email người nhận cho Mandate-12 SNS alert
+
+**Người phụ trách:** repo/admin người có quyền cấu hình GitHub Environment/Secrets.
+
+**Hành động:** tạo GitHub secret/env cho environment sẽ chạy Mandate-12 plan/apply:
+
+```text
+MANDATE_12_ALERT_EMAIL=<email nhận cảnh báo>
+```
+
+Vì sao cần:
+
+- Mandate-12 tạo SNS email alert riêng, không dùng Slack/Lambda của Mandate-11.
+- Email cá nhân là thông tin privacy-sensitive, không nên hardcode trong repo nếu không cần.
+- Terraform cần giá trị này khi chạy plan/apply qua GitHub Actions.
+- Nếu test `develop` trước, develop cũng cần secret/env tương ứng hoặc plan sẽ fail khi `enable_mandate_12_alert = true`.
+
+### 2. Confirm SNS email subscription sau Terraform apply
+
+**Người phụ trách:** người sở hữu email nhận cảnh báo.
+
+**Hành động:** sau `terraform apply`, mở email từ AWS Notifications và bấm confirm subscription.
+
+Vì sao cần:
+
+- `aws_sns_topic_subscription` với protocol `email` sẽ ở trạng thái pending cho tới khi receiver confirm.
+- Nếu chưa confirm, EventBridge có publish vào SNS nhưng email sẽ không được gửi tới người nhận.
+- Mentor test alert path chỉ nên chạy sau khi subscription đã `Confirmed`.
+
+Verify:
+
+```bash
+aws sns list-subscriptions-by-topic \
+  --region us-east-1 \
+  --topic-arn <m12-topic-arn>
+```
+
+Kỳ vọng:
+
+```text
+SubscriptionArn != PendingConfirmation
+```
+
+### 3. Approve/run Terraform apply qua GitHub protected workflow
 
 **Người phụ trách:** người approve GitHub Environment `sandbox` / infrastructure operator.
 
-**Hành động:** approve và chạy workflow `infra-cd.yaml` sau khi PR đã được review.
+**Hành động:** approve và chạy workflow Terraform sau khi PR đã được review.
 
 Workflow inputs dự kiến:
 
@@ -21,16 +64,17 @@ confirm = apply-sandbox
 
 Vì sao cần:
 
-- Mandate-12 thay đổi AWS CloudTrail selectors và IAM role policy attachments.
+- Mandate-12 thay đổi AWS CloudTrail selectors, IAM role policy attachments, EventBridge rule và SNS topic/subscription.
 - Product-like/Sandbox infra đang được quản lý qua GitHub Actions.
 - Workflow có account guard `allowed-account-ids: "804372444787"` và tạo plan artifact để review.
+- Rollout nên test `develop` trước nếu develop có config riêng, rồi mới apply `sandbox` để pass mentor verification.
 
 Phương án dự phòng:
 
-- Local apply có thể chạy nếu operator có sandbox tfvars thật, SSO profile đúng, và quyền backend.
+- Local apply có thể chạy nếu operator có sandbox tfvars thật, SSO profile đúng, quyền backend, và biến `TF_VAR_mandate_12_alert_email` được export local.
 - Nếu dùng local apply, phải capture `aws sts get-caller-identity`, plan output, và post-apply verification evidence.
 
-### 2. Approve workaround attach deny policy trực tiếp vào SSO roles
+### 4. Approve workaround attach deny policy trực tiếp vào SSO roles
 
 **Người phụ trách:** CDO lead / mentor / adminHolder, tùy quy trình team.
 
@@ -52,27 +96,6 @@ Giới hạn quan trọng:
 - Đây là workaround cho deadline.
 - `AWSReservedSSO_*` roles do IAM Identity Center quản lý.
 - Nếu Permission Set được reprovision sau này, role attachment có thể bị overwrite hoặc role có thể bị recreate.
-
-### 3. Xác nhận alert receiver nếu team muốn dùng alert làm evidence chính
-
-**Người phụ trách:** channel owner hoặc on-call receiver, nếu có.
-
-**Hành động:** xác nhận kênh audit alert từ Mandate-11 vẫn có người theo dõi và nhận được message, nếu team quyết định dùng đường alert này trong mentor demo.
-
-Đường runtime hiện tại:
-
-```text
-EventBridge rule: ecommerce-dev-audit-cloudtrail-tampering
-SQS queue:        ecommerce-dev-audit-processing
-Lambda:           ecommerce-dev-audit-slack-alert
-Webhook secret:   /ecommerce/dev/audit/slack-webhook
-```
-
-Vì sao cần:
-
-- Mandate-12 không bắt buộc phải dùng Slack.
-- Với kế hoạch hiện tại, điều kiện pass chính cho “làm mù” là IAM deny trả `explicitDeny`.
-- Alert path là evidence bổ sung. Nếu không có thông tin receiver/webhook, không dùng Slack message làm điều kiện pass.
 
 ## Follow-up bền vững nên làm
 
@@ -129,7 +152,8 @@ Việc này không bắt buộc cho project hiện tại nếu account không đ
 
 ## Không cần cho deadline Mandate-12
 
-- Tạo alert pipeline mới.
+- Tái sử dụng Lambda/Slack pipeline của Mandate-11/CDO-05.
+- Tạo Lambda mới.
 - Tạo operator role mới mà không ai dùng.
 - Attach deny policy vào EKS node roles hoặc cluster roles.
 - Migration CloudTrail bucket để bật S3 Object Lock.

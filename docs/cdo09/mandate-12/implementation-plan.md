@@ -14,7 +14,7 @@ Phạm vi kế hoạch này tập trung vào CloudTrail audit trail của Produc
 ecommerce-dev-audit-trail
 ```
 
-Mandate-12 không yêu cầu refactor app runtime, không yêu cầu tạo alert pipeline mới, và không yêu cầu migration Object Lock trong deadline hiện tại.
+Mandate-12 không yêu cầu refactor app runtime, không tái sử dụng Lambda/Slack pipeline của Mandate-11, và không yêu cầu migration Object Lock trong deadline hiện tại.
 
 ## 2. Trạng thái runtime đã verify
 
@@ -36,7 +36,6 @@ Các kiểm tra runtime đã chạy bằng profile:
 | Log file validation | `LogFileValidationEnabled = true` | Đạt |
 | Kiểm chứng toàn vẹn | `1/1 digest files valid`, `38/38 log files valid` | Đạt |
 | Bảo vệ S3 log bucket | Versioning, encryption, public access block đã bật | Đạt |
-| Đường cảnh báo | EventBridge → SQS → Lambda đã tồn tại; receiver bên ngoài chưa dùng làm điều kiện pass | Đạt một phần |
 | Coverage đọc SecretsManager | `GetSecretValue` xuất hiện trong CloudTrail management events | Đạt |
 
 ### 2.2 Còn thiếu
@@ -45,6 +44,7 @@ Các kiểm tra runtime đã chạy bằng profile:
 |---|---|---|
 | Chưa ghi S3 object read data events | `DataResources = []` | Chưa chứng minh được ai đọc object S3 |
 | IAM deny chưa có hiệu lực | CDO SSO role vẫn `allowed` với `StopLogging`, `DeleteTrail`, `PutEventSelectors` | Mentor có thể làm mù audit nếu dùng role hiện tại |
+| Mandate-12 email alert path chưa có | Chưa có EventBridge/SNS riêng cho Mandate-12 | Chưa có detective backup độc lập ngoài IAM deny |
 
 ## 3. Quyết định thiết kế
 
@@ -93,20 +93,18 @@ eventCategory = Management
 
 Vì vậy không cần thêm SecretsManager data event selector riêng. Mandate-12 chỉ cần evidence/query chứng minh đọc secret có vết.
 
-### 3.4 Tái sử dụng alert pipeline hiện có
+### 3.4 Tạo EventBridge + SNS email riêng cho Mandate-12
 
-Không tạo SNS/EventBridge mới cho Mandate-12.
-
-Runtime đã verify:
+Mandate-12 sẽ tạo alert path riêng:
 
 ```text
-EventBridge rule: ecommerce-dev-audit-cloudtrail-tampering
-Target:          ecommerce-dev-audit-processing SQS queue
-Processor:       ecommerce-dev-audit-slack-alert Lambda
-Receiver:        chưa xác nhận trong phạm vi Mandate-12
+CloudTrail tamper hoặc IAM guardrail tamper API event
+  → EventBridge rule riêng Mandate-12
+  → SNS topic riêng Mandate-12
+  → email người nhận
 ```
 
-Rule đã bắt:
+Rule sẽ bắt CloudTrail tamper actions:
 
 ```text
 StopLogging
@@ -116,7 +114,34 @@ PutEventSelectors
 PutInsightSelectors
 ```
 
-Vì vậy không cần tạo alert pipeline mới cho Mandate-12. Tuy nhiên vì receiver bên ngoài chưa được xác nhận, kế hoạch này không dùng Slack/message delivery làm điều kiện pass chính. Điều kiện pass chính cho “làm mù” là IAM deny trả `explicitDeny`; alert pipeline được ghi nhận như evidence bổ sung.
+Rule cũng bắt IAM guardrail tamper actions liên quan tới việc gỡ hoặc làm yếu deny policy:
+
+```text
+DetachRolePolicy
+DeletePolicy
+DeletePolicyVersion
+CreatePolicyVersion
+SetDefaultPolicyVersion
+PutRolePolicy
+DeleteRolePolicy
+```
+
+Lý do tạo riêng thay vì reuse Mandate-11:
+
+- Mandate-11 pipeline thuộc CDO-05 và đang dùng Lambda/Slack.
+- Mandate-12 không phụ thuộc Slack hoặc Lambda.
+- Tách rule/topic giúp ownership, rollback và evidence rõ hơn.
+- Chi phí của một EventBridge rule và một SNS topic gần như không đáng kể so với lợi ích tách biệt ownership.
+
+Email người nhận không hardcode trong repo. Terraform nhận qua GitHub secret/env:
+
+```text
+MANDATE_12_ALERT_EMAIL → TF_VAR_mandate_12_alert_email
+```
+
+Sau apply, người nhận phải confirm SNS email subscription trước khi dùng alert path làm evidence.
+
+IAM guardrail tamper detection là defense-in-depth bổ sung. IAM explicitDeny vẫn là preventive control chính của Mandate-12.
 
 ### 3.5 Attach IAM deny vào CDO/Mentor SSO role là workaround
 
@@ -128,7 +153,7 @@ Vì vậy kế hoạch này dùng workaround tạm thời:
 
 - attach managed policy `ecommerce-dev-audit-log-tamper-deny` trực tiếp vào CDO SSO role;
 - attach cùng policy vào Mentor SSO role;
-- ghi rõ đây là temporary enforcement workaround;
+- ghi rõ đây là workaround enforcement tạm thời;
 - follow-up là migrate attachment lên Identity Center Permission Set.
 
 Không attach vào node role, EKS cluster role, hoặc role mới không ai dùng.
@@ -137,7 +162,7 @@ Không attach vào node role, EKS cluster role, hoặc role mới không ai dùn
 
 ### 4.1 `terraform/modules/cloudtrail/variables.tf`
 
-Thêm biến:
+Thêm biến cho S3 data events:
 
 ```hcl
 variable "cloudtrail_s3_data_event_bucket_arns" {
@@ -147,11 +172,35 @@ variable "cloudtrail_s3_data_event_bucket_arns" {
 }
 ```
 
+Thêm biến cho Mandate-12 email alert:
+
+```hcl
+variable "enable_mandate_12_alert" {
+  type        = bool
+  default     = false
+  description = "Enable Mandate-12 dedicated EventBridge/SNS CloudTrail tamper alerts."
+}
+
+variable "mandate_12_alert_email" {
+  type        = string
+  default     = ""
+  description = "Email receiver for Mandate-12 CloudTrail tamper alerts. Empty disables the email subscription."
+  sensitive   = true
+
+  validation {
+    condition     = var.enable_mandate_12_alert ? var.mandate_12_alert_email != "" : true
+    error_message = "mandate_12_alert_email must be set when enable_mandate_12_alert is true."
+  }
+}
+```
+
 Vì sao đổi:
 
 - Module CloudTrail là shared module.
 - Không hardcode bucket name trong module.
 - Environment root quyết định bucket nào là sensitive và cần data event logging.
+- Email người nhận là privacy-sensitive nên truyền qua GitHub secret/env, không đưa vào `access.auto.tfvars`.
+- Alert mặc định tắt để shared module và các environment chưa cấu hình không vô tình tạo notification resource.
 
 ### 4.2 `terraform/modules/cloudtrail/main.tf`
 
@@ -208,9 +257,25 @@ Vì sao đổi:
 - `advanced_event_selector` cho phép filter read-only S3 object events theo bucket prefix.
 - Management events vẫn được giữ.
 
+Thêm EventBridge/SNS riêng cho Mandate-12 khi `enable_mandate_12_alert = true`:
+
+- SNS topic riêng cho Mandate-12 tamper alerts.
+- SNS topic policy cho phép EventBridge publish.
+- SNS email subscription tới `mandate_12_alert_email`.
+- EventBridge rule riêng bắt CloudTrail tamper actions và IAM guardrail tamper actions.
+- EventBridge target trỏ tới SNS topic riêng.
+- Naming dùng prefix ngắn `m12`, ví dụ `ecommerce-dev-m12-audit-tamper`, để dễ nhận biết và rollback.
+
+Vì sao đổi:
+
+- IAM deny là preventive control chính.
+- SNS email là detective backup độc lập.
+- Không sửa hoặc phụ thuộc Lambda/Slack pipeline của Mandate-11/CDO-05.
+- Bắt IAM guardrail tamper giúp phát hiện nỗ lực gỡ deny policy trước khi attacker thử tắt CloudTrail.
+
 ### 4.3 `terraform/environments/sandbox/variables.tf`
 
-Thêm biến:
+Thêm biến cho S3 data events:
 
 ```hcl
 variable "cloudtrail_s3_data_event_bucket_arns" {
@@ -220,10 +285,33 @@ variable "cloudtrail_s3_data_event_bucket_arns" {
 }
 ```
 
+Thêm biến cho email alert:
+
+```hcl
+variable "enable_mandate_12_alert" {
+  type        = bool
+  default     = false
+  description = "Enable Mandate-12 dedicated EventBridge/SNS CloudTrail tamper alerts"
+}
+
+variable "mandate_12_alert_email" {
+  type        = string
+  default     = ""
+  description = "Email receiver for Mandate-12 CloudTrail tamper alerts"
+  sensitive   = true
+
+  validation {
+    condition     = var.enable_mandate_12_alert ? var.mandate_12_alert_email != "" : true
+    error_message = "mandate_12_alert_email must be set when enable_mandate_12_alert is true."
+  }
+}
+```
+
 Vì sao đổi:
 
 - Sandbox là Product-like environment đang cần pass Mandate-12.
 - Input không nhạy cảm, có thể review qua Git.
+- Email không hardcode trong repo; GitHub Actions truyền bằng `TF_VAR_mandate_12_alert_email`.
 
 ### 4.4 `terraform/environments/sandbox/main.tf`
 
@@ -231,6 +319,8 @@ Wire biến vào module CloudTrail:
 
 ```hcl
 cloudtrail_s3_data_event_bucket_arns = var.cloudtrail_s3_data_event_bucket_arns
+enable_mandate_12_alert              = var.enable_mandate_12_alert
+mandate_12_alert_email               = var.mandate_12_alert_email
 ```
 
 Vì sao đổi:
@@ -239,13 +329,17 @@ Vì sao đổi:
 
 ### 4.5 `terraform/environments/develop/variables.tf`
 
-Thêm cùng biến với default `[]`.
+Thêm cùng biến:
+
+- `cloudtrail_s3_data_event_bucket_arns` với default `[]`;
+- `enable_mandate_12_alert` với default `false`;
+- `mandate_12_alert_email` với default `""` và validation email khi alert enabled.
 
 Vì sao đổi:
 
 - CloudTrail module là shared.
 - Develop root nên giữ input contract tương thích với sandbox.
-- Develop chưa cần bật S3 data event logging nếu chưa xác định bucket list.
+- Develop dùng để test resource behavior trước, nhưng không copy sandbox role names/bucket ARNs nếu account/resource khác.
 
 ### 4.6 `terraform/environments/develop/main.tf`
 
@@ -253,6 +347,8 @@ Wire biến vào module CloudTrail:
 
 ```hcl
 cloudtrail_s3_data_event_bucket_arns = var.cloudtrail_s3_data_event_bucket_arns
+enable_mandate_12_alert              = var.enable_mandate_12_alert
+mandate_12_alert_email               = var.mandate_12_alert_email
 ```
 
 Vì sao đổi:
@@ -273,20 +369,54 @@ cloudtrail_s3_data_event_bucket_arns = [
   "arn:aws:s3:::ecommerce-dev-cloudtrail-logs/",
   "arn:aws:s3:::terraform-state-phase-3/"
 ]
+
+enable_mandate_12_alert = true
 ```
 
 Vì sao dùng `access.auto.tfvars`:
 
-- `terraform.tfvars` bị ignore, không review được.
+- `terraform.tfvars` bị ignore, không review được, và GitHub Actions không có file này từ repo.
 - `.gitignore` cho phép commit `terraform/environments/*/access.auto.tfvars`.
 - Terraform tự động load `*.auto.tfvars`.
 - Nội dung chỉ chứa role names và bucket ARN prefixes, không chứa secret.
+- Đây là access-control/guardrail config cần reviewer thấy rõ trong PR.
+- Dùng GitHub secret cho các giá trị privacy-sensitive như email receiver, không dùng secret cho role/bucket names vì chúng không cấp quyền và cần audit trail rõ.
+
+### 4.8 GitHub Actions workflow
+
+Thêm mapping biến email cho Terraform plan/apply:
+
+```yaml
+TF_VAR_mandate_12_alert_email: ${{ secrets.MANDATE_12_ALERT_EMAIL }}
+```
+
+Vì sao đổi:
+
+- Email người nhận không hardcode trong repo.
+- GitHub Actions cần truyền biến này vào Terraform khi chạy environment tương ứng.
+- Pattern này khớp cách workflow hiện truyền các secret Terraform khác.
 
 ## 5. Kế hoạch plan/apply
 
-### 5.1 Đường ưu tiên: GitHub Actions protected apply
+### 5.1 Rollout develop trước, sandbox sau
 
-Vì Product-like/Sandbox đang được deploy và vận hành qua GitHub CI/CD, đường chuẩn để apply Mandate-12 là workflow:
+Thứ tự rollout:
+
+1. Chạy static validation cho cả `develop` và `sandbox`.
+2. Chạy plan/apply ở `develop` trước nếu develop có bucket/role/email config riêng.
+3. Verify EventBridge/SNS behavior ở develop.
+4. Sau khi develop ổn, chạy sandbox để pass Mandate-12 với đúng resource thật.
+
+Lưu ý:
+
+- Develop không dùng sandbox SSO role names nếu account khác.
+- Develop không dùng sandbox bucket ARNs nếu bucket không tồn tại ở develop.
+- Nếu develop chưa có role operator ổn định, giữ `audit_operator_role_names = []` ở develop và chỉ test EventBridge/SNS + selector với resource develop.
+- Sandbox là môi trường quyết định cho mentor verification.
+
+### 5.2 Đường ưu tiên: GitHub Actions protected apply
+
+Vì Product-like/Sandbox đang được deploy và vận hành qua GitHub CI/CD, đường chuẩn để apply sandbox là workflow:
 
 ```text
 .github/workflows/infra-cd.yaml
@@ -311,7 +441,9 @@ và đã có các guard quan trọng:
 
 Vì `access.auto.tfvars` nằm trong `terraform/environments/sandbox`, Terraform sẽ auto-load file này trong cả plan và apply của workflow. Không cần thêm mapping `TF_VAR_audit_operator_role_names` hoặc `TF_VAR_cloudtrail_s3_data_event_bucket_arns` vào workflow.
 
-### 5.2 Local apply: chỉ dùng khi có chủ ý vận hành
+Riêng email người nhận cần GitHub secret/env `MANDATE_12_ALERT_EMAIL`, được workflow map thành `TF_VAR_mandate_12_alert_email`. Nếu test develop trước bằng workflow riêng, develop cũng cần mapping tương đương.
+
+### 5.3 Local apply: chỉ dùng khi có chủ ý vận hành
 
 Local `terraform plan/apply` có thể chạy được nếu operator có đủ điều kiện:
 
@@ -335,7 +467,7 @@ Nếu dùng local apply cho deadline, phải lưu lại evidence:
 - confirmation người vận hành;
 - post-apply verification commands.
 
-### 5.3 Static validation
+### 5.4 Static validation
 
 Chạy static checks trước:
 
@@ -347,7 +479,7 @@ terraform -chdir=terraform/environments/develop init -backend=false -input=false
 terraform -chdir=terraform/environments/develop validate
 ```
 
-### 5.4 Review Terraform plan cho sandbox
+### 5.5 Review Terraform plan cho sandbox
 
 Nếu chạy qua GitHub Actions:
 
@@ -370,8 +502,30 @@ Checklist review plan:
 - Không delete CloudWatch log group.
 - Chỉ thay CloudTrail event selectors.
 - Chỉ attach tamper-deny policy vào CDO/Mentor SSO roles.
+- Chỉ tạo EventBridge rule/SNS topic/subscription riêng cho Mandate-12.
+- Không sửa Mandate-11 audit-detection Lambda/SQS/Slack resources.
 
-### 5.5 Apply
+### 5.6 Rollback/destroy plan
+
+Rollback chuẩn đi qua revert PR và Terraform plan đảo ngược.
+
+Vì Mandate-12 tạo alert path riêng, gỡ sau này khá thẳng:
+
+- remove EventBridge rule riêng Mandate-12;
+- remove SNS topic/subscription riêng Mandate-12;
+- remove workflow mapping `TF_VAR_mandate_12_alert_email` nếu không còn dùng;
+- remove `audit_operator_role_names` khỏi `access.auto.tfvars` nếu muốn gỡ workaround deny attachment;
+- remove `cloudtrail_s3_data_event_bucket_arns` nếu muốn tắt S3 read data events.
+
+Plan rollback phải được review để đảm bảo:
+
+- không destroy CloudTrail trail;
+- không destroy CloudTrail S3 bucket;
+- không destroy KMS key;
+- không chạm Mandate-11 audit-detection resources;
+- chỉ gỡ đúng resources/config thuộc Mandate-12.
+
+### 5.7 Apply
 
 Đường ưu tiên: chạy `workflow_dispatch` của `infra-cd.yaml`:
 
@@ -483,34 +637,49 @@ digest files valid
 log files valid
 ```
 
-### 6.5 Verify alert path hiện có
+### 6.5 Verify Mandate-12 alert path
 
-Evidence read-only:
+Kiểm tra EventBridge rule riêng:
+
+```bash
+aws events list-rules \
+  --region us-east-1 \
+  --name-prefix ecommerce-dev-m12 \
+  --profile 804372444787_Phase3-CDO-PermissionSet
+```
+
+Kiểm tra target SNS:
 
 ```bash
 aws events list-targets-by-rule \
   --region us-east-1 \
-  --rule ecommerce-dev-audit-cloudtrail-tampering \
+  --rule <m12-eventbridge-rule-name> \
   --profile 804372444787_Phase3-CDO-PermissionSet
+```
 
-aws lambda list-event-source-mappings \
+Kiểm tra SNS subscription:
+
+```bash
+aws sns list-subscriptions-by-topic \
   --region us-east-1 \
-  --function-name ecommerce-dev-audit-slack-alert \
+  --topic-arn <m12-sns-topic-arn> \
   --profile 804372444787_Phase3-CDO-PermissionSet
 ```
 
 Kỳ vọng:
 
-- EventBridge target là `ecommerce-dev-audit-processing`.
-- Lambda event source mapping là `Enabled`.
-- Lambda Errors metric vẫn bằng 0 trong test window.
-- Không yêu cầu chứng minh Slack message cho Mandate-12 nếu team không có thông tin receiver/webhook.
+- EventBridge rule riêng Mandate-12 là `ENABLED`.
+- Rule target trỏ tới SNS topic riêng Mandate-12.
+- Event pattern có cả `cloudtrail.amazonaws.com` và `iam.amazonaws.com`.
+- SNS subscription không còn `PendingConfirmation`.
+- Email người nhận đã click confirm subscription.
+- Không có dependency vào Lambda/Slack/Mandate-11.
 
 ## 7. Rủi ro và cách giảm thiểu
 
 ### 7.1 Attach trực tiếp vào SSO role là tạm thời
 
-Direct attachment vào `AWSReservedSSO_*` roles là workaround.
+Attach trực tiếp vào `AWSReservedSSO_*` roles là workaround.
 
 Cách giảm thiểu:
 
@@ -537,7 +706,18 @@ Kế hoạch chỉ ghi read-only S3 data events cho hai bucket. Cách này giữ
 
 Không bật toàn bộ S3 buckets nếu chưa có cost review riêng.
 
-### 7.4 Retention của EKS audit
+### 7.4 SNS email subscription cần confirm
+
+SNS email subscription không hoạt động cho tới khi receiver bấm confirm trong email AWS gửi.
+
+Cách giảm thiểu:
+
+- dùng email người nhận do team kiểm soát;
+- confirm ngay sau Terraform apply;
+- verify bằng `aws sns list-subscriptions-by-topic`;
+- không demo alert path trước khi subscription confirmed.
+
+### 7.5 Retention của EKS audit
 
 Runtime EKS Kubernetes audit log retention hiện là 7 ngày.
 
@@ -547,7 +727,7 @@ Runtime EKS Kubernetes audit log retention hiện là 7 ngày.
 - CloudTrail CloudWatch: 90 ngày.
 - EKS Kubernetes audit CloudWatch: 7 ngày.
 
-### 7.5 Object Lock
+### 7.6 Object Lock
 
 S3 Object Lock chưa bật trên CloudTrail bucket hiện tại và không thể bật retroactively trên bucket đó nếu không migration.
 
@@ -562,14 +742,14 @@ Kế hoạch này dựa vào:
 
 Nếu bắt buộc phải có Object Lock, cần track thành follow-up migration riêng.
 
-### 7.6 Direct SSO attachment vẫn có thể bị admin gỡ
+### 7.7 Direct SSO attachment vẫn có thể bị admin gỡ
 
 Vì CDO/Mentor roles hiện có quyền admin rộng, direct role attachment không mạnh bằng SCP hoặc Permission Set-level control được quản lý ngoài routine operator access.
 
 Cách giảm thiểu cho deadline này:
 
 - attach deny policy vào CDO/Mentor roles để chặn direct CloudTrail tampering;
-- giữ EventBridge rules cho IAM guardrail-removal actions ở trạng thái enabled;
+- Mandate-12 EventBridge rule bắt IAM guardrail tamper actions như `DetachRolePolicy`, `DeletePolicy`, `CreatePolicyVersion` và `SetDefaultPolicyVersion`;
 - document đây là workaround tạm thời;
 - follow up với adminHolder/Identity Center owner để enforcement bền vững ở Permission Set.
 
@@ -580,6 +760,7 @@ Mandate-12 được coi là sẵn sàng cho mentor verify khi:
 - CloudTrail dùng advanced selectors với management events và S3 read data events.
 - Simulation của CDO và Mentor SSO role trả về `explicitDeny` cho audit-tamper actions.
 - Một lần đọc thật `s3:GetObject` tạo CloudTrail data event.
+- EventBridge/SNS email alert path riêng của Mandate-12 tồn tại, enabled, và subscription đã confirmed.
 - `validate-logs` thành công cho một khoảng thời gian đã review.
-- Existing EventBridge/SQS/Lambda alert pipeline được document bằng runtime evidence, không phụ thuộc Slack receiver.
+- Không phụ thuộc Lambda/Slack/Mandate-11 pipeline.
 - Retention và known gaps được document.
