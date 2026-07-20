@@ -82,4 +82,4 @@ metadata:
   name: "psp-capabilities-binding"
 spec:
   policyName: "psp-capabilities"
-  validationActions: [Warn]
+  validationActions: [Deny]

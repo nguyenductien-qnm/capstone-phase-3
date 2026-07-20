@@ -215,3 +215,7 @@ module "external_secrets_irsa" {
     module.msk.kms_key_arn,
   ]
 }
+
+
+
+
