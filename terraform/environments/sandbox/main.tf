@@ -92,6 +92,7 @@ module "rds" {
   enable_rds_proxy           = var.enable_rds_proxy
   multi_az                   = var.rds_multi_az
   eks_node_security_group_id = module.eks.cluster_security_group_id
+  enable_logical_replication = true
 }
 
 module "elasticache" {
@@ -202,6 +203,27 @@ module "cloudtrail" {
   audit_administrator_principals = var.audit_administrator_principals
   break_glass_principals         = var.audit_break_glass_principals
   operator_role_names            = var.audit_operator_role_names
+}
+
+# MANDATE-11 audit detection is enabled by default because its resources already
+# exist in the sandbox remote state. It inherits this root's AWS provider and backend.
+module "audit_detection" {
+  count  = var.audit_detection_enabled ? 1 : 0
+  source = "../../audit-detection"
+
+  project_name = var.project_name
+  environment  = var.environment
+  # SNS subscription endpoints are Terraform resource keys and therefore cannot
+  # remain marked sensitive; GitHub still masks the source Environment secret.
+  pipeline_health_email_endpoints = toset([nonsensitive(var.audit_pipeline_health_email)])
+  slack_webhook_url               = var.audit_slack_webhook_url
+  slack_webhook_secret_version    = var.audit_slack_webhook_secret_version
+  slack_webhook_kms_key_arn       = var.audit_slack_webhook_kms_key_arn
+  break_glass_role_arns           = var.audit_detection_break_glass_role_arns
+
+  tags = {
+    Stack = "sandbox"
+  }
 }
 
 # IRSA role cho External Secrets Operator đọc endpoint/credential từ Secrets Manager
