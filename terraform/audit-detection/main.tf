@@ -29,7 +29,7 @@ module "processor" {
 
   name_prefix                   = local.name_prefix
   tags                          = local.common_tags
-  lambda_source_file            = "${path.module}/lambda/handler.py"
+  lambda_package_file           = "${path.module}/lambda/handler.zip"
   processing_queue_arn          = module.detection_routing.processing_queue_arn
   queue_kms_key_arn             = module.detection_routing.queue_kms_key_arn
   slack_webhook_url             = var.slack_webhook_url

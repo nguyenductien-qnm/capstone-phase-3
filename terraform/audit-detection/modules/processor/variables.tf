@@ -8,9 +8,9 @@ variable "tags" {
   description = "Mandatory and additional resource tags"
 }
 
-variable "lambda_source_file" {
+variable "lambda_package_file" {
   type        = string
-  description = "Absolute path to the Lambda handler source file"
+  description = "Absolute path to the version-controlled Lambda ZIP package"
 }
 
 variable "processing_queue_arn" {
