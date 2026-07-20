@@ -62,4 +62,27 @@ CVE-2026-58016  # libglib2.0-0 — fix_deferred
 CVE-2026-58010  # libglib2.0-0 — fix_deferred
 CVE-2026-58011  # libglib2.0-0 — fix_deferred
 CVE-2026-58012  # libglib2.0-0 — fix_deferred
+CVE-2026-58013  # libglib2.0-0 — fix_deferred
+CVE-2026-58014  # libglib2.0-0 — fix_deferred
+CVE-2026-58015  # libglib2.0-0 — fix_deferred
 CVE-2026-6653   # libxml2 — fix_deferred
+CVE-2026-42496  # perl-base/perl-Archive-Tar — vulnerable cả bookworm lẫn trixie
+CVE-2026-8376   # perl-base — vulnerable cả bookworm lẫn trixie
+CVE-2026-41992  # gzip — fix_deferred; vulnerable cả bookworm lẫn trixie/sid
+CVE-2026-54369  # libacl1 — vulnerable cả bookworm lẫn trixie
+
+# load-generator: gói riêng của Chromium/X (playwright --with-deps kéo về).
+# Gỡ được chỉ bằng cách bỏ hẳn browser-based load test — quyết định kiến trúc,
+# không phải sửa Dockerfile. Review kèm hạng mục đó.
+CVE-2026-34980  # libcups2 — affected cả 2 release
+CVE-2023-25193  # libharfbuzz0b — bookworm vulnerable (trixie đã fixed)
+CVE-2023-5574   # xserver-common — fix_deferred
+CVE-2026-50256  # xserver-common
+CVE-2026-50257  # xserver-common
+CVE-2026-50258  # xserver-common
+CVE-2026-50259  # xserver-common
+CVE-2026-50260  # xserver-common
+CVE-2026-50261  # xserver-common
+CVE-2026-50264  # xserver-common
+CVE-2026-55999  # xserver-common
+CVE-2026-56000  # xserver-common
