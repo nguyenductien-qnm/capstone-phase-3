@@ -51,7 +51,7 @@ resource "aws_iam_role_policy" "outbox_lambda_custome_policy" {
 					"dynamodb:DescribeStream",
 					"dynamodb:ListStreams"
 				]
-				Resources = "${var.dynamodb_table_arn}/stream/*"
+				Resource = "${var.dynamodb_table_arn}/stream/*"
 			},
 
 			# Lambda needs to access to MSK authen credentials & endpoint locations
@@ -90,12 +90,10 @@ resource "aws_lambda_function" "outbox_processor" {
 
 	environment {
 	  variables = {
-		variables = {
-	      MSK_CREDENTIALS_SECRET_ARN = var.msk_secret_arn
-	      MSK_ENDPOINT_SECRET_ARN    = var.msk_endpoint_secret_arn
-	      KAFKA_TOPIC                = "orders"
+	    MSK_CREDENTIALS_SECRET_ARN = var.msk_secret_arn
+	    MSK_ENDPOINT_SECRET_ARN    = var.msk_endpoint_secret_arn
+	    KAFKA_TOPIC                = "orders"
 	    }
-	  }
 	}
 }
 
@@ -107,17 +105,15 @@ resource "aws_lambda_event_source_mapping" "dynamodb_stream_trigger" {
 
 	# Filter Pattern matching: order_status == COMPLETED
 	filter_criteria {
-	  filter {
-		pattern = {
-			eventName = ["INSERT", "MODIFY"]
-			dynamodb = {
-				NewImage = {
-					order_status = {
-						S = ["COMPLETED"]
+	  	filter {
+			pattern = jsondecode({
+				eventName = ["INSERT", "MODIFY"]
+				dynamodb = {
+					NewImage = {
+						order_status = {S = ["COMPLETED"]}
 					}
 				}
-			}
+			})
 		}
-	  }
 	}
 }
