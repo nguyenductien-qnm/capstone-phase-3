@@ -15,9 +15,12 @@ default:
   replicas: 1
 
 components:
-  # AI-assistant branch — kept disabled on Develop (out of Mandate-19 scope,
-  # ml-guard needs 1 full CPU and goes Pending on the app nodes).
+  # AI-assistant branch — fully disabled on Develop (out of Mandate-19 scope).
+  # ml-guard requests a full CPU (limit 2 CPU / 2Gi, 2.4GB image); leaving it
+  # running kept all three app nodes at 74-95% CPU requests at idle, starving the
+  # HPA of room to scale during the load test. enabled:false drops the Deployment
+  # entirely (chart component.yaml gates on $config.enabled), not just its HPA.
+  # TODO: measure ml-guard ceiling separately later (dedicated node or pin the
+  # other services to 1 replica to free CPU).
   ml-guard:
-    hpa:
-      enabled: false
-      minReplicas: 1
+    enabled: false
