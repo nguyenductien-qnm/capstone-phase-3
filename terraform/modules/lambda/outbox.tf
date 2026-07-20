@@ -1,18 +1,3 @@
-# Security Group for the Outbox Lambda Function
-resource "aws_security_group" "lambda_sg" {
-	name = "${var.project_name}-${var.environment}-outbox-lambda-sg"
-	vpc_id = var.vpc_id
-	description = "Security Group for DynamoDB Stream to MSK Lambda"
-
-	// Outbound: communicate with DynamoDB, MSK, Secrets Manager
-	egress {
-		from_port   = 0
-	    to_port     = 0
-	    protocol    = "-1"
-	    cidr_blocks = ["0.0.0.0/0"]
-	}
-}
-
 # IAM Role for Lambda 
 resource "aws_iam_role" "outbox_lambda_role" {
 	name = "${var.project_name}-${var.environment}-outbox-lambda-role"
@@ -47,7 +32,7 @@ resource "aws_iam_role_policy" "outbox_lambda_custome_policy" {
 				Effect = "Allow"
 				Action = [
 					"dynamodb:GetRecords",
-					"dynamodb:GetSharedIterator",
+					"dynamodb:GetShardIterator",
 					"dynamodb:DescribeStream",
 					"dynamodb:ListStreams"
 				]
@@ -110,9 +95,9 @@ resource "aws_lambda_function" "outbox_processor" {
 
 	environment {
 	  variables = {
-	    MSK_CREDENTIALS_SECRET_ARN = var.msk_secret_arn
-	    MSK_ENDPOINT_SECRET_ARN    = var.msk_endpoint_secret_arn
-	    KAFKA_TOPIC                = "orders"
+		    MSK_CREDENTIALS_SECRET_ARN = var.msk_secret_arn
+		    MSK_ENDPOINT_SECRET_ARN    = var.msk_endpoint_secret_arn
+		    KAFKA_TOPIC                = "orders"
 	    }
 	}
 }
