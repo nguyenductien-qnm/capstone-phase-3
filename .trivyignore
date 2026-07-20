@@ -1,0 +1,88 @@
+# Trivy ignore — CVE được BỎ QUA CÓ CHỦ Ý, từng ID một, có lý do và hạn review.
+#
+# Vì sao file này thay cho `ignore-unfixed: true`: cờ đó tắt MỌI CVE chưa có bản vá
+# trên MỌI service, vĩnh viễn -> ngày upstream phát hành bản vá, gate im lặng thay vì
+# đỏ lên bắt rebuild (gate mù OS). Liệt kê từng ID thì CVE mới vẫn đỏ, CVE được vá thì
+# xoá dòng tương ứng -> gate giữ nguyên tác dụng.
+#
+# QUY TẮC: chỉ thêm khi (a) upstream CHƯA có bản vá, hoặc (b) đã xác minh là false
+# positive. Không thêm chỉ vì build đỏ. Mỗi entry phải có lý do + ngày review.
+# Tới hạn review: kiểm tra lại `trivy image --severity CRITICAL,HIGH <image>` xem cột
+# Status/Fixed Version đã đổi chưa; có bản vá -> bump rồi XOÁ dòng ở đây.
+
+# ---------------------------------------------------------------------------
+# email — FALSE POSITIVE (verify 20/07/2026)
+# ---------------------------------------------------------------------------
+# erb/zlib là DEFAULT GEM của Ruby: gemspec bản cũ nằm sẵn trong
+# /usr/local/lib/ruby/gems/3.4.0/specifications/default/ và KHÔNG gỡ được khỏi
+# interpreter. Trivy đọc gemspec đó nên vẫn báo, nhưng Gemfile đã pin bản vá và
+# bundler nạp từ /usr/local/bundle/gems -> RUNTIME chạy bản đã vá.
+# Verify trong image: `bundle list` -> erb (4.0.4.1), net-imap (0.5.15), zlib (3.2.3).
+# Review: 2026-10-20 (khi Ruby ship default gem mới thì Trivy hết báo -> xoá 5 dòng này)
+CVE-2026-41316  # erb — runtime nạp 4.0.4.1 (đã vá), gemspec default 4.0.4 còn sót
+CVE-2026-42245  # net-imap — runtime nạp 0.5.15 (đã vá)
+CVE-2026-42246  # net-imap — runtime nạp 0.5.15 (đã vá)
+CVE-2026-42257  # net-imap — runtime nạp 0.5.15 (đã vá)
+CVE-2026-27820  # zlib gem — runtime nạp 3.2.3 (đã vá), gemspec default 3.2.1 còn sót
+
+# ---------------------------------------------------------------------------
+# fraud-detection — CHƯA CÓ BẢN VÁ (verify Debian security tracker 20/07/2026)
+# ---------------------------------------------------------------------------
+# libexpat trong gcr.io/distroless/java17-debian13. Kiểm tra tracker: `vulnerable` ở
+# CẢ bookworm lẫn trixie -> không Debian release nào vá được, không bump đi đâu được.
+# (Bản "fixed" trên tracker là firefox-esr/thunderbird, không phải gói expat.)
+# Review: 2026-08-20
+CVE-2025-59375  # libexpat1 — will_not_fix/affected mọi Debian release
+CVE-2026-25210  # libexpat1
+CVE-2026-45186  # libexpat1
+CVE-2026-56131  # libexpat1
+CVE-2026-56407  # libexpat1
+CVE-2026-56408  # libexpat1
+
+# ---------------------------------------------------------------------------
+# load-generator, ml-guard — CHƯA CÓ BẢN VÁ (Debian 12, verify 20/07/2026)
+# ---------------------------------------------------------------------------
+# Hai service này buộc phải giữ userland Debian đầy đủ:
+#   - load-generator: `playwright install --with-deps chromium` kéo theo hàng chục
+#     shared lib hệ thống (glib/libxml2/...) mà Chromium headless cần.
+#   - ml-guard: bake model HuggingFace + torch/spacy; wheel thường không có bản musl
+#     -> chuyển Alpine phải compile, chưa đánh giá xong rủi ro.
+# Các CVE dưới đây đều `affected`/`fix_deferred`/`will_not_fix` ở bookworm VÀ trixie.
+# Review: 2026-08-20 (kèm đánh giá Alpine hoá ml-guard)
+CVE-2026-13221  # perl-base — vulnerable cả bookworm lẫn trixie
+CVE-2026-42497  # perl-Archive-Tar — fix_deferred
+CVE-2026-48962  # perl-IO-Compress
+CVE-2026-57432  # perl (integer overflow)
+CVE-2026-9538   # perl-Archive-Tar — fix_deferred
+CVE-2025-69720  # ncurses/libtinfo6 — vulnerable cả 2 release
+CVE-2026-53615  # util-linux/bsdutils/mount/libuuid1 — affected
+CVE-2025-7458   # libsqlite3-0 (bookworm; trixie đã fixed)
+CVE-2023-45853  # zlib1g — will_not_fix (Debian)
+CVE-2026-58016  # libglib2.0-0 — fix_deferred
+CVE-2026-58010  # libglib2.0-0 — fix_deferred
+CVE-2026-58011  # libglib2.0-0 — fix_deferred
+CVE-2026-58012  # libglib2.0-0 — fix_deferred
+CVE-2026-58013  # libglib2.0-0 — fix_deferred
+CVE-2026-58014  # libglib2.0-0 — fix_deferred
+CVE-2026-58015  # libglib2.0-0 — fix_deferred
+CVE-2026-6653   # libxml2 — fix_deferred
+CVE-2026-42496  # perl-base/perl-Archive-Tar — vulnerable cả bookworm lẫn trixie
+CVE-2026-8376   # perl-base — vulnerable cả bookworm lẫn trixie
+CVE-2026-41992  # gzip — fix_deferred; vulnerable cả bookworm lẫn trixie/sid
+CVE-2026-54369  # libacl1 — vulnerable cả bookworm lẫn trixie
+
+# load-generator: gói riêng của Chromium/X (playwright --with-deps kéo về).
+# Gỡ được chỉ bằng cách bỏ hẳn browser-based load test — quyết định kiến trúc,
+# không phải sửa Dockerfile. Review kèm hạng mục đó.
+CVE-2026-34980  # libcups2 — affected cả 2 release
+CVE-2023-25193  # libharfbuzz0b — bookworm vulnerable (trixie đã fixed)
+CVE-2023-5574   # xserver-common — fix_deferred
+CVE-2026-50256  # xserver-common
+CVE-2026-50257  # xserver-common
+CVE-2026-50258  # xserver-common
+CVE-2026-50259  # xserver-common
+CVE-2026-50260  # xserver-common
+CVE-2026-50261  # xserver-common
+CVE-2026-50264  # xserver-common
+CVE-2026-55999  # xserver-common
+CVE-2026-56000  # xserver-common

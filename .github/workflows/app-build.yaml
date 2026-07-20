@@ -27,14 +27,14 @@ on:
     paths:
       - "techx-corp-platform/src/**"
       - "platform/charts/application/values.yaml"
-      - "platform/build-exclusions.yaml"
+      - ".trivyignore"
       - ".github/workflows/app-build.yaml"
   pull_request:
     branches: ["develop"]
     paths:
       - "techx-corp-platform/src/**"
       - "platform/charts/application/values.yaml"
-      - "platform/build-exclusions.yaml"
+      - ".trivyignore"
       - ".github/workflows/app-build.yaml"
   workflow_dispatch:
     inputs:
@@ -95,7 +95,6 @@ jobs:
           DISPATCH_SERVICES: ${{ github.event.inputs.services }}
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           VALUES: platform/charts/application/values.yaml
-          EXCLUSIONS_FILE: platform/build-exclusions.yaml
         run: |
           set -euo pipefail
 
@@ -125,25 +124,9 @@ jobs:
           fi
           echo "Service team-owned: ${!DOCKERFILE[*]}"
 
-          # (c) Loại service đang TẠM HOÃN vì CVE chưa có bản vá upstream.
-          # Chính sách: không push image dính CVE CRITICAL/HIGH lên ECR. Service bị
-          # hoãn giữ nguyên tag cũ trong values-image-tags.yaml -> ArgoCD chạy image cũ.
-          # Quá hạn review_by -> cảnh báo để không ai quên (nhưng vẫn hoãn, không fail CI).
-          if [ -f "$EXCLUSIONS_FILE" ]; then
-            TODAY=$(date -u +%F)
-            while IFS=$'\t' read -r svc reason review_by; do
-              [ -z "$svc" ] && continue
-              if [ -z "${DOCKERFILE[$svc]:-}" ]; then
-                echo "::warning::build-exclusions: '$svc' không còn là service team-owned -> entry thừa, nên xoá."
-                continue
-              fi
-              unset 'DOCKERFILE[$svc]'
-              echo "::notice::HOÃN BUILD '$svc' — $reason (review_by: $review_by)"
-              if [[ "$review_by" < "$TODAY" ]]; then
-                echo "::warning::build-exclusions: '$svc' đã QUÁ HẠN review ($review_by). Kiểm tra upstream đã có fix chưa rồi bump + xoá entry."
-              fi
-            done < <(yq -r '.exclusions[] | [.service, .reason, .review_by] | @tsv' "$EXCLUSIONS_FILE")
-          fi
+          # KHÔNG còn danh sách hoãn build: mọi service team-owned đều build được với
+          # Trivy gate bật. CVE không vá được xử bằng .trivyignore (từng CVE ID, có lý
+          # do + hạn review) thay vì hoãn cả service — service vẫn deploy được code mới.
 
           # --- Chọn service cần build ---------------------------------------
           selected=()
@@ -328,6 +311,10 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
 
+      # KHÔNG dùng `ignore-unfixed: true` — cờ đó tắt mọi CVE chưa có bản vá trên mọi
+      # service, nên khi upstream phát hành bản vá thì gate im lặng thay vì đỏ lên bắt
+      # rebuild. Thay bằng .trivyignore ở repo root: liệt kê TỪNG CVE ID được bỏ qua,
+      # kèm lý do + hạn review -> CVE mới vẫn chặn được.
       - name: Trivy vulnerability scan (gate)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
@@ -335,6 +322,7 @@ jobs:
           format: table
           severity: CRITICAL,HIGH
           exit-code: "1"
+          trivyignores: .trivyignore
 
       # Chỉ push khi không phải PR. Push by-digest để ký theo digest (chuẩn immutable).
       - name: Push image

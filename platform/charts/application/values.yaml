@@ -292,8 +292,7 @@ components:
     enabled: true
     imageOverride:
       tag: "1.1-cart-ae89fa2" # CDO-80 gRPC health; incident 2026-07-16: tag tran bi ECR lifecycle xoa, rebuild
-    # Image chạy root và đang HOÃN BUILD vì CVE-2026-28387 (xem build-exclusions.yaml)
-    # -> không vá được bằng USER trong Dockerfile, phải ép UID từ chart.
+    # Image chạy root (Dockerfile upstream không có USER) -> ép UID từ chart.
     # Template dùng `default` (thay cả block, KHÔNG merge) nên phải lặp lại đủ field
     # của defaultValues.securityContext, nếu không sẽ mất drop ALL.
     # Verify: docker run --user 1000:1000 <image 1.1-cart> -> chạy tới logic app.
@@ -553,8 +552,7 @@ components:
     enabled: true
     imageOverride:
       tag: "1.0-email-ae89fa2" # incident 2026-07-16: tag tran bi ECR lifecycle xoa, image rebuild tu source
-    # Image chạy root và đang HOÃN BUILD vì CVE-2026-28387 + CVE-2026-42245 (xem
-    # build-exclusions.yaml) -> ép UID từ chart thay vì USER trong Dockerfile.
+    # Image chạy root (Dockerfile không có USER) -> ép UID từ chart.
     # Template dùng `default` (thay cả block, KHÔNG merge) nên phải lặp lại đủ field.
     # Verify: docker run --user 1000:1000 <image 1.0-email> -> Sinatra/Puma lên bình thường.
     securityContext:
