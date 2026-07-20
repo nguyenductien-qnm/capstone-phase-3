@@ -89,3 +89,8 @@ variable "enable_logical_replication" {
   default     = false
 }
 
+variable "track_activity_query_size" {
+  type        = number
+  description = "Optional PostgreSQL track_activity_query_size value preserved in the Terraform-managed parameter group"
+  default     = null
+}
