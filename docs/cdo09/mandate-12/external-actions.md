@@ -21,7 +21,7 @@ Vì sao cần:
 - Mandate-12 tạo SNS email alert riêng, không dùng Slack/Lambda của Mandate-11.
 - Email cá nhân là thông tin privacy-sensitive, không nên hardcode trong repo nếu không cần.
 - Terraform cần giá trị này khi chạy plan/apply qua GitHub Actions.
-- Nếu test `develop` trước, develop cũng cần secret/env tương ứng hoặc plan sẽ fail khi `enable_mandate_12_alert = true`.
+- Develop chỉ cần secret/env tương ứng nếu sau này có workflow/config riêng bật `enable_mandate_12_alert = true` ở develop. Với thiết kế hiện tại, develop default off và chỉ cần static validation.
 
 ### 2. Confirm SNS email subscription sau Terraform apply
 
@@ -67,7 +67,7 @@ Vì sao cần:
 - Mandate-12 thay đổi AWS CloudTrail selectors, IAM role policy attachments, EventBridge rule và SNS topic/subscription.
 - Product-like/Sandbox infra đang được quản lý qua GitHub Actions.
 - Workflow có account guard `allowed-account-ids: "804372444787"` và tạo plan artifact để review.
-- Rollout nên test `develop` trước nếu develop có config riêng, rồi mới apply `sandbox` để pass mentor verification.
+- Develop hiện default off cho Mandate-12, nên runtime verification chính là sandbox plan/apply sau khi PR được review.
 
 Phương án dự phòng:
 

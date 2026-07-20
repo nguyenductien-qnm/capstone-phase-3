@@ -67,8 +67,10 @@ CloudTrail tamper hoặc IAM guardrail tamper attempt
 
 ## Rollout
 
-1. Validate và thử resource behavior ở `develop` trước với config riêng của develop.
-2. Sau khi `develop` ổn, bật cấu hình `sandbox` để pass Mandate-12 với đúng CDO/Mentor roles và bucket thật.
+1. Validate static cho cả `develop` và `sandbox`.
+2. Giữ `develop` default off; không runtime test Mandate-12 ở develop nếu chưa có role/bucket/email config riêng.
+3. Chạy sandbox plan/apply qua GitHub Actions protected workflow.
+4. Verify Mandate-12 trên sandbox với đúng CDO/Mentor roles và bucket thật.
 
 Không copy role names hoặc bucket ARNs của sandbox sang develop nếu develop dùng account/resource khác.
 

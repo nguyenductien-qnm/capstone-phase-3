@@ -184,13 +184,8 @@ variable "enable_mandate_12_alert" {
 variable "mandate_12_alert_email" {
   type        = string
   default     = ""
-  description = "Email receiver for Mandate-12 CloudTrail tamper alerts. Empty disables the email subscription."
+  description = "Email receiver for Mandate-12 CloudTrail tamper alerts."
   sensitive   = true
-
-  validation {
-    condition     = var.enable_mandate_12_alert ? var.mandate_12_alert_email != "" : true
-    error_message = "mandate_12_alert_email must be set when enable_mandate_12_alert is true."
-  }
 }
 ```
 
@@ -201,6 +196,7 @@ Vì sao đổi:
 - Environment root quyết định bucket nào là sensitive và cần data event logging.
 - Email người nhận là privacy-sensitive nên truyền qua GitHub secret/env, không đưa vào `access.auto.tfvars`.
 - Alert mặc định tắt để shared module và các environment chưa cấu hình không vô tình tạo notification resource.
+- Điều kiện "alert bật thì email không được rỗng" được enforce bằng `lifecycle.precondition` trong resource SNS topic, không dùng cross-variable validation trong variable block.
 
 ### 4.2 `terraform/modules/cloudtrail/main.tf`
 
@@ -299,13 +295,10 @@ variable "mandate_12_alert_email" {
   default     = ""
   description = "Email receiver for Mandate-12 CloudTrail tamper alerts"
   sensitive   = true
-
-  validation {
-    condition     = var.enable_mandate_12_alert ? var.mandate_12_alert_email != "" : true
-    error_message = "mandate_12_alert_email must be set when enable_mandate_12_alert is true."
-  }
 }
 ```
+
+Điều kiện email không rỗng khi bật alert được enforce ở CloudTrail module bằng `lifecycle.precondition`, không lặp lại bằng validation ở environment variables.
 
 Vì sao đổi:
 
@@ -398,20 +391,21 @@ Vì sao đổi:
 
 ## 5. Kế hoạch plan/apply
 
-### 5.1 Rollout develop trước, sandbox sau
+### 5.1 Develop static validation; sandbox runtime verification
 
-Thứ tự rollout:
+Thứ tự rollout đúng cho Mandate-12 hiện tại:
 
 1. Chạy static validation cho cả `develop` và `sandbox`.
-2. Chạy plan/apply ở `develop` trước nếu develop có bucket/role/email config riêng.
-3. Verify EventBridge/SNS behavior ở develop.
-4. Sau khi develop ổn, chạy sandbox để pass Mandate-12 với đúng resource thật.
+2. Không chạy runtime test ở `develop` khi develop vẫn giữ default off.
+3. Chạy sandbox plan qua GitHub Actions để review chính xác thay đổi hạ tầng thật.
+4. Chỉ manual apply sandbox sau khi plan đúng và reviewer approve.
+5. Verify Mandate-12 trên sandbox vì sandbox có đúng resource thật cho mentor test.
 
 Lưu ý:
 
-- Develop không dùng sandbox SSO role names nếu account khác.
-- Develop không dùng sandbox bucket ARNs nếu bucket không tồn tại ở develop.
-- Nếu develop chưa có role operator ổn định, giữ `audit_operator_role_names = []` ở develop và chỉ test EventBridge/SNS + selector với resource develop.
+- Develop đang default off: `audit_operator_role_names = []`, `cloudtrail_s3_data_event_bucket_arns = []`, `enable_mandate_12_alert = false`.
+- Apply develop trong trạng thái này không chứng minh được IAM Deny, S3 data events, hoặc EventBridge/SNS alert của Mandate-12.
+- Chỉ runtime test develop nếu sau này có bucket/role/email config riêng cho develop.
 - Sandbox là môi trường quyết định cho mentor verification.
 
 ### 5.2 Đường ưu tiên: GitHub Actions protected apply
@@ -441,7 +435,7 @@ và đã có các guard quan trọng:
 
 Vì `access.auto.tfvars` nằm trong `terraform/environments/sandbox`, Terraform sẽ auto-load file này trong cả plan và apply của workflow. Không cần thêm mapping `TF_VAR_audit_operator_role_names` hoặc `TF_VAR_cloudtrail_s3_data_event_bucket_arns` vào workflow.
 
-Riêng email người nhận cần GitHub secret/env `MANDATE_12_ALERT_EMAIL`, được workflow map thành `TF_VAR_mandate_12_alert_email`. Nếu test develop trước bằng workflow riêng, develop cũng cần mapping tương đương.
+Riêng email người nhận cần GitHub secret/env `MANDATE_12_ALERT_EMAIL`, được workflow map thành `TF_VAR_mandate_12_alert_email`. Develop chỉ cần mapping tương đương nếu sau này có workflow/config riêng bật Mandate-12 alert ở develop.
 
 ### 5.3 Local apply: chỉ dùng khi có chủ ý vận hành
 
