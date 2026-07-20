@@ -175,7 +175,7 @@ jobs:
           terraform -chdir="$TF_ROOT" validate
 
       - name: Trivy IaC scan
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: config
           scan-ref: terraform
@@ -199,6 +199,9 @@ jobs:
     needs: terraform-static-checks
     runs-on: ubuntu-latest
     environment: sandbox
+    env:
+      TF_VAR_audit_slack_webhook_url: ${{ secrets.AUDIT_SLACK_WEBHOOK_URL }}
+      TF_VAR_audit_pipeline_health_email: ${{ secrets.AUDIT_PIPELINE_HEALTH_EMAIL }}
     concurrency:
       group: terraform-sandbox-state
       cancel-in-progress: false
@@ -293,6 +296,11 @@ jobs:
       github.event.inputs.confirm == 'apply-sandbox'
     runs-on: ubuntu-latest
     environment: sandbox
+    env:
+      # Ephemeral/write-only values are not stored in the saved plan, so the
+      # apply job must receive the same GitHub Environment secrets again.
+      TF_VAR_audit_slack_webhook_url: ${{ secrets.AUDIT_SLACK_WEBHOOK_URL }}
+      TF_VAR_audit_pipeline_health_email: ${{ secrets.AUDIT_PIPELINE_HEALTH_EMAIL }}
     concurrency:
       group: terraform-sandbox-state
       cancel-in-progress: false

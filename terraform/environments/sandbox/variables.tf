@@ -368,4 +368,67 @@ variable "rds_rotation_rules_automatically_after_days" {
   type        = number
   description = "Số ngày tự động xoay vòng secret RDS"
   default     = 30
+variable "audit_detection_enabled" {
+  type        = bool
+  default     = true
+  description = "Deploy the MANDATE-11 EventBridge, SQS, Lambda, Slack, and pipeline-health resources"
+}
+
+variable "audit_pipeline_health_email" {
+  type        = string
+  description = "Pipeline-health SNS email endpoint supplied through a GitHub Environment secret"
+  sensitive   = true
+
+  validation {
+    condition     = can(regex("^[^@[:space:]]+@[^@[:space:]]+\\.[^@[:space:]]+$", var.audit_pipeline_health_email))
+    error_message = "audit_pipeline_health_email must be a valid email address."
+  }
+}
+
+variable "audit_slack_webhook_url" {
+  type        = string
+  description = "Slack webhook supplied through a GitHub Environment secret and written to Secrets Manager"
+  sensitive   = true
+  ephemeral   = true
+
+  validation {
+    condition     = can(regex("^https://hooks\\.slack(?:-gov)?\\.com/services/", var.audit_slack_webhook_url))
+    error_message = "audit_slack_webhook_url must be an HTTPS Slack incoming-webhook URL."
+  }
+}
+
+variable "audit_slack_webhook_secret_version" {
+  type        = number
+  description = "Non-secret version counter; increment when rotating the GitHub Slack webhook secret"
+  default     = 1
+
+  validation {
+    condition     = var.audit_slack_webhook_secret_version >= 1 && floor(var.audit_slack_webhook_secret_version) == var.audit_slack_webhook_secret_version
+    error_message = "audit_slack_webhook_secret_version must be a positive integer."
+  }
+}
+
+variable "audit_slack_webhook_kms_key_arn" {
+  type        = string
+  default     = null
+  nullable    = true
+  description = "Optional customer-managed KMS key ARN protecting the Slack webhook value"
+
+  validation {
+    condition     = var.audit_slack_webhook_kms_key_arn == null || can(regex("^arn:[^:]+:kms:[^:]+:[0-9]{12}:key/", var.audit_slack_webhook_kms_key_arn))
+    error_message = "audit_slack_webhook_kms_key_arn must be null or a KMS key ARN."
+  }
+}
+
+variable "audit_detection_break_glass_role_arns" {
+  type        = set(string)
+  default     = []
+  description = "Exact IAM role ARNs whose AssumeRole calls must generate audit alerts"
+
+  validation {
+    condition = alltrue([
+      for arn in var.audit_detection_break_glass_role_arns : can(regex("^arn:[^:]+:iam::[0-9]{12}:role/.+", arn))
+    ])
+    error_message = "Every audit detection break-glass value must be an IAM role ARN."
+  }
 }
