@@ -53,11 +53,11 @@ Giới hạn quan trọng:
 - `AWSReservedSSO_*` roles do IAM Identity Center quản lý.
 - Nếu Permission Set được reprovision sau này, role attachment có thể bị overwrite hoặc role có thể bị recreate.
 
-### 3. Xác nhận alert receiver
+### 3. Xác nhận alert receiver nếu team muốn dùng alert làm evidence chính
 
-**Người phụ trách:** Slack/channel owner hoặc on-call receiver.
+**Người phụ trách:** channel owner hoặc on-call receiver, nếu có.
 
-**Hành động:** xác nhận kênh audit alert từ Mandate-11 vẫn có người theo dõi và nhận được message.
+**Hành động:** xác nhận kênh audit alert từ Mandate-11 vẫn có người theo dõi và nhận được message, nếu team quyết định dùng đường alert này trong mentor demo.
 
 Đường runtime hiện tại:
 
@@ -71,8 +71,8 @@ Webhook secret:   /ecommerce/dev/audit/slack-webhook
 Vì sao cần:
 
 - Mandate-12 không bắt buộc phải dùng Slack.
-- Nhưng Mandate-12 yêu cầu audit-tamper attempt phải bị chặn hoặc kêu tới người thật.
-- Vì receiver hiện có là Slack, cần có người xác nhận kênh/message evidence.
+- Với kế hoạch hiện tại, điều kiện pass chính cho “làm mù” là IAM deny trả `explicitDeny`.
+- Alert path là evidence bổ sung. Nếu không có thông tin receiver/webhook, không dùng Slack message làm điều kiện pass.
 
 ## Follow-up bền vững nên làm
 

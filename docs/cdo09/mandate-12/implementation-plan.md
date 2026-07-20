@@ -36,7 +36,7 @@ Các kiểm tra runtime đã chạy bằng profile:
 | Log file validation | `LogFileValidationEnabled = true` | Đạt |
 | Kiểm chứng toàn vẹn | `1/1 digest files valid`, `38/38 log files valid` | Đạt |
 | Bảo vệ S3 log bucket | Versioning, encryption, public access block đã bật | Đạt |
-| Đường cảnh báo | EventBridge → SQS → Lambda → Slack đã tồn tại | Đạt |
+| Đường cảnh báo | EventBridge → SQS → Lambda đã tồn tại; receiver bên ngoài chưa dùng làm điều kiện pass | Đạt một phần |
 | Coverage đọc SecretsManager | `GetSecretValue` xuất hiện trong CloudTrail management events | Đạt |
 
 ### 2.2 Còn thiếu
@@ -103,7 +103,7 @@ Runtime đã verify:
 EventBridge rule: ecommerce-dev-audit-cloudtrail-tampering
 Target:          ecommerce-dev-audit-processing SQS queue
 Processor:       ecommerce-dev-audit-slack-alert Lambda
-Receiver:        Slack webhook stored in SSM Parameter Store
+Receiver:        chưa xác nhận trong phạm vi Mandate-12
 ```
 
 Rule đã bắt:
@@ -116,7 +116,7 @@ PutEventSelectors
 PutInsightSelectors
 ```
 
-Vì vậy phần alert cho “làm mù” đã có sẵn từ Mandate-11 và được reuse.
+Vì vậy không cần tạo alert pipeline mới cho Mandate-12. Tuy nhiên vì receiver bên ngoài chưa được xác nhận, kế hoạch này không dùng Slack/message delivery làm điều kiện pass chính. Điều kiện pass chính cho “làm mù” là IAM deny trả `explicitDeny`; alert pipeline được ghi nhận như evidence bổ sung.
 
 ### 3.5 Attach IAM deny vào CDO/Mentor SSO role là workaround
 
@@ -483,7 +483,7 @@ digest files valid
 log files valid
 ```
 
-### 6.5 Verify alert path
+### 6.5 Verify alert path hiện có
 
 Evidence read-only:
 
@@ -504,6 +504,7 @@ Kỳ vọng:
 - EventBridge target là `ecommerce-dev-audit-processing`.
 - Lambda event source mapping là `Enabled`.
 - Lambda Errors metric vẫn bằng 0 trong test window.
+- Không yêu cầu chứng minh Slack message cho Mandate-12 nếu team không có thông tin receiver/webhook.
 
 ## 7. Rủi ro và cách giảm thiểu
 
@@ -580,5 +581,5 @@ Mandate-12 được coi là sẵn sàng cho mentor verify khi:
 - Simulation của CDO và Mentor SSO role trả về `explicitDeny` cho audit-tamper actions.
 - Một lần đọc thật `s3:GetObject` tạo CloudTrail data event.
 - `validate-logs` thành công cho một khoảng thời gian đã review.
-- Existing EventBridge/SQS/Lambda alert pipeline được document kèm runtime evidence.
+- Existing EventBridge/SQS/Lambda alert pipeline được document bằng runtime evidence, không phụ thuộc Slack receiver.
 - Retention và known gaps được document.

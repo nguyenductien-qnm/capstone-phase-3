@@ -30,7 +30,7 @@ Terraform state bucket: terraform-state-phase-3
 | CloudWatch integration | Đang bật |
 | Log file validation | Đang bật |
 | Integrity validation | Đã pass trên interval đã kiểm tra |
-| EventBridge/SQS/Lambda alert pipeline | Tồn tại và đang enabled |
+| EventBridge/SQS/Lambda alert pipeline | Tồn tại và đang enabled; receiver bên ngoài chưa dùng làm điều kiện pass |
 | SecretsManager `GetSecretValue` | Được ghi là CloudTrail management event |
 | S3 object read data events | Thiếu trước thay đổi này |
 | IAM deny cho CDO/Mentor audit tamper | Thiếu trước thay đổi này |
