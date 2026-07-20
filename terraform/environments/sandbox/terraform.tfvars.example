@@ -145,3 +145,13 @@ cloudtrail_object_lock_retention_days = 30
 audit_administrator_principals       = []
 audit_break_glass_principals          = []
 audit_operator_role_names             = []
+
+# ============================================================
+# MANDATE-11 audit detection (CDO-05)
+# ============================================================
+# Các tài nguyên đã tồn tại trong sandbox state nên phải giữ true. Chỉ truyền
+# Slack URL và email qua GitHub Environment Secrets/TF_VAR; không ghi vào tfvars.
+audit_detection_enabled               = true
+audit_slack_webhook_secret_version    = 1
+audit_slack_webhook_kms_key_arn       = null
+audit_detection_break_glass_role_arns = []
