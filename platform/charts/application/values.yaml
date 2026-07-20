@@ -769,7 +769,8 @@ components:
     useDefault:
       env: true
     service:
-      port: 8080
+      port: 80
+      targetPort: 8080
       type: LoadBalancer
       annotations:
         service.beta.kubernetes.io/aws-load-balancer-type: "external"
