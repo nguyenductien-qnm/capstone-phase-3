@@ -228,3 +228,18 @@ output "audit_tamper_protection_policy_arn" {
   description = "Managed policy to attach to routine operator permission sets"
   value       = module.cloudtrail.tamper_protection_policy_arn
 }
+
+output "audit_detection_lambda_function_name" {
+  description = "Slack audit-alert Lambda name when MANDATE-11 detection is enabled"
+  value       = try(module.audit_detection[0].lambda_function_name, null)
+}
+
+output "audit_detection_processing_queue_arn" {
+  description = "Durable audit processing queue ARN when MANDATE-11 detection is enabled"
+  value       = try(module.audit_detection[0].processing_queue_arn, null)
+}
+
+output "audit_detection_pipeline_health_topic_arn" {
+  description = "SNS pipeline-health topic ARN when MANDATE-11 detection is enabled"
+  value       = try(module.audit_detection[0].pipeline_health_topic_arn, null)
+}

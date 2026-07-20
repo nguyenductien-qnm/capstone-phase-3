@@ -30,19 +30,32 @@ variable "pipeline_health_email_endpoints" {
   }
 }
 
-variable "slack_webhook_parameter_arn" {
+variable "slack_webhook_url" {
   type        = string
-  description = "ARN of the existing SSM Parameter Store parameter or Secrets Manager secret containing the Slack webhook"
+  description = "Slack webhook written to Secrets Manager through a Terraform write-only argument"
+  sensitive   = true
+  ephemeral   = true
 
   validation {
-    condition     = can(regex("^arn:[^:]+:(ssm|secretsmanager):[^:]+:[0-9]{12}:", var.slack_webhook_parameter_arn))
-    error_message = "slack_webhook_parameter_arn must be an SSM parameter ARN or Secrets Manager secret ARN."
+    condition     = can(regex("^https://hooks\\.slack(?:-gov)?\\.com/services/", var.slack_webhook_url))
+    error_message = "slack_webhook_url must be an HTTPS Slack incoming-webhook URL."
+  }
+}
+
+variable "slack_webhook_secret_version" {
+  type        = number
+  description = "Non-secret version counter; increment to publish a rotated webhook value"
+  default     = 1
+
+  validation {
+    condition     = var.slack_webhook_secret_version >= 1 && floor(var.slack_webhook_secret_version) == var.slack_webhook_secret_version
+    error_message = "slack_webhook_secret_version must be a positive integer."
   }
 }
 
 variable "slack_webhook_kms_key_arn" {
   type        = string
-  description = "Optional customer-managed KMS key ARN used to encrypt the Slack webhook parameter"
+  description = "Optional customer-managed KMS key ARN used to encrypt the Slack webhook secret"
   default     = null
   nullable    = true
 
