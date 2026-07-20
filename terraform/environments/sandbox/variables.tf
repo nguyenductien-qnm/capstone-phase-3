@@ -369,3 +369,4 @@ variable "rds_rotation_rules_automatically_after_days" {
   description = "Số ngày tự động xoay vòng secret RDS"
   default     = 30
 }
+
