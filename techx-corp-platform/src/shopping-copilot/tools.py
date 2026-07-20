@@ -107,12 +107,21 @@ def get_product_reviews(product_id: str) -> str:
                 pass
         avg = round(sum(scores) / len(scores), 2) if scores else 0.0
         summary = " | ".join(r.description for r in reviews if r.description)
+        # demo.proto's ProductReview has no numeric id (see database.py fetch
+        # query) -- username is the only per-review identifier available end to
+        # end, kept here so citations can point back to a specific review
+        # without a wider demo.proto/product-reviews schema change.
+        citations = [
+            {"review_id": r.username, "snippet": r.description, "score": r.score}
+            for r in reviews if r.description
+        ]
         return json.dumps({
             "status": "ok",
             "product_id": product_id,
             "average_score": avg,
             "review_count": len(reviews),
             "summary": summary or "No reviews available.",
+            "citations": citations,
         })
     except grpc.RpcError as e:
         logger.error("GetProductReviews RPC failed: %s", e)

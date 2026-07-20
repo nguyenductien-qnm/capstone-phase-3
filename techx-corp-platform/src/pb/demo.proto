@@ -137,8 +137,16 @@ message AskProductAIAssistantRequest {
     string question = 2;
 }
 
+message ProductReviewCitation {
+    string review_id = 1;
+    string snippet = 2;
+    string score = 3;
+}
+
 message AskProductAIAssistantResponse {
     string response = 1;
+    string trace_id = 2;
+    repeated ProductReviewCitation citations = 3;
 }
 
 

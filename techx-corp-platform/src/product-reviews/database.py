@@ -114,7 +114,7 @@ def fetch_product_reviews(product_id):
 def fetch_product_reviews_from_db(request_product_id):
     def _work(connection):
         with connection.cursor() as cursor:
-            query = "SELECT username, description, score FROM reviews.productreviews WHERE product_id= %s"
+            query = "SELECT username, description, score FROM reviews.productreviews WHERE product_id= %s ORDER BY id"
             cursor.execute(query, (request_product_id, ))
             return cursor.fetchall()
 

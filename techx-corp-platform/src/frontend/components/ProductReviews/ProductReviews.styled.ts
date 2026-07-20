@@ -132,6 +132,42 @@ export const ReviewsGrid = styled.ul`
   }
 `;
 
+export const AIMessage = styled.p`
+    background-color: ${({ theme }) => theme.colors.primaryLight};
+    padding: 16px;
+    border-radius: 4px;
+    font-size: 16px;
+    line-height: 1.5;
+`;
+
+export const TraceIdLabel = styled.button`
+    margin-top: 8px;
+    align-self: flex-start;
+    background: none;
+    border: none;
+    padding: 0;
+    font-family: monospace;
+    font-size: 10px;
+    color: ${({ theme }) => theme.colors.textLight || '#888'};
+    cursor: pointer;
+    text-decoration: underline;
+
+    &:hover {
+        color: ${({ theme }) => theme.colors.text || '#333'};
+    }
+`;
+
+export const CitationList = styled.ul`
+    margin-top: 12px;
+    padding-left: 20px;
+    font-size: 14px;
+    color: ${({ theme }) => theme.colors.text || '#333'};
+`;
+
+export const CitationItem = styled.li`
+    margin-bottom: 8px;
+`;
+
 export const ReviewCard = styled.li`
   border: 1px solid ${({ theme }) => theme.colors.borderGray};
   border-radius: 8px;
