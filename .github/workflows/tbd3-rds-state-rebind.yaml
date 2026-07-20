@@ -193,10 +193,22 @@ jobs:
             exit 0
           fi
 
-          [[ "$state_primary_identifier" =~ -old[0-9]+$ ]] || { echo "::error::State primary is not an expected *-oldN resource"; exit 1; }
-          [[ "$state_replica_identifier" =~ -old[0-9]+$ ]] || { echo "::error::State replica is not an expected *-oldN resource"; exit 1; }
           [[ "$state_primary_resource_id" != "$EXPECTED_PRIMARY_RESOURCE_ID" ]] || { echo "::error::Primary state/live identity is inconsistent"; exit 1; }
           [[ "$state_replica_resource_id" != "$EXPECTED_REPLICA_RESOURCE_ID" ]] || { echo "::error::Replica state/live identity is inconsistent"; exit 1; }
+
+          describe_args=(
+            rds describe-db-instances
+            --query 'DBInstances[].{Identifier:DBInstanceIdentifier,ResourceId:DbiResourceId}'
+            --output json
+          )
+          all_instances="$(aws "${describe_args[@]}")"
+          old_primary_identifier="$(jq -r --arg id "$state_primary_resource_id" '.[] | select(.ResourceId == $id) | .Identifier' <<<"$all_instances")"
+          old_replica_identifier="$(jq -r --arg id "$state_replica_resource_id" '.[] | select(.ResourceId == $id) | .Identifier' <<<"$all_instances")"
+
+          [[ "$old_primary_identifier" =~ ^${PRIMARY_ID}-old[0-9]+$ ]] || { echo "::error::State primary resource ID does not map to an expected $PRIMARY_ID-oldN DB"; exit 1; }
+          [[ "$old_replica_identifier" =~ ^${REPLICA_ID}-old[0-9]+$ ]] || { echo "::error::State replica resource ID does not map to an expected $REPLICA_ID-oldN DB"; exit 1; }
+          echo "Confirmed stale primary physical resource: $old_primary_identifier / $state_primary_resource_id"
+          echo "Confirmed stale replica physical resource: $old_replica_identifier / $state_replica_resource_id"
           echo "needs_rebind=true" >> "$GITHUB_OUTPUT"
 
       - name: Report preflight-only result
