@@ -1,20 +1,22 @@
 # Báo Cáo Tác Động Tối Ưu Hóa Mandate 09: RDS Zero-Downtime Credential Rotation
 
 ## 1. Tổng Quan & Mục Tiêu
-Báo cáo này tổng hợp các thay đổi kỹ thuật được thực hiện trong dự án **Capstone Phase 3** nhằm đáp ứng mục tiêu **Mandate 09**: Đạt **0% lỗi request (Zero-Downtime)** khi thực hiện xoay vòng mật khẩu RDS PostgreSQL tự động (Credential Rotation) dưới tải lớn (200 Locust Virtual Users).
+Báo cáo này tổng hợp **toàn bộ các công việc kỹ thuật** được thực hiện trong dự án **Capstone Phase 3** nhằm đáp ứng mục tiêu **Mandate 09**: Đạt **0% lỗi request (Zero-Downtime)** khi thực hiện xoay vòng mật khẩu RDS PostgreSQL tự động (Credential Rotation) dưới tải lớn (200 Locust Virtual Users).
 
 ---
 
-## 2. Bảng Ma Trận Thay Đổi & Tác Động Hệ Thống
+## 2. Bảng Ma Trận Tổng Hợp Toàn Bộ Công Việc & Tác Động Hệ Thống
 
-| STT | Thành Phần / File | Nội Dung Đã Thay Đổi | Tác Động & Mục Đích Kỹ Thuật |
+| STT | Tầng Hệ Thống / File | Công Việc & Nội Dung Đã Thực Hiện | Tác Động & Mục Đích Kỹ Thuật |
 | :--- | :--- | :--- | :--- |
-| **1** | `terraform/environments/develop/main.tf` | Thêm `app_subnet_ids = values(module.vpc.private_app_subnet_ids)` vào module `rds`. | **Sửa dứt điểm lỗi Lambda Rotation Timeout** tại môi trường `develop`. Cấp đường truyền mạng qua NAT Gateway để Lambda kết nối tới AWS Secrets Manager. |
-| **2** | `terraform/environments/develop/variables.tf` | Thiết lập `default = true` cho biến `enable_rds_proxy`. | **Đảm bảo kích hoạt RDS Proxy** mặc định tại môi trường `develop` mà không sợ bị vô tình tắt ở tfvars. |
-| **3** | `platform/charts/application/templates/external-secrets.yaml` | Định tuyến `catalog-db-conn` và `reviews-db-conn` trỏ sang `proxy_endpoint` thay vì `replica_endpoint`. | **Triệt tiêu lỗi xác thực (`password authentication failed`)** khi DB đổi pass. RDS Proxy tự động xác thực pass mới trực tiếp với Secrets Manager, giữ kết nối thông suốt cho app. |
-| **4** | `values-external-secrets.yaml` (develop & sandbox) | Giảm `refreshInterval` từ `1m` xuống `15s`. | **Rút ngắn thời gian đồng bộ secret** từ AWS Secrets Manager vào Kubernetes Secret từ 60s xuống 15s, giảm tối đa cửa sổ rủi ro stale secret. |
-| **5** | `platform/charts/application/values.yaml` (`product-reviews`) | Bổ sung `lifecycle.preStop` (sleep 5s), `deploymentStrategy` (RollingUpdate), `podDisruptionBudget` (maxUnavailable 1), `hpa` (`minReplicas: 2`). | **Đảm bảo Zero-Downtime cho `product-reviews`**: Luôn có ít nhất 2 Pods chạy song song. Khi Stakater Reloader restart Pod để nạp pass mới, Pod cũ chờ 5s để drain xong request dở dang. |
-| **6** | `platform/charts/application/values.yaml` (`accounting`) | Bổ sung `lifecycle.preStop` (sleep 5s) và `deploymentStrategy` (RollingUpdate). | **Bảo vệ Kafka Worker**: Cho phép .NET worker đóng kết nối DB/Kafka sạch sẻ, xử lý xong message dở dang trước khi Pod bị gỡ bỏ. |
+| **1** | **CloudFormation / SAR Lambda** (`terraform/modules/rds/main.tf`) | Triển khai `aws_serverlessapplicationrepository_cloudformation_stack` sử dụng ứng dụng SAR `SecretsManagerRDSPostgreSQLRotationSingleUser`. | **Tự động khởi tạo Rotation Lambda Function**: Tạo Lambda tự động xoay mật khẩu PostgreSQL trong VPC mà không cần viết code Lambda thủ công. |
+| **2** | **Secrets Manager Rotation** (`terraform/modules/rds/main.tf`) | Cấu hình `aws_secretsmanager_secret_rotation` gán Lambda SAR và lịch xoay vòng định kỳ (`automatically_after_days`). | **Kích hoạt cơ chế tự động xoay pass**: Đăng ký trigger giữa Secrets Manager và Lambda để xoay mật khẩu định kỳ hoặc xoay chủ động (on-demand). |
+| **3** | **Terraform VPC Routing Fix** (`terraform/environments/develop/main.tf`) | Thêm `app_subnet_ids = values(module.vpc.private_app_subnet_ids)` vào module `rds` ở môi trường `develop`. | **Sửa dứt điểm lỗi Lambda Rotation Timeout**: Cấp đường truyền mạng qua NAT Gateway cho Lambda kết nối về Secrets Manager endpoint. |
+| **4** | **Terraform RDS Proxy Enable** (`terraform/environments/develop/variables.tf`) | Cấu hình `enable_rds_proxy = true` mặc định trong `variables.tf` và `main.tf`. | **Đảm bảo bật RDS Proxy**: Cố định tài nguyên RDS Proxy trên môi trường `develop` để quản lý connection pool và giấu việc xoay pass khỏi ứng dụng. |
+| **5** | **Application Connection String** (`platform/charts/application/templates/external-secrets.yaml`) | Định tuyến cả 3 service (`accounting`, `catalog`, `reviews`) trỏ kết nối DB sang `proxy_endpoint`. | **Triệt tiêu lỗi xác thực (`password authentication failed`)**: RDS Proxy tự động xác thực pass mới trực tiếp với Secrets Manager, giữ kết nối thông suốt 100% cho ứng dụng. |
+| **6** | **ESO Sync Interval** (`values-external-secrets.yaml`) | Giảm `refreshInterval` của External Secrets Operator từ `1m` xuống `15s` trên `develop` và `sandbox`. | **Rút ngắn cửa sổ rủi ro stale secret**: Tối đa 15 giây sau khi AWS xoay pass, Kubernetes Secret sẽ được cập nhật pass mới. |
+| **7** | **Application Retry Logic** (PR #114: Go, Python, .NET) | Thêm cơ chế Exponential Backoff & Connection Pool Retry (`db_retry.go`, `database.py`, `Consumer.cs`). | **Nuốt các blip đứt mạng ngắn**: Giúp ứng dụng tự động kết nối lại khi có biến động mạng hoặc lag failover DB mà không làm crash Pod. |
+| **8** | **Graceful Shutdown & Rollout** (`platform/charts/application/values.yaml`) | Bổ sung `lifecycle.preStop` (sleep 5s), `deploymentStrategy` (RollingUpdate), `PDB` (maxUnavailable 1), `HPA` (`minReplicas: 2`) cho `product-reviews` & `accounting`. | **Zero-Downtime khi Pod Restart**: Đảm bảo luôn có tối thiểu 2 Pods phục vụ. Khi Stakater Reloader restart Pod để nạp pass mới, Pod cũ chờ 5s để drain xong request dở dang trước khi tắt. |
 
 ---
 
@@ -34,7 +36,7 @@ Báo cáo này tổng hợp các thay đổi kỹ thuật được thực hiện
 
 ---
 
-## 4. Bảng So Sánh Các Service Kết Nối DB
+## 4. Bảng So Sánh Chuẩn Hóa Cả 3 Service Kết Nối DB
 
 | Tiêu chí | `product-catalog` (Go) | `product-reviews` (Python) | `accounting` (.NET) |
 | :--- | :--- | :--- | :--- |
@@ -47,4 +49,6 @@ Báo cáo này tổng hợp các thay đổi kỹ thuật được thực hiện
 ---
 
 ## 5. Kết Luận
-Toàn bộ các thay đổi đã được commit và push lên nhánh `feat/mandate09-security` (Commit: `22a574b`). Hệ thống đã đạt trạng thái sẵn sàng cao nhất (High Availability) và đáp ứng 100% yêu cầu đỗ bài kiểm thử Mandate 09.
+Toàn bộ chuỗi giải pháp từ **Hạ tầng CloudFormation Lambda Rotation**, **RDS Proxy Connection Pooling**, **External Secrets Sync 15s**, đến **Application Retry & Kubernetes Graceful Rollout** đã được triển khai hoàn chỉnh. 
+
+Tất cả thay đổi đã được commit và push lên nhánh `feat/mandate09-security` (Commit: `22a574b`). Hệ thống đạt chuẩn sẵn sàng cao nhất (High Availability) và đáp ứng 100% yêu cầu đỗ bài kiểm thử Mandate 09.
