@@ -329,13 +329,12 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
 
       - name: Trivy vulnerability scan (gate)
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ${{ steps.meta.outputs.image }}
           format: table
           severity: CRITICAL,HIGH
           exit-code: "1"
-          ignore-unfixed: true
 
       # Chỉ push khi không phải PR. Push by-digest để ký theo digest (chuẩn immutable).
       - name: Push image
