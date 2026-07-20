@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       execute_rebind:
-        description: "Write the corrected RDS bindings to the sandbox S3 state"
+        description: "Reconcile active RDS and legacy parameter-group bindings in sandbox S3 state"
         required: true
         default: false
         type: boolean
@@ -83,7 +83,7 @@ env:
 
 jobs:
   rebind-rds-state:
-    name: Preflight and rebind RDS state
+    name: Preflight and reconcile RDS state
     runs-on: ubuntu-latest
     environment: sandbox
     env:
@@ -185,41 +185,79 @@ jobs:
           echo "State primary: $state_primary_identifier / $state_primary_resource_id"
           echo "State replica: $state_replica_identifier / $state_replica_resource_id"
 
+          needs_db_rebind=true
           if [[ "$state_primary_identifier" == "$PRIMARY_ID" && "$state_replica_identifier" == "$REPLICA_ID" && \
                 "$state_primary_resource_id" == "$EXPECTED_PRIMARY_RESOURCE_ID" && \
                 "$state_replica_resource_id" == "$EXPECTED_REPLICA_RESOURCE_ID" ]]; then
-            echo "needs_rebind=false" >> "$GITHUB_OUTPUT"
+            needs_db_rebind=false
             echo "State already follows the active production resources."
-            exit 0
           fi
 
-          [[ "$state_primary_resource_id" != "$EXPECTED_PRIMARY_RESOURCE_ID" ]] || { echo "::error::Primary state/live identity is inconsistent"; exit 1; }
-          [[ "$state_replica_resource_id" != "$EXPECTED_REPLICA_RESOURCE_ID" ]] || { echo "::error::Replica state/live identity is inconsistent"; exit 1; }
+          if [[ "$needs_db_rebind" == true ]]; then
+            [[ "$state_primary_resource_id" != "$EXPECTED_PRIMARY_RESOURCE_ID" ]] || { echo "::error::Primary state/live identity is inconsistent"; exit 1; }
+            [[ "$state_replica_resource_id" != "$EXPECTED_REPLICA_RESOURCE_ID" ]] || { echo "::error::Replica state/live identity is inconsistent"; exit 1; }
 
-          describe_args=(
-            rds describe-db-instances
-            --query 'DBInstances[].{Identifier:DBInstanceIdentifier,ResourceId:DbiResourceId}'
-            --output json
-          )
-          all_instances="$(aws "${describe_args[@]}")"
-          old_primary_identifier="$(jq -r --arg id "$state_primary_resource_id" '.[] | select(.ResourceId == $id) | .Identifier' <<<"$all_instances")"
-          old_replica_identifier="$(jq -r --arg id "$state_replica_resource_id" '.[] | select(.ResourceId == $id) | .Identifier' <<<"$all_instances")"
+            all_instances="$(aws rds describe-db-instances \
+              --query 'DBInstances[].{Identifier:DBInstanceIdentifier,ResourceId:DbiResourceId}' \
+              --output json)"
+            old_primary_identifier="$(jq -r --arg id "$state_primary_resource_id" '.[] | select(.ResourceId == $id) | .Identifier' <<<"$all_instances")"
+            old_replica_identifier="$(jq -r --arg id "$state_replica_resource_id" '.[] | select(.ResourceId == $id) | .Identifier' <<<"$all_instances")"
 
-          [[ "$old_primary_identifier" =~ ^${PRIMARY_ID}-old[0-9]+$ ]] || { echo "::error::State primary resource ID does not map to an expected $PRIMARY_ID-oldN DB"; exit 1; }
-          [[ "$old_replica_identifier" =~ ^${REPLICA_ID}-old[0-9]+$ ]] || { echo "::error::State replica resource ID does not map to an expected $REPLICA_ID-oldN DB"; exit 1; }
-          echo "Confirmed stale primary physical resource: $old_primary_identifier / $state_primary_resource_id"
-          echo "Confirmed stale replica physical resource: $old_replica_identifier / $state_replica_resource_id"
-          echo "needs_rebind=true" >> "$GITHUB_OUTPUT"
+            [[ "$old_primary_identifier" =~ ^${PRIMARY_ID}-old[0-9]+$ ]] || { echo "::error::State primary resource ID does not map to an expected $PRIMARY_ID-oldN DB"; exit 1; }
+            [[ "$old_replica_identifier" =~ ^${REPLICA_ID}-old[0-9]+$ ]] || { echo "::error::State replica resource ID does not map to an expected $REPLICA_ID-oldN DB"; exit 1; }
+            echo "Confirmed stale primary physical resource: $old_primary_identifier / $state_primary_resource_id"
+            echo "Confirmed stale replica physical resource: $old_replica_identifier / $state_replica_resource_id"
+          fi
+
+          needs_pg_unbind=false
+          pg_address='module.rds.aws_db_parameter_group.this[0]'
+          if terraform state list | grep -Fxq "$pg_address"; then
+            pg_state="$(terraform state show -no-color "$pg_address")"
+            pg_name="$(awk -F'"' '/^[[:space:]]*name[[:space:]]*=/{print $2; exit}' <<<"$pg_state")"
+            pg_family="$(awk -F'"' '/^[[:space:]]*family[[:space:]]*=/{print $2; exit}' <<<"$pg_state")"
+            echo "State parameter group: $pg_name / $pg_family"
+
+            if [[ "$pg_family" == "postgres16" ]]; then
+              associations="$(aws rds describe-db-instances \
+                --query "DBInstances[?contains(DBParameterGroups[].DBParameterGroupName, '$pg_name')].DBInstanceIdentifier" \
+                --output json)"
+              association_count="$(jq 'length' <<<"$associations")"
+              [[ "$association_count" -eq 2 ]] || { echo "::error::Legacy parameter group must be attached to exactly the old primary and replica"; exit 1; }
+              jq -e --arg primary "$PRIMARY_ID" --arg replica "$REPLICA_ID" \
+                'all(.[]; (test("-old[0-9]+$")) and (. != $primary) and (. != $replica))' \
+                <<<"$associations" >/dev/null || { echo "::error::Legacy parameter group is attached to an active or unexpected DB"; exit 1; }
+              jq -e --arg primary "$PRIMARY_ID" --arg replica "$REPLICA_ID" \
+                'any(.[]; test("^" + $primary + "-old[0-9]+$")) and any(.[]; test("^" + $replica + "-old[0-9]+$"))' \
+                <<<"$associations" >/dev/null || { echo "::error::Legacy parameter group associations are not the expected old Blue pair"; exit 1; }
+              echo "Confirmed legacy parameter group is used only by: $(jq -r 'join(", ")' <<<"$associations")"
+              needs_pg_unbind=true
+            elif [[ "$pg_family" != "postgres17" ]]; then
+              echo "::error::Unexpected parameter group family in state: $pg_family"
+              exit 1
+            fi
+          else
+            echo "Legacy parameter group is already absent from Terraform state."
+          fi
+
+          needs_state_change=false
+          if [[ "$needs_db_rebind" == true || "$needs_pg_unbind" == true ]]; then
+            needs_state_change=true
+          fi
+          echo "needs_db_rebind=$needs_db_rebind" >> "$GITHUB_OUTPUT"
+          echo "needs_pg_unbind=$needs_pg_unbind" >> "$GITHUB_OUTPUT"
+          echo "needs_state_change=$needs_state_change" >> "$GITHUB_OUTPUT"
+          echo "DB rebind required: $needs_db_rebind"
+          echo "Legacy PG state unbind required: $needs_pg_unbind"
 
       - name: Report preflight-only result
-        if: inputs.execute_rebind != true && steps.state.outputs.needs_rebind == 'true'
+        if: inputs.execute_rebind != true && steps.state.outputs.needs_state_change == 'true'
         run: |
-          echo "Preflight passed. State still follows the old Blue resources."
-          echo "Rerun with execute_rebind=true and confirm=REBIND-TBD3 to write the corrected bindings."
+          echo "Preflight passed. Terraform state reconciliation is required."
+          echo "Rerun with execute_rebind=true and confirm=REBIND-TBD3 to write the corrected state bindings."
 
       - name: Back up state in S3
         id: backup
-        if: inputs.execute_rebind == true && steps.state.outputs.needs_rebind == 'true'
+        if: inputs.execute_rebind == true && steps.state.outputs.needs_state_change == 'true'
         run: |
           set -euo pipefail
           if aws s3api head-object --bucket "$STATE_BUCKET" --key "$STATE_KEY.tflock" >/dev/null 2>&1; then
@@ -238,7 +276,7 @@ jobs:
           echo "\`s3://$STATE_BUCKET/$backup_key\`" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Rebind primary and replica
-        if: inputs.execute_rebind == true && steps.state.outputs.needs_rebind == 'true'
+        if: inputs.execute_rebind == true && steps.state.outputs.needs_db_rebind == 'true'
         run: |
           set -euo pipefail
           terraform state rm -lock-timeout="$TF_LOCK_TIMEOUT" module.rds.aws_db_instance.this
@@ -253,8 +291,16 @@ jobs:
             -var="rds_engine_version=$TARGET_ENGINE_VERSION" \
             'module.rds.aws_db_instance.replica[0]' "$REPLICA_ID"
 
+      - name: Unbind legacy PostgreSQL 16 parameter group
+        if: inputs.execute_rebind == true && steps.state.outputs.needs_pg_unbind == 'true'
+        run: |
+          set -euo pipefail
+          terraform state rm -lock-timeout="$TF_LOCK_TIMEOUT" 'module.rds.aws_db_parameter_group.this[0]'
+          echo "Removed only the legacy parameter-group binding from Terraform state."
+          echo "The AWS parameter group remains available for the old Blue databases."
+
       - name: Verify new state bindings
-        if: inputs.execute_rebind == true && steps.state.outputs.needs_rebind == 'true'
+        if: inputs.execute_rebind == true && steps.state.outputs.needs_state_change == 'true'
         run: |
           set -euo pipefail
           primary_state="$(terraform state show -no-color module.rds.aws_db_instance.this)"
@@ -268,9 +314,16 @@ jobs:
           [[ "$replica_identifier" == "$REPLICA_ID" && "$replica_resource_id" == "$EXPECTED_REPLICA_RESOURCE_ID" ]] || { echo "::error::Imported replica binding is incorrect"; exit 1; }
           echo "Verified primary: $primary_identifier / $primary_resource_id"
           echo "Verified replica: $replica_identifier / $replica_resource_id"
+          if [[ "${{ steps.state.outputs.needs_pg_unbind }}" == "true" ]]; then
+            if terraform state list | grep -Fxq 'module.rds.aws_db_parameter_group.this[0]'; then
+              echo "::error::Legacy parameter group is still bound in Terraform state"
+              exit 1
+            fi
+            echo "Verified legacy parameter group is absent from Terraform state."
+          fi
 
       - name: Build normal post-rebind plan without apply
-        if: inputs.execute_rebind == true && steps.state.outputs.needs_rebind == 'true'
+        if: inputs.execute_rebind == true && steps.state.outputs.needs_state_change == 'true'
         run: |
           set +e
           terraform plan -no-color -input=false -lock-timeout="$TF_LOCK_TIMEOUT" \
@@ -291,8 +344,10 @@ jobs:
             exit 1
           fi
 
+          destroy_count="$(sed -nE 's/^Plan: [0-9]+ to add, [0-9]+ to change, ([0-9]+) to destroy\./\1/p' tbd3-post-rebind.txt | tail -1)"
+          [[ -z "$destroy_count" || "$destroy_count" -eq 0 ]] || { echo "::error::Post-rebind plan still contains $destroy_count destroy action(s)"; exit 1; }
           echo "### TBD3 post-rebind result" >> "$GITHUB_STEP_SUMMARY"
-          echo "State now follows the active PostgreSQL 17 primary and replica." >> "$GITHUB_STEP_SUMMARY"
+          echo "State follows the active PostgreSQL 17 databases and no longer owns the legacy PostgreSQL 16 parameter group." >> "$GITHUB_STEP_SUMMARY"
           if [[ "$plan_exit" -eq 2 ]]; then
             echo "The normal plan still has changes and must be reviewed separately. No infrastructure was applied." >> "$GITHUB_STEP_SUMMARY"
           else
