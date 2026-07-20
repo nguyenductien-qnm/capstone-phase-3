@@ -1,0 +1,4 @@
+boto3
+grpcio
+grpcio-tools
+requests

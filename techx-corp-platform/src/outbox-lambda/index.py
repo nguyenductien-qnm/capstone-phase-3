@@ -55,8 +55,8 @@ def handler(event, context):
    
 			if not order_data_str:
 				print(f"Skipping order {order_id}: No 'order_data' found in DB record.")
-				continue
-   
+				continue	
+
 			producer.send(KAFKA_TOPIC, key=order_id, value=order_data_str)
 			print(f"Successfully relayed order {order_id} to MSK topic: {KAFKA_TOPIC}")
 		
