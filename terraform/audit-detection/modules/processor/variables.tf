@@ -23,14 +23,21 @@ variable "queue_kms_key_arn" {
   description = "KMS key ARN used to encrypt SQS messages"
 }
 
-variable "slack_webhook_parameter_arn" {
+variable "slack_webhook_url" {
   type        = string
-  description = "SSM parameter or Secrets Manager secret ARN containing the Slack webhook"
+  description = "Slack webhook written to Secrets Manager through a Terraform write-only argument"
+  sensitive   = true
+  ephemeral   = true
+}
+
+variable "slack_webhook_secret_version" {
+  type        = number
+  description = "Non-secret version counter for write-only Slack webhook updates"
 }
 
 variable "slack_webhook_kms_key_arn" {
   type        = string
-  description = "Optional customer-managed key ARN for the webhook secret"
+  description = "Optional customer-managed KMS key ARN for the Secrets Manager secret"
   default     = null
   nullable    = true
 }

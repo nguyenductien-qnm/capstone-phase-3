@@ -354,32 +354,41 @@ variable "audit_operator_role_names" {
 
 variable "audit_detection_enabled" {
   type        = bool
-  default     = false
+  default     = true
   description = "Deploy the MANDATE-11 EventBridge, SQS, Lambda, Slack, and pipeline-health resources"
 }
 
-variable "audit_pipeline_health_email_endpoints" {
-  type        = set(string)
-  default     = []
-  description = "Email recipients for audit pipeline-health alarms; audit violations are sent only to Slack"
+variable "audit_pipeline_health_email" {
+  type        = string
+  description = "Pipeline-health SNS email endpoint supplied through a GitHub Environment secret"
+  sensitive   = true
 
   validation {
-    condition = alltrue([
-      for endpoint in var.audit_pipeline_health_email_endpoints : can(regex("^[^@[:space:]]+@[^@[:space:]]+\\.[^@[:space:]]+$", endpoint))
-    ])
-    error_message = "Every audit pipeline-health endpoint must be a valid email address."
+    condition     = can(regex("^[^@[:space:]]+@[^@[:space:]]+\\.[^@[:space:]]+$", var.audit_pipeline_health_email))
+    error_message = "audit_pipeline_health_email must be a valid email address."
   }
 }
 
-variable "audit_slack_webhook_parameter_arn" {
+variable "audit_slack_webhook_url" {
   type        = string
-  default     = null
-  nullable    = true
-  description = "SSM Parameter Store or Secrets Manager ARN containing the audit Slack webhook"
+  description = "Slack webhook supplied through a GitHub Environment secret and written to Secrets Manager"
+  sensitive   = true
+  ephemeral   = true
 
   validation {
-    condition     = var.audit_slack_webhook_parameter_arn == null || can(regex("^arn:[^:]+:(ssm|secretsmanager):[^:]+:[0-9]{12}:", var.audit_slack_webhook_parameter_arn))
-    error_message = "audit_slack_webhook_parameter_arn must be null or an SSM/Secrets Manager ARN."
+    condition     = can(regex("^https://hooks\\.slack(?:-gov)?\\.com/services/", var.audit_slack_webhook_url))
+    error_message = "audit_slack_webhook_url must be an HTTPS Slack incoming-webhook URL."
+  }
+}
+
+variable "audit_slack_webhook_secret_version" {
+  type        = number
+  description = "Non-secret version counter; increment when rotating the GitHub Slack webhook secret"
+  default     = 1
+
+  validation {
+    condition     = var.audit_slack_webhook_secret_version >= 1 && floor(var.audit_slack_webhook_secret_version) == var.audit_slack_webhook_secret_version
+    error_message = "audit_slack_webhook_secret_version must be a positive integer."
   }
 }
 

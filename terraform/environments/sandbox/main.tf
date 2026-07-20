@@ -204,17 +204,19 @@ module "cloudtrail" {
   operator_role_names            = var.audit_operator_role_names
 }
 
-# MANDATE-11 audit detection is opt-in so existing sandbox plans remain
-# unchanged until the Slack destination and pipeline-health email are ready.
-# It inherits this root's AWS provider and remote state backend.
+# MANDATE-11 audit detection is enabled by default because its resources already
+# exist in the sandbox remote state. It inherits this root's AWS provider and backend.
 module "audit_detection" {
   count  = var.audit_detection_enabled ? 1 : 0
   source = "../../audit-detection"
 
-  project_name                    = var.project_name
-  environment                     = var.environment
-  pipeline_health_email_endpoints = var.audit_pipeline_health_email_endpoints
-  slack_webhook_parameter_arn     = var.audit_slack_webhook_parameter_arn
+  project_name = var.project_name
+  environment  = var.environment
+  # SNS subscription endpoints are Terraform resource keys and therefore cannot
+  # remain marked sensitive; GitHub still masks the source Environment secret.
+  pipeline_health_email_endpoints = toset([nonsensitive(var.audit_pipeline_health_email)])
+  slack_webhook_url               = var.audit_slack_webhook_url
+  slack_webhook_secret_version    = var.audit_slack_webhook_secret_version
   slack_webhook_kms_key_arn       = var.audit_slack_webhook_kms_key_arn
   break_glass_role_arns           = var.audit_detection_break_glass_role_arns
 

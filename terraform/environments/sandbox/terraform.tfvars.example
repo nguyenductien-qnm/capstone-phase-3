@@ -149,11 +149,9 @@ audit_operator_role_names             = []
 # ============================================================
 # MANDATE-11 audit detection (CDO-05)
 # ============================================================
-# Giữ false để plan/apply hiện tại không tạo tài nguyên. Trước khi bật, tạo
-# webhook trong SSM Parameter Store hoặc Secrets Manager; không ghi URL webhook
-# trực tiếp vào tfvars/Git.
-audit_detection_enabled                = false
-audit_pipeline_health_email_endpoints  = []
-audit_slack_webhook_parameter_arn      = null
-audit_slack_webhook_kms_key_arn        = null
-audit_detection_break_glass_role_arns  = []
+# Các tài nguyên đã tồn tại trong sandbox state nên phải giữ true. Chỉ truyền
+# Slack URL và email qua GitHub Environment Secrets/TF_VAR; không ghi vào tfvars.
+audit_detection_enabled               = true
+audit_slack_webhook_secret_version    = 1
+audit_slack_webhook_kms_key_arn       = null
+audit_detection_break_glass_role_arns = []
