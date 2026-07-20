@@ -5,10 +5,12 @@
 Dùng AWS profile có quyền read CloudTrail, IAM simulator, EventBridge, SNS, CloudWatch Logs, và S3:
 
 ```bash
-export AWS_PROFILE=804372444787_Phase3-CDO-PermissionSet
+export AWS_PROFILE="<SANDBOX_SSO_PROFILE>"
+export SANDBOX_ACCOUNT_ID="<SANDBOX_ACCOUNT_ID>"
 export AWS_REGION=us-east-1
 export TRAIL_NAME=ecommerce-dev-audit-trail
-export TRAIL_ARN=arn:aws:cloudtrail:us-east-1:804372444787:trail/ecommerce-dev-audit-trail
+export TRAIL_ARN="arn:aws:cloudtrail:${AWS_REGION}:${SANDBOX_ACCOUNT_ID}:trail/${TRAIL_NAME}"
+export CLOUDTRAIL_LOG_GROUP="/aws/cloudtrail/${TRAIL_NAME}"
 ```
 
 Xác nhận caller:
@@ -20,7 +22,7 @@ aws sts get-caller-identity
 Account kỳ vọng:
 
 ```text
-804372444787
+<SANDBOX_ACCOUNT_ID>
 ```
 
 ## 1. Kiểm chứng CloudTrail selectors
@@ -42,11 +44,23 @@ Kỳ vọng:
 
 ## 2. Kiểm chứng IAM deny cho audit tampering
 
+Kiểm tra policy xuất hiện trên hai generated roles:
+
+```bash
+aws iam list-attached-role-policies \
+  --role-name AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568
+
+aws iam list-attached-role-policies \
+  --role-name AWSReservedSSO_Phase3-Mentor-PermissionSet_05d2f6060a74cb33
+```
+
+Kỳ vọng cả hai output có `ecommerce-dev-audit-log-tamper-deny`. Kết quả này chứng minh enforcement trên generated roles; bằng chứng policy được quản lý tại Permission Set cần screenshot/config từ adminHolder vì CDO role không có quyền đọc IAM Identity Center.
+
 CDO role:
 
 ```bash
 aws iam simulate-principal-policy \
-  --policy-source-arn arn:aws:iam::804372444787:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568 \
+  --policy-source-arn "arn:aws:iam::${SANDBOX_ACCOUNT_ID}:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568" \
   --action-names cloudtrail:StopLogging cloudtrail:DeleteTrail cloudtrail:PutEventSelectors \
   --resource-arns "$TRAIL_ARN"
 ```
@@ -55,7 +69,7 @@ Mentor role:
 
 ```bash
 aws iam simulate-principal-policy \
-  --policy-source-arn arn:aws:iam::804372444787:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_Phase3-Mentor-PermissionSet_05d2f6060a74cb33 \
+  --policy-source-arn "arn:aws:iam::${SANDBOX_ACCOUNT_ID}:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_Phase3-Mentor-PermissionSet_05d2f6060a74cb33" \
   --action-names cloudtrail:StopLogging cloudtrail:DeleteTrail cloudtrail:PutEventSelectors \
   --resource-arns "$TRAIL_ARN"
 ```
@@ -100,7 +114,7 @@ Kiểm tra target của rule:
 ```bash
 aws events list-targets-by-rule \
   --region "$AWS_REGION" \
-  --rule <m12-eventbridge-rule-name>
+  --rule "<m12-eventbridge-rule-name>"
 ```
 
 Kỳ vọng:
@@ -113,7 +127,7 @@ Kiểm tra SNS subscription:
 ```bash
 aws sns list-subscriptions-by-topic \
   --region "$AWS_REGION" \
-  --topic-arn <m12-sns-topic-arn>
+  --topic-arn "<m12-sns-topic-arn>"
 ```
 
 Kỳ vọng:
@@ -145,15 +159,16 @@ aws s3api get-object \
   /tmp/m12-test-object
 ```
 
-CloudTrail data events có thể mất vài phút mới xuất hiện. Sau khi chờ, query `GetObject`.
+CloudTrail data events có thể mất vài phút mới xuất hiện. `aws cloudtrail lookup-events` không trả data events, nên query CloudTrail CloudWatch log group.
 
 Ví dụ:
 
 ```bash
-aws cloudtrail lookup-events \
+aws logs filter-log-events \
   --region "$AWS_REGION" \
-  --lookup-attributes AttributeKey=EventName,AttributeValue=GetObject \
-  --max-results 10
+  --log-group-name "$CLOUDTRAIL_LOG_GROUP" \
+  --filter-pattern '{ ($.eventSource = "s3.amazonaws.com") && ($.eventName = "GetObject") && ($.eventCategory = "Data") }' \
+  --max-items 20
 ```
 
 Các field event kỳ vọng:
@@ -165,7 +180,7 @@ readOnly = true
 eventCategory = Data
 ```
 
-Nếu `lookup-events` chưa thấy data events kịp thời, query CloudTrail CloudWatch log group hoặc kiểm tra log file đã deliver về S3 trong interval đã review.
+Nếu CloudWatch Logs chưa thấy event sau delivery delay, kiểm tra CloudTrail log file đã deliver về S3 trong interval đã review. Không dùng `lookup-events` làm evidence cho S3 data events.
 
 ## 5. Kiểm chứng coverage đọc SecretsManager
 

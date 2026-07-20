@@ -16,6 +16,8 @@ Mandate-12 vẫn áp dụng, nhưng không được copy nguyên giả định c
 - Object Lock chưa bật trên bucket hiện tại.
 - Object Lock không thể bật retroactively nếu bucket không được tạo với Object Lock enabled từ đầu.
 
+> Đính chính sau independent review: nhận định trên đã lỗi thời. AWS hỗ trợ bật Object Lock trên bucket hiện hữu từ tháng 11/2023; xem Entry 022.
+
 **Quyết định**
 
 Mandate-12 được triển khai như một adaptation cho runtime hiện tại, không phải migration Object Lock.
@@ -653,3 +655,145 @@ Lockfile mới trong `terraform/modules/cloudtrail` do local init tạo ra đã 
 - Develop root validate: pass.
 - Không chạy Terraform plan/apply/destroy và không thay đổi AWS.
 - Sau cleanup, working tree sạch trước khi cập nhật decision log.
+
+## Entry 022 — Independent review: sửa runbook, Object Lock và mô tả SSO workaround
+
+**User concern**
+
+User yêu cầu đọc lại project và xác nhận Mandate-12 có được triển khai đúng hay không trước khi tạo PR implementation mới.
+
+**Phản hồi kỹ thuật**
+
+Review phát hiện:
+
+- `aws cloudtrail lookup-events` chỉ trả management events, nên không thể dùng để chứng minh S3 `GetObject` data event;
+- AWS đã hỗ trợ bật S3 Object Lock trên bucket hiện hữu có versioning từ tháng 11/2023; việc bật là không thể đảo ngược và object cũ không tự nhận default retention;
+- attach policy trực tiếp vào `AWSReservedSSO_*` roles chỉ là workaround vì role do IAM Identity Center quản lý;
+- workaround chặn direct CloudTrail tamper nhưng không loại bỏ mọi chuỗi bypass, ví dụ routine admin tắt alert path trước khi gỡ policy;
+- break-glass exemption trong code hiện chỉ áp dụng cho CloudTrail tamper statement, không áp dụng cho S3, CloudWatch Logs và KMS deny statements.
+
+**Quyết định**
+
+- Đổi runbook S3 evidence sang CloudWatch Logs `filter-log-events`;
+- đính chính Object Lock và defer sang follow-up vì tính không thể đảo ngược/risk review, không phải vì AWS không hỗ trợ;
+- yêu cầu reviewer/adminHolder chấp nhận residual risk của direct SSO attachment trước deploy;
+- không sửa Terraform core trong bước documentation correction này;
+- redact account ID đầy đủ khỏi nội dung mới/chỉnh sửa của Mandate-12.
+
+**Outcome**
+
+Tài liệu không còn hướng dẫn command chắc chắn thất bại khi demo S3 data event và mô tả trung thực giới hạn của kiến trúc hiện tại. Implementation vẫn cần PR review, Terraform plan và adminHolder acceptance trước khi deploy.
+
+## Entry 023 — Chuyển IAM deny ownership sang Identity Center Permission Sets
+
+**User concern**
+
+User phối hợp với adminHolder để attach policy ở IAM Identity Center Permission Set và muốn tránh Terraform cùng quản lý generated `AWSReservedSSO_*` roles.
+
+**Phản hồi kỹ thuật**
+
+Live verification ngày 20/07/2026 cho thấy:
+
+- policy `ecommerce-dev-audit-log-tamper-deny` có `AttachmentCount = 2`;
+- policy xuất hiện trên đúng generated CDO và Mentor SSO roles;
+- IAM Simulator trả `explicitDeny` cho `StopLogging`, `DeleteTrail` và `PutEventSelectors` trên cả hai role;
+- CDO role bị explicit deny khi gọi `sso:ListInstances`, nên không thể independently verify cấu hình Permission Set bằng CLI;
+- screenshot IAM role chứng minh effective attachment, nhưng không tự chứng minh Permission Set ownership.
+
+**Quyết định**
+
+- AdminHolder/IAM Identity Center sở hữu attachment tại `Phase3-CDO-PermissionSet` và `Phase3-Mentor-PermissionSet`.
+- Bỏ `audit_operator_role_names` khỏi sandbox `access.auto.tfvars`; shared module vẫn giữ generic variable với default `[]`.
+- Không để Terraform attach trực tiếp policy vào generated `AWSReservedSSO_*` roles.
+- Dùng attachment checks và IAM Simulator làm runtime enforcement evidence; dùng adminHolder screenshot/config đã redact làm Permission Set ownership evidence.
+
+**Outcome**
+
+Preventive control “làm mù” đã được xác minh effective cho CDO và Mentor. Repo không tạo dual ownership giữa Terraform và IAM Identity Center; S3 selector và Mandate-12 alert vẫn chờ PR merge, protected apply và runtime verification.
+
+## Entry 024 — Tạo evidence workspace cho Mandate-12
+
+**User concern**
+
+User yêu cầu kiểm tra format evidence của các mandate khác và muốn Mandate-12 theo cùng convention, nhưng không tạo một pack nặng hoặc evidence giả.
+
+**Phản hồi kỹ thuật**
+
+Mandate-04 là evidence pack đầy đủ duy nhất trong `docs/cdo09`. Pattern hữu ích gồm evidence matrix, evidence index, runtime results, raw logs, screenshot checklist, quy tắc redaction và nguyên tắc chỉ đánh dấu `PASS` sau runtime verification.
+
+**Quyết định**
+
+- Tạo `docs/cdo09/evidence-mandate-12/` theo pattern Mandate-04 nhưng rút gọn cho ba đòn làm mù/làm hụt/làm giả.
+- Tách 10 acceptance IDs cho CI plan, baseline trail, IAM attachment/deny, S3 selectors/event, EventBridge/SNS, integrity validation và PR/Jira attribution.
+- Không lưu output mẫu như raw evidence.
+- Các control đã verify nhưng chưa capture vào pack để `PARTIAL`; code chưa deploy để `PENDING`.
+- Không commit screenshot hiện tại như Permission Set evidence vì ảnh là generated IAM role page và chứa full account ID.
+
+**Outcome**
+
+Evidence workspace đã sẵn sàng để capture kết quả thật theo từng bước sau PR merge/protected apply mà không tuyên bố sớm Mandate-12 đã `PASS`.
+
+## Entry 025 — Capture IAM attachment và explicit-deny evidence
+
+**User concern**
+
+User confirm Step 3 để lưu evidence thật cho preventive control “làm mù”, không chạy destructive CloudTrail command.
+
+**Commands đã chạy**
+
+- `aws iam list-policies` với query chỉ giữ policy name, attachment count và default version.
+- `aws iam list-attached-role-policies` cho CDO và Mentor generated roles.
+- `aws iam simulate-principal-policy` cho CDO và Mentor với `StopLogging`, `DeleteTrail` và `PutEventSelectors`.
+
+**Kết quả**
+
+- Policy `ecommerce-dev-audit-log-tamper-deny`: `AttachmentCount = 2`, version `v1`.
+- Policy xuất hiện trên đúng CDO và Mentor generated roles.
+- Sáu simulation results đều là `explicitDeny`.
+- Không gọi thật `StopLogging`, `DeleteTrail` hoặc thay đổi AWS.
+- Saved evidence bỏ account-specific ARNs nhưng giữ role name, action và decision.
+
+**Outcome**
+
+Evidence 03 được đánh dấu `PASS enforcement`; Permission Set ownership dựa trên adminHolder confirmation. Evidence 04 được đánh dấu `PASS` với raw output đã lưu.
+
+## Entry 026 — Review toàn bộ diff và static validation trước commit
+
+**User concern**
+
+User confirm Step 4 để rà toàn bộ implementation, workflow, docs và evidence trước khi commit; không chạy Terraform plan/apply.
+
+**Phạm vi review**
+
+- So sánh working tree cuối với `origin/develop`.
+- Kiểm tra CloudTrail advanced selectors, EventBridge/SNS resources, variables/outputs và sandbox/develop wiring.
+- Kiểm tra GitHub Actions secret mapping ở cả plan/apply jobs.
+- Kiểm tra IAM ownership sau khi bỏ direct role names khỏi `access.auto.tfvars`.
+- Rà account ID, email, secret và evidence JSON.
+- Chạy Terraform format/init-without-backend/validate.
+
+**Kết quả**
+
+- `git diff --check`: pass.
+- `terraform fmt -check -recursive terraform`: pass.
+- CloudTrail module validate: pass; chỉ có warning cũ về `data.aws_region.current.name`.
+- Sandbox validate: pass; chỉ có warning local `terraform.tfvars` chứa `nlb_dns_name` chưa declare.
+- Develop validate: pass.
+- Advanced selectors giữ management events và thêm read-only S3 object data events đúng biến input.
+- Mandate-12 alert resources conditional, yêu cầu email khác rỗng và SNS policy chỉ cho đúng EventBridge rule publish.
+- GitHub secret mapping có ở cả plan và apply.
+- Sandbox không còn set `audit_operator_role_names`; Identity Center/adminHolder là owner của deny attachment.
+- Evidence JSON parse hợp lệ và không chứa account ID/ARN/email/secret.
+- Không chạy Terraform plan/apply/destroy và không thay đổi AWS.
+
+`terraform init -backend=false` chỉ được dùng để tải provider schema cho static validation. Lockfile sandbox phát sinh thay đổi đã được restore; lockfile module phát sinh ngoài scope đã được xóa.
+
+**Residual checks sau merge/apply**
+
+- Review protected Terraform plan để chắc không replace/destroy trail hoặc audit bucket và không detach IAM deny.
+- Confirm SNS email subscription.
+- Capture Advanced Event Selectors, actual S3 `GetObject` event, EventBridge/SNS configuration và interval `validate-logs`.
+
+**Outcome**
+
+Không phát hiện blocker code/static ở Step 4. Branch sẵn sàng cho final diff review của user trước commit; runtime controls chưa deploy vẫn giữ `PENDING`.
