@@ -1,0 +1,43 @@
+{
+  "version": "0",
+  "id": "22222222-1234-1234-1234-123456789012",
+  "detail-type": "AWS API Call via CloudTrail",
+  "source": "aws.eks",
+  "account": "804372444787",
+  "time": "2026-07-18T16:05:00Z",
+  "region": "us-east-1",
+  "resources": ["arn:aws:events:us-east-1:804372444787:rule/audit-detection-rule"],
+  "detail": {
+    "eventVersion": "1.08",
+    "userIdentity": {
+      "type": "AssumedRole",
+      "principalId": "AROA11111111111111111:gha-actor-12345",
+      "arn": "arn:aws:sts::804372444787:assumed-role/GitHubTerraformSandboxRole/gha-actor-12345",
+      "accountId": "804372444787",
+      "accessKeyId": "ASIA1111111111111111",
+      "sessionContext": {
+        "sessionIssuer": {
+          "type": "Role",
+          "principalId": "AROA11111111111111111",
+          "arn": "arn:aws:iam::804372444787:role/GitHubTerraformSandboxRole",
+          "accountId": "804372444787",
+          "userName": "GitHubTerraformSandboxRole"
+        }
+      }
+    },
+    "eventTime": "2026-07-18T16:05:00Z",
+    "eventSource": "eks.amazonaws.com",
+    "eventName": "CreateAccessEntry",
+    "awsRegion": "us-east-1",
+    "sourceIPAddress": "2.2.2.2",
+    "userAgent": "aws-cli/2.15.0",
+    "requestParameters": {
+      "clusterName": "sandbox-cluster",
+      "principalArn": "arn:aws:iam::804372444787:role/TempRole",
+      "kubernetesGroups": ["system:masters"]
+    },
+    "responseElements": {},
+    "requestID": "req-234",
+    "eventID": "evt-234"
+  }
+}
