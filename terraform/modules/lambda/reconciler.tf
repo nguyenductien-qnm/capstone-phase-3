@@ -41,10 +41,28 @@ resource "aws_iam_role_policy" "reconciler_dynamodb_policy" {
   })
 }
 
+resource "null_resource" "pip_install_reconciler" {
+  triggers = {
+    requirements = filemd5("${path.root}/../../../techx-corp-platform/src/reconciler-lambda/requirements.txt")
+  }
+
+  provisioner "local-exec" {
+    command = "pip install -r ${path.root}/../../../techx-corp-platform/src/reconciler-lambda/requirements.txt -t ${path.root}/../../../techx-corp-platform/src/reconciler-lambda"
+  }
+}
+
+data "archive_file" "reconciler_zip" {
+  type        = "zip"
+  source_dir  = "${path.root}/../../../techx-corp-platform/src/reconciler-lambda"
+  output_path = "${path.module}/lambda_reconciler_processor.zip"
+  depends_on  = [null_resource.pip_install_reconciler]
+}
+
 resource "aws_lambda_function" "reconciler_processor" {
-  filename      = "lambda_reconciler_processor.zip"
-  function_name = "${var.project_name}-${var.environment}-reconciler"
-  role          = aws_iam_role.reconciler_lambda_role.arn
+  filename         = data.archive_file.reconciler_zip.output_path
+  source_code_hash = data.archive_file.reconciler_zip.output_base64sha256
+  function_name    = "${var.project_name}-${var.environment}-reconciler"
+  role             = aws_iam_role.reconciler_lambda_role.arn
   handler       = "index.handler"
   runtime       = "python3.11"
   timeout       = 60
@@ -58,6 +76,7 @@ resource "aws_lambda_function" "reconciler_processor" {
     variables = {
       DYNAMODB_TABLE_NAME = split("/", var.dynamodb_table_arn)[1]
       PAYMENT_SVC_ADDR    = "payment:50051"
+      SHIPPING_SVC_ADDR   = "shipping:8080"
     }
   }
 }

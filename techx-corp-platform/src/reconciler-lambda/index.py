@@ -26,7 +26,7 @@ def handler(event, context):
     try:
         response = table.query(
             IndexName='gsi_reconcile_due',
-            KeyConditionExpression=boto3.dynamodb.conditions.Key('reconcile_pk').eq('PENDING') & boto3.dynamodb.conditions.Key('reconcile_at').lte(now_str)
+            KeyConditionExpression=boto3.dynamodb.conditions.Key('reconcile_pk').eq('PENDING') & boto3.dynamodb.conditions.Key('reconcile_at').lte(now_str) # <=
         )
         stuck_orders = response.get('Items', [])
     except Exception as e:
