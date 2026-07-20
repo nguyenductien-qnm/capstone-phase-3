@@ -33,10 +33,10 @@ components:
       tag: 1.0-llm-eb2a6f0
   load-generator:
     imageOverride:
-      tag: 1.0-load-generator-eb2a6f0
+      tag: 1.0-load-generator-a2113bd
   ml-guard:
     imageOverride:
-      tag: 1.0-ml-guard-eb2a6f0
+      tag: 1.0-ml-guard-a2113bd
   payment:
     imageOverride:
       tag: 1.0-payment-eb2a6f0
@@ -57,7 +57,7 @@ components:
       tag: 1.0-shipping-eb2a6f0
   shopping-copilot:
     imageOverride:
-      tag: 1.0-shopping-copilot-eb2a6f0
+      tag: 1.0-shopping-copilot-a2113bd
   email:
     imageOverride:
       tag: 1.0-email-eb2a6f0
