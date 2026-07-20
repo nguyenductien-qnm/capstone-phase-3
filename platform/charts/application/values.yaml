@@ -189,6 +189,15 @@ components:
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
       reloader.stakater.com/auto: "true"
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
+    deploymentStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 0
+        maxSurge: 1
     env:
       - name: KAFKA_ADDR
         valueFrom:
@@ -1144,6 +1153,18 @@ components:
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
       reloader.stakater.com/auto: "true"
+    podDisruptionBudget:
+      maxUnavailable: 1
+    topologySpread: true
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
+    deploymentStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 0
+        maxSurge: 1
     env:
       - name: OPENAI_API_KEY
         value: dummy
@@ -1207,6 +1228,10 @@ components:
       limits:
         cpu: 500m
         memory: 512Mi
+    hpa:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 4
 
   quote:
     enabled: true

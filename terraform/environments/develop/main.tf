@@ -79,6 +79,7 @@ module "rds" {
   environment            = var.environment
   vpc_id                 = module.vpc.vpc_id
   database_subnet_ids    = values(module.vpc.private_data_subnet_ids)
+  app_subnet_ids         = values(module.vpc.private_app_subnet_ids)
   app_subnet_cidr_blocks = [for s in var.private_app_subnets : s.cidr_block]
 
   db_name                    = var.db_name

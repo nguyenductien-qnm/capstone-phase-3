@@ -234,6 +234,7 @@ variable "replica_instance_class" {
 variable "enable_rds_proxy" {
   type        = bool
   description = "Bật/Tắt tạo RDS Proxy cho PostgreSQL"
+  default     = true
 }
 
 variable "valkey_node_type" {
