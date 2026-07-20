@@ -25,7 +25,7 @@ def handler(event, context):
     # Try to query using GSI, fallback to Scan if index doesn't exist
     try:
         response = table.query(
-            IndexName='ReconcileIndex',
+            IndexName='gsi_reconcile_due',
             KeyConditionExpression=boto3.dynamodb.conditions.Key('reconcile_pk').eq('PENDING') & boto3.dynamodb.conditions.Key('reconcile_at').lte(now_str)
         )
         stuck_orders = response.get('Items', [])
