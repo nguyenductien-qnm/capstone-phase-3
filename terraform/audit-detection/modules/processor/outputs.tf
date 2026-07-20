@@ -17,3 +17,8 @@ output "idempotency_table_name" {
   description = "CloudTrail eventID idempotency table name"
   value       = aws_dynamodb_table.idempotency.name
 }
+
+output "slack_webhook_secret_arn" {
+  description = "Secrets Manager ARN read by the Slack alert Lambda"
+  value       = aws_secretsmanager_secret.slack_webhook.arn
+}

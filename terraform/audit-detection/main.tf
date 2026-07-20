@@ -32,7 +32,8 @@ module "processor" {
   lambda_source_file            = "${path.module}/lambda/handler.py"
   processing_queue_arn          = module.detection_routing.processing_queue_arn
   queue_kms_key_arn             = module.detection_routing.queue_kms_key_arn
-  slack_webhook_parameter_arn   = var.slack_webhook_parameter_arn
+  slack_webhook_url             = var.slack_webhook_url
+  slack_webhook_secret_version  = var.slack_webhook_secret_version
   slack_webhook_kms_key_arn     = var.slack_webhook_kms_key_arn
   lambda_timeout_seconds        = var.lambda_timeout_seconds
   lambda_memory_size_mb         = var.lambda_memory_size_mb

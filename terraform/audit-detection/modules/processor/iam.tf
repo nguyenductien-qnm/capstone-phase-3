@@ -63,8 +63,8 @@ data "aws_iam_policy_document" "lambda" {
   statement {
     sid       = "ReadSlackWebhook"
     effect    = "Allow"
-    actions   = local.webhook_is_ssm ? ["ssm:GetParameter"] : ["secretsmanager:GetSecretValue"]
-    resources = [var.slack_webhook_parameter_arn]
+    actions   = ["secretsmanager:GetSecretValue"]
+    resources = [aws_secretsmanager_secret.slack_webhook.arn]
   }
 
   dynamic "statement" {

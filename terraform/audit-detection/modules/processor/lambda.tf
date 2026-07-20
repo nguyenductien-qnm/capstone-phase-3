@@ -57,8 +57,8 @@ resource "aws_lambda_function" "slack_alert" {
       IDEMPOTENCY_LEASE_SECONDS     = tostring(var.idempotency_lease_seconds)
       IDEMPOTENCY_RETENTION_SECONDS = tostring(var.idempotency_retention_seconds)
       IDEMPOTENCY_TABLE_NAME        = aws_dynamodb_table.idempotency.name
-      SLACK_WEBHOOK_PARAMETER_ARN   = var.slack_webhook_parameter_arn
-      SLACK_WEBHOOK_PROVIDER        = local.webhook_is_ssm ? "ssm" : "secretsmanager"
+      SLACK_WEBHOOK_PARAMETER_ARN   = aws_secretsmanager_secret.slack_webhook.arn
+      SLACK_WEBHOOK_PROVIDER        = "secretsmanager"
     }
   }
 
@@ -69,6 +69,7 @@ resource "aws_lambda_function" "slack_alert" {
   depends_on = [
     aws_cloudwatch_log_group.lambda,
     aws_iam_role_policy.lambda,
+    aws_secretsmanager_secret_version.slack_webhook,
   ]
 }
 

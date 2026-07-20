@@ -58,6 +58,11 @@ output "idempotency_table_name" {
   value       = module.processor.idempotency_table_name
 }
 
+output "slack_webhook_secret_arn" {
+  description = "Secrets Manager ARN read by the Slack alert Lambda"
+  value       = module.processor.slack_webhook_secret_arn
+}
+
 output "alarm_arns" {
   description = "CloudWatch pipeline-health alarm ARNs keyed by alarm identifier"
   value       = module.monitoring.alarm_arns
