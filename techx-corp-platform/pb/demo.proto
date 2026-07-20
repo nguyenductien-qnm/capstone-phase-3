@@ -252,6 +252,7 @@ message OrderResult {
     Money shipping_cost = 3;
     Address  shipping_address = 4;
     repeated OrderItem items = 5;
+    string email = 6;
 }
 
 message SendOrderConfirmationRequest {

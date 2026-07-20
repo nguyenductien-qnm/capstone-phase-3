@@ -40,6 +40,52 @@ OpenTelemetry.meter_provider.add_metric_reader(otlp_metric_exporter)
 meter = OpenTelemetry.meter_provider.meter("email")
 $confirmation_counter = meter.create_counter("app.confirmation.counter", unit: "1", description: "Counts the number of order confirmation emails sent")
 
+require "kafka"
+
+Thread.new do
+  begin
+    kafka = Kafka.new(
+      seed_brokers: ENV.fetch("KAFKA_ADDR", "kafka:9092").split(","),
+      sasl_scram_mechanism: "sha512",
+      sasl_plain_username: ENV["KAFKA_USER"],
+      sasl_plain_password: ENV["KAFKA_PASSWORD"],
+      ssl_ca_cert: nil
+    )
+
+    consumer = kafka.consumer(group_id: "email-service-group")
+    consumer.subscribe("orders")
+    
+    $logger.on_emit(
+      timestamp: Time.now,
+      severity_text: 'INFO',
+      body: 'Email service Kafka consumer started, waiting for orders...',
+      attributes: {}
+    )
+
+    consumer.each_message do |message|
+      order_result = JSON.parse(message.value, object_class: OpenStruct)
+      payload = OpenStruct.new(
+        email: order_result.email,
+        order: order_result
+      )
+      send_email(payload)
+      $logger.on_emit(
+        timestamp: Time.now,
+        severity_text: 'INFO',
+        body: "Kafka consumer triggered email sent to: #{payload.email}",
+        attributes: { 'app.email.recipient' => payload.email }
+      )
+    end
+  rescue => e
+    $logger.on_emit(
+      timestamp: Time.now,
+      severity_text: 'ERROR',
+      body: "Kafka consumer error: #{e.message}",
+      attributes: {}
+    )
+  end
+end
+
 post "/send_order_confirmation" do
   data = JSON.parse(request.body.read, object_class: OpenStruct)
 

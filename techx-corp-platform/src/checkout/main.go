@@ -393,6 +393,7 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		ShippingCost:       prep.shippingCostLocalized,
 		ShippingAddress:    req.Address,
 		Items:              prep.orderItems,
+		Email:              req.Email,
 	}
 
 	reconcileAt := time.Now().Add(10 * time.Minute).Format(time.RFC3339) //String
@@ -446,6 +447,7 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 			ShippingCost: prep.shippingCostLocalized,
 			ShippingAddress: req.Address,
 			Items: prep.orderItems,
+			Email: req.Email,
 		}
 
 		_ = cs.emptyUserCart(ctx, req.UserId)
@@ -512,6 +514,7 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 			ShippingCost: prep.shippingCostLocalized,
 			ShippingAddress: req.Address,
 			Items: prep.orderItems,
+			Email: req.Email,
 		}
 
 		_ = cs.emptyUserCart(ctx, req.UserId)
@@ -532,6 +535,7 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		ShippingCost:       prep.shippingCostLocalized,
 		ShippingAddress:    req.Address,
 		Items:              prep.orderItems,
+		Email:              req.Email,
 	}
 
 	shippingCostFloat, _ := strconv.ParseFloat(fmt.Sprintf("%d.%02d", prep.shippingCostLocalized.GetUnits(), prep.shippingCostLocalized.GetNanos()/1000000000), 64)
@@ -567,11 +571,6 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 	)
 
 	_ = cs.emptyUserCart(ctx, req.UserId)
-	if err := cs.sendOrderConfirmation(ctx, req.Email, orderResult); err != nil {
-		logger.Warn(fmt.Sprintf("failed to send order confirmation to %q: %+v", req.Email, err))
-	} else {
-		logger.Info(fmt.Sprintf("order confirmation email sent to %q", req.Email))
-	}
 
 	resp := &pb.PlaceOrderResponse{Order: orderResult}
 	return resp, nil

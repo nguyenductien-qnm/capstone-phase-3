@@ -7,6 +7,7 @@ gem "pony",     "~> 1.13"
 gem "puma",     "~> 7.1"
 gem "sinatra",  "~> 4.2"
 gem "rackup",   "~> 2.2"
+gem "ruby-kafka", "~> 1.5"
 
 gem "google-protobuf", "~> 4.33.0"
 
@@ -23,3 +24,5 @@ gem "opentelemetry-instrumentation-all",   "~> 0.87"
 
 gem "openfeature-sdk", "~> 0.4"
 gem "openfeature-flagd-provider", "~> 0.1"
+
+gem "ruby-kafka", "~> 1.5"
