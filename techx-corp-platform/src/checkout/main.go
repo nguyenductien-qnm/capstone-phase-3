@@ -35,7 +35,6 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/contrib/instrumentation/runtime"
 	"go.opentelemetry.io/otel"
-	otelcodes "go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
@@ -52,14 +51,11 @@ import (
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/proto"
 
 	pb "github.com/open-telemetry/techx-corp/src/checkout/genproto/oteldemo"
-	"github.com/open-telemetry/techx-corp/src/checkout/kafka"
 	"github.com/open-telemetry/techx-corp/src/checkout/money"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-    "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/config"
     "github.com/aws/aws-sdk-go-v2/service/dynamodb"
 )
 
@@ -391,6 +387,14 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 	}
 
 	// PHASE 1: CREATE ORDER
+	partialOrderResult := &pb.OrderResult{
+		OrderId:            orderID.String(),
+		ShippingTrackingId: "PENDING",
+		ShippingCost:       prep.shippingCostLocalized,
+		ShippingAddress:    req.Address,
+		Items:              prep.orderItems,
+	}
+
 	reconcileAt := time.Now().Add(10 * time.Minute).Format(time.RFC3339) //String
 	_ = cs.putOrderState(
 		ctx,
@@ -400,12 +404,11 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		"NOT_STARTED",
 		"PENDING",
 		reconcileAt,
-		nil,
-		nil,
+		req, // Lambda reads this for the Credit Card info
+		partialOrderResult, //Lambda reads this for the Items and Cost (order_data)
 	)
 
 	maxRetries := 3
-
 	// PHASE 2: PAYMENT SERVICE
 	var txID string
 	var paymentErr error
@@ -434,7 +437,7 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 			"PENDING", 
 			reconcileAt, 
 			req, 
-			nil,
+			partialOrderResult,
 		)
 
 		orderResult := &pb.OrderResult{
@@ -444,6 +447,8 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 			ShippingAddress: req.Address,
 			Items: prep.orderItems,
 		}
+
+		_ = cs.emptyUserCart(ctx, req.UserId)
 
 		return &pb.PlaceOrderResponse{Order: orderResult}, nil
 	}
@@ -465,16 +470,16 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		"SUCCESS", 
 		"PENDING", 
 		reconcileAt, 
-		nil,
-		nil,
+		req,
+		partialOrderResult,
 	)
 
 	var shippingTrackingID string
 	var shippingErr error
 	for i := 0; i < maxRetries; i++ {
 		shippingTrackingID, shippingErr = cs.shipOrder(ctx, req.Address, prep.cartItems)
-		if shippingErr == nil{
-			break
+			if shippingErr == nil{
+				break
 		}
 		logger.Warn(fmt.Sprintf("Shipping attempt %d failed: %v. Retrying...", i, shippingTrackingID))
 		time.Sleep(500 * time.Millisecond)
@@ -498,7 +503,7 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 			"PENDING", 
 			reconcileAt, 
 			req, 
-			nil,
+			partialOrderResult,
 		)
 
 		orderResult := &pb.OrderResult{
@@ -508,6 +513,8 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 			ShippingAddress: req.Address,
 			Items: prep.orderItems,
 		}
+
+		_ = cs.emptyUserCart(ctx, req.UserId)
 
 		return &pb.PlaceOrderResponse{Order: orderResult}, nil
 
@@ -786,97 +793,6 @@ func (cs *checkout) shipOrder(ctx context.Context, address *pb.Address, items []
 	return shipResp.TrackingID, nil
 }
 
-func (cs *checkout) sendToPostProcessor(ctx context.Context, result *pb.OrderResult) {
-	message, err := proto.Marshal(result)
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to marshal message to protobuf: %+v", err))
-		return
-	}
-
-	msg := sarama.ProducerMessage{
-		Topic: kafka.Topic,
-		Value: sarama.ByteEncoder(message),
-	}
-
-	// Inject tracing info into message
-	span := createProducerSpan(ctx, &msg)
-	defer span.End()
-
-	// Send message and handle response
-	startTime := time.Now()
-	select {
-	case cs.KafkaProducerClient.Input() <- &msg:
-		select {
-		case successMsg := <-cs.KafkaProducerClient.Successes():
-			span.SetAttributes(
-				attribute.Bool("messaging.kafka.producer.success", true),
-				attribute.Int("messaging.kafka.producer.duration_ms", int(time.Since(startTime).Milliseconds())),
-				attribute.KeyValue(semconv.MessagingKafkaMessageOffset(int(successMsg.Offset))),
-			)
-			logger.Info(fmt.Sprintf("Successful to write message. offset: %v, duration: %v", successMsg.Offset, time.Since(startTime)))
-		case errMsg := <-cs.KafkaProducerClient.Errors():
-			span.SetAttributes(
-				attribute.Bool("messaging.kafka.producer.success", false),
-				attribute.Int("messaging.kafka.producer.duration_ms", int(time.Since(startTime).Milliseconds())),
-			)
-			span.SetStatus(otelcodes.Error, errMsg.Err.Error())
-			logger.Error(fmt.Sprintf("Failed to write message: %v", errMsg.Err))
-		case <-ctx.Done():
-			span.SetAttributes(
-				attribute.Bool("messaging.kafka.producer.success", false),
-				attribute.Int("messaging.kafka.producer.duration_ms", int(time.Since(startTime).Milliseconds())),
-			)
-			span.SetStatus(otelcodes.Error, "Context cancelled: "+ctx.Err().Error())
-			logger.Warn(fmt.Sprintf("Context canceled before success message received: %v", ctx.Err()))
-		}
-	case <-ctx.Done():
-		span.SetAttributes(
-			attribute.Bool("messaging.kafka.producer.success", false),
-			attribute.Int("messaging.kafka.producer.duration_ms", int(time.Since(startTime).Milliseconds())),
-		)
-		span.SetStatus(otelcodes.Error, "Failed to send: "+ctx.Err().Error())
-		logger.Error(fmt.Sprintf("Failed to send message to Kafka within context deadline: %v", ctx.Err()))
-		return
-	}
-
-	ffValue := cs.getIntFeatureFlag(ctx, "kafkaQueueProblems")
-	if ffValue > 0 {
-		logger.Info("Warning: FeatureFlag 'kafkaQueueProblems' is activated, overloading queue now.")
-		for i := 0; i < ffValue; i++ {
-			go func(i int) {
-				cs.KafkaProducerClient.Input() <- &msg
-				_ = <-cs.KafkaProducerClient.Successes()
-			}(i)
-		}
-		logger.Info(fmt.Sprintf("Done with #%d messages for overload simulation.", ffValue))
-	}
-}
-
-func createProducerSpan(ctx context.Context, msg *sarama.ProducerMessage) trace.Span {
-	spanContext, span := tracer.Start(
-		ctx,
-		fmt.Sprintf("%s publish", msg.Topic),
-		trace.WithSpanKind(trace.SpanKindProducer),
-		trace.WithAttributes(
-			semconv.PeerService("kafka"),
-			semconv.NetworkTransportTCP,
-			semconv.MessagingSystemKafka,
-			semconv.MessagingDestinationName(msg.Topic),
-			semconv.MessagingOperationPublish,
-			semconv.MessagingKafkaDestinationPartition(int(msg.Partition)),
-		),
-	)
-
-	carrier := propagation.MapCarrier{}
-	propagator := otel.GetTextMapPropagator()
-	propagator.Inject(spanContext, carrier)
-
-	for key, value := range carrier {
-		msg.Headers = append(msg.Headers, sarama.RecordHeader{Key: []byte(key), Value: []byte(value)})
-	}
-
-	return span
-}
 
 func (cs *checkout) isFeatureFlagEnabled(ctx context.Context, featureFlagName string) bool {
 	client := openfeature.NewClient("checkout")
