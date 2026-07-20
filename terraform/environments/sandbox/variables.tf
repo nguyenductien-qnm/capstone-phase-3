@@ -368,6 +368,8 @@ variable "rds_rotation_rules_automatically_after_days" {
   type        = number
   description = "Số ngày tự động xoay vòng secret RDS"
   default     = 30
+}
+
 variable "audit_detection_enabled" {
   type        = bool
   default     = true
