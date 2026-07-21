@@ -27,6 +27,10 @@ export class CircuitBreaker {
   private state: CircuitState = 'closed';
   private failureCount = 0;
   private openedAt = 0;
+  // #3 single-flight: ở half-open chỉ cho ĐÚNG 1 probe đi, request khác trả fallback ngay
+  // (tránh dội burst xuống downstream vừa hồi). An toàn vì Node single-thread: đoạn kiểm+set
+  // cờ chạy đồng bộ trước await đầu tiên.
+  private probeInProgress = false;
 
   constructor(opts: CircuitBreakerOptions) {
     this.name = opts.name;
@@ -44,7 +48,17 @@ export class CircuitBreaker {
       if (Date.now() - this.openedAt < this.openMs) {
         return fallback; // mạch đang mở → trả fallback ngay
       }
-      this.state = 'half-open'; // hết thời gian mở → cho 1 nhịp thử
+      this.transitionTo('half-open'); // hết thời gian mở → cho dò
+    }
+
+    // #3: ở half-open, chỉ 1 probe được thực thi; các request đồng thời trả fallback.
+    let isProbe = false;
+    if (this.state === 'half-open') {
+      if (this.probeInProgress) {
+        return fallback;
+      }
+      this.probeInProgress = true;
+      isProbe = true;
     }
 
     try {
@@ -54,6 +68,10 @@ export class CircuitBreaker {
     } catch (err) {
       this.onFailure();
       return fallback;
+    } finally {
+      if (isProbe) {
+        this.probeInProgress = false;
+      }
     }
   }
 
@@ -76,16 +94,30 @@ export class CircuitBreaker {
     });
   }
 
+  // #4: log CHỈ khi trạng thái thật sự đổi (không spam mỗi request). Dùng console.warn để
+  // log lọt vào stdout -> log pipeline; KHÔNG thêm OTel metric để tránh coupling/cardinality.
+  private transitionTo(next: CircuitState): void {
+    if (this.state === next) {
+      return;
+    }
+    const prev = this.state;
+    this.state = next;
+    if (next === 'open') {
+      this.openedAt = Date.now();
+    }
+    // eslint-disable-next-line no-console
+    console.warn(`[circuit-breaker:${this.name}] state ${prev} -> ${next} (failures=${this.failureCount})`);
+  }
+
   private onSuccess(): void {
     this.failureCount = 0;
-    this.state = 'closed';
+    this.transitionTo('closed');
   }
 
   private onFailure(): void {
     this.failureCount += 1;
     if (this.state === 'half-open' || this.failureCount >= this.failureThreshold) {
-      this.state = 'open';
-      this.openedAt = Date.now();
+      this.transitionTo('open');
     }
   }
 }
