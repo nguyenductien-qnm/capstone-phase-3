@@ -352,24 +352,6 @@ variable "audit_operator_role_names" {
   description = "IAM role names to attach the tamper-deny policy; leave empty for Identity Center manual attachment"
 }
 
-variable "rds_enable_rotation" {
-  type        = bool
-  description = "Bật/Tắt xoay vòng secret tự động cho RDS"
-  default     = true
-}
-
-variable "rds_rotation_lambda_arn" {
-  type        = string
-  description = "ARN của Lambda function xoay vòng secret RDS"
-  default     = ""
-}
-
-variable "rds_rotation_rules_automatically_after_days" {
-  type        = number
-  description = "Số ngày tự động xoay vòng secret RDS"
-  default     = 30
-}
-
 variable "audit_detection_enabled" {
   type        = bool
   default     = true
@@ -434,4 +416,3 @@ variable "audit_detection_break_glass_role_arns" {
     error_message = "Every audit detection break-glass value must be an IAM role ARN."
   }
 }
-
