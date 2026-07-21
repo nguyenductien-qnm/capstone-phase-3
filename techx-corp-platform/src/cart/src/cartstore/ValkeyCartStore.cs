@@ -432,28 +432,33 @@ public sealed class ValkeyCartStore : ICartStore, IDisposable, IAsyncDisposable
         var connection = ConnectionMultiplexer.Connect(options);
 
         connection.InternalError += (_, args) =>
+        {
             if (_logger.IsEnabled(LogLevel.Error))
             {
-    _logger.LogError(
+                _logger.LogError(
                     args.Exception,
                     "Valkey internal error. Slot={Slot}",
                     slotIndex);
             }
+        };
 
         connection.ConnectionRestored += (_, args) =>
+        {
             if (_logger.IsEnabled(LogLevel.Information))
             {
-    _logger.LogInformation(
+                _logger.LogInformation(
                     "Valkey connection restored. Slot={Slot}, Endpoint={Endpoint}, Type={ConnectionType}",
                     slotIndex,
                     args.EndPoint,
                     args.ConnectionType);
             }
+        };
 
         connection.ConnectionFailed += (_, args) =>
+        {
             if (_logger.IsEnabled(LogLevel.Warning))
             {
-    _logger.LogWarning(
+                _logger.LogWarning(
                     args.Exception,
                     "Valkey connection failed. Slot={Slot}, Endpoint={Endpoint}, FailureType={FailureType}, Type={ConnectionType}",
                     slotIndex,
@@ -461,6 +466,7 @@ public sealed class ValkeyCartStore : ICartStore, IDisposable, IAsyncDisposable
                     args.FailureType,
                     args.ConnectionType);
             }
+        };
 
         if (connection.IsConnected)
         {
