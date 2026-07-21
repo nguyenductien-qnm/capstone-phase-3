@@ -372,7 +372,7 @@ count(kube_pod_status_phase{phase="Running"})
 | Blue Environment | Running |
 | Green Environment | Running |
 | Tổng thời gian chạy song song |7h40m |
-| Chi phí phát sinh (Estimated) |~$0.3 (thêm chi phí của glue khi chạy song song) |
+| Chi phí phát sinh (Estimated) |~$0.26 (thêm chi phí của glue khi chạy song song) |
 
 ## Sau Migration
 - Mô tả: Giao diện AWS Console xác nhận tài nguyên Blue cũ đã được xóa hoàn toàn, hệ thống chỉ duy trì môi trường Green làm Primary mới.
@@ -387,7 +387,7 @@ count(kube_pod_status_phase{phase="Running"})
 
 | Hạng mục | Giá trị |
 |-----------|----------|
-| Daily Cost |~$20.6 |
+| Daily Cost |~$20.1 |
 | DB Cost |~$2.09 |
 
 ---
@@ -396,7 +396,7 @@ count(kube_pod_status_phase{phase="Running"})
 
 | Hạng mục | Giá trị |
 |-----------|----------|
-| Cost tăng |~0.3 |
+| Cost tăng |$0.26 |
 | Budget vượt? |không|
 | Cost Anomaly? |Không cảnh báo |
 
@@ -408,5 +408,5 @@ count(kube_pod_status_phase{phase="Running"})
 |-----------|----------|
 | Blue Deleted |yes |
 | Green Running |yes |
-| Daily Cost |$21-$22 (dự đoán do chưa đủ 24h nên chưa có Cost Explorer)|
+| Daily Cost | $20.34|
 | Cleanup Success |yes |
