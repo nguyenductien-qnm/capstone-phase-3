@@ -3,21 +3,51 @@
 
 import ProductReviewGateway from '../gateways/rpc/ProductReview.gateway';
 
+// Singleflight map to coalesce identical concurrent requests
+const inFlightPromises = new Map<string, Promise<any>>();
+
 const ProductReviewService = () => ({
-
     async getProductReviews(id: string) {
-        const productReviews = await ProductReviewGateway.getProductReviews(id);
+        const cacheKey = `reviews:${id}`;
 
-        return productReviews;
+        if (inFlightPromises.has(cacheKey)) {
+            return inFlightPromises.get(cacheKey);
+        }
+
+        const promise = (async () => {
+            try {
+                const productReviews = await ProductReviewGateway.getProductReviews(id);
+                return productReviews;
+            } finally {
+                inFlightPromises.delete(cacheKey);
+            }
+        })();
+
+        inFlightPromises.set(cacheKey, promise);
+        return promise;
     },
     async getAverageProductReviewScore(id: string) {
-        const averageScore = await ProductReviewGateway.getAverageProductReviewScore(id);
+        const cacheKey = `avg-score:${id}`;
 
-        return averageScore;
+        if (inFlightPromises.has(cacheKey)) {
+            return inFlightPromises.get(cacheKey);
+        }
+
+        const promise = (async () => {
+            try {
+                const averageScore = await ProductReviewGateway.getAverageProductReviewScore(id);
+                return averageScore;
+            } finally {
+                inFlightPromises.delete(cacheKey);
+            }
+        })();
+
+        inFlightPromises.set(cacheKey, promise);
+        return promise;
     },
     async askProductAIAssistant(id: string, question: string) {
+        // No singleflight — different questions produce different results
         const response = await ProductReviewGateway.askProductAIAssistant(id, question);
-
         return response;
     },
 });
