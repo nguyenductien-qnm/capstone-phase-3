@@ -347,31 +347,41 @@ count(kube_pod_status_phase{phase="Running"})
 # 9. Evidence cần thu thập
 
 ## Trước Migration
-
-- Screenshot Dashboard
-- Screenshot Budget
-- Screenshot Cost Explorer
-- Screenshot Cost Anomaly
+- Mô tả: Ảnh chụp Cost Explorer ghi nhận chi phí nền tảng (baseline) của hệ thống trước khi bắt đầu triển khai môi trường Green.
+![alt text](./screenshots/cost_truoc.png)
 
 ---
-
 ## Trong Migration
+- Mô tả: Giao diện AWS Console thể hiện quá trình khởi tạo thành công môi trường Green với phiên bản PostgreSQL 17.10 song song với Blue (16.14).
+![alt](./screenshots/taobluegreen.png)
+- Mô tả: Nhật ký/Trạng thái thực hiện lệnh switchover, đánh dấu thời điểm chuyển đổi endpoint ứng dụng sang Green thành công.
+![alt](./screenshots/swichover.png)
+### Timeline
 
-- CPU
-- Memory
-- Connections
-- Error Count
-- Estimated Cost
+| Event | Timestamp |
+|---------|-----------|
+| Green Environment Created |16h35 |
+| Database Upgrade Started |16h50 |
+| Switch Over |17h15 |
+| Validation Completed |17h17 |
+| Blue Environment Deleted |0h15 |
 
 ---
+
+### Cost Observation
+
+| Hạng mục | Giá trị |
+|----------|----------|
+| Blue Environment | Running |
+| Green Environment | Running |
+| Tổng thời gian chạy song song |7h40m |
+| Chi phí phát sinh (Estimated) |~$0.3 (thêm chi phí của glue khi chạy song song) |
 
 ## Sau Migration
-
-- Dashboard
-- Cost Explorer
-- Cleanup
-- Delete Blue
-
+- Mô tả: Giao diện AWS Console xác nhận tài nguyên Blue cũ đã được xóa hoàn toàn, hệ thống chỉ duy trì môi trường Green làm Primary mới.
+![alt](./screenshots/xoabluecu.png)
+- Mô tả: Ảnh chụp Cost Explorer sau khi hoàn tất dọn dẹp, chứng minh chi phí đã quay lại mức ổn định và không phát sinh chi phí dài hạn sau khi tối ưu.
+![alt](./screenshots/cost_sau.png)
 ---
 
 # 10. Final Cost Optimization Report
@@ -380,10 +390,8 @@ count(kube_pod_status_phase{phase="Running"})
 
 | Hạng mục | Giá trị |
 |-----------|----------|
-| Daily Cost | |
-| CPU | |
-| Memory | |
-| DB Cost | |
+| Daily Cost |~$20.6 |
+| DB Cost |~$2.09 |
 
 ---
 
@@ -391,12 +399,9 @@ count(kube_pod_status_phase{phase="Running"})
 
 | Hạng mục | Giá trị |
 |-----------|----------|
-| Cost tăng | |
-| CPU tăng | |
-| Memory tăng | |
-| Error Count | |
-| Budget vượt? | |
-| Cost Anomaly? | |
+| Cost tăng |~0.3 |
+| Budget vượt? |không|
+| Cost Anomaly? |Không cảnh báo |
 
 ---
 
@@ -404,59 +409,7 @@ count(kube_pod_status_phase{phase="Running"})
 
 | Hạng mục | Giá trị |
 |-----------|----------|
-| Blue Deleted | |
-| Green Running | |
-| Daily Cost | |
-| Cleanup Success | |
-
----
-
-## Lessons Learned
-
--
-
--
-
--
-
----
-
-## Recommendations
-
--
-
--
-
--
-
----
-
-# 13. Checklist
-
-## Trước Migration
-
-- [ ] Cost Baseline
-- [ ] Dashboard
-- [ ] Budget
-- [ ] Alert
-- [ ] Backup
-
----
-
-## Trong Migration
-
-- [ ] CPU
-- [ ] Memory
-- [ ] Cost
-- [ ] Error Count = 0
-
----
-
-## Sau Migration
-
-- [ ] Delete Blue
-- [ ] Delete Snapshot
-- [ ] Verify Cost
-- [ ] Final Report
-
----
+| Blue Deleted |yes |
+| Green Running |yes |
+| Daily Cost |$21-$22 (dự đoán do chưa đủ 24h nên chưa có Cost Explorer)|
+| Cleanup Success |yes |
