@@ -13,7 +13,7 @@ implemented as botocore read_timeout values per Bedrock call.
 
 Example:
   AWS_PROFILE=Phase3-CDO-PermissionSet-804372444787 \\
-    python docs/ai/evals/measure_bedrock_latency.py --region us-east-2 --n 10 \\
+    python docs/ai/evals/measure_bedrock_latency.py --region us-east-1 --n 10 \\
     --markdown-out docs/ai/evals/bedrock_latency_results_2026-07-15.md
 """
 

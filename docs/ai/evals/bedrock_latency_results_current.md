@@ -1,7 +1,7 @@
 # Bedrock Latency Measurement
 
 - Generated: 2026-07-20 17:30:52Z
-- AWS region: `us-east-2`
+- AWS region: `us-east-1`
 - AWS profile: `default credential chain`
 - Runtime API: `bedrock-runtime.converse`
 - Timeout rule: measured end-to-end `flow_p95_s`, rounded up to nearest 0.1s.

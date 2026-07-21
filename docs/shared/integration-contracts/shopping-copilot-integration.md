@@ -192,7 +192,7 @@ phải guardrail engine).
   resource ở **module TF riêng, state riêng, KHÔNG chạm module CDO**. Nếu account boundary
   chặn `terraform apply` → CDO apply hộ `terraform/ai-guardrails/`, app chỉ cần id+version.
 - **IAM:** service role của 2 pod cần `bedrock:ApplyGuardrail` trên ARN guardrail (region
-  `us-east-2`, cùng nơi Nova/Titan chạy).
+  `us-east-1`, cùng nơi Nova/Titan chạy).
 - **Hành vi:** INPUT rail fail-**closed** (chặn khi lỗi); OUTPUT grounding fail-**open** nhưng
   vẫn mask PII. Guardrail lỗi/tắt → không treo trang (degrade an toàn).
 - **Lưu ý PII log:** mask chỉ áp lên response API; raw PII vẫn vào CloudWatch model-invocation
