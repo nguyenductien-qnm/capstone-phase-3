@@ -103,8 +103,14 @@ builder.Services.AddSingleton<HealthServiceImpl>();
 
 var app = builder.Build();
 
+// Register OTel Redis instrumentation for all connections in the pool.
+// This gives distributed tracing visibility into every socket in the pool.
 var ValkeyCartStore = (ValkeyCartStore)app.Services.GetRequiredService<ICartStore>();
-app.Services.GetRequiredService<StackExchangeRedisInstrumentation>().AddConnection(ValkeyCartStore.GetConnection());
+var redisInstrumentation = app.Services.GetRequiredService<StackExchangeRedisInstrumentation>();
+foreach (var conn in ValkeyCartStore.GetAllConnections())
+{
+    redisInstrumentation.AddConnection(conn);
+}
 
 app.MapGrpcService<CartService>();
 app.MapGrpcService<HealthServiceImpl>();

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 using System;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Grpc.Core;
 using StackExchange.Redis;
@@ -18,10 +19,12 @@ public class ValkeyCartStore : ICartStore
     private const string CartFieldName = "cart";
     private const int RedisRetryNumber = 30;
 
-    private volatile ConnectionMultiplexer _redis;
-    private volatile bool _isRedisConnectionOpened;
+    // FIX #1: Connection pool — N parallel sockets thay vì 1 socket dùng chung.
+    // Số lượng 4 đủ cho ~500 concurrent users mà không làm ElastiCache quá tải.
+    private const int PoolSize = 4;
+    private ConnectionMultiplexer[] _pool = Array.Empty<ConnectionMultiplexer>();
+    private long _poolIndex = 0;
 
-    private readonly object _locker = new();
     private readonly byte[] _emptyCartBytes;
     private readonly string _connectionString;
 
@@ -49,7 +52,7 @@ public class ValkeyCartStore : ICartStore
         // Serialize empty cart into byte array.
         var cart = new Oteldemo.Cart();
         _emptyCartBytes = cart.ToByteArray();
-        
+
         string sslVal = valkeyTls ? "true" : "false";
         _connectionString = $"{valkeyAddress},ssl={sslVal},allowAdmin=true,abortConnect=false";
         if (!string.IsNullOrEmpty(valkeyToken))
@@ -70,77 +73,92 @@ public class ValkeyCartStore : ICartStore
 
         _redisConnectionOptions.KeepAlive = 180;
         _redisConnectionOptions.AbortOnConnectFail = false;
-        _redisConnectionOptions.ConnectTimeout = 5000;
-        _redisConnectionOptions.SyncTimeout = 5000;
+
+        // FIX #3: Fail fast thay vì pile-up chờ 5 giây.
+        // - ConnectTimeout: thời gian thiết lập TCP+TLS. 2s đủ cho ElastiCache cùng region.
+        // - SyncTimeout: thời gian chờ response cho synchronous call (dùng ở Ping).
+        // - AsyncTimeout: thời gian chờ response cho async call — key nhất, tránh request
+        //   xếp hàng ngâm indefinitely khi ElastiCache bị nghẽn tạm thời.
+        _redisConnectionOptions.ConnectTimeout = 2000;
+        _redisConnectionOptions.SyncTimeout = 1000;
+        _redisConnectionOptions.AsyncTimeout = 500;
     }
 
+    /// <summary>
+    /// Trả về connection đầu tiên trong pool.
+    /// Dùng cho OTel StackExchangeRedis instrumentation (chỉ cần 1 connection để trace).
+    /// </summary>
     public ConnectionMultiplexer GetConnection()
     {
-        EnsureRedisConnected();
-        return _redis;
+        if (_pool.Length == 0)
+            throw new InvalidOperationException("Valkey connection pool is not initialized. Call Initialize() first.");
+        return _pool[0];
+    }
+
+    /// <summary>
+    /// Trả về tất cả connections trong pool.
+    /// Dùng khi muốn đăng ký OTel instrumentation cho toàn bộ pool.
+    /// </summary>
+    public ConnectionMultiplexer[] GetAllConnections()
+    {
+        return _pool;
     }
 
     public void Initialize()
     {
-        EnsureRedisConnected();
+        // FIX #1: Khởi tạo toàn bộ connection pool tại startup.
+        // Tất cả TLS handshake xảy ra 1 lần duy nhất ở đây, không bao giờ lặp lại trong hot path.
+        _logger.LogInformation("Initializing Valkey connection pool (size={PoolSize})...", PoolSize);
+
+        var pool = new ConnectionMultiplexer[PoolSize];
+        for (int i = 0; i < PoolSize; i++)
+        {
+            pool[i] = CreateConnection(i);
+        }
+        _pool = pool;
+
+        _logger.LogInformation("Valkey connection pool ready ({PoolSize} connections).", PoolSize);
     }
 
-    private void EnsureRedisConnected()
+    private ConnectionMultiplexer CreateConnection(int slotIndex)
     {
-        if (_isRedisConnectionOpened)
+        _logger.LogDebug("Creating Valkey connection [slot={slotIndex}]: {connectionString}", slotIndex, _connectionString);
+
+        var mux = ConnectionMultiplexer.Connect(_redisConnectionOptions);
+
+        if (mux == null || !mux.IsConnected)
         {
-            return;
+            _logger.LogError("Valkey connection [slot={slotIndex}] failed to establish.", slotIndex);
+            throw new ApplicationException($"Wasn't able to connect to Valkey (pool slot {slotIndex})");
         }
 
-        // Connection is closed or failed - open a new one but only at the first thread
-        lock (_locker)
-        {
-            if (_isRedisConnectionOpened)
-            {
-                return;
-            }
+        // Validate ngay sau connect
+        var db = mux.GetDatabase();
+        db.StringSet($"cart:pool-init-{slotIndex}", "OK");
 
-            if (_logger.IsEnabled(LogLevel.Debug))
-            {
-                _logger.LogDebug("Connecting to Redis: {connectionString}", _connectionString);
-            }
+        mux.InternalError += (_, e) =>
+            _logger.LogError(e.Exception, "Valkey internal error [slot={slotIndex}]", slotIndex);
+        mux.ConnectionRestored += (_, _) =>
+            _logger.LogInformation("Valkey connection [slot={slotIndex}] restored.", slotIndex);
+        mux.ConnectionFailed += (_, e) =>
+            _logger.LogWarning("Valkey connection [slot={slotIndex}] failed: {reason}", slotIndex, e.FailureType);
 
-            _redis = ConnectionMultiplexer.Connect(_redisConnectionOptions);
+        _logger.LogDebug("Valkey connection [slot={slotIndex}] established successfully.", slotIndex);
+        return mux;
+    }
 
-            if (_redis == null || !_redis.IsConnected)
-            {
-                _logger.LogError("Wasn't able to connect to redis");
+    /// <summary>
+    /// FIX #2: Round-robin qua pool bằng Interlocked.Increment — hoàn toàn lock-free.
+    /// Không còn gọi EnsureRedisConnected() (blocking lock) trên mỗi request.
+    /// </summary>
+    private IDatabase GetPooledDatabase()
+    {
+        if (_pool.Length == 0)
+            throw new InvalidOperationException("Valkey connection pool is not initialized.");
 
-                // We weren't able to connect to Redis despite some retries with exponential backoff.
-                throw new ApplicationException("Wasn't able to connect to redis");
-            }
-
-            _logger.LogInformation("Successfully connected to Redis");
-            var cache = _redis.GetDatabase();
-
-            _logger.LogDebug("Performing small test");
-            cache.StringSet("cart", "OK" );
-            object res = cache.StringGet("cart");
-
-            if (_logger.IsEnabled(LogLevel.Debug))
-            {
-                _logger.LogDebug("Small test result: {result}", res);
-            }
-
-            _redis.InternalError += (_, e) => { Console.WriteLine(e.Exception); };
-            _redis.ConnectionRestored += (_, _) =>
-            {
-                _isRedisConnectionOpened = true;
-                _logger.LogInformation("Connection to redis was restored successfully.");
-            };
-            _redis.ConnectionFailed += (_, _) =>
-            {
-                _logger.LogInformation("Connection failed. Disposing the object");
-                _isRedisConnectionOpened = false;
-            };
-
-            _isRedisConnectionOpened = true;
-        }
+        // Modulo trên pool.Length (không phải hằng PoolSize) để an toàn nếu pool ngắn hơn dự kiến.
+        var idx = (int)(Interlocked.Increment(ref _poolIndex) % _pool.Length);
+        return _pool[idx].GetDatabase();
     }
 
     public async Task AddItemAsync(string userId, string productId, int quantity)
@@ -149,14 +167,15 @@ public class ValkeyCartStore : ICartStore
 
         if (_logger.IsEnabled(LogLevel.Information))
         {
-            _logger.LogInformation("AddItemAsync called with userId={userId}, productId={productId}, quantity={quantity}", userId, productId, quantity);
+            _logger.LogInformation(
+                "AddItemAsync called with userId={userId}, productId={productId}, quantity={quantity}",
+                userId, productId, quantity);
         }
 
         try
         {
-            EnsureRedisConnected();
-
-            var db = _redis.GetDatabase();
+            // FIX #2: GetPooledDatabase() — không lock, không check connection mỗi lần.
+            var db = GetPooledDatabase();
 
             // Access the cart from the cache
             var value = await db.HashGetAsync(userId, CartFieldName);
@@ -164,10 +183,7 @@ public class ValkeyCartStore : ICartStore
             Oteldemo.Cart cart;
             if (value.IsNull)
             {
-                cart = new Oteldemo.Cart
-                {
-                    UserId = userId
-                };
+                cart = new Oteldemo.Cart { UserId = userId };
                 cart.Items.Add(new Oteldemo.CartItem { ProductId = productId, Quantity = quantity });
             }
             else
@@ -185,7 +201,7 @@ public class ValkeyCartStore : ICartStore
             }
 
             var batch = db.CreateBatch();
-            var hashSetTask = batch.HashSetAsync(userId, new[]{ new HashEntry(CartFieldName, cart.ToByteArray()) });
+            var hashSetTask = batch.HashSetAsync(userId, new[] { new HashEntry(CartFieldName, cart.ToByteArray()) });
             var keyExpireTask = batch.KeyExpireAsync(userId, TimeSpan.FromMinutes(60));
             batch.Execute();
             await Task.WhenAll(hashSetTask, keyExpireTask);
@@ -206,10 +222,11 @@ public class ValkeyCartStore : ICartStore
         {
             _logger.LogInformation("EmptyCartAsync called with userId={userId}", userId);
         }
+
         try
         {
-            EnsureRedisConnected();
-            var db = _redis.GetDatabase();
+            // FIX #2: GetPooledDatabase() — không lock, không check connection mỗi lần.
+            var db = GetPooledDatabase();
 
             // Update the cache with empty cart for given user
             var batch = db.CreateBatch();
@@ -235,9 +252,8 @@ public class ValkeyCartStore : ICartStore
 
         try
         {
-            EnsureRedisConnected();
-
-            var db = _redis.GetDatabase();
+            // FIX #2: GetPooledDatabase() — không lock, không check connection mỗi lần.
+            var db = GetPooledDatabase();
 
             // Access the cart from the cache
             var value = await db.HashGetAsync(userId, CartFieldName);
@@ -264,7 +280,9 @@ public class ValkeyCartStore : ICartStore
     {
         try
         {
-            var cache = _redis.GetDatabase();
+            // Ping dùng connection slot 0 (đơn giản, không cần round-robin cho health check)
+            if (_pool.Length == 0) return false;
+            var cache = _pool[0].GetDatabase();
             var res = cache.Ping();
             return res != TimeSpan.Zero;
         }
