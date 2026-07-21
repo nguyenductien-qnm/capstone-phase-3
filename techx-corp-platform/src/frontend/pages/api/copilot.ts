@@ -1,6 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import * as grpc from '@grpc/grpc-js';
 
+import InstrumentationMiddleware from '../../utils/telemetry/InstrumentationMiddleware';
 import { ShoppingCopilotServiceClient, ChatWithCopilotRequest, ChatWithCopilotResponse } from '../../protos/shopping_copilot';
 
 const client = new ShoppingCopilotServiceClient(
@@ -8,7 +9,7 @@ const client = new ShoppingCopilotServiceClient(
     grpc.credentials.createInsecure()
 );
 
-export default function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method not allowed' });
     }
@@ -23,11 +24,18 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
         confirmationToken: confirmation_token || ''
     };
 
-    client.chatWithCopilot(request, (error, response) => {
-        if (error) {
-            console.error('Copilot gRPC Error:', error);
-            return res.status(500).json({ error: error.message });
-        }
+    try {
+        const response = await new Promise<ChatWithCopilotResponse>((resolve, reject) => {
+            client.chatWithCopilot(request, (error, response) => {
+                if (error) return reject(error);
+                resolve(response as ChatWithCopilotResponse);
+            });
+        });
         res.status(200).json(response);
-    });
+    } catch (error) {
+        console.error('Copilot gRPC Error:', error);
+        res.status(500).json({ error: (error as Error).message });
+    }
 }
+
+export default InstrumentationMiddleware(handler);

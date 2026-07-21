@@ -772,7 +772,8 @@ components:
     useDefault:
       env: true
     service:
-      port: 8080
+      port: 80
+      targetPort: 8080
       type: LoadBalancer
       annotations:
         service.beta.kubernetes.io/aws-load-balancer-type: "external"
@@ -941,7 +942,7 @@ components:
       - name: LOCUST_SPAWN_RATE
         value: "1"
       - name: LOCUST_HOST
-        value: http://frontend-proxy:8080
+        value: http://frontend-proxy:80
       - name: LOCUST_HEADLESS
         value: "false"
       - name: LOCUST_AUTOSTART
@@ -1146,9 +1147,9 @@ components:
       - name: AWS_BEDROCK_MODEL
         value: amazon.nova-lite-v1:0
       - name: LLM_REVIEWS_TIMEOUT
-        value: "4.0"
+        value: "2.6"
       - name: LLM_REVIEWS_FALLBACK_TIMEOUT
-        value: "2.0"
+        value: "2.3"
       - name: LLM_HOST
         value: llm
       - name: LLM_PORT
@@ -1191,9 +1192,9 @@ components:
       - name: LLM_LOCAL_ML_GUARD
         value: "true"
       - name: LLM_JUDGE_MODEL
-        value: us.amazon.nova-micro-v1:0
+        value: amazon.nova-micro-v1:0
       - name: LLM_INJECTION_JUDGE_MODEL
-        value: us.amazon.nova-lite-v1:0
+        value: amazon.nova-lite-v1:0
     resources:
       requests:
         cpu: 100m
@@ -1333,9 +1334,9 @@ components:
       - name: LLM_COPILOT_FALLBACK_MODEL
         value: amazon.nova-lite-v1:0
       - name: LLM_COPILOT_TIMEOUT
-        value: "5.7"
+        value: "6.9"
       - name: LLM_COPILOT_FALLBACK_TIMEOUT
-        value: "2.5"
+        value: "2.7"
       - name: PRODUCT_CATALOG_ADDR
         value: product-catalog:8080
       - name: CART_ADDR
@@ -1359,9 +1360,9 @@ components:
       - name: LLM_LOCAL_ML_GUARD
         value: "true"
       - name: LLM_JUDGE_MODEL
-        value: us.amazon.nova-micro-v1:0
+        value: amazon.nova-micro-v1:0
       - name: LLM_INJECTION_JUDGE_MODEL
-        value: us.amazon.nova-lite-v1:0
+        value: amazon.nova-lite-v1:0
     resources:
       requests:
         cpu: 10m

@@ -1,0 +1,10 @@
+CapturedAtUtc: 2026-07-21T14:54:49Z
+TopicName: ecommerce-dev-m12-audit-tamper
+SubscriptionsConfirmed: 1
+SubscriptionsPending: 0
+SubscriptionsDeleted: 0
+SafeDeliveryTest: PASS
+Screenshot: ../screenshots/08-m12-email-delivery.png
+
+Receiver email, endpoint, subscription ARN and unsubscribe URL are omitted from
+this raw evidence.

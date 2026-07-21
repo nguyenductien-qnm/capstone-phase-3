@@ -133,10 +133,34 @@ const ProductReviews = () => {
             )}
 
             {aiResponse && (
-                <S.AIMessage aria-live="polite" data-cy="AIAnswer">
-                    <strong>AI Response:</strong>{' '}
-                    {typeof aiResponse === 'string' ? aiResponse : aiResponse.text}
-                </S.AIMessage>
+                <div data-cy="AIAnswer">
+                    <S.AIMessage aria-live="polite">
+                        <strong>AI Response:</strong>{' '}
+                        {typeof aiResponse === 'string' ? aiResponse : aiResponse.text}
+                    </S.AIMessage>
+                    
+                    {typeof aiResponse !== 'string' && aiResponse.citations && aiResponse.citations.length > 0 && (
+                        <S.CitationList data-cy="AICitations">
+                            <strong>Sources:</strong>
+                            {aiResponse.citations.map((c, i) => (
+                                <S.CitationItem key={i}>
+                                    "{c.snippet}" - <em>{c.review_id}</em> ({c.score}★)
+                                </S.CitationItem>
+                            ))}
+                        </S.CitationList>
+                    )}
+
+                    {typeof aiResponse !== 'string' && aiResponse.traceId && (
+                        <S.TraceIdLabel
+                            type="button"
+                            title={`Trace ID: ${aiResponse.traceId} (click to copy)`}
+                            onClick={() => navigator.clipboard?.writeText(aiResponse.traceId || '')}
+                            data-cy="AITraceId"
+                        >
+                            trace: {aiResponse.traceId.slice(0, 8)}
+                        </S.TraceIdLabel>
+                    )}
+                </div>
             )}
         </S.AskAISection>
 

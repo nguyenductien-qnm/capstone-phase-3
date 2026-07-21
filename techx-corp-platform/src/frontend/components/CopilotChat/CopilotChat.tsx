@@ -242,6 +242,45 @@ const ActionButton = styled.button<{ primary?: boolean }>`
   }
 `;
 
+const SourcesPanel = styled.details`
+  margin-top: 6px;
+  max-width: 85%;
+  font-size: 12px;
+  color: #555;
+
+  summary {
+    cursor: pointer;
+    user-select: none;
+    font-weight: 600;
+  }
+`;
+
+const SourceItem = styled.div`
+  padding: 6px 0;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  line-height: 1.4;
+
+  &:first-of-type {
+    border-top: none;
+  }
+`;
+
+const TraceIdLabel = styled.button`
+  margin-top: 4px;
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 10px;
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  color: #aaa;
+  cursor: pointer;
+
+  &:hover {
+    color: #666;
+  }
+`;
+
 const InputContainer = styled.form`
   display: flex;
   padding: 16px 24px;
@@ -311,11 +350,19 @@ interface PendingConfirmation {
   expiresAtUnix: number;
 }
 
+interface Citation {
+  reviewId: string;
+  snippet: string;
+  score: string;
+}
+
 interface Message {
   id: string;
   text: string;
   isUser: boolean;
   pendingAction?: PendingConfirmation | null;
+  citations?: Citation[];
+  traceId?: string;
 }
 
 export default function CopilotChat() {
@@ -362,11 +409,13 @@ export default function CopilotChat() {
 
       const data = await res.json();
       
-      setMessages(prev => [...prev, { 
-        id: Date.now().toString(), 
-        text: data.response || (data.pendingConfirmation ? '' : 'I am sorry, I could not process that request.'), 
+      setMessages(prev => [...prev, {
+        id: Date.now().toString(),
+        text: data.response || (data.pendingConfirmation ? '' : 'I am sorry, I could not process that request.'),
         isUser: false,
-        pendingAction: data.pendingConfirmation || null
+        pendingAction: data.pendingConfirmation || null,
+        citations: data.citations || [],
+        traceId: data.traceId || ''
       }]);
     } catch (err) {
       console.error(err);
@@ -428,6 +477,27 @@ export default function CopilotChat() {
                     </ActionButton>
                   </ButtonRow>
                 </ActionGateCard>
+              )}
+
+              {!msg.isUser && !!msg.citations?.length && (
+                <SourcesPanel>
+                  <summary>Sources ({msg.citations.length})</summary>
+                  {msg.citations.map((c, i) => (
+                    <SourceItem key={`${msg.id}-src-${i}`}>
+                      <strong>{c.reviewId || 'review'}</strong> ({c.score}): {c.snippet}
+                    </SourceItem>
+                  ))}
+                </SourcesPanel>
+              )}
+
+              {!msg.isUser && !!msg.traceId && (
+                <TraceIdLabel
+                  type="button"
+                  title={`Trace ID: ${msg.traceId} (click to copy)`}
+                  onClick={() => navigator.clipboard?.writeText(msg.traceId || '')}
+                >
+                  trace: {msg.traceId.slice(0, 8)}
+                </TraceIdLabel>
               )}
             </MessageGroup>
           ))}

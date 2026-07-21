@@ -230,6 +230,16 @@ output "audit_tamper_protection_policy_arn" {
   value       = module.cloudtrail.tamper_protection_policy_arn
 }
 
+output "mandate_12_alert_rule_name" {
+  description = "Mandate-12 EventBridge rule name for audit tamper alerts"
+  value       = module.cloudtrail.mandate_12_alert_rule_name
+}
+
+output "mandate_12_alert_topic_arn" {
+  description = "Mandate-12 SNS topic ARN for audit tamper email alerts"
+  value       = module.cloudtrail.mandate_12_alert_topic_arn
+}
+
 output "eks_managed_node_role_arn" {
   description = "IAM role ARN used by EKS managed nodes; grant this role pull access in the shared ECR account"
   value       = module.eks.node_role_arn

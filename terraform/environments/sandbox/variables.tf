@@ -189,7 +189,7 @@ variable "db_username" {
 variable "rds_engine_version" {
   type        = string
   description = "PostgreSQL engine version supported by the target AWS region"
-  default     = "16.14"
+  default     = "17.10"
 }
 
 variable "rds_instance_class" {
@@ -350,6 +350,25 @@ variable "audit_operator_role_names" {
   type        = list(string)
   default     = []
   description = "IAM role names to attach the tamper-deny policy; leave empty for Identity Center manual attachment"
+}
+
+variable "cloudtrail_s3_data_event_bucket_arns" {
+  type        = list(string)
+  default     = []
+  description = "S3 bucket ARN prefixes for CloudTrail S3 read data events"
+}
+
+variable "enable_mandate_12_alert" {
+  type        = bool
+  default     = false
+  description = "Enable Mandate-12 dedicated EventBridge/SNS CloudTrail tamper alerts"
+}
+
+variable "mandate_12_alert_email" {
+  type        = string
+  default     = ""
+  description = "Email receiver for Mandate-12 CloudTrail tamper alerts"
+  sensitive   = true
 }
 
 variable "audit_detection_enabled" {

@@ -1,0 +1,12 @@
+session_start=2026-07-20T16:34:07.8607272+07:00
+2026-07-20T16:34:21.8629774+07:00 primary_version_before=16.14
+2026-07-20T16:35:12.6188971+07:00 curl ok=12 bad=0
+2026-07-20T16:35:12.6269291+07:00 snapshot_skipped
+2026-07-20T16:35:15.5725839+07:00 source_arn=arn:aws:rds:us-east-1:804372444787:db:ecommerce-dev-postgres
+2026-07-20T16:35:41.2412329+07:00 create_ok bg_id=bgd-1xtgpknwizygrxnb
+2026-07-20T17:16:34.4381935+07:00 green_ready bg_id=bgd-1xtgpknwizygrxnb
+2026-07-20T17:16:53.8082857+07:00 switchover_api_ok
+2026-07-20T17:17:27.7187649+07:00 primary_version_after=17.10 status=available
+2026-07-20T17:18:31.2446188+07:00 curl ok=20 bad=0
+2026-07-20T17:18:31.2576575+07:00 upgrade_success ver=17.10 snap=SKIPPED-NO-SNAPSHOT
+2026-07-20T17:18:31.2619560+07:00 session_end
