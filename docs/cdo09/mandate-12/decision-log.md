@@ -797,3 +797,38 @@ User confirm Step 4 để rà toàn bộ implementation, workflow, docs và evid
 **Outcome**
 
 Không phát hiện blocker code/static ở Step 4. Branch sẵn sàng cho final diff review của user trước commit; runtime controls chưa deploy vẫn giữ `PENDING`.
+
+## Entry 027 — Thu hẹp alert IAM và bổ sung IAM Identity Center coverage
+
+**User concern**
+
+Independent review phát hiện EventBridge rule chỉ theo dõi `cloudtrail.amazonaws.com` và `iam.amazonaws.com`, trong khi deny policy thực tế được adminHolder attach tại IAM Identity Center Permission Sets. Pattern IAM cũng quá rộng vì có thể gửi email cho thay đổi policy không thuộc Mandate-12.
+
+**Phản hồi kỹ thuật**
+
+- Thao tác gỡ customer-managed policy reference khỏi Permission Set phát sự kiện CloudTrail `DetachCustomerManagedPolicyReferenceFromPermissionSet` với source `sso.amazonaws.com`.
+- EventBridge nên tách từng cặp source/action bằng `$or`; nếu gom nhiều source và event name vào hai list độc lập, pattern có thể match các tổ hợp không chủ đích.
+- Các IAM policy-version và detach actions đều có thể lọc bằng ARN của policy Mandate-12. `PutRolePolicy`/`DeleteRolePolicy` thao tác trên inline role policy, không phải customer-managed deny policy đang dùng.
+
+**Quyết định**
+
+- Giữ nhánh CloudTrail với 5 tamper actions.
+- Thu hẹp nhánh IAM vào đúng ARN `ecommerce-dev-audit-log-tamper-deny` và bỏ hai inline-policy actions không liên quan.
+- Thêm nhánh `sso.amazonaws.com` cho `DetachCustomerManagedPolicyReferenceFromPermissionSet`, lọc theo policy name và path `/`.
+- Không mở rộng sang mọi thay đổi Identity Center; xóa Permission Set/account assignment vẫn là residual risk ngoài scope hiện tại.
+
+**Outcome**
+
+Detective control nay khớp ownership thật của guardrail, giảm alert noise và vẫn giữ EventBridge/SNS architecture riêng của Mandate-12.
+
+**Validation đã chạy**
+
+- `terraform fmt -check -recursive terraform`: pass.
+- `git diff --check`: pass.
+- CloudTrail module `terraform validate`: pass; chỉ có warning cũ về `data.aws_region.current.name`.
+- Develop root `terraform validate`: pass.
+- Sandbox root `terraform validate`: pass sau `terraform init -backend=false`; chỉ có warning local `terraform.tfvars` chứa biến `nlb_dns_name` chưa declare.
+- Lockfile phát sinh/thay đổi do init local đã được hoàn nguyên khỏi diff.
+- `aws events test-event-pattern` với dữ liệu giả: CloudTrail tamper, IAM tamper đúng policy và Identity Center detach đúng policy đều trả `Result = true`; hai case policy không liên quan đều trả `Result = false`.
+
+Cần chạy lại CI plan trước merge/apply.

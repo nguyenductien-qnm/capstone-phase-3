@@ -85,6 +85,7 @@ Không copy role names hoặc bucket ARNs của sandbox sang develop nếu devel
 
 - IAM deny được adminHolder quản lý ở cấp IAM Identity Center Permission Set. Runtime đã xác nhận policy xuất hiện trên đúng hai generated roles và IAM Simulator trả `explicitDeny`; CDO role không có quyền tự đọc cấu hình Permission Set nên bằng chứng ownership cần xác nhận từ adminHolder/console.
 - Permission Set control vẫn không phải anti-defeat tuyệt đối trước Identity Center/Organizations administrator. SCP hoặc guardrail nằm ngoài quyền routine operator là follow-up mạnh hơn nếu threat model yêu cầu.
+- Detective rule bắt đúng policy Mandate-12 ở cả IAM (`iam.amazonaws.com`) và thao tác detach customer-managed policy reference ở IAM Identity Center (`sso.amazonaws.com`); các thay đổi Identity Center khác vẫn là residual risk được ghi trong implementation plan.
 - Object Lock có thể bật trên bucket hiện hữu có versioning. Tuy nhiên, việc bật không thể đảo ngược; default retention chỉ áp dụng cho object mới, còn object cũ cần retention riêng. Vì vậy thay đổi này được defer sang review/risk approval riêng, không phải vì AWS không hỗ trợ.
 - Mandate-12 không tái sử dụng Lambda/Slack pipeline của Mandate-11/CDO-05.
 - Email người nhận cho SNS không hardcode trong repo; giá trị nằm trong GitHub secret/env `MANDATE_12_ALERT_EMAIL` và workflow map sang `TF_VAR_mandate_12_alert_email`.

@@ -100,14 +100,16 @@ Kỳ vọng:
   - `UpdateTrail`
   - `PutEventSelectors`
   - `PutInsightSelectors`
-- Event pattern bắt thêm IAM guardrail tamper actions:
+- Event pattern bắt thêm IAM guardrail tamper actions, chỉ khi `requestParameters.policyArn` trỏ đúng policy Mandate-12:
   - `DetachRolePolicy`
   - `DeletePolicy`
   - `DeletePolicyVersion`
   - `CreatePolicyVersion`
   - `SetDefaultPolicyVersion`
-  - `PutRolePolicy`
-  - `DeleteRolePolicy`
+- Event pattern bắt thao tác gỡ customer-managed policy khỏi IAM Identity Center Permission Set, chỉ khi reference có tên `ecommerce-dev-audit-log-tamper-deny` và path `/`:
+  - `DetachCustomerManagedPolicyReferenceFromPermissionSet`
+
+Ba nhóm source/action được tách bằng `$or` để tránh ghép chéo `eventSource` và `eventName`, đồng thời không gửi email cho mọi thay đổi IAM trong account.
 
 Kiểm tra target của rule:
 

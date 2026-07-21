@@ -244,30 +244,51 @@ resource "aws_cloudwatch_event_rule" "mandate_12_audit_tamper" {
   count = var.enable_mandate_12_alert ? 1 : 0
 
   name        = local.m12_alert_name
-  description = "MANDATE-12 alert for CloudTrail tamper and IAM guardrail tamper attempts"
+  description = "MANDATE-12 alert for CloudTrail and audit guardrail tamper attempts"
 
   event_pattern = jsonencode({
     "detail-type" = ["AWS API Call via CloudTrail"]
-    detail = {
-      eventSource = [
-        "cloudtrail.amazonaws.com",
-        "iam.amazonaws.com",
-      ]
-      eventName = [
-        "StopLogging",
-        "DeleteTrail",
-        "UpdateTrail",
-        "PutEventSelectors",
-        "PutInsightSelectors",
-        "DetachRolePolicy",
-        "DeletePolicy",
-        "DeletePolicyVersion",
-        "CreatePolicyVersion",
-        "SetDefaultPolicyVersion",
-        "PutRolePolicy",
-        "DeleteRolePolicy",
-      ]
-    }
+    "$or" = [
+      {
+        detail = {
+          eventSource = ["cloudtrail.amazonaws.com"]
+          eventName = [
+            "StopLogging",
+            "DeleteTrail",
+            "UpdateTrail",
+            "PutEventSelectors",
+            "PutInsightSelectors",
+          ]
+        }
+      },
+      {
+        detail = {
+          eventSource = ["iam.amazonaws.com"]
+          eventName = [
+            "DetachRolePolicy",
+            "DeletePolicy",
+            "DeletePolicyVersion",
+            "CreatePolicyVersion",
+            "SetDefaultPolicyVersion",
+          ]
+          requestParameters = {
+            policyArn = [aws_iam_policy.audit_log_tamper_protection.arn]
+          }
+        }
+      },
+      {
+        detail = {
+          eventSource = ["sso.amazonaws.com"]
+          eventName   = ["DetachCustomerManagedPolicyReferenceFromPermissionSet"]
+          requestParameters = {
+            customerManagedPolicyReference = {
+              name = [aws_iam_policy.audit_log_tamper_protection.name]
+              path = ["/"]
+            }
+          }
+        }
+      },
+    ]
   })
 }
 
