@@ -77,6 +77,16 @@ resource "aws_db_parameter_group" "this" {
     apply_method = "pending-reboot"
   }
 
+  dynamic "parameter" {
+    for_each = var.track_activity_query_size == null ? [] : [var.track_activity_query_size]
+
+    content {
+      name         = "track_activity_query_size"
+      value        = tostring(parameter.value)
+      apply_method = "pending-reboot"
+    }
+  }
+
   tags = {
     Name        = "${var.project_name}-${var.environment}-postgres-pg"
     Environment = var.environment
@@ -327,8 +337,6 @@ resource "aws_secretsmanager_secret_version" "db_endpoint" {
     # phải biết env có replica hay không.
     replica_endpoint = var.enable_read_replica ? aws_db_instance.replica[0].address : (var.enable_rds_proxy ? aws_db_proxy.this[0].endpoint : aws_db_instance.this.address)
     port             = 5432
-    username         = var.db_username
-    password         = random_password.db_password.result
     dbname           = var.db_name
   })
 }

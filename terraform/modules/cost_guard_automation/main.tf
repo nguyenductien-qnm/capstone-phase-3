@@ -185,7 +185,7 @@ resource "aws_iam_role_policy" "lambda_ec2_policy" {
 # CloudWatch Log Group cho Lambda
 resource "aws_cloudwatch_log_group" "lambda_logs" {
   name              = "/aws/lambda/${local.cost_guard_name}"
-  retention_in_days = var.cloudwatch_log_retention_days
+  retention_in_days = var.cost_guard_log_retention_days
 
   tags = merge(
     local.common_tags,
@@ -210,8 +210,8 @@ resource "aws_lambda_function" "cost_guard" {
   role             = aws_iam_role.lambda_role.arn
   handler          = "index.handler"
   runtime          = "python3.11"
-  timeout          = var.lambda_timeout
-  memory_size      = var.lambda_memory
+  timeout          = var.cost_guard_lambda_timeout
+  memory_size      = var.cost_guard_lambda_memory
 
   environment {
     variables = {

@@ -1,12 +1,12 @@
 # ml-guard — grounding NLI gate (MANDATE-06 / ADR-014). MANDATE-05: non-root, pinned base.
-FROM python:3.12-slim-bookworm@sha256:72d3d75f2639ab82b34b29390ad3d6e0827c775befee94edda8e9976818f488d AS build
+FROM python:3.12-slim-trixie@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de AS build
 
 WORKDIR /app
 COPY ./src/ml-guard/requirements.txt .
 RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 
 # Bake model vào image: pod không cần egress tới HF Hub, không cold-download.
-FROM python:3.12-slim-bookworm@sha256:72d3d75f2639ab82b34b29390ad3d6e0827c775befee94edda8e9976818f488d
+FROM python:3.12-slim-trixie@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de
 
 COPY --from=build /install /usr/local
 WORKDIR /app

@@ -788,6 +788,36 @@ def get_ai_assistant_response(request_product_id, question, context=None):
             ai_assistant_response.response = result
             logger.info(f"Returning Bedrock AI assistant response: '{result}'")
 
+            # Attach Trace ID
+            current_span = trace.get_current_span()
+            if current_span and current_span.get_span_context().is_valid:
+                ai_assistant_response.trace_id = f"{current_span.get_span_context().trace_id:032x}"
+            
+            # Attach Citations from raw db review fetches
+            for tr_raw in tool_results_raw:
+                try:
+                    data = json.loads(tr_raw)
+                    if isinstance(data, list):
+                        # data could be list of dicts (if DictCursor used) or list of lists
+                        for r in data:
+                            if isinstance(r, dict):
+                                username = r.get("username", "")
+                                desc = r.get("description", "")
+                                score_val = str(r.get("score", ""))
+                            elif isinstance(r, (list, tuple)) and len(r) >= 3:
+                                username = str(r[0]) if r[0] else ""
+                                desc = str(r[1]) if r[1] else ""
+                                score_val = str(r[2]) if r[2] else ""
+                            else:
+                                continue
+                                
+                            if desc:
+                                ai_assistant_response.citations.add(
+                                    review_id=username, snippet=desc, score=score_val
+                                )
+                except Exception as e:
+                    logger.error(f"Error parsing citations: {e}")
+
             # Update cache if enabled
             # Never cache MOCK_SUMMARY_VI (guardrail/deadline/bulkhead fallback) — poisons
             # Valkey for 7d TTL until a real answer overwrites it (repro'd 17/07).

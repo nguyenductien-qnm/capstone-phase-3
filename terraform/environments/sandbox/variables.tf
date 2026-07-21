@@ -189,7 +189,7 @@ variable "db_username" {
 variable "rds_engine_version" {
   type        = string
   description = "PostgreSQL engine version supported by the target AWS region"
-  default     = "16.14"
+  default     = "17.10"
 }
 
 variable "rds_instance_class" {
@@ -350,6 +350,90 @@ variable "audit_operator_role_names" {
   type        = list(string)
   default     = []
   description = "IAM role names to attach the tamper-deny policy; leave empty for Identity Center manual attachment"
+}
+
+variable "cloudtrail_s3_data_event_bucket_arns" {
+  type        = list(string)
+  default     = []
+  description = "S3 bucket ARN prefixes for CloudTrail S3 read data events"
+}
+
+variable "enable_mandate_12_alert" {
+  type        = bool
+  default     = false
+  description = "Enable Mandate-12 dedicated EventBridge/SNS CloudTrail tamper alerts"
+}
+
+variable "mandate_12_alert_email" {
+  type        = string
+  default     = ""
+  description = "Email receiver for Mandate-12 CloudTrail tamper alerts"
+  sensitive   = true
+}
+
+variable "audit_detection_enabled" {
+  type        = bool
+  default     = true
+  description = "Deploy the MANDATE-11 EventBridge, SQS, Lambda, Slack, and pipeline-health resources"
+}
+
+variable "audit_pipeline_health_email" {
+  type        = string
+  description = "Pipeline-health SNS email endpoint supplied through a GitHub Environment secret"
+  sensitive   = true
+
+  validation {
+    condition     = can(regex("^[^@[:space:]]+@[^@[:space:]]+\\.[^@[:space:]]+$", var.audit_pipeline_health_email))
+    error_message = "audit_pipeline_health_email must be a valid email address."
+  }
+}
+
+variable "audit_slack_webhook_url" {
+  type        = string
+  description = "Slack webhook supplied through a GitHub Environment secret and written to Secrets Manager"
+  sensitive   = true
+  ephemeral   = true
+
+  validation {
+    condition     = can(regex("^https://hooks\\.slack(?:-gov)?\\.com/services/", var.audit_slack_webhook_url))
+    error_message = "audit_slack_webhook_url must be an HTTPS Slack incoming-webhook URL."
+  }
+}
+
+variable "audit_slack_webhook_secret_version" {
+  type        = number
+  description = "Non-secret version counter; increment when rotating the GitHub Slack webhook secret"
+  default     = 1
+
+  validation {
+    condition     = var.audit_slack_webhook_secret_version >= 1 && floor(var.audit_slack_webhook_secret_version) == var.audit_slack_webhook_secret_version
+    error_message = "audit_slack_webhook_secret_version must be a positive integer."
+  }
+}
+
+variable "audit_slack_webhook_kms_key_arn" {
+  type        = string
+  default     = null
+  nullable    = true
+  description = "Optional customer-managed KMS key ARN protecting the Slack webhook value"
+
+  validation {
+    condition     = var.audit_slack_webhook_kms_key_arn == null || can(regex("^arn:[^:]+:kms:[^:]+:[0-9]{12}:key/", var.audit_slack_webhook_kms_key_arn))
+    error_message = "audit_slack_webhook_kms_key_arn must be null or a KMS key ARN."
+  }
+}
+
+variable "audit_detection_break_glass_role_arns" {
+  type        = set(string)
+  default     = []
+  description = "Exact IAM role ARNs whose AssumeRole calls must generate audit alerts"
+
+  validation {
+    condition = alltrue([
+      for arn in var.audit_detection_break_glass_role_arns : can(regex("^arn:[^:]+:iam::[0-9]{12}:role/.+", arn))
+    ])
+    error_message = "Every audit detection break-glass value must be an IAM role ARN."
+  }
 }
 
 # ============ Cost Guard Automation Variables ============

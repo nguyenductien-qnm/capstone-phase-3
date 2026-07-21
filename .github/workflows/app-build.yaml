@@ -27,14 +27,14 @@ on:
     paths:
       - "techx-corp-platform/src/**"
       - "platform/charts/application/values.yaml"
-      - "platform/build-exclusions.yaml"
+      - ".trivyignore"
       - ".github/workflows/app-build.yaml"
   pull_request:
     branches: ["develop"]
     paths:
       - "techx-corp-platform/src/**"
       - "platform/charts/application/values.yaml"
-      - "platform/build-exclusions.yaml"
+      - ".trivyignore"
       - ".github/workflows/app-build.yaml"
   workflow_dispatch:
     inputs:
@@ -42,6 +42,16 @@ on:
         description: "Danh sách service build (space-separated), rỗng = build tất cả"
         required: false
         type: string
+      attest_sbom:
+        description: "Chế độ SBOM-only: KHÔNG build, chỉ attest SBOM cho digest prod đang chạy (đọc tags sandbox)"
+        required: false
+        type: boolean
+        default: false
+      sbom_dry_run:
+        description: "(chỉ khi attest_sbom) chỉ resolve digest, KHÔNG syft/attest"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -56,7 +66,10 @@ env:
   ECR_REGISTRY: ${{ vars.ECR_REGISTRY || '804372444787.dkr.ecr.us-east-1.amazonaws.com' }}
   # 1 repo chung, service phân biệt bằng tag suffix (khớp chart _objects.tpl:73).
   ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY || 'ecommerce-dev-techx-corp' }}
-  # version trong tag = default.image.tag của chart (values.yaml). Bump khi chart lên version.
+  # Phần <version> trong tag <version>-<svc>-<sha>. Nguồn THẬT: GitHub Actions
+  # variable IMAGE_VERSION, fallback '1.0' — KHÔNG lấy từ default.image.tag của chart
+  # (sửa default.image.tag trong values.yaml KHÔNG làm tag build đổi). Muốn lên version:
+  # đổi vars.IMAGE_VERSION.
   IMAGE_VERSION: ${{ vars.IMAGE_VERSION || '1.0' }}
   BUILD_CONTEXT: techx-corp-platform
   # CI CHỈ ghi file tags tách riêng (không comment) -> yq bump không phá format
@@ -74,6 +87,9 @@ jobs:
   # ------------------------------------------------------------------ #
   detect:
     name: Detect changed services
+    # Chế độ attest_sbom (workflow_dispatch) KHÔNG build gì -> bỏ qua toàn bộ nhánh
+    # detect/build/bump (chúng needs detect nên cũng skip theo).
+    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.attest_sbom) }}
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set.outputs.matrix }}
@@ -95,7 +111,6 @@ jobs:
           DISPATCH_SERVICES: ${{ github.event.inputs.services }}
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           VALUES: platform/charts/application/values.yaml
-          EXCLUSIONS_FILE: platform/build-exclusions.yaml
         run: |
           set -euo pipefail
 
@@ -125,25 +140,9 @@ jobs:
           fi
           echo "Service team-owned: ${!DOCKERFILE[*]}"
 
-          # (c) Loại service đang TẠM HOÃN vì CVE chưa có bản vá upstream.
-          # Chính sách: không push image dính CVE CRITICAL/HIGH lên ECR. Service bị
-          # hoãn giữ nguyên tag cũ trong values-image-tags.yaml -> ArgoCD chạy image cũ.
-          # Quá hạn review_by -> cảnh báo để không ai quên (nhưng vẫn hoãn, không fail CI).
-          if [ -f "$EXCLUSIONS_FILE" ]; then
-            TODAY=$(date -u +%F)
-            while IFS=$'\t' read -r svc reason review_by; do
-              [ -z "$svc" ] && continue
-              if [ -z "${DOCKERFILE[$svc]:-}" ]; then
-                echo "::warning::build-exclusions: '$svc' không còn là service team-owned -> entry thừa, nên xoá."
-                continue
-              fi
-              unset 'DOCKERFILE[$svc]'
-              echo "::notice::HOÃN BUILD '$svc' — $reason (review_by: $review_by)"
-              if [[ "$review_by" < "$TODAY" ]]; then
-                echo "::warning::build-exclusions: '$svc' đã QUÁ HẠN review ($review_by). Kiểm tra upstream đã có fix chưa rồi bump + xoá entry."
-              fi
-            done < <(yq -r '.exclusions[] | [.service, .reason, .review_by] | @tsv' "$EXCLUSIONS_FILE")
-          fi
+          # KHÔNG còn danh sách hoãn build: mọi service team-owned đều build được với
+          # Trivy gate bật. CVE không vá được xử bằng .trivyignore (từng CVE ID, có lý
+          # do + hạn review) thay vì hoãn cả service — service vẫn deploy được code mới.
 
           # --- Chọn service cần build ---------------------------------------
           selected=()
@@ -170,16 +169,45 @@ jobs:
                 selected=("${!DOCKERFILE[@]}")
               else
                 mapfile -t changed < <(git diff --name-only "$BASE_SHA" "${{ github.sha }}")
-                # Chart đổi -> ảnh hưởng mọi service, build tất cả.
+
+                # (1) Thay đổi trong src/<svc>/ -> build đúng service đó.
+                for svc in "${!DOCKERFILE[@]}"; do
+                  if printf '%s\n' "${changed[@]}" | grep -q "^techx-corp-platform/src/$svc/"; then
+                    selected+=("$svc")
+                  fi
+                done
+
+                # (2) values.yaml đổi: KHÔNG mặc định build tất cả nữa. Chỉ rebuild khi
+                # thay đổi là BUILD-RELEVANT. Field runtime thuần (resources/hpa/probes/
+                # env/replicas/service/...) inject lúc chạy, KHÔNG bake vào image -> chỉ
+                # cần Helm validate (validate-manifest), không rebuild.
+                #
+                # Cách xác định: xoá mọi key runtime khỏi .components[svc] rồi so phần
+                # CÒN LẠI base vs head. Khác nhau = có thay đổi build-relevant. Fail-safe:
+                # key lạ/mới KHÔNG nằm trong danh sách xoá vẫn ở phần còn lại -> build
+                # thừa (an toàn) thay vì skip nhầm -> deploy image cũ.
                 if printf '%s\n' "${changed[@]}" | grep -qx "$VALUES"; then
-                  echo "$VALUES đổi -> build tất cả."
-                  selected=("${!DOCKERFILE[@]}")
-                else
-                  for svc in "${!DOCKERFILE[@]}"; do
-                    if printf '%s\n' "${changed[@]}" | grep -q "^techx-corp-platform/src/$svc/"; then
-                      selected+=("$svc")
-                    fi
-                  done
+                  RT='del(.resources,.hpa,.podAnnotations,.env,.service,.securityContext,.readinessProbe,.livenessProbe,.startupProbe,.podDisruptionBudget,.topologySpread,.terminationGracePeriodSeconds,.lifecycle,.deploymentStrategy,.replicas,.ports,.serviceAccount,.command,.initContainers,.sidecarContainers,.additionalVolumes,.mountedConfigMaps,.mountedEmptyDirs,.ingress)'
+                  BASE_V=$(git show "$BASE_SHA:$VALUES" 2>/dev/null || true)
+                  HEAD_V=$(git show "${{ github.sha }}:$VALUES" 2>/dev/null || cat "$VALUES")
+
+                  if [ -z "$BASE_V" ]; then
+                    echo "Không đọc được $VALUES ở base -> build tất cả (an toàn)."
+                    selected=("${!DOCKERFILE[@]}")
+                  elif [ "$(yq 'del(.components)' <<<"$BASE_V")" != "$(yq 'del(.components)' <<<"$HEAD_V")" ]; then
+                    # Thay đổi NGOÀI .components (global/default/... ảnh hưởng mọi service).
+                    echo "$VALUES: đổi ngoài .components -> build tất cả."
+                    selected=("${!DOCKERFILE[@]}")
+                  else
+                    for svc in "${!DOCKERFILE[@]}"; do
+                      b=$(yq ".components[\"$svc\"] | $RT" <<<"$BASE_V")
+                      h=$(yq ".components[\"$svc\"] | $RT" <<<"$HEAD_V")
+                      if [ "$b" != "$h" ]; then
+                        echo "$VALUES: components.$svc đổi build-relevant -> build $svc."
+                        selected+=("$svc")
+                      fi
+                    done
+                  fi
                 fi
               fi
               ;;
@@ -290,7 +318,7 @@ jobs:
 
       - name: Install Cosign
         if: github.event_name != 'pull_request'
-        uses: sigstore/cosign-installer@v3.5.0
+        uses: sigstore/cosign-installer@59acb6260d9c0ba8f4a2f9d9b48431a222b68e20 # v3.5.0
 
       # Một số Dockerfile cần ARG version (ad/fraud-detection: OTEL_JAVA_AGENT_VERSION,
       # currency: OPENTELEMETRY_CPP_VERSION). Thiếu -> URL thành .../download/v/... -> 404.
@@ -328,14 +356,18 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
 
+      # KHÔNG dùng `ignore-unfixed: true` — cờ đó tắt mọi CVE chưa có bản vá trên mọi
+      # service, nên khi upstream phát hành bản vá thì gate im lặng thay vì đỏ lên bắt
+      # rebuild. Thay bằng .trivyignore ở repo root: liệt kê TỪNG CVE ID được bỏ qua,
+      # kèm lý do + hạn review -> CVE mới vẫn chặn được.
       - name: Trivy vulnerability scan (gate)
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ${{ steps.meta.outputs.image }}
           format: table
           severity: CRITICAL,HIGH
           exit-code: "1"
-          ignore-unfixed: true
+          trivyignores: .trivyignore
 
       # Chỉ push khi không phải PR. Push by-digest để ký theo digest (chuẩn immutable).
       - name: Push image
@@ -366,6 +398,30 @@ jobs:
             --fulcio-url https://fulcio.sigstore.dev \
             "$REF"
           echo "✅ Signed $REF"
+
+      # CDO SBOM: sinh SBOM (SPDX) từ image ĐÃ push theo DIGEST rồi cosign attest
+      # predicate spdxjson. Gắn theo digest (bất biến) — cùng REF với bước sign trên.
+      # download-syft chỉ cài binary syft (pin SHA), không tự attest -> chủ động loop/attest.
+      - name: Install Syft
+        if: github.event_name != 'pull_request'
+        uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+
+      - name: SBOM + cosign attest (spdxjson, by digest)
+        if: github.event_name != 'pull_request'
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          set -euo pipefail
+          REF="${ECR_REGISTRY}/${ECR_REPOSITORY}@${DIGEST}"
+          # syft xuất spdx-json (có gạch nối); cosign nhận --type spdxjson (không gạch nối).
+          syft "registry:${REF}" -o spdx-json > sbom.spdx.json
+          cosign attest --yes \
+            --type spdxjson \
+            --predicate sbom.spdx.json \
+            --rekor-url https://rekor.sigstore.dev \
+            --fulcio-url https://fulcio.sigstore.dev \
+            "$REF"
+          echo "✅ SBOM attested $REF ($(jq '.packages | length' sbom.spdx.json) packages)"
 
   # ------------------------------------------------------------------ #
   # CDO-142: bump tag vào Git -> ArgoCD selfHeal sync.                  #
@@ -451,3 +507,125 @@ jobs:
 
           echo "::error::Push thất bại sau 5 lần rebase — $BRANCH_NAME đang bị ghi quá nhanh."
           exit 1
+
+  # ------------------------------------------------------------------ #
+  # SBOM cho digest ĐANG CHẠY TRÊN PROD (env sandbox). Không build lại: #
+  # đọc tag từ tags file sandbox -> resolve digest ECR -> syft SBOM ->  #
+  # cosign attest spdxjson. Đặt CÙNG file để giữ cùng BUILD_IDENTITY    #
+  # (subject app-build.yaml@refs/heads/develop) mà Kyverno/verify dùng. #
+  #                                                                     #
+  # ECR IMMUTABLE: mỗi digest chỉ chứa 1 tag .att. Verify 2026-07-21:   #
+  # repo có 352 .sig / 0 .att -> promoted-develop chưa từng chạy, nên   #
+  # SBOM .att là lần ghi ĐẦU/digest -> không bị chặn. Nếu sau này bật   #
+  # promoted-develp trên cùng digest thì phải tách COSIGN_REPOSITORY.   #
+  # ------------------------------------------------------------------ #
+  attest-sbom:
+    name: Attest SBOM (prod digests)
+    # Chỉ chạy khi dispatch với attest_sbom=true, và chỉ từ develop (BUILD_IDENTITY
+    # subject bám ref develop — dispatch ref khác sẽ ký sai subject).
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.attest_sbom && github.ref == 'refs/heads/develop' }}
+    runs-on: ubuntu-latest
+    # Cùng environment/role như app-build/app-attest để push .att lên ECR (AWS OIDC).
+    environment: sandbox
+    permissions:
+      contents: read
+      id-token: write # OIDC cho AWS + Cosign keyless (Fulcio). Đẩy ECR qua AWS role, KHÔNG qua GITHUB_TOKEN.
+    env:
+      # Tags file PROD (env sandbox) — khác app-attest (đọc develop).
+      SANDBOX_TAGS_FILE: platform/gitops/environments/sandbox/values-image-tags.yaml
+      BUILD_IDENTITY: https://github.com/${{ github.repository }}/.github/workflows/app-build.yaml@refs/heads/develop
+      OIDC_ISSUER: https://token.actions.githubusercontent.com
+      DRY_RUN: ${{ inputs.sbom_dry_run }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install yq
+        uses: mikefarah/yq@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.TF_AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-sbom-${{ github.actor }}-${{ github.run_id }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@59acb6260d9c0ba8f4a2f9d9b48431a222b68e20 # v3.5.0
+
+      - name: Install Syft
+        uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+
+      - name: SBOM + attest từng digest prod
+        run: |
+          set -euo pipefail
+
+          mapfile -t SERVICES < <(yq -r '.components | keys | .[]' "$SANDBOX_TAGS_FILE")
+
+          attested=0 skipped=0 failed=0
+          echo "## Attest SBOM (prod digests)" >> "$GITHUB_STEP_SUMMARY"
+          echo "| service | tag | digest | kết quả |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
+
+          for svc in "${SERVICES[@]}"; do
+            # Chịu lỗi từng service: 1 image hỏng không chặn cả loạt.
+            set +e
+            TAG=$(yq -r ".components.\"$svc\".imageOverride.tag // \"\"" "$SANDBOX_TAGS_FILE")
+            if [ -z "$TAG" ]; then
+              echo "::warning::'$svc' không có tag trong sandbox tags file."
+              echo "| $svc | — | — | ❌ thiếu tag |" >> "$GITHUB_STEP_SUMMARY"
+              failed=$((failed+1)); set -e; continue
+            fi
+
+            DIGEST=$(aws ecr describe-images \
+              --repository-name "$ECR_REPOSITORY" \
+              --image-ids imageTag="$TAG" \
+              --query 'imageDetails[0].imageDigest' --output text 2>/dev/null)
+            if [ -z "$DIGEST" ] || [ "$DIGEST" = "None" ]; then
+              echo "::warning::'$svc': tag $TAG không có trên ECR."
+              echo "| $svc | $TAG | — | ❌ không có trên ECR |" >> "$GITHUB_STEP_SUMMARY"
+              failed=$((failed+1)); set -e; continue
+            fi
+            REF="${ECR_REGISTRY}/${ECR_REPOSITORY}@${DIGEST}"
+
+            # SKIP theo PREDICATE TYPE spdxjson — KHÔNG chỉ check .att tồn tại: 1 .att có
+            # thể chứa attestation loại khác (vd promoted-develop) mà chưa có SBOM.
+            if cosign verify-attestation --type spdxjson \
+                 --certificate-identity "$BUILD_IDENTITY" \
+                 --certificate-oidc-issuer "$OIDC_ISSUER" \
+                 "$REF" >/dev/null 2>&1; then
+              echo "⏭️  $svc: $DIGEST đã có SBOM spdxjson, skip."
+              echo "| $svc | $TAG | \`$DIGEST\` | ⏭️ đã có SBOM |" >> "$GITHUB_STEP_SUMMARY"
+              skipped=$((skipped+1)); set -e; continue
+            fi
+
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "🔎 $svc: $DIGEST (dry-run, không attest)."
+              echo "| $svc | $TAG | \`$DIGEST\` | 🔎 dry-run |" >> "$GITHUB_STEP_SUMMARY"
+              set -e; continue
+            fi
+
+            syft "registry:${REF}" -o spdx-json > sbom.spdx.json && \
+            cosign attest --yes \
+              --type spdxjson \
+              --predicate sbom.spdx.json \
+              --rekor-url https://rekor.sigstore.dev \
+              --fulcio-url https://fulcio.sigstore.dev \
+              "$REF"
+            if [ $? -ne 0 ]; then
+              echo "::error::'$svc': syft/attest lỗi cho $REF."
+              echo "| $svc | $TAG | \`$DIGEST\` | ❌ attest lỗi |" >> "$GITHUB_STEP_SUMMARY"
+              failed=$((failed+1)); set -e; continue
+            fi
+            echo "✅ $svc: SBOM attested $DIGEST"
+            echo "| $svc | $TAG | \`$DIGEST\` | ✅ attested |" >> "$GITHUB_STEP_SUMMARY"
+            attested=$((attested+1))
+            set -e
+          done
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Attested: $attested — skip: $skipped — lỗi: $failed**" >> "$GITHUB_STEP_SUMMARY"
+          [ "$failed" -eq 0 ] || exit 1

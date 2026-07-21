@@ -54,12 +54,20 @@ _add_field(_tool_call_record, "succeeded", 3, 8)
 _add_field(_tool_call_record, "started_at_unix", 4, 3)
 _add_field(_tool_call_record, "duration_ms", 5, 3)
 
+_citation = _file_proto.message_type.add()
+_citation.name = "Citation"
+_add_field(_citation, "review_id", 1, 9)
+_add_field(_citation, "snippet", 2, 9)
+_add_field(_citation, "score", 3, 9)
+
 _chat_response = _file_proto.message_type.add()
 _chat_response.name = "ChatWithCopilotResponse"
 _add_field(_chat_response, "response", 1, 9)
 _add_field(_chat_response, "pending_confirmation", 2, 11, type_name=".oteldemo.PendingConfirmation")
 _add_field(_chat_response, "actions_taken", 3, 11, label=3, type_name=".oteldemo.ToolCallRecord")
 _add_field(_chat_response, "degraded", 4, 8)
+_add_field(_chat_response, "trace_id", 5, 9)
+_add_field(_chat_response, "citations", 6, 11, label=3, type_name=".oteldemo.Citation")
 
 _service = _file_proto.service.add()
 _service.name = "ShoppingCopilotService"

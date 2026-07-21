@@ -44,7 +44,7 @@ BENIGN = [
 
 
 def main():
-    client = boto3.client("bedrock-runtime", region_name=os.environ.get("AWS_REGION", "us-east-2"))
+    client = boto3.client("bedrock-runtime", region_name=os.environ.get("AWS_REGION", "us-east-1"))
 
     corpus = _get_corpus_embeddings(client)
     print(f"Embedded {len(corpus)}/{len(_KNOWN_ATTACK_CORPUS)} corpus entries.\n")

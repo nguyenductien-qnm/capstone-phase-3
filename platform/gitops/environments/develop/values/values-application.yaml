@@ -1,6 +1,15 @@
 # Develop starts without a public ALB, Product-like ACM certificate or DNS name.
 # Enable ingress only after a Develop-owned certificate and hostname are approved.
 components:
+  frontend:
+    # Mandate-19 (throughput ceiling): frontend (Next.js SSR) là nút thắt — ở 40 user
+    # đã scale kịch HPA max 6 replica mà vẫn CPU-throttle 9.3% vì limits.cpu=200m bóp
+    # cổ, trong khi product-catalog nhàn (throttle 0%). Nới limit để nâng trần bằng
+    # HIỆU SUẤT, KHÔNG thêm node (ràng buộc #19). Giữ requests.cpu=100m → HPA target
+    # 70% không đổi. Override CHỈ develop; prod giữ 200m tới khi có bằng chứng AFTER.
+    resources:
+      limits:
+        cpu: 500m
   frontend-proxy:
     ingress:
       enabled: false
