@@ -46,6 +46,7 @@ spec:
         # external-dns lấy host trong ingress.spec.rules + địa chỉ ALB ở ingress.status.
         sources:
           - ingress
+          - service
         # TXT registry: đánh dấu record do instance này sở hữu -> không xoá nhầm
         # record người khác tạo tay. owner phải duy nhất theo cluster.
         registry: txt

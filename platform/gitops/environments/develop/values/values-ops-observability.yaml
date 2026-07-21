@@ -132,6 +132,11 @@ opensearch:
 
 components:
   load-generator:
+    # Disabled for the Mandate-19 load test: the OTel Demo load-generator pumps
+    # background traffic into the app, so the baseline is not zero and every
+    # mCPU/rps denominator is wrong (master plan section 4, "Nhieu 2"). We drive
+    # load from a dedicated Locust runner instead. Re-enable after the test.
+    enabled: false
     schedulingRules:
       nodeSelector:
         workload-tier: observability

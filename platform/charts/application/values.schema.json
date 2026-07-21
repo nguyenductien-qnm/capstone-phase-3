@@ -465,6 +465,9 @@
         "port": {
           "type": "integer"
         },
+        "targetPort": {
+          "type": "integer"
+        },
         "nodePort": {
           "type": "integer"
         },
