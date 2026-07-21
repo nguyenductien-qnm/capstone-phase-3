@@ -215,45 +215,26 @@ public sealed class ValkeyCartStore : ICartStore, IDisposable, IAsyncDisposable
         {
             var db = GetPooledDatabase();
 
-            for (var attempt = 0; attempt < MaximumCartUpdateRetries; attempt++)
-            {
-                var observedValue = await WaitForRedisAsync(
-                        db.HashGetAsync(userId, CartFieldName))
-                    .ConfigureAwait(false);
+            var value = await WaitForRedisAsync(
+                    db.HashGetAsync(userId, CartFieldName))
+                .ConfigureAwait(false);
 
-                var cart = ParseCart(observedValue, userId);
-                AddQuantity(cart, productId, quantity);
-                var updatedBytes = cart.ToByteArray();
+            var cart = ParseCart(value, userId);
+            AddQuantity(cart, productId, quantity);
 
-                var transaction = db.CreateTransaction();
+            // Keep the proven batch path used before the optimistic transaction rewrite.
+            // WATCH/EXEC adds an UNWATCH cleanup round-trip that can consume the full
+            // one-second operation timeout under load, even when the cart request succeeds.
+            var batch = db.CreateBatch();
+            var setTask = batch.HashSetAsync(
+                userId,
+                CartFieldName,
+                cart.ToByteArray());
+            var expireTask = batch.KeyExpireAsync(userId, CartTtl);
+            batch.Execute();
 
-                transaction.AddCondition(observedValue.IsNull
-                    ? Condition.HashNotExists(userId, CartFieldName)
-                    : Condition.HashEqual(userId, CartFieldName, observedValue));
-
-                var setTask = transaction.HashSetAsync(userId, CartFieldName, updatedBytes);
-                var expireTask = transaction.KeyExpireAsync(userId, CartTtl);
-
-                var committed = await WaitForRedisAsync(transaction.ExecuteAsync())
-                    .ConfigureAwait(false);
-
-                if (committed)
-                {
-                    await WaitForRedisAsync(Task.WhenAll(setTask, expireTask))
-                        .ConfigureAwait(false);
-                    return;
-                }
-
-                CartUpdateConflictCounter.Add(1);
-                await DelayAfterConflictAsync(attempt).ConfigureAwait(false);
-
-                // Select another healthy connection after a conflict or topology transition.
-                db = GetPooledDatabase();
-            }
-
-            throw new RpcException(new Status(
-                StatusCode.Aborted,
-                "The cart was updated concurrently. Retry the request."));
+            await WaitForRedisAsync(Task.WhenAll(setTask, expireTask))
+                .ConfigureAwait(false);
         }
         catch (RpcException)
         {
@@ -280,20 +261,10 @@ public sealed class ValkeyCartStore : ICartStore, IDisposable, IAsyncDisposable
             var db = GetPooledDatabase();
             var emptyCartBytes = new Oteldemo.Cart { UserId = userId }.ToByteArray();
 
-            // MULTI/EXEC makes the value and TTL update atomic.
-            var transaction = db.CreateTransaction();
-            var setTask = transaction.HashSetAsync(userId, CartFieldName, emptyCartBytes);
-            var expireTask = transaction.KeyExpireAsync(userId, CartTtl);
-
-            var committed = await WaitForRedisAsync(transaction.ExecuteAsync())
-                .ConfigureAwait(false);
-
-            if (!committed)
-            {
-                throw new RpcException(new Status(
-                    StatusCode.Unavailable,
-                    "Cart storage rejected the transaction."));
-            }
+            var batch = db.CreateBatch();
+            var setTask = batch.HashSetAsync(userId, CartFieldName, emptyCartBytes);
+            var expireTask = batch.KeyExpireAsync(userId, CartTtl);
+            batch.Execute();
 
             await WaitForRedisAsync(Task.WhenAll(setTask, expireTask))
                 .ConfigureAwait(false);
