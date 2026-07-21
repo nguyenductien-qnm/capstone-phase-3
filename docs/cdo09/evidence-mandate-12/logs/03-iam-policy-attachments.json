@@ -1,0 +1,23 @@
+{
+  "capturedAtUtc": "2026-07-20T14:29:50Z",
+  "policy": {
+    "policyName": "ecommerce-dev-audit-log-tamper-deny",
+    "attachmentCount": 2,
+    "defaultVersionId": "v1"
+  },
+  "generatedRoles": [
+    {
+      "roleName": "AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568",
+      "attachedPolicies": [
+        "ecommerce-dev-audit-log-tamper-deny"
+      ]
+    },
+    {
+      "roleName": "AWSReservedSSO_Phase3-Mentor-PermissionSet_05d2f6060a74cb33",
+      "attachedPolicies": [
+        "ecommerce-dev-audit-log-tamper-deny"
+      ]
+    }
+  ],
+  "note": "Read-only AWS CLI capture. Account-specific policy and role ARNs were omitted by query."
+}

@@ -6,11 +6,54 @@ File này liệt kê các việc có thể cần người ngoài code-change own
 
 ## Cần trước khi mentor verify
 
-### 1. Approve/run Terraform apply qua GitHub protected workflow
+### 1. Cấu hình email người nhận cho Mandate-12 SNS alert
+
+**Người phụ trách:** repo/admin người có quyền cấu hình GitHub Environment/Secrets.
+
+**Hành động:** tạo GitHub secret/env cho environment sẽ chạy Mandate-12 plan/apply:
+
+```text
+MANDATE_12_ALERT_EMAIL=<email nhận cảnh báo>
+```
+
+Vì sao cần:
+
+- Mandate-12 tạo SNS email alert riêng, không dùng Slack/Lambda của Mandate-11.
+- Email cá nhân là thông tin privacy-sensitive, không nên hardcode trong repo nếu không cần.
+- Terraform cần giá trị này khi chạy plan/apply qua GitHub Actions.
+- Develop chỉ cần secret/env tương ứng nếu sau này có workflow/config riêng bật `enable_mandate_12_alert = true` ở develop. Với thiết kế hiện tại, develop default off và chỉ cần static validation.
+
+### 2. Confirm SNS email subscription sau Terraform apply
+
+**Người phụ trách:** người sở hữu email nhận cảnh báo.
+
+**Hành động:** sau `terraform apply`, mở email từ AWS Notifications và bấm confirm subscription.
+
+Vì sao cần:
+
+- `aws_sns_topic_subscription` với protocol `email` sẽ ở trạng thái pending cho tới khi receiver confirm.
+- Nếu chưa confirm, EventBridge có publish vào SNS nhưng email sẽ không được gửi tới người nhận.
+- Mentor test alert path chỉ nên chạy sau khi subscription đã `Confirmed`.
+
+Verify:
+
+```bash
+aws sns list-subscriptions-by-topic \
+  --region us-east-1 \
+  --topic-arn <m12-topic-arn>
+```
+
+Kỳ vọng:
+
+```text
+SubscriptionArn != PendingConfirmation
+```
+
+### 3. Approve/run Terraform apply qua GitHub protected workflow
 
 **Người phụ trách:** người approve GitHub Environment `sandbox` / infrastructure operator.
 
-**Hành động:** approve và chạy workflow `infra-cd.yaml` sau khi PR đã được review.
+**Hành động:** approve và chạy workflow Terraform sau khi PR đã được review.
 
 Workflow inputs dự kiến:
 
@@ -21,78 +64,46 @@ confirm = apply-sandbox
 
 Vì sao cần:
 
-- Mandate-12 thay đổi AWS CloudTrail selectors và IAM role policy attachments.
+- Mandate-12 thay đổi AWS CloudTrail selectors, EventBridge rule và SNS topic/subscription. IAM Permission Set attachment do adminHolder quản lý ngoài Terraform.
 - Product-like/Sandbox infra đang được quản lý qua GitHub Actions.
-- Workflow có account guard `allowed-account-ids: "804372444787"` và tạo plan artifact để review.
+- Workflow có `allowed-account-ids` guard trỏ đúng Sandbox account và tạo plan artifact để review.
+- Develop hiện default off cho Mandate-12, nên runtime verification chính là sandbox plan/apply sau khi PR được review.
 
 Phương án dự phòng:
 
-- Local apply có thể chạy nếu operator có sandbox tfvars thật, SSO profile đúng, và quyền backend.
+- Local apply có thể chạy nếu operator có sandbox tfvars thật, SSO profile đúng, quyền backend, và biến `TF_VAR_mandate_12_alert_email` được export local.
 - Nếu dùng local apply, phải capture `aws sts get-caller-identity`, plan output, và post-apply verification evidence.
 
-### 2. Approve workaround attach deny policy trực tiếp vào SSO roles
-
-**Người phụ trách:** CDO lead / mentor / adminHolder, tùy quy trình team.
-
-**Hành động:** approve việc Terraform attach tạm policy `ecommerce-dev-audit-log-tamper-deny` vào:
-
-```text
-AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568
-AWSReservedSSO_Phase3-Mentor-PermissionSet_05d2f6060a74cb33
-```
-
-Vì sao cần:
-
-- Runtime IAM simulation hiện cho thấy CDO SSO role vẫn gọi được CloudTrail tamper actions.
-- Mentor có thể dùng CDO hoặc Mentor SSO role để kiểm chứng.
-- Nếu deny chưa effective, bài test “làm mù” có thể fail.
-
-Giới hạn quan trọng:
-
-- Đây là workaround cho deadline.
-- `AWSReservedSSO_*` roles do IAM Identity Center quản lý.
-- Nếu Permission Set được reprovision sau này, role attachment có thể bị overwrite hoặc role có thể bị recreate.
-
-### 3. Xác nhận alert receiver nếu team muốn dùng alert làm evidence chính
-
-**Người phụ trách:** channel owner hoặc on-call receiver, nếu có.
-
-**Hành động:** xác nhận kênh audit alert từ Mandate-11 vẫn có người theo dõi và nhận được message, nếu team quyết định dùng đường alert này trong mentor demo.
-
-Đường runtime hiện tại:
-
-```text
-EventBridge rule: ecommerce-dev-audit-cloudtrail-tampering
-SQS queue:        ecommerce-dev-audit-processing
-Lambda:           ecommerce-dev-audit-slack-alert
-Webhook secret:   /ecommerce/dev/audit/slack-webhook
-```
-
-Vì sao cần:
-
-- Mandate-12 không bắt buộc phải dùng Slack.
-- Với kế hoạch hiện tại, điều kiện pass chính cho “làm mù” là IAM deny trả `explicitDeny`.
-- Alert path là evidence bổ sung. Nếu không có thông tin receiver/webhook, không dùng Slack message làm điều kiện pass.
-
-## Follow-up bền vững nên làm
-
-### 1. Chuyển deny attachment lên IAM Identity Center Permission Set
+### 4. Xác nhận IAM deny ở cấp Permission Set
 
 **Người phụ trách:** adminHolder / IAM Identity Center administrator.
 
-**Hành động:** attach managed policy vào routine operator Permission Set thay vì attach trực tiếp vào generated `AWSReservedSSO_*` roles.
-
-Policy:
+**Hành động:** attach customer-managed policy sau vào hai routine operator Permission Sets và provision/update chúng vào Sandbox account:
 
 ```text
-arn:aws:iam::804372444787:policy/ecommerce-dev-audit-log-tamper-deny
+Policy name: ecommerce-dev-audit-log-tamper-deny
+Policy path: /
+Permission Sets:
+- Phase3-CDO-PermissionSet
+- Phase3-Mentor-PermissionSet
 ```
 
-Vì sao:
+**Trạng thái kiểm tra ngày 20/07/2026:**
 
-- Enforcement ở Permission Set bền hơn.
-- Tránh quản lý trực tiếp generated SSO roles.
-- Khớp identity control boundary tốt hơn.
+- Policy có `AttachmentCount = 2`.
+- Policy xuất hiện trên đúng hai generated CDO/Mentor SSO roles.
+- IAM Simulator trả `explicitDeny` cho `StopLogging`, `DeleteTrail` và `PutEventSelectors` trên cả hai role.
+- CDO role bị từ chối `sso:ListInstances`, nên cấu hình Permission Set cần adminHolder/console làm evidence ownership.
+
+Terraform giữ `audit_operator_role_names = []` và không attach trực tiếp vào generated `AWSReservedSSO_*` roles, tránh hai hệ thống cùng quản lý một attachment.
+
+## Follow-up bền vững nên làm
+
+### 1. Lưu và kiểm tra định kỳ bằng chứng Permission Set
+
+**Người phụ trách:** adminHolder / IAM Identity Center administrator.
+
+**Hành động:** lưu screenshot/config đã redact của hai Permission Sets và re-run IAM Simulator sau mỗi lần provision hoặc thay đổi Permission Set.
 
 ### 2. Định nghĩa break-glass audit administration
 
@@ -112,7 +123,7 @@ audit_administrator_principals
 audit_break_glass_principals
 ```
 
-Hai biến này exempt principals khỏi deny policy.
+Trong code hiện tại, exemption chỉ áp dụng cho CloudTrail tamper statement; S3, CloudWatch Logs và KMS deny statements vẫn áp dụng. Thiết kế break-glass đầy đủ cần một follow-up riêng.
 
 ### 3. Cân nhắc guardrail cấp AWS Organizations
 
@@ -129,9 +140,10 @@ Việc này không bắt buộc cho project hiện tại nếu account không đ
 
 ## Không cần cho deadline Mandate-12
 
-- Tạo alert pipeline mới.
+- Tái sử dụng Lambda/Slack pipeline của Mandate-11/CDO-05.
+- Tạo Lambda mới.
 - Tạo operator role mới mà không ai dùng.
 - Attach deny policy vào EKS node roles hoặc cluster roles.
-- Migration CloudTrail bucket để bật S3 Object Lock.
+- Bật Object Lock và áp retention cho object hiện hữu; đây là thay đổi không thể đảo ngược cần risk review riêng.
 - Tăng retention cho EKS Kubernetes audit log.
 - Các thay đổi runtime hardening như `runAsNonRoot`.

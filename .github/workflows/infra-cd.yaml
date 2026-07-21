@@ -207,6 +207,7 @@ jobs:
     env:
       TF_VAR_audit_slack_webhook_url: ${{ secrets.AUDIT_SLACK_WEBHOOK_URL }}
       TF_VAR_audit_pipeline_health_email: ${{ secrets.AUDIT_PIPELINE_HEALTH_EMAIL }}
+      TF_VAR_mandate_12_alert_email: ${{ secrets.MANDATE_12_ALERT_EMAIL }}
     concurrency:
       group: terraform-sandbox-state
       cancel-in-progress: false
@@ -334,6 +335,7 @@ jobs:
       # apply job must receive the same GitHub Environment secrets again.
       TF_VAR_audit_slack_webhook_url: ${{ secrets.AUDIT_SLACK_WEBHOOK_URL }}
       TF_VAR_audit_pipeline_health_email: ${{ secrets.AUDIT_PIPELINE_HEALTH_EMAIL }}
+      TF_VAR_mandate_12_alert_email: ${{ secrets.MANDATE_12_ALERT_EMAIL }}
     concurrency:
       group: terraform-sandbox-state
       cancel-in-progress: false
