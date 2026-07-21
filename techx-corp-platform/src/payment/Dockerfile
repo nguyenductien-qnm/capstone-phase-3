@@ -19,7 +19,7 @@ WORKDIR /usr/src/app/
 
 COPY --from=builder /usr/src/app/node_modules/ node_modules/
 
-COPY ./pb/demo.proto demo.proto
+COPY ./src/pb/demo.proto demo.proto
 
 COPY ./src/payment/charge.js charge.js
 COPY ./src/payment/index.js index.js
