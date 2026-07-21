@@ -10,6 +10,7 @@ evidence-mandate-12/
 ├── mandate-12.md             # Evidence pack nộp mentor
 ├── EVIDENCE-INDEX.md         # Acceptance → evidence path
 ├── RUN-RESULTS.md            # Kết quả runtime và blocker
+├── mandate-12/               # Kế hoạch, runbook, báo cáo và video guide
 ├── logs/                     # Raw CLI/workflow output đã redact
 └── screenshots/              # Ảnh do owner tự chụp và redact
 ```
