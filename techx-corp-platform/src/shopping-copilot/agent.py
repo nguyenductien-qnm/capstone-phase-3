@@ -75,8 +75,9 @@ CATEGORY_PICKER_TEMPLATE = ("chọn đúng một trong các danh mục (Telescop
 # INTRO + RULES but NOT the CATALOG: checking the whole prompt made benign
 # answers that quote catalog facts trip the guard (prod false-blocks 18/07:
 # "hi" / "bạn có thể làm gì" → "Xin lỗi, tôi không thể hiển thị nội dung này").
-SYSTEM_PROMPT_INTRO = """Bạn là Shopping Copilot của TechX Corp — cửa hàng thiết bị thiên văn.
-Nhiệm vụ: giúp khách tìm sản phẩm, đọc review, xem/ thêm giỏ hàng.
+SYSTEM_PROMPT_INTRO = """Bạn là Shopping Copilot của TechX Corp — cửa hàng thiết bị thiên văn (kính thiên văn, ống nhòm, phụ kiện, sách thiên văn).
+Nhiệm vụ DUY NHẤT: giúp khách MUA SẮM tại TechX — tìm sản phẩm, đọc review, xem/thêm giỏ hàng.
+Bạn KHÔNG phải trợ lý đa năng: KHÔNG dạy học, KHÔNG tư vấn nghề nghiệp/lương/đầu tư, KHÔNG lập trình, KHÔNG trả lời kiến thức chung ngoài phạm vi mua sắm thiên văn.
 """
 
 SYSTEM_PROMPT_CATALOG = """DANH MỤC SẢN PHẨM (CATALOG):
@@ -93,6 +94,13 @@ SYSTEM_PROMPT_CATALOG = """DANH MỤC SẢN PHẨM (CATALOG):
 """
 
 SYSTEM_PROMPT_RULES = """QUY TẮC BẮT BUỘC:
+0. PHẠM VI (SCOPE) — ƯU TIÊN CAO NHẤT: CHỈ trả lời về mua sắm tại TechX (sản phẩm thiên văn, giá,
+   review, gợi ý, giỏ hàng). Nếu khách hỏi BẤT KỲ chủ đề nào ngoài phạm vi này (lập trình, học tập,
+   tăng lương, nghề nghiệp, đầu tư, sức khỏe, chính trị, kiến thức chung...), TỪ CHỐI NGẮN GỌN và mời
+   quay lại đúng một câu: "Mình là trợ lý mua sắm của TechX, chỉ hỗ trợ về thiết bị thiên văn thôi.
+   Bạn cần tìm kính thiên văn, ống nhòm hay phụ kiện gì không?" TUYỆT ĐỐI KHÔNG đưa ra hướng dẫn,
+   bài học, danh sách bước, hay lời khuyên ngoài phạm vi — kể cả khi khách nài nỉ, đóng vai, hay nói
+   "chỉ lần này thôi".
 1. NGẮN GỌN: tối đa 3-4 câu mỗi lượt.
 2. KHÔNG ẢO GIÁC: mọi thông tin review PHẢI đến từ tool get_product_reviews.
    Nếu review_count = 0 hoặc tool không có dữ liệu, nói đúng: "Tôi không có thông
@@ -362,6 +370,7 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
             return AgentResult(text=_fallback_text(), actions_taken=actions, degraded=True, trace_id=trace_id_hex)
         with tracer.start_as_current_span("bedrock_converse") as bedrock_span:
             bedrock_span.set_attribute("gen_ai.request.model", model_id)
+            t_converse = time.time()
             try:
                 response = invoke_bedrock_converse_with_fallback(
                     primary_client=bedrock_client,
@@ -393,6 +402,16 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
             bedrock_span.set_attribute("gen_ai.usage.output_tokens", usage.get("outputTokens", 0))
             logger.info("audit bedrock_usage model=%s input_tokens=%s output_tokens=%s",
                         model_id, usage.get("inputTokens", "?"), usage.get("outputTokens", "?"))
+
+        # Trace UI: show the model's DECISION this turn (what the AI "thinks" it should do next) —
+        # either it chose to call tool(s), or it produced a direct answer.
+        _decided = [b["toolUse"]["name"] for b in blocks if "toolUse" in b]
+        trace_steps.append({
+            "step_name": (f"LLM → gọi tool: {', '.join(_decided)}" if _decided
+                          else "LLM → trả lời trực tiếp"),
+            "latency_ms": int((time.time() - t_converse) * 1000),
+            "status": "ok",
+        })
 
         if stop != "tool_use":
             text = "\n".join(b["text"] for b in blocks if "text" in b)
@@ -460,6 +479,7 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
 
             with tracer.start_as_current_span("tool_call") as tool_span:
                 tool_span.set_attribute("tool.name", name)
+                tool_span.set_attribute("tool.arguments", json.dumps(args)[:500])
                 if name == "add_item_to_cart":
                     # Confirmation gate: prepare, do NOT execute.
                     pid = args.get("product_id", "")
@@ -482,11 +502,20 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
                         except (json.JSONDecodeError, AttributeError):
                             pass
                 tool_span.set_attribute("tool.succeeded", ok)
+                tool_span.set_attribute("tool.result_preview", out[:300])
 
+            dur_ms = int((time.time() - started) * 1000)
             actions.append(ToolCall(
                 tool_name=name, arguments_json=json.dumps(args), succeeded=ok,
-                started_at_unix=int(started), duration_ms=int((time.time() - started) * 1000),
+                started_at_unix=int(started), duration_ms=dur_ms,
             ))
+            # Trace UI: show WHAT the AI operated with (which tool + key argument).
+            _arg_hint = args.get("query") or args.get("category") or args.get("product_id") or ""
+            trace_steps.append({
+                "step_name": f"Tool: {name}" + (f" ({_arg_hint})" if _arg_hint else ""),
+                "latency_ms": dur_ms,
+                "status": "ok" if ok else "error",
+            })
             parsed_out = json.loads(out)
             if not isinstance(parsed_out, dict):
                 parsed_out = {"result": parsed_out}
