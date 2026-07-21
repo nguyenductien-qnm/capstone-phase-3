@@ -97,6 +97,7 @@ module "rds" {
   rotation_lambda_arn                     = var.rds_rotation_lambda_arn
   rotation_rules_automatically_after_days = var.rds_rotation_rules_automatically_after_days
   enable_logical_replication              = true
+  track_activity_query_size               = var.rds_track_activity_query_size
 }
 
 module "elasticache" {
@@ -215,7 +216,6 @@ module "external_secrets_irsa" {
     module.msk.kms_key_arn,
   ]
 }
-
 
 
 

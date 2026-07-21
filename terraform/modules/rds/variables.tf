@@ -44,7 +44,7 @@ variable "db_username" {
 variable "engine_version" {
   type        = string
   description = "PostgreSQL engine version supported by the target AWS region"
-  default     = "16.14"
+  default     = "17.10"
 }
 
 variable "instance_class" {
@@ -113,3 +113,8 @@ variable "enable_logical_replication" {
   default     = false
 }
 
+variable "track_activity_query_size" {
+  type        = number
+  description = "Optional PostgreSQL track_activity_query_size value preserved in the Terraform-managed parameter group"
+  default     = null
+}

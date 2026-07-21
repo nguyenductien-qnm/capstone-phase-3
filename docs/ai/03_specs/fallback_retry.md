@@ -96,7 +96,7 @@ Dưới đây là các thông số chi tiết cấu hình cho cơ chế định 
 
 ### C. Bảng đo P50/P95 Bedrock thật (15/07/2026)
 
-Nguồn: `docs/ai/evals/bedrock_latency_results_2026-07-15.md`. Role SSO hiện tại bị `OperationNotAllowed` khi invoke runtime ở `us-east-1`; số dưới đây đo bằng cùng model/inference profile tại `us-east-2` để có latency thật thay vì tiếp tục dùng benchmark ước lượng.
+Nguồn: `docs/ai/evals/bedrock_latency_results_2026-07-15.md`. Role SSO hiện tại bị `OperationNotAllowed` khi invoke runtime ở `us-east-1`; số dưới đây đo bằng cùng model/inference profile tại `us-east-1` để có latency thật thay vì tiếp tục dùng benchmark ước lượng.
 
 | Flow | Role | Model | Runtime profile | n | Flow P50 | Flow P95 | Timeout chốt |
 |---|---|---|---|---:|---:|---:|---:|

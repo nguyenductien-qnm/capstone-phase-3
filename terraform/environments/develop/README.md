@@ -41,7 +41,7 @@ The workflow also expects the same Terraform input variables used by Product-lik
 
 Subnet variables and access entries are Terraform JSON values. Do not copy the Product-like CIDRs blindly: verify the selected Develop CIDR does not overlap Product-like, VPN, peered VPCs or internal networks. The private application subnet map must contain key `app-2`, which is the default location of the dedicated observability node.
 
-`develop-capacity.tfvars` deliberately fixes the primary workload node group at desired/min/max `2` and keeps one dedicated observability node required by the current EKS module. This results in three `t3.large` workers in total, with no scaling range configured for either managed node group. The same file fixes Develop Valkey at two cache nodes because the shared module enables automatic failover and Multi-AZ; the GitHub Environment value `TF_VAR_VALKEY_NUM_CACHE_CLUSTERS` is intentionally unused.
+`develop-capacity.tfvars` fixes the primary workload node group at desired/min/max `3` (raised from `2` to mirror Production for Mandate-19 load-test parity — at 2 nodes the cluster was already at 56-95% CPU requests with ml-guard Pending) and keeps one dedicated observability node required by the current EKS module. This results in four `t3.large` workers in total, with no scaling range configured for either managed node group (min=max so no node is added mid load-test). The same file fixes Develop Valkey at two cache nodes because the shared module enables automatic failover and Multi-AZ; the GitHub Environment value `TF_VAR_VALKEY_NUM_CACHE_CLUSTERS` is intentionally unused.
 
 ## Safe execution order
 

@@ -1,3 +1,5 @@
+> ⚠️ Superseded — pre-dates ADR-014 cascade
+
 # Báo Cáo Đánh Giá (Evaluation Report) - Shopping Copilot & Summaries
 **Ngày báo cáo:** 16/07/2026
 **Người thực hiện:** TechX Corp AI Team
@@ -31,7 +33,7 @@
 
 **Kết quả:**
 - **Overall Accuracy:** 75.0% (18/24 passed)
-- **Ghi chú bảo mật (Security Flaw Detected):** Khi chạy với dữ liệu thật trên Amazon Nova Lite (us-east-2), model đã thất bại trước các tấn công Prompt Injection (ví dụ: "Bỏ qua các lệnh trước đó...") ở 5/6 trường hợp. Kịch bản Grounded (dữ liệu có sẵn) trả lời hoàn hảo (12/12). 
+- **Ghi chú bảo mật (Security Flaw Detected):** Khi chạy với dữ liệu thật trên Amazon Nova Lite (us-east-1), model đã thất bại trước các tấn công Prompt Injection (ví dụ: "Bỏ qua các lệnh trước đó...") ở 5/6 trường hợp. Kịch bản Grounded (dữ liệu có sẵn) trả lời hoàn hảo (12/12). 
 - **Đề xuất (Next Action):** Tích hợp AWS Bedrock Guardrails trước khi đưa vào Production để lọc Injection. CI Pipeline hiện tại sẽ báo FAIL (do threshold là 80%) cho tới khi lỗ hổng Injection này được vá.
 - **Giao diện người dùng (17/07):** Copilot đã có UI web thật trong storefront — widget `CopilotChat` (React/styled-components, mount ở `_app.tsx`) gọi Next API route `/api/copilot` bridge sang gRPC `shopping-copilot:3552`, gồm action-gate xác nhận/hủy cho thao tác ghi giỏ hàng. Không dùng Streamlit.
 
@@ -91,7 +93,7 @@
 | Drain3 sim_th | **0.3 trội 0.4/0.5/0.6** cả 4 tiêu chí; depth vô cảm → code default 0.3 | drain3_param_grid.py (masking: `MASK=1`) |
 | Fallback ladder runtime | "Fallback routing triggered" ×5; "CB OPENED after 3 failures" | docker logs (compose) |
 | FP 15 phút tải thường | 2 FP config (latency rule match flagd — đã vá filter) + 2 TP sai nhãn (đã vá marker) | detector run |
-| Bedrock latency P50/P95 thật | Reviews Lite 1.571/3.969s; Reviews Micro 1.578/1.938s; Copilot Pro 4.086/5.688s; Copilot Lite 1.907/2.468s | measure_bedrock_latency.py (`us-east-2`; `us-east-1` blocked by OperationNotAllowed for current SSO role) |
+| Bedrock latency P50/P95 thật | Reviews Lite 1.571/3.969s; Reviews Micro 1.578/1.938s; Copilot Pro 4.086/5.688s; Copilot Lite 1.907/2.468s | measure_bedrock_latency.py (`us-east-1`; `us-east-1` blocked by OperationNotAllowed for current SSO role) |
 | Unit Test: Model Gateway | Pass 100% tỷ lệ routing theo flagd | `test_model_router.py` |
 | Unit Test: Shopping Copilot | Pass 100% các Guardrails (Prompt Injection, PII, Hallucination, Action Gate) | `test_copilot.py` |
 | Unit Test: Recommendations | Pass 100% vector cosine search trên Mock pgvector | `test_recommendation.py` |

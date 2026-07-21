@@ -91,7 +91,10 @@ def test_confirmation_gate_two_phase():
 def test_read_tool_routing_and_audit():
     orig = tools.get_product_reviews
     seen = []
-    tools.get_product_reviews = lambda pid: seen.append(pid) or '{"status":"ok","review_count":3,"average_score":4.8,"summary":"good"}'
+    tools.get_product_reviews = lambda pid: seen.append(pid) or (
+        '{"status":"ok","review_count":1,"average_score":4.8,"summary":"good",'
+        '"citations":[{"review_id":"alice","snippet":"good","score":"4.8"}]}'
+    )
     try:
         bedrock = FakeBedrock([
             _tool_use("get_product_reviews", {"product_id": "L9ECAV7KIM"}),
@@ -101,6 +104,9 @@ def test_read_tool_routing_and_audit():
         assert seen == ["L9ECAV7KIM"], f"tool not routed: {seen}"
         assert res.pending is None
         assert any(a.tool_name == "get_product_reviews" and a.succeeded for a in res.actions_taken)
+        # Phase 5: citations collected from the tool result must reach AgentResult
+        # (unless the output-grounding guardrail blocked the answer).
+        assert res.citations == [{"review_id": "alice", "snippet": "good", "score": "4.8"}], res.citations
     finally:
         tools.get_product_reviews = orig
 

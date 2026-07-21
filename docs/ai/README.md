@@ -21,7 +21,6 @@ xem "Sổ đăng ký con số" cuối `05_adrs.md`.
 > Đọc spec luôn kèm phụ lục cuối file — nhiều thông số thân bài đã được sửa bằng số đo.
 
 ## Bổ trợ
-- `open-questions-w2.md` — **Chất vấn Mentor Tuần 2**: Các câu hỏi mở về an toàn AI (MANDATE-06), latency, và demo workflow.
 - `rubric_assessment.md` — **Tự đánh giá Rubric**: So sánh tài liệu AI với các tiêu chí chấm điểm của mentor.
 - `system_audit_report.md` — **Báo cáo Audit Hệ thống & Gaps**: Đánh giá an toàn, regression và rò rỉ CI/CD.
 - `ai-data-requirements-for-cdo.md` — **gửi CDO**: nhu cầu dữ liệu, thay thế OpenSearch, trả lời 4 câu hỏi 12/07

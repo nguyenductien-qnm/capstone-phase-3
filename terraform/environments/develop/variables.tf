@@ -237,6 +237,12 @@ variable "enable_rds_proxy" {
   default     = true
 }
 
+variable "rds_track_activity_query_size" {
+  type        = number
+  description = "Giá trị track_activity_query_size cần giữ khi Primary chuyển sang parameter group do Terraform quản lý"
+  default     = null
+}
+
 variable "valkey_node_type" {
   type        = string
   description = "Loại Node của ElastiCache Valkey (ví dụ: cache.t4g.micro)"

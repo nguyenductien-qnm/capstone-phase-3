@@ -77,6 +77,16 @@ resource "aws_db_parameter_group" "this" {
     apply_method = "pending-reboot"
   }
 
+  dynamic "parameter" {
+    for_each = var.track_activity_query_size == null ? [] : [var.track_activity_query_size]
+
+    content {
+      name         = "track_activity_query_size"
+      value        = tostring(parameter.value)
+      apply_method = "pending-reboot"
+    }
+  }
+
   tags = {
     Name        = "${var.project_name}-${var.environment}-postgres-pg"
     Environment = var.environment

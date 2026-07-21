@@ -51,6 +51,15 @@ message ToolCallRecord {
   int64  duration_ms = 5;
 }
 
+// Một review cụ thể mà Agent dùng làm nguồn cho câu trả lời (MANDATE-06/7a
+// tracing+citation trên UI -- cho phép reviewer kiểm chứng câu trả lời không
+// bịa, thay vì chỉ grep log).
+message Citation {
+  string review_id = 1;   // id review trong reviews.productreviews
+  string snippet = 2;     // trích đoạn description dùng làm nguồn
+  string score = 3;       // điểm số của review đó
+}
+
 // Phản hồi từ Agent
 message ChatWithCopilotResponse {
   string response = 1;        // Câu trả lời tổng hợp dạng text từ Agent
@@ -65,4 +74,13 @@ message ChatWithCopilotResponse {
 
   // Agent trả lời từ fallback (LLM lỗi/timeout) thay vì model chính.
   bool degraded = 4;
+
+  // OTel trace_id (hex, 32 ký tự) của lượt này -- tra trong Jaeger để xem toàn
+  // bộ span con (Bedrock call, từng guardrail stage, từng tool call). Rỗng nếu
+  // không có span đang active (vd. gọi ngoài context gRPC request).
+  string trace_id = 5;
+
+  // Review cụ thể agent dùng làm nguồn cho câu trả lời. Rỗng nếu câu trả lời
+  // không dựa trên review nào (vd. câu hỏi về giá, hoặc "không có thông tin").
+  repeated Citation citations = 6;
 }
