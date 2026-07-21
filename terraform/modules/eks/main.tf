@@ -359,6 +359,11 @@ resource "aws_eks_addon" "core" {
   addon_name    = each.value
   addon_version = data.aws_eks_addon_version.core[each.key].version
 
+  # M17-R3: chỉ vpc-cni + khi bật cờ mới enforce NetworkPolicy; addon khác giữ nguyên.
+  configuration_values = (each.value == "vpc-cni" && var.enable_network_policy) ? jsonencode({
+    enableNetworkPolicy = "true"
+  }) : null
+
   resolve_conflicts_on_create = "OVERWRITE"
   resolve_conflicts_on_update = "PRESERVE"
 
