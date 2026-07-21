@@ -71,6 +71,20 @@ export interface ToolCallRecord {
   durationMs: number;
 }
 
+/**
+ * Một review cụ thể mà Agent dùng làm nguồn cho câu trả lời (MANDATE-06/7a
+ * tracing+citation trên UI -- cho phép reviewer kiểm chứng câu trả lời không
+ * bịa, thay vì chỉ grep log).
+ */
+export interface Citation {
+  /** id review trong reviews.productreviews */
+  reviewId: string;
+  /** trích đoạn description dùng làm nguồn */
+  snippet: string;
+  /** điểm số của review đó */
+  score: string;
+}
+
 /** Phản hồi từ Agent */
 export interface ChatWithCopilotResponse {
   /** Câu trả lời tổng hợp dạng text từ Agent */
@@ -87,6 +101,17 @@ export interface ChatWithCopilotResponse {
   actionsTaken: ToolCallRecord[];
   /** Agent trả lời từ fallback (LLM lỗi/timeout) thay vì model chính. */
   degraded: boolean;
+  /**
+   * OTel trace_id (hex, 32 ký tự) của lượt này -- tra trong Jaeger để xem toàn
+   * bộ span con (Bedrock call, từng guardrail stage, từng tool call). Rỗng nếu
+   * không có span đang active (vd. gọi ngoài context gRPC request).
+   */
+  traceId: string;
+  /**
+   * Review cụ thể agent dùng làm nguồn cho câu trả lời. Rỗng nếu câu trả lời
+   * không dựa trên review nào (vd. câu hỏi về giá, hoặc "không có thông tin").
+   */
+  citations: Citation[];
 }
 
 function createBaseChatWithCopilotRequest(): ChatWithCopilotRequest {
@@ -463,8 +488,107 @@ export const ToolCallRecord: MessageFns<ToolCallRecord> = {
   },
 };
 
+function createBaseCitation(): Citation {
+  return { reviewId: "", snippet: "", score: "" };
+}
+
+export const Citation: MessageFns<Citation> = {
+  encode(message: Citation, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.reviewId !== "") {
+      writer.uint32(10).string(message.reviewId);
+    }
+    if (message.snippet !== "") {
+      writer.uint32(18).string(message.snippet);
+    }
+    if (message.score !== "") {
+      writer.uint32(26).string(message.score);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): Citation {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseCitation();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.reviewId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.snippet = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.score = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): Citation {
+    return {
+      reviewId: isSet(object.reviewId) ? globalThis.String(object.reviewId) : "",
+      snippet: isSet(object.snippet) ? globalThis.String(object.snippet) : "",
+      score: isSet(object.score) ? globalThis.String(object.score) : "",
+    };
+  },
+
+  toJSON(message: Citation): unknown {
+    const obj: any = {};
+    if (message.reviewId !== "") {
+      obj.reviewId = message.reviewId;
+    }
+    if (message.snippet !== "") {
+      obj.snippet = message.snippet;
+    }
+    if (message.score !== "") {
+      obj.score = message.score;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<Citation>, I>>(base?: I): Citation {
+    return Citation.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<Citation>, I>>(object: I): Citation {
+    const message = createBaseCitation();
+    message.reviewId = object.reviewId ?? "";
+    message.snippet = object.snippet ?? "";
+    message.score = object.score ?? "";
+    return message;
+  },
+};
+
 function createBaseChatWithCopilotResponse(): ChatWithCopilotResponse {
-  return { response: "", pendingConfirmation: undefined, actionsTaken: [], degraded: false };
+  return {
+    response: "",
+    pendingConfirmation: undefined,
+    actionsTaken: [],
+    degraded: false,
+    traceId: "",
+    citations: [],
+  };
 }
 
 export const ChatWithCopilotResponse: MessageFns<ChatWithCopilotResponse> = {
@@ -480,6 +604,12 @@ export const ChatWithCopilotResponse: MessageFns<ChatWithCopilotResponse> = {
     }
     if (message.degraded !== false) {
       writer.uint32(32).bool(message.degraded);
+    }
+    if (message.traceId !== "") {
+      writer.uint32(42).string(message.traceId);
+    }
+    for (const v of message.citations) {
+      Citation.encode(v!, writer.uint32(50).fork()).join();
     }
     return writer;
   },
@@ -523,6 +653,22 @@ export const ChatWithCopilotResponse: MessageFns<ChatWithCopilotResponse> = {
           message.degraded = reader.bool();
           continue;
         }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.traceId = reader.string();
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.citations.push(Citation.decode(reader, reader.uint32()));
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -542,6 +688,10 @@ export const ChatWithCopilotResponse: MessageFns<ChatWithCopilotResponse> = {
         ? object.actionsTaken.map((e: any) => ToolCallRecord.fromJSON(e))
         : [],
       degraded: isSet(object.degraded) ? globalThis.Boolean(object.degraded) : false,
+      traceId: isSet(object.traceId) ? globalThis.String(object.traceId) : "",
+      citations: globalThis.Array.isArray(object?.citations)
+        ? object.citations.map((e: any) => Citation.fromJSON(e))
+        : [],
     };
   },
 
@@ -559,6 +709,12 @@ export const ChatWithCopilotResponse: MessageFns<ChatWithCopilotResponse> = {
     if (message.degraded !== false) {
       obj.degraded = message.degraded;
     }
+    if (message.traceId !== "") {
+      obj.traceId = message.traceId;
+    }
+    if (message.citations?.length) {
+      obj.citations = message.citations.map((e) => Citation.toJSON(e));
+    }
     return obj;
   },
 
@@ -573,6 +729,8 @@ export const ChatWithCopilotResponse: MessageFns<ChatWithCopilotResponse> = {
       : undefined;
     message.actionsTaken = object.actionsTaken?.map((e) => ToolCallRecord.fromPartial(e)) || [];
     message.degraded = object.degraded ?? false;
+    message.traceId = object.traceId ?? "";
+    message.citations = object.citations?.map((e) => Citation.fromPartial(e)) || [];
     return message;
   },
 };

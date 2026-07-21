@@ -7,6 +7,11 @@ JIRA    : TF-64
 Mô tả   : Module tách biệt khỏi Streamlit. Gọi Bedrock thật để chạy agent
            loop, ghi lại mọi tool call để eval đánh giá.
 
+⚠️ NOTA BENE: Đây KHÔNG phải là nguồn evidence cho MANDATE-06.
+File này dùng mock (không có DB thật, không qua pipeline thật), chỉ dùng
+để test logic tool-calling (task success). Để lấy evidence thực tế cho
+MANDATE-06, hãy dùng eval_mandate06_prod.py.
+
 Dùng bởi : test_task_success_real.py
 Yêu cầu : boto3, AWS credentials hợp lệ (KHÔNG fallback mock)
 """
