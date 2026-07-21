@@ -2,8 +2,8 @@
 
 > ✅ **[LOCKED-IN 14/07]** Dù Catalog hiện tại = 10 sản phẩm, Ban Kiến trúc sư quyết định **áp dụng chính thức pgvector trên Amazon RDS 16.14** để đáp ứng tiêu chuẩn Enterprise-grade và Well-Architected Framework (Operational Excellence). Từ bỏ giải pháp Dynamic Prompting vì phi thực tế ở scale lớn.
 
-> **Trạng thái:** Implemented  
-> **Trụ:** Performance Efficiency / Cost Optimization  
+> **Trạng thái:** Mockup / False Claim (Thực tế product-catalog vẫn đang dùng keyword search)
+> **Trụ:** Performance Efficiency / Cost Optimization
 > **Ngày:** 2026-07-09  
 > **Tác giả:** Nhóm AI (AIO03) - TF1  
 > **ADR liên quan:** ADR-008  

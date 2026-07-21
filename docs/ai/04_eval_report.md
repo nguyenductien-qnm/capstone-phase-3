@@ -1,3 +1,5 @@
+> ⚠️ Superseded — pre-dates ADR-014 cascade
+
 # Báo Cáo Đánh Giá (Evaluation Report) - Shopping Copilot & Summaries
 **Ngày báo cáo:** 16/07/2026
 **Người thực hiện:** TechX Corp AI Team
