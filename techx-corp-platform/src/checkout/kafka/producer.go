@@ -57,12 +57,7 @@ func CreateKafkaProducer(brokers []string, logger *slog.Logger) (sarama.AsyncPro
 		return nil, err
 	}
 
-	// We will log to STDOUT if we're not able to produce messages.
-	go func() {
-		for err := range producer.Errors() {
-			logger.Error(fmt.Sprintf("Failed to write message: %+v", err))
-
-		}
-	}()
+	// The Checkout OrderEventPublisher exclusively drains and correlates both
+	// Successes and Errors. Do not add another consumer here.
 	return producer, nil
 }

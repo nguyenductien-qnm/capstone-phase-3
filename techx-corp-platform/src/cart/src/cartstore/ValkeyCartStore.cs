@@ -69,6 +69,9 @@ public class ValkeyCartStore : ICartStore
         _redisConnectionOptions.ReconnectRetryPolicy = new ExponentialRetry(1000);
 
         _redisConnectionOptions.KeepAlive = 180;
+        _redisConnectionOptions.AbortOnConnectFail = false;
+        _redisConnectionOptions.ConnectTimeout = 5000;
+        _redisConnectionOptions.SyncTimeout = 5000;
     }
 
     public ConnectionMultiplexer GetConnection()
@@ -181,11 +184,11 @@ public class ValkeyCartStore : ICartStore
                 }
             }
 
-            await db.HashSetAsync(userId, new[]{ new HashEntry(CartFieldName, cart.ToByteArray()) });
-            // ADR-003 chua chot (review J1: volatile-lru khong co maxmemory -> policy khong chay;
-            // go TTL lam mat co che chong ro ri duy nhat -> nguy co OOMKill mat gio -> checkout SLO).
-            // Khoi phuc TTL baseline 60m cho toi khi CDO chot huong (maxmemory + tach instance).
-            await db.KeyExpireAsync(userId, TimeSpan.FromMinutes(60));
+            var batch = db.CreateBatch();
+            var hashSetTask = batch.HashSetAsync(userId, new[]{ new HashEntry(CartFieldName, cart.ToByteArray()) });
+            var keyExpireTask = batch.KeyExpireAsync(userId, TimeSpan.FromMinutes(60));
+            batch.Execute();
+            await Task.WhenAll(hashSetTask, keyExpireTask);
         }
         catch (Exception ex)
         {
@@ -209,11 +212,11 @@ public class ValkeyCartStore : ICartStore
             var db = _redis.GetDatabase();
 
             // Update the cache with empty cart for given user
-            await db.HashSetAsync(userId, new[] { new HashEntry(CartFieldName, _emptyCartBytes) });
-            // ADR-003 chua chot (review J1: volatile-lru khong co maxmemory -> policy khong chay;
-            // go TTL lam mat co che chong ro ri duy nhat -> nguy co OOMKill mat gio -> checkout SLO).
-            // Khoi phuc TTL baseline 60m cho toi khi CDO chot huong (maxmemory + tach instance).
-            await db.KeyExpireAsync(userId, TimeSpan.FromMinutes(60));
+            var batch = db.CreateBatch();
+            var hashSetTask = batch.HashSetAsync(userId, new[] { new HashEntry(CartFieldName, _emptyCartBytes) });
+            var keyExpireTask = batch.KeyExpireAsync(userId, TimeSpan.FromMinutes(60));
+            batch.Execute();
+            await Task.WhenAll(hashSetTask, keyExpireTask);
         }
         catch (Exception ex)
         {
