@@ -143,10 +143,17 @@ message ProductReviewCitation {
     string score = 3;
 }
 
+message TraceStep {
+    string step_name = 1;
+    int64 latency_ms = 2;
+    string status = 3;
+}
+
 message AskProductAIAssistantResponse {
     string response = 1;
     string trace_id = 2;
     repeated ProductReviewCitation citations = 3;
+    repeated TraceStep trace_steps = 4;
 }
 
 

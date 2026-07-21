@@ -221,6 +221,7 @@ class AgentResult:
     degraded: bool = False
     trace_id: str = ""
     citations: list[dict] = field(default_factory=list)
+    trace_steps: list[dict] = field(default_factory=list)
 
 
 def _run_read_tool(name: str, args: dict, user_id: str) -> str:
@@ -349,6 +350,7 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
     actions: list[ToolCall] = []
     pending: PendingAction | None = None
     current = list(messages)
+    trace_steps: list[dict] = []
     tool_calls = 0
     tool_results_raw: list[str] = []  # Thu thap tool results de validate citations (mentor 16/07)
     review_citations: list[dict] = []  # UI citations (Phase 5) -- reviews actually fetched this turn
@@ -418,7 +420,12 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
                     user_query = next((c["text"] for m in reversed(messages) if m.get("role") == "user"
                                        for c in m.get("content", []) if "text" in c), "")
                     source_text = "\n".join(str(r) for r in tool_results_raw)
+                    
+                    start_out = time.time()
                     blocked_out, clean_text = apply_guardrail_output(bedrock_client, clean_text, source_text, user_query)
+                    lat_out = int((time.time() - start_out) * 1000)
+                    trace_steps.append({"step_name": "Output Guardrail (Grounding)", "latency_ms": lat_out, "status": "blocked" if blocked_out else "pass"})
+                    
                     ground_span.set_attribute("guardrail.blocked", blocked_out)
                     if blocked_out:
                         logger.warning("AI_COPILOT_FALLBACK stage=output-grounding reason=Ungrounded")
@@ -434,13 +441,13 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
                 clean_text = "Xin chào! Bạn muốn tìm sản phẩm gì, xem review, hay kiểm tra giỏ hàng?"
                 review_citations = []
             return AgentResult(text=clean_text, actions_taken=actions, pending=pending,
-                               trace_id=trace_id_hex, citations=review_citations)
+                               trace_id=trace_id_hex, citations=review_citations, trace_steps=trace_steps)
 
         tool_calls += 1
         if tool_calls > MAX_TOOL_CALLS:
             return AgentResult(
                 text=f"⚠️ Đã đạt giới hạn {MAX_TOOL_CALLS} tool/lượt. Vui lòng hỏi câu đơn giản hơn.",
-                actions_taken=actions, pending=pending, trace_id=trace_id_hex)
+                actions_taken=actions, pending=pending, trace_id=trace_id_hex, trace_steps=trace_steps)
 
         current.append({"role": "assistant", "content": blocks})
         results = []

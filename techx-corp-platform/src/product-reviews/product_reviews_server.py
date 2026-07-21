@@ -510,10 +510,19 @@ def get_ai_assistant_response(request_product_id, question, context=None):
         span.set_attribute("app.product.id", request_product_id)
         span.set_attribute("app.product.question", question)
 
+        trace_steps = []
+        
         # --- INPUT rail (TF1-61): Bedrock ApplyGuardrail on the direct user question
         # (prompt-attack + PII mask + denied-topic). Fail-CLOSED: block on error while
         # enabled. Guardrail off → sanitize_text regex fallback. ---
+        start_in = time.time()
         blocked_in, question = apply_guardrail_input(get_bedrock_primary_client(), sanitize_text(question))
+        lat_in = int((time.time() - start_in) * 1000)
+        trace_steps.append(demo_pb2.TraceStep(
+            step_name="Input Guardrail (PII/Prompt Guard)",
+            latency_ms=lat_in,
+            status="blocked" if blocked_in else "pass"
+        ))
         if blocked_in:
             logger.warning(f"[Guardrail INPUT] blocked direct question for product_id={request_product_id}")
             question = "[filtered]"
@@ -530,6 +539,7 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                         logger.warning(f"Time remaining {time_remaining:.3f}s is less than hard floor {deadline_floor:.1f}s. Fail-fast to Mock Summary.")
                         logger.error("AI_SUMMARY_FALLBACK stage=deadline reason=DeadlineTooClose")
                         ai_assistant_response.response = MOCK_SUMMARY_VI
+                        ai_assistant_response.trace_steps.extend(trace_steps)
                         return ai_assistant_response
             except Exception as e:
                 logger.error(f"Error checking gRPC deadline: {e}")
@@ -556,6 +566,7 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                     logger.info(f"Valkey cache hit for key: {cache_key}")
                     cache_data = json.loads(cached_val)
                     ai_assistant_response.response = cache_data.get("summary", "")
+                    ai_assistant_response.trace_steps.extend(trace_steps)
                     product_review_svc_metrics["app_ai_assistant_counter"].add(1, {'product.id': request_product_id, 'cache_status': 'hit'})
                     return ai_assistant_response
             except Exception as e:
@@ -605,8 +616,10 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                     # Genuine 429: giu "Rate limit reached" cho rule llm-rate-limit-429 + marker G6.
                     logger.error("Rate limit reached. AI_SUMMARY_FALLBACK stage=mock-llm reason=rate_limit_exceeded")
                     ai_assistant_response.response = MOCK_SUMMARY_VI
+                    ai_assistant_response.trace_steps.extend(trace_steps)
                     return ai_assistant_response
 
+        start_llm = time.time()
         if not is_mock_rate_limit:
             # AWS Bedrock Converse API flow
             logger.info("Invoking AWS Bedrock Converse API with fallback wrapper")
@@ -622,6 +635,7 @@ def get_ai_assistant_response(request_product_id, question, context=None):
             if not bedrock_bulkhead.acquire(blocking=False):
                 logger.error("AI_SUMMARY_FALLBACK stage=bulkhead reason=BulkheadSaturated")
                 ai_assistant_response.response = MOCK_SUMMARY_VI
+                ai_assistant_response.trace_steps.extend(trace_steps)
                 return ai_assistant_response
             try:
                 response = invoke_bedrock_converse_with_fallback(
@@ -636,6 +650,7 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                 span.record_exception(e)
                 span.set_status(Status(StatusCode.ERROR, description=str(e)))
                 ai_assistant_response.response = MOCK_SUMMARY_VI
+                ai_assistant_response.trace_steps.extend(trace_steps)
                 return ai_assistant_response
             finally:
                 bedrock_bulkhead.release()
@@ -729,6 +744,7 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                 if not bedrock_bulkhead.acquire(blocking=False):
                     logger.error("AI_SUMMARY_FALLBACK stage=bulkhead reason=BulkheadSaturated")
                     ai_assistant_response.response = MOCK_SUMMARY_VI
+                    ai_assistant_response.trace_steps.extend(trace_steps)
                     return ai_assistant_response
                 try:
                     final_response = invoke_bedrock_converse_with_fallback(
@@ -743,6 +759,7 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                     span.record_exception(e)
                     span.set_status(Status(StatusCode.ERROR, description=str(e)))
                     ai_assistant_response.response = MOCK_SUMMARY_VI
+                    ai_assistant_response.trace_steps.extend(trace_steps)
                     return ai_assistant_response
                 finally:
                     bedrock_bulkhead.release()
@@ -773,9 +790,17 @@ def get_ai_assistant_response(request_product_id, question, context=None):
             # → fallback "review không đề cập". Fail-OPEN (still PII-masked by redact_pii above). ---
             if tool_results_raw and result:
                 source_text = "\n".join(str(r) for r in tool_results_raw)
+                
+                start_out = time.time()
                 blocked_out, result = apply_guardrail_output(
                     get_bedrock_primary_client(), result, source_text, question
                 )
+                lat_out = int((time.time() - start_out) * 1000)
+                trace_steps.append(demo_pb2.TraceStep(
+                    step_name="Output Guardrail (Grounding)",
+                    latency_ms=lat_out,
+                    status="blocked" if blocked_out else "pass"
+                ))
                 if blocked_out:
                     logger.warning(f"AI_SUMMARY_FALLBACK stage=output-grounding reason=Ungrounded product_id={request_product_id}")
                     # Not MOCK_SUMMARY_VI: an ungrounded answer means the reviews don't
@@ -787,6 +812,14 @@ def get_ai_assistant_response(request_product_id, question, context=None):
 
             ai_assistant_response.response = result
             logger.info(f"Returning Bedrock AI assistant response: '{result}'")
+
+            lat_llm = int((time.time() - start_llm) * 1000)
+            trace_steps.append(demo_pb2.TraceStep(
+                step_name="Model Gateway & Bedrock Nova",
+                latency_ms=lat_llm,
+                status="ok"
+            ))
+            ai_assistant_response.trace_steps.extend(trace_steps)
 
             # Attach Trace ID
             current_span = trace.get_current_span()

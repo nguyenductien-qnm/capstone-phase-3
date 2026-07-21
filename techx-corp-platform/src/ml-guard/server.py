@@ -22,6 +22,24 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+try:
+    from opentelemetry import trace
+    from opentelemetry.propagate import extract
+    tracer = trace.get_tracer("ml-guard")
+except ImportError:
+    tracer = None
+    def extract(headers): return {}
+
+class DummySpan:
+    def __enter__(self): return self
+    def __exit__(self, *a): pass
+    def set_attribute(self, *a): pass
+
+def get_span(name, headers=None):
+    if not tracer: return DummySpan()
+    ctx = extract(headers) if headers else None
+    return tracer.start_as_current_span(name, context=ctx)
+
 logger = logging.getLogger("ml-guard")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 
@@ -127,19 +145,24 @@ class Handler(BaseHTTPRequestHandler):
             req = json.loads(self.rfile.read(length))
             
             if self.path == "/v1/protect":
-                return self._handle_protect(req)
+                with get_span("ml_guard.protect", self.headers):
+                    return self._handle_protect(req)
                 
             source, answer = req.get("source", ""), req.get("answer", "")
             if not source.strip() or not answer.strip():
                 return self._json(400, {"error": "source and answer required"})
             t0 = time.perf_counter()
-            result = grounding_decision(source, answer)
+            with get_span("ml_guard.grounding", self.headers):
+                result = grounding_decision(source, answer)
             dt = time.perf_counter() - t0
             _metrics[result["action"]] += 1
             _metrics["requests"] += 1
             _metrics["latency_sum"] += dt
             result["latency_ms"] = round(dt * 1000, 1)
             return self._json(200, result)
+        except (BrokenPipeError, ConnectionError) as e:
+            logger.debug("client disconnected early in %s: %s", self.path, e)
+            return
         except Exception as e:  # lỗi nội bộ -> caller fail-open, không treo trang
             if self.path == "/v1/grounding":
                 _metrics["error"] += 1
@@ -155,16 +178,18 @@ class Handler(BaseHTTPRequestHandler):
         
         # 1. Presidio PII
         anonymized_text = text
-        analyzer = _state["analyzer"]
-        anonymizer = _state["anonymizer"]
-        results = analyzer.analyze(text=text, language='en')
-        if results:
-            anonymized = anonymizer.anonymize(text=text, analyzer_results=results)
-            anonymized_text = anonymized.text
+        with _model_lock:
+            analyzer = _state["analyzer"]
+            anonymizer = _state["anonymizer"]
+            results = analyzer.analyze(text=text, language='en')
+            if results:
+                anonymized = anonymizer.anonymize(text=text, analyzer_results=results)
+                anonymized_text = anonymized.text
+                
+            # 2. Prompt Guard
+            pipe = _state["prompt_guard"]
+            pg_res = pipe(anonymized_text[:2000])
             
-        # 2. Prompt Guard
-        pipe = _state["prompt_guard"]
-        pg_res = pipe(anonymized_text[:2000])
         label = pg_res[0]['label']
         score = pg_res[0]['score']
         
