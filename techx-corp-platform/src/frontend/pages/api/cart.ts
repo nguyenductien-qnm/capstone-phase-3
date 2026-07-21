@@ -41,9 +41,7 @@ const handler: NextApiHandler<TResponse> = async ({ method, body, query }, res) 
     case 'POST': {
       const { userId, item } = body as AddItemRequest;
 
-      await CartGateway.addItem(userId, item!);
-      const cart = await CartGateway.getCart(userId);
-
+      const cart = await CartGateway.addItemAndGetCart(userId, item!);
       return res.status(200).json(cart);
     }
 

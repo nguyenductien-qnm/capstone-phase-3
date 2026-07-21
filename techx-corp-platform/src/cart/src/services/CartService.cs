@@ -53,6 +53,27 @@ public class CartService : Oteldemo.CartService.CartServiceBase
         }
     }
 
+    public override async Task<Cart> AddItemAndGetCart(AddItemRequest request, ServerCallContext context)
+    {
+        using var admissionLease = await _admission.AcquireAsync(context.CancellationToken);
+        var activity = Activity.Current;
+        activity?.SetTag("app.user.id", request.UserId);
+        activity?.SetTag("app.product.id", request.Item.ProductId);
+        activity?.SetTag("app.product.quantity", request.Item.Quantity);
+
+        try
+        {
+            await _cartStore.AddItemAsync(request.UserId, request.Item.ProductId, request.Item.Quantity);
+            return await _cartStore.GetCartAsync(request.UserId);
+        }
+        catch (RpcException ex)
+        {
+            activity?.AddException(ex);
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            throw;
+        }
+    }
+
     public override async Task<Cart> GetCart(GetCartRequest request, ServerCallContext context)
     {
         using var admissionLease = await _admission.AcquireAsync(context.CancellationToken);

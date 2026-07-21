@@ -4036,6 +4036,15 @@ export const CartServiceService = {
     responseSerialize: (value: Empty): Buffer => Buffer.from(Empty.encode(value).finish()),
     responseDeserialize: (value: Buffer): Empty => Empty.decode(value),
   },
+  addItemAndGetCart: {
+    path: "/oteldemo.CartService/AddItemAndGetCart",
+    requestStream: false,
+    responseStream: false,
+    requestSerialize: (value: AddItemRequest): Buffer => Buffer.from(AddItemRequest.encode(value).finish()),
+    requestDeserialize: (value: Buffer): AddItemRequest => AddItemRequest.decode(value),
+    responseSerialize: (value: Cart): Buffer => Buffer.from(Cart.encode(value).finish()),
+    responseDeserialize: (value: Buffer): Cart => Cart.decode(value),
+  },
   getCart: {
     path: "/oteldemo.CartService/GetCart",
     requestStream: false,
@@ -4058,6 +4067,7 @@ export const CartServiceService = {
 
 export interface CartServiceServer extends UntypedServiceImplementation {
   addItem: handleUnaryCall<AddItemRequest, Empty>;
+  addItemAndGetCart: handleUnaryCall<AddItemRequest, Cart>;
   getCart: handleUnaryCall<GetCartRequest, Cart>;
   emptyCart: handleUnaryCall<EmptyCartRequest, Empty>;
 }
@@ -4068,6 +4078,18 @@ export interface CartServiceClient extends Client {
     request: AddItemRequest,
     metadata: Metadata,
     callback: (error: ServiceError | null, response: Empty) => void,
+  ): ClientUnaryCall;
+  addItemAndGetCart(request: AddItemRequest, callback: (error: ServiceError | null, response: Cart) => void): ClientUnaryCall;
+  addItemAndGetCart(
+    request: AddItemRequest,
+    metadata: Metadata,
+    callback: (error: ServiceError | null, response: Cart) => void,
+  ): ClientUnaryCall;
+  addItemAndGetCart(
+    request: AddItemRequest,
+    metadata: Metadata,
+    options: Partial<CallOptions>,
+    callback: (error: ServiceError | null, response: Cart) => void,
   ): ClientUnaryCall;
   addItem(
     request: AddItemRequest,

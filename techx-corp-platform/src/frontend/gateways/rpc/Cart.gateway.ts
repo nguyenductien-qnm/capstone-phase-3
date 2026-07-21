@@ -32,6 +32,13 @@ const CartGateway = () => ({
       GrpcDeadlineMs.cart
     );
   },
+  addItemAndGetCart(userId: string, item: CartItem) {
+    return unaryWithDeadline<AddItemRequest, Cart>(
+      (request, metadata, options, callback) => client.addItemAndGetCart(request, metadata, options, callback),
+      { userId, item },
+      GrpcDeadlineMs.cart
+    );
+  },
   emptyCart(userId: string) {
     return unaryWithDeadline<EmptyCartRequest, Empty>(
       (request, metadata, options, callback) => client.emptyCart(request, metadata, options, callback),

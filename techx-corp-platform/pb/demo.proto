@@ -22,6 +22,9 @@ option go_package = "genproto/oteldemo";
 
 service CartService {
     rpc AddItem(AddItemRequest) returns (Empty) {}
+    // Atomic client workflow: update the cart and return its post-update snapshot.
+    // AddItem remains for backwards compatibility with existing clients.
+    rpc AddItemAndGetCart(AddItemRequest) returns (Cart) {}
     rpc GetCart(GetCartRequest) returns (Cart) {}
     rpc EmptyCart(EmptyCartRequest) returns (Empty) {}
 }
