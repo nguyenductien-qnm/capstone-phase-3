@@ -9,10 +9,10 @@ components:
       tag: 1.0-ad-ec72350
   cart:
     imageOverride:
-      tag: 1.0-cart-d08d2c2
+      tag: 1.0-cart-fe01015
   checkout:
     imageOverride:
-      tag: 1.0-checkout-d08d2c2
+      tag: 1.0-checkout-fe01015
   currency:
     imageOverride:
       tag: 1.0-currency-ec72350
@@ -21,10 +21,10 @@ components:
       tag: 1.0-fraud-detection-ec72350
   frontend:
     imageOverride:
-      tag: 1.0-frontend-6c8490f
+      tag: 1.0-frontend-fe01015
   frontend-proxy:
     imageOverride:
-      tag: 1.0-frontend-proxy-d08d2c2
+      tag: 1.0-frontend-proxy-fe01015
   image-provider:
     imageOverride:
       tag: 1.0-image-provider-ec72350
@@ -45,7 +45,7 @@ components:
       tag: 1.0-product-catalog-ec72350
   product-reviews:
     imageOverride:
-      tag: 1.0-product-reviews-154779f
+      tag: 1.0-product-reviews-fe01015
   quote:
     imageOverride:
       tag: 1.0-quote-ec72350
