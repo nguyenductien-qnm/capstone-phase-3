@@ -21,7 +21,7 @@ components:
       tag: 1.0-fraud-detection-ec72350
   frontend:
     imageOverride:
-      tag: 1.0-frontend-068128c
+      tag: 1.0-frontend-6c8490f
   frontend-proxy:
     imageOverride:
       tag: 1.0-frontend-proxy-d08d2c2
