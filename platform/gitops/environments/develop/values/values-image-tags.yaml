@@ -9,7 +9,7 @@ components:
       tag: 1.0-ad-ec72350
   cart:
     imageOverride:
-      tag: 1.0-cart-aff5707
+      tag: 1.0-cart-d657f72
   checkout:
     imageOverride:
       tag: 1.0-checkout-aff5707
@@ -21,7 +21,7 @@ components:
       tag: 1.0-fraud-detection-ec72350
   frontend:
     imageOverride:
-      tag: 1.0-frontend-aff5707
+      tag: 1.0-frontend-d657f72
   frontend-proxy:
     imageOverride:
       tag: 1.0-frontend-proxy-eda5a0e
