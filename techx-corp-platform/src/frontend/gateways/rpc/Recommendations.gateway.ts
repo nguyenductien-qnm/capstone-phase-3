@@ -2,7 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ChannelCredentials } from '@grpc/grpc-js';
-import { ListRecommendationsResponse, RecommendationServiceClient } from '../../protos/demo';
+import {
+  ListRecommendationsRequest,
+  ListRecommendationsResponse,
+  RecommendationServiceClient,
+} from '../../protos/demo';
+import { GrpcDeadlineMs, unaryWithDeadline } from './GrpcDeadline';
 
 const { RECOMMENDATION_ADDR = '' } = process.env;
 
@@ -10,10 +15,11 @@ const client = new RecommendationServiceClient(RECOMMENDATION_ADDR, ChannelCrede
 
 const RecommendationsGateway = () => ({
   listRecommendations(userId: string, productIds: string[]) {
-    return new Promise<ListRecommendationsResponse>((resolve, reject) =>
-      client.listRecommendations({ userId, productIds }, (error, response) =>
-        error ? reject(error) : resolve(response)
-      )
+    return unaryWithDeadline<ListRecommendationsRequest, ListRecommendationsResponse>(
+      (request, metadata, options, callback) =>
+        client.listRecommendations(request, metadata, options, callback),
+      { userId, productIds },
+      GrpcDeadlineMs.recommendation
     );
   },
 });

@@ -56,12 +56,25 @@ builder.Services.AddOpenFeature(openFeatureBuilder =>
         .AddHook<TraceEnricherHook>();
 });
 
+var maxConcurrentCartRequests = ParsePositiveInt(
+    builder.Configuration["CART_MAX_CONCURRENT_REQUESTS"],
+    CartRequestAdmission.DefaultMaxConcurrentRequests);
+var maxQueuedCartRequests = ParsePositiveInt(
+    builder.Configuration["CART_MAX_QUEUED_REQUESTS"],
+    CartRequestAdmission.DefaultMaxQueuedRequests);
+builder.Services.AddSingleton(
+    new CartRequestAdmission(maxConcurrentCartRequests, maxQueuedCartRequests));
+
 builder.Services.AddSingleton(x =>
     new CartService(
         x.GetRequiredService<ICartStore>(),
         new ValkeyCartStore(x.GetRequiredService<ILogger<ValkeyCartStore>>(), "badhost:1234"),
-        x.GetRequiredService<IFeatureClient>()
+        x.GetRequiredService<IFeatureClient>(),
+        x.GetRequiredService<CartRequestAdmission>()
 ));
+
+static int ParsePositiveInt(string value, int fallback) =>
+    int.TryParse(value, out var parsed) && parsed > 0 ? parsed : fallback;
 
 
 Action<ResourceBuilder> appResourceBuilder =
@@ -121,5 +134,3 @@ app.MapGet("/", async context =>
 });
 
 app.Run();
-
-

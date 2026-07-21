@@ -2,7 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ChannelCredentials } from '@grpc/grpc-js';
-import { Cart, CartItem, CartServiceClient, Empty } from '../../protos/demo';
+import {
+  AddItemRequest,
+  Cart,
+  CartItem,
+  CartServiceClient,
+  Empty,
+  EmptyCartRequest,
+  GetCartRequest,
+} from '../../protos/demo';
+import { GrpcDeadlineMs, unaryWithDeadline } from './GrpcDeadline';
 
 const { CART_ADDR = '' } = process.env;
 
@@ -10,18 +19,24 @@ const client = new CartServiceClient(CART_ADDR, ChannelCredentials.createInsecur
 
 const CartGateway = () => ({
   getCart(userId: string) {
-    return new Promise<Cart>((resolve, reject) =>
-      client.getCart({ userId }, (error, response) => (error ? reject(error) : resolve(response)))
+    return unaryWithDeadline<GetCartRequest, Cart>(
+      (request, metadata, options, callback) => client.getCart(request, metadata, options, callback),
+      { userId },
+      GrpcDeadlineMs.cart
     );
   },
   addItem(userId: string, item: CartItem) {
-    return new Promise<Empty>((resolve, reject) =>
-      client.addItem({ userId, item }, (error, response) => (error ? reject(error) : resolve(response)))
+    return unaryWithDeadline<AddItemRequest, Empty>(
+      (request, metadata, options, callback) => client.addItem(request, metadata, options, callback),
+      { userId, item },
+      GrpcDeadlineMs.cart
     );
   },
   emptyCart(userId: string) {
-    return new Promise<Empty>((resolve, reject) =>
-      client.emptyCart({ userId }, (error, response) => (error ? reject(error) : resolve(response)))
+    return unaryWithDeadline<EmptyCartRequest, Empty>(
+      (request, metadata, options, callback) => client.emptyCart(request, metadata, options, callback),
+      { userId },
+      GrpcDeadlineMs.cart
     );
   },
 });

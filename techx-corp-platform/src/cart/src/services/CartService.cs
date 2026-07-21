@@ -17,16 +17,23 @@ public class CartService : Oteldemo.CartService.CartServiceBase
     private readonly ICartStore _badCartStore;
     private readonly ICartStore _cartStore;
     private readonly IFeatureClient _featureFlagHelper;
+    private readonly CartRequestAdmission _admission;
 
-    public CartService(ICartStore cartStore, ICartStore badCartStore, IFeatureClient featureFlagService)
+    public CartService(
+        ICartStore cartStore,
+        ICartStore badCartStore,
+        IFeatureClient featureFlagService,
+        CartRequestAdmission admission)
     {
         _badCartStore = badCartStore;
         _cartStore = cartStore;
         _featureFlagHelper = featureFlagService;
+        _admission = admission;
     }
 
     public override async Task<Empty> AddItem(AddItemRequest request, ServerCallContext context)
     {
+        using var admissionLease = await _admission.AcquireAsync(context.CancellationToken);
         var activity = Activity.Current;
         activity?.SetTag("app.user.id", request.UserId);
         activity?.SetTag("app.product.id", request.Item.ProductId);
@@ -48,6 +55,7 @@ public class CartService : Oteldemo.CartService.CartServiceBase
 
     public override async Task<Cart> GetCart(GetCartRequest request, ServerCallContext context)
     {
+        using var admissionLease = await _admission.AcquireAsync(context.CancellationToken);
         var activity = Activity.Current;
         activity?.SetTag("app.user.id", request.UserId);
         activity?.AddEvent(new("Fetch cart"));
@@ -74,6 +82,7 @@ public class CartService : Oteldemo.CartService.CartServiceBase
 
     public override async Task<Empty> EmptyCart(EmptyCartRequest request, ServerCallContext context)
     {
+        using var admissionLease = await _admission.AcquireAsync(context.CancellationToken);
         var activity = Activity.Current;
         activity?.SetTag("app.user.id", request.UserId);
         activity?.AddEvent(new("Empty cart"));

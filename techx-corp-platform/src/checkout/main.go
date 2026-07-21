@@ -19,6 +19,7 @@ import (
 	"syscall"
 	"time"
 
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/singleflight"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -66,6 +67,11 @@ var logger *slog.Logger
 var tracer trace.Tracer
 var resource *sdkresource.Resource
 var initResourcesOnce sync.Once
+
+const (
+	checkoutDependencyTimeout = 750 * time.Millisecond
+	maxOrderItemConcurrency  = 4
+)
 
 func initResource() *sdkresource.Resource {
 	initResourcesOnce.Do(func() {
@@ -340,7 +346,7 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		Nanos: 0}
 	total = money.Must(money.Sum(total, prep.shippingCostLocalized))
 	for _, it := range prep.orderItems {
-		multPrice := money.MultiplySlow(it.Cost, uint32(it.GetItem().GetQuantity()))
+		multPrice := money.Multiply(it.Cost, uint32(it.GetItem().GetQuantity()))
 		total = money.Must(money.Sum(total, multPrice))
 	}
 
@@ -428,17 +434,36 @@ func (cs *checkout) prepareOrderItemsAndShippingQuoteFromCart(ctx context.Contex
 	if err != nil {
 		return out, fmt.Errorf("cart failure: %+v", err)
 	}
-	orderItems, err := cs.prepOrderItems(ctx, cartItems, userCurrency)
-	if err != nil {
-		return out, fmt.Errorf("failed to prepare order: %+v", err)
-	}
-	shippingUSD, err := cs.quoteShipping(ctx, address, cartItems)
-	if err != nil {
-		return out, fmt.Errorf("shipping quote failure: %+v", err)
-	}
-	shippingPrice, err := cs.convertCurrency(ctx, shippingUSD, userCurrency)
-	if err != nil {
-		return out, fmt.Errorf("failed to convert shipping cost to currency: %+v", err)
+
+	group, groupCtx := errgroup.WithContext(ctx)
+	var orderItems []*pb.OrderItem
+	var shippingPrice *pb.Money
+
+	group.Go(func() error {
+		var prepErr error
+		orderItems, prepErr = cs.prepOrderItems(groupCtx, cartItems, userCurrency)
+		if prepErr != nil {
+			return fmt.Errorf("failed to prepare order: %+v", prepErr)
+		}
+		return nil
+	})
+
+	group.Go(func() error {
+		shippingUSD, quoteErr := cs.quoteShipping(groupCtx, address, cartItems)
+		if quoteErr != nil {
+			return fmt.Errorf("shipping quote failure: %+v", quoteErr)
+		}
+
+		var conversionErr error
+		shippingPrice, conversionErr = cs.convertCurrency(groupCtx, shippingUSD, userCurrency)
+		if conversionErr != nil {
+			return fmt.Errorf("failed to convert shipping cost to currency: %+v", conversionErr)
+		}
+		return nil
+	})
+
+	if err := group.Wait(); err != nil {
+		return out, err
 	}
 
 	out.shippingCostLocalized = shippingPrice
@@ -512,7 +537,9 @@ func (cs *checkout) quoteShipping(ctx context.Context, address *pb.Address, item
 }
 
 func (cs *checkout) getUserCart(ctx context.Context, userID string) ([]*pb.CartItem, error) {
-	cart, err := cs.cartSvcClient.GetCart(ctx, &pb.GetCartRequest{UserId: userID})
+	rpcCtx, cancel := context.WithTimeout(ctx, checkoutDependencyTimeout)
+	defer cancel()
+	cart, err := cs.cartSvcClient.GetCart(rpcCtx, &pb.GetCartRequest{UserId: userID})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user cart during checkout: %+v", err)
 	}
@@ -520,7 +547,9 @@ func (cs *checkout) getUserCart(ctx context.Context, userID string) ([]*pb.CartI
 }
 
 func (cs *checkout) emptyUserCart(ctx context.Context, userID string) error {
-	if _, err := cs.cartSvcClient.EmptyCart(ctx, &pb.EmptyCartRequest{UserId: userID}); err != nil {
+	rpcCtx, cancel := context.WithTimeout(ctx, checkoutDependencyTimeout)
+	defer cancel()
+	if _, err := cs.cartSvcClient.EmptyCart(rpcCtx, &pb.EmptyCartRequest{UserId: userID}); err != nil {
 		return fmt.Errorf("failed to empty user cart during checkout: %+v", err)
 	}
 	return nil
@@ -528,38 +557,34 @@ func (cs *checkout) emptyUserCart(ctx context.Context, userID string) error {
 
 func (cs *checkout) prepOrderItems(ctx context.Context, items []*pb.CartItem, userCurrency string) ([]*pb.OrderItem, error) {
 	out := make([]*pb.OrderItem, len(items))
-	errs := make([]error, len(items))
-	var wg sync.WaitGroup
+	group, groupCtx := errgroup.WithContext(ctx)
+	group.SetLimit(maxOrderItemConcurrency)
 
 	for i, item := range items {
-		wg.Add(1)
-		go func(i int, item *pb.CartItem) {
-			defer wg.Done()
-			v, err, _ := cs.productCatalogGroup.Do(item.GetProductId(), func() (interface{}, error) {
-				return cs.productCatalogSvcClient.GetProduct(context.WithoutCancel(ctx), &pb.GetProductRequest{Id: item.GetProductId()})
+		itemIndex, cartItem := i, item
+		group.Go(func() error {
+			v, err, _ := cs.productCatalogGroup.Do(cartItem.GetProductId(), func() (interface{}, error) {
+				rpcCtx, cancel := context.WithTimeout(groupCtx, checkoutDependencyTimeout)
+				defer cancel()
+				return cs.productCatalogSvcClient.GetProduct(rpcCtx, &pb.GetProductRequest{Id: cartItem.GetProductId()})
 			})
 			if err != nil {
-				errs[i] = fmt.Errorf("failed to get product #%q", item.GetProductId())
-				return
+				return fmt.Errorf("failed to get product #%q: %w", cartItem.GetProductId(), err)
 			}
 			product := v.(*pb.Product)
-			price, err := cs.convertCurrency(ctx, product.GetPriceUsd(), userCurrency)
+			price, err := cs.convertCurrency(groupCtx, product.GetPriceUsd(), userCurrency)
 			if err != nil {
-				errs[i] = fmt.Errorf("failed to convert price of %q to %s", item.GetProductId(), userCurrency)
-				return
+				return fmt.Errorf("failed to convert price of %q to %s: %w", cartItem.GetProductId(), userCurrency, err)
 			}
-			out[i] = &pb.OrderItem{
-				Item: item,
+			out[itemIndex] = &pb.OrderItem{
+				Item: cartItem,
 				Cost: price,
 			}
-		}(i, item)
+			return nil
+		})
 	}
-	wg.Wait()
-
-	for _, err := range errs {
-		if err != nil {
-			return nil, err
-		}
+	if err := group.Wait(); err != nil {
+		return nil, err
 	}
 	return out, nil
 }
@@ -567,7 +592,9 @@ func (cs *checkout) prepOrderItems(ctx context.Context, items []*pb.CartItem, us
 func (cs *checkout) convertCurrency(ctx context.Context, from *pb.Money, toCurrency string) (*pb.Money, error) {
 	key := fmt.Sprintf("%s:%d:%d:%s", from.GetCurrencyCode(), from.GetUnits(), from.GetNanos(), toCurrency)
 	v, err, _ := cs.currencyGroup.Do(key, func() (interface{}, error) {
-		return cs.currencySvcClient.Convert(context.WithoutCancel(ctx), &pb.CurrencyConversionRequest{
+		rpcCtx, cancel := context.WithTimeout(ctx, checkoutDependencyTimeout)
+		defer cancel()
+		return cs.currencySvcClient.Convert(rpcCtx, &pb.CurrencyConversionRequest{
 			From:   from,
 			ToCode: toCurrency})
 	})
@@ -585,7 +612,9 @@ func (cs *checkout) chargeCard(ctx context.Context, amount *pb.Money, paymentInf
 		paymentService = pb.NewPaymentServiceClient(c)
 	}
 
-	paymentResp, err := paymentService.Charge(ctx, &pb.ChargeRequest{
+	rpcCtx, cancel := context.WithTimeout(ctx, checkoutDependencyTimeout)
+	defer cancel()
+	paymentResp, err := paymentService.Charge(rpcCtx, &pb.ChargeRequest{
 		Amount:     amount,
 		CreditCard: paymentInfo})
 	if err != nil {

@@ -7,6 +7,7 @@ import { AddItemRequest, Empty, Product } from '../../protos/demo';
 import ProductCatalogService from '../../services/ProductCatalog.service';
 import { IProductCart, IProductCartItem } from '../../types/Cart';
 import InstrumentationMiddleware from '../../utils/telemetry/InstrumentationMiddleware';
+import { isTransientGrpcError } from '../../gateways/rpc/GrpcDeadline';
 
 type TResponse = IProductCart | Empty;
 
@@ -14,9 +15,15 @@ const handler: NextApiHandler<TResponse> = async ({ method, body, query }, res) 
   switch (method) {
     case 'GET': {
       const { sessionId = '', currencyCode = '' } = query;
-      const { userId, items } = await CartGateway.getCart(sessionId as string);
+      const cartPromise = CartGateway.getCart(sessionId as string);
+      const productsPromise = ProductCatalogService.listProducts(currencyCode as string).catch(error => {
+        if (isTransientGrpcError(error)) {
+          return [];
+        }
 
-      const allProducts = await ProductCatalogService.listProducts(currencyCode as string);
+        throw error;
+      });
+      const [{ userId, items }, allProducts] = await Promise.all([cartPromise, productsPromise]);
 
       const productList: IProductCartItem[] = items.map(({ productId, quantity }) => {
         const product = allProducts.find((p: Product) => p.id === productId) || ({} as Product);
