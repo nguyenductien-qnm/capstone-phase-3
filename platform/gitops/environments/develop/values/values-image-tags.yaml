@@ -45,7 +45,7 @@ components:
       tag: 1.0-product-catalog-ec72350
   product-reviews:
     imageOverride:
-      tag: 1.0-product-reviews-1b5ab1b
+      tag: 1.0-product-reviews-39e8171
   quote:
     imageOverride:
       tag: 1.0-quote-ec72350
