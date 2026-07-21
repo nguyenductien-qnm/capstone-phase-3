@@ -1,0 +1,29 @@
+{
+  "jira": {
+    "key": "CDO-202",
+    "summary": "Mandate 12 Audit Anti Defeat Tf4",
+    "status": "In Progress",
+    "url": "https://aws-accelerator.atlassian.net/browse/CDO-202",
+    "subtasks": ["CDO-214", "CDO-215", "CDO-216"]
+  },
+  "pullRequest": {
+    "number": 236,
+    "title": "Feat/mandate 12 audit anti defeat (Final PR)",
+    "state": "MERGED",
+    "baseBranch": "develop",
+    "reviewer": "nguyenductien-qnm",
+    "reviewDecision": "APPROVED",
+    "mergedBy": "nguyenductien-qnm",
+    "mergeCommit": "a7cef168f36d69bb0126d8f3d275c0f79f636670",
+    "url": "https://github.com/nguyenductien-qnm/capstone-phase-3/pull/236"
+  },
+  "workflow": {
+  "conclusion": "success",
+  "databaseId": 29818863006,
+  "event": "workflow_dispatch",
+  "headSha": "c20780add61cc73dcbf611741f8892b261b6e4cc",
+  "status": "completed",
+  "url": "https://github.com/nguyenductien-qnm/capstone-phase-3/actions/runs/29818863006",
+  "workflowName": "Infra CD (Terraform + ArgoCD bootstrap)"
+  }
+}
