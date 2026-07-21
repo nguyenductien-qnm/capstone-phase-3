@@ -9,10 +9,10 @@ components:
       tag: 1.0-ad-5369fc8
   cart:
     imageOverride:
-      tag: 1.0-cart-5369fc8
+      tag: 1.0-cart-652c5ce
   checkout:
     imageOverride:
-      tag: 1.0-checkout-5369fc8
+      tag: 1.0-checkout-652c5ce
   currency:
     imageOverride:
       tag: 1.0-currency-5369fc8
@@ -21,7 +21,7 @@ components:
       tag: 1.0-fraud-detection-5369fc8
   frontend:
     imageOverride:
-      tag: 1.0-frontend-5369fc8
+      tag: 1.0-frontend-652c5ce
   frontend-proxy:
     imageOverride:
       tag: 1.0-frontend-proxy-5369fc8
