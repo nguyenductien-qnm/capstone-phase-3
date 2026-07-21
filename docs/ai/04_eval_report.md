@@ -1,7 +1,20 @@
 # Báo Cáo Đánh Giá (Evaluation Report) - Shopping Copilot & Summaries
-**Ngày báo cáo:** 16/07/2026
-**Người thực hiện:** TechX Corp AI Team
+**Ngày báo cáo cập nhật:** 21/07/2026 (Reconciled - Task A8)
+**Người thực hiện:** 03 Lê Kim Dũng & TechX Corp AI Team
 **Mục tiêu:** Đo lường độ trung thực (fidelity) của model Amazon Nova trên môi trường EKS thật, đáp ứng tiêu chuẩn nghiệm thu "số không tái tạo được coi như chưa chứng minh".
+
+> [!NOTE]
+> **BÁO CÁO ĐÃ ĐỒNG BỘ SỐ LIỆU (RECONCILED - TASK A8):** 
+> Thư mục `docs/ai/` trước đây có sự chênh lệch (drift) giữa các con số 40%, 75%, 100% và 96.0%. Bảng dưới đây giải thích nguồn gốc và đồng bộ về **Số đo chính thức mới nhất trên EKS Live + ML-Guard (96.0% - 24/25 cases pass)**.
+
+## 📌 Bảng Thống Nhất & Giải Thích Pass-Rate Drift (Reconciliation Matrix)
+
+| Con số | Môi trường / Giai đoạn | Nguyên nhân chênh lệch (Drift Cause) | Trạng thái hiện tại |
+|---|---|---|---|
+| **40.0%** | Test-suite sơ khai (W1) | Chưa cài ML-Guard/Guardrails; 5/6 ca Prompt Injection bị lọt trong thử nghiệm đầu tiên. | ❌ Superseded (Báo cáo cũ) |
+| **75.0%** | EKS Live - Baseline (W2) | Chạy live 24 ca test trên Nova Lite us-east-2 trước khi vá Guardrail (18/24 passed). | ⚠️ Baseline cũ (Lịch sử) |
+| **100%** | Unit Test / Offline Mode | Test logic offline với Mock Bedrock / Mock Vector Database (`eval_mandate06.py --mode offline`). | ✅ Pass (Unit Test Sandbox) |
+| **96.0% (24/25)** | **EKS Live + ML-Guard (Mới nhất - A7)** | Chạy thực tế EKS us-east-1 qua `ml-guard` + Nova Lite (`eval_mandate06_v6_report.md`). | 🚀 **SỐ ĐO CHÍNH THỨC (Target A7)** |
 
 ---
 
