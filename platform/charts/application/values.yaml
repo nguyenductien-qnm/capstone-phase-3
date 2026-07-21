@@ -1149,9 +1149,9 @@ components:
       - name: AWS_BEDROCK_MODEL
         value: amazon.nova-lite-v1:0
       - name: LLM_REVIEWS_TIMEOUT
-        value: "4.0"
+        value: "2.6"
       - name: LLM_REVIEWS_FALLBACK_TIMEOUT
-        value: "2.0"
+        value: "2.3"
       - name: LLM_HOST
         value: llm
       - name: LLM_PORT
@@ -1336,9 +1336,9 @@ components:
       - name: LLM_COPILOT_FALLBACK_MODEL
         value: amazon.nova-lite-v1:0
       - name: LLM_COPILOT_TIMEOUT
-        value: "5.7"
+        value: "6.9"
       - name: LLM_COPILOT_FALLBACK_TIMEOUT
-        value: "2.5"
+        value: "2.7"
       - name: PRODUCT_CATALOG_ADDR
         value: product-catalog:8080
       - name: CART_ADDR
