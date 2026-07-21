@@ -42,6 +42,16 @@ on:
         description: "Danh sách service build (space-separated), rỗng = build tất cả"
         required: false
         type: string
+      attest_sbom:
+        description: "Chế độ SBOM-only: KHÔNG build, chỉ attest SBOM cho digest prod đang chạy (đọc tags sandbox)"
+        required: false
+        type: boolean
+        default: false
+      sbom_dry_run:
+        description: "(chỉ khi attest_sbom) chỉ resolve digest, KHÔNG syft/attest"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -74,6 +84,9 @@ jobs:
   # ------------------------------------------------------------------ #
   detect:
     name: Detect changed services
+    # Chế độ attest_sbom (workflow_dispatch) KHÔNG build gì -> bỏ qua toàn bộ nhánh
+    # detect/build/bump (chúng needs detect nên cũng skip theo).
+    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.attest_sbom) }}
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set.outputs.matrix }}
@@ -273,7 +286,7 @@ jobs:
 
       - name: Install Cosign
         if: github.event_name != 'pull_request'
-        uses: sigstore/cosign-installer@v3.5.0
+        uses: sigstore/cosign-installer@59acb6260d9c0ba8f4a2f9d9b48431a222b68e20 # v3.5.0
 
       # Một số Dockerfile cần ARG version (ad/fraud-detection: OTEL_JAVA_AGENT_VERSION,
       # currency: OPENTELEMETRY_CPP_VERSION). Thiếu -> URL thành .../download/v/... -> 404.
@@ -353,6 +366,30 @@ jobs:
             --fulcio-url https://fulcio.sigstore.dev \
             "$REF"
           echo "✅ Signed $REF"
+
+      # CDO SBOM: sinh SBOM (SPDX) từ image ĐÃ push theo DIGEST rồi cosign attest
+      # predicate spdxjson. Gắn theo digest (bất biến) — cùng REF với bước sign trên.
+      # download-syft chỉ cài binary syft (pin SHA), không tự attest -> chủ động loop/attest.
+      - name: Install Syft
+        if: github.event_name != 'pull_request'
+        uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+
+      - name: SBOM + cosign attest (spdxjson, by digest)
+        if: github.event_name != 'pull_request'
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          set -euo pipefail
+          REF="${ECR_REGISTRY}/${ECR_REPOSITORY}@${DIGEST}"
+          # syft xuất spdx-json (có gạch nối); cosign nhận --type spdxjson (không gạch nối).
+          syft "registry:${REF}" -o spdx-json > sbom.spdx.json
+          cosign attest --yes \
+            --type spdxjson \
+            --predicate sbom.spdx.json \
+            --rekor-url https://rekor.sigstore.dev \
+            --fulcio-url https://fulcio.sigstore.dev \
+            "$REF"
+          echo "✅ SBOM attested $REF ($(jq '.packages | length' sbom.spdx.json) packages)"
 
   # ------------------------------------------------------------------ #
   # CDO-142: bump tag vào Git -> ArgoCD selfHeal sync.                  #
@@ -438,3 +475,125 @@ jobs:
 
           echo "::error::Push thất bại sau 5 lần rebase — $BRANCH_NAME đang bị ghi quá nhanh."
           exit 1
+
+  # ------------------------------------------------------------------ #
+  # SBOM cho digest ĐANG CHẠY TRÊN PROD (env sandbox). Không build lại: #
+  # đọc tag từ tags file sandbox -> resolve digest ECR -> syft SBOM ->  #
+  # cosign attest spdxjson. Đặt CÙNG file để giữ cùng BUILD_IDENTITY    #
+  # (subject app-build.yaml@refs/heads/develop) mà Kyverno/verify dùng. #
+  #                                                                     #
+  # ECR IMMUTABLE: mỗi digest chỉ chứa 1 tag .att. Verify 2026-07-21:   #
+  # repo có 352 .sig / 0 .att -> promoted-develop chưa từng chạy, nên   #
+  # SBOM .att là lần ghi ĐẦU/digest -> không bị chặn. Nếu sau này bật   #
+  # promoted-develp trên cùng digest thì phải tách COSIGN_REPOSITORY.   #
+  # ------------------------------------------------------------------ #
+  attest-sbom:
+    name: Attest SBOM (prod digests)
+    # Chỉ chạy khi dispatch với attest_sbom=true, và chỉ từ develop (BUILD_IDENTITY
+    # subject bám ref develop — dispatch ref khác sẽ ký sai subject).
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.attest_sbom && github.ref == 'refs/heads/develop' }}
+    runs-on: ubuntu-latest
+    # Cùng environment/role như app-build/app-attest để push .att lên ECR (AWS OIDC).
+    environment: sandbox
+    permissions:
+      contents: read
+      id-token: write # OIDC cho AWS + Cosign keyless (Fulcio). Đẩy ECR qua AWS role, KHÔNG qua GITHUB_TOKEN.
+    env:
+      # Tags file PROD (env sandbox) — khác app-attest (đọc develop).
+      SANDBOX_TAGS_FILE: platform/gitops/environments/sandbox/values-image-tags.yaml
+      BUILD_IDENTITY: https://github.com/${{ github.repository }}/.github/workflows/app-build.yaml@refs/heads/develop
+      OIDC_ISSUER: https://token.actions.githubusercontent.com
+      DRY_RUN: ${{ inputs.sbom_dry_run }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install yq
+        uses: mikefarah/yq@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.TF_AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-sbom-${{ github.actor }}-${{ github.run_id }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@59acb6260d9c0ba8f4a2f9d9b48431a222b68e20 # v3.5.0
+
+      - name: Install Syft
+        uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+
+      - name: SBOM + attest từng digest prod
+        run: |
+          set -euo pipefail
+
+          mapfile -t SERVICES < <(yq -r '.components | keys | .[]' "$SANDBOX_TAGS_FILE")
+
+          attested=0 skipped=0 failed=0
+          echo "## Attest SBOM (prod digests)" >> "$GITHUB_STEP_SUMMARY"
+          echo "| service | tag | digest | kết quả |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
+
+          for svc in "${SERVICES[@]}"; do
+            # Chịu lỗi từng service: 1 image hỏng không chặn cả loạt.
+            set +e
+            TAG=$(yq -r ".components.\"$svc\".imageOverride.tag // \"\"" "$SANDBOX_TAGS_FILE")
+            if [ -z "$TAG" ]; then
+              echo "::warning::'$svc' không có tag trong sandbox tags file."
+              echo "| $svc | — | — | ❌ thiếu tag |" >> "$GITHUB_STEP_SUMMARY"
+              failed=$((failed+1)); set -e; continue
+            fi
+
+            DIGEST=$(aws ecr describe-images \
+              --repository-name "$ECR_REPOSITORY" \
+              --image-ids imageTag="$TAG" \
+              --query 'imageDetails[0].imageDigest' --output text 2>/dev/null)
+            if [ -z "$DIGEST" ] || [ "$DIGEST" = "None" ]; then
+              echo "::warning::'$svc': tag $TAG không có trên ECR."
+              echo "| $svc | $TAG | — | ❌ không có trên ECR |" >> "$GITHUB_STEP_SUMMARY"
+              failed=$((failed+1)); set -e; continue
+            fi
+            REF="${ECR_REGISTRY}/${ECR_REPOSITORY}@${DIGEST}"
+
+            # SKIP theo PREDICATE TYPE spdxjson — KHÔNG chỉ check .att tồn tại: 1 .att có
+            # thể chứa attestation loại khác (vd promoted-develop) mà chưa có SBOM.
+            if cosign verify-attestation --type spdxjson \
+                 --certificate-identity "$BUILD_IDENTITY" \
+                 --certificate-oidc-issuer "$OIDC_ISSUER" \
+                 "$REF" >/dev/null 2>&1; then
+              echo "⏭️  $svc: $DIGEST đã có SBOM spdxjson, skip."
+              echo "| $svc | $TAG | \`$DIGEST\` | ⏭️ đã có SBOM |" >> "$GITHUB_STEP_SUMMARY"
+              skipped=$((skipped+1)); set -e; continue
+            fi
+
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "🔎 $svc: $DIGEST (dry-run, không attest)."
+              echo "| $svc | $TAG | \`$DIGEST\` | 🔎 dry-run |" >> "$GITHUB_STEP_SUMMARY"
+              set -e; continue
+            fi
+
+            syft "registry:${REF}" -o spdx-json > sbom.spdx.json && \
+            cosign attest --yes \
+              --type spdxjson \
+              --predicate sbom.spdx.json \
+              --rekor-url https://rekor.sigstore.dev \
+              --fulcio-url https://fulcio.sigstore.dev \
+              "$REF"
+            if [ $? -ne 0 ]; then
+              echo "::error::'$svc': syft/attest lỗi cho $REF."
+              echo "| $svc | $TAG | \`$DIGEST\` | ❌ attest lỗi |" >> "$GITHUB_STEP_SUMMARY"
+              failed=$((failed+1)); set -e; continue
+            fi
+            echo "✅ $svc: SBOM attested $DIGEST"
+            echo "| $svc | $TAG | \`$DIGEST\` | ✅ attested |" >> "$GITHUB_STEP_SUMMARY"
+            attested=$((attested+1))
+            set -e
+          done
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Attested: $attested — skip: $skipped — lỗi: $failed**" >> "$GITHUB_STEP_SUMMARY"
+          [ "$failed" -eq 0 ] || exit 1
