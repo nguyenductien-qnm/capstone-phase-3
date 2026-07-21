@@ -24,7 +24,7 @@ components:
       tag: 1.0-frontend-fe01015
   frontend-proxy:
     imageOverride:
-      tag: 1.0-frontend-proxy-fe01015
+      tag: 1.0-frontend-proxy-eda5a0e
   image-provider:
     imageOverride:
       tag: 1.0-image-provider-ec72350
