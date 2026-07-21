@@ -19,11 +19,8 @@
 - 7. Grafana Dashboard Queries
 - 8. AWS Budget & Cost Anomaly Detection
 - 9. Evidence cần thu thập
-- 10. AWS CLI Collection
-- 11. AWS Console Guide
-- 12. Final Cost Optimization Report
-- 13. Checklist
-- 14. Thông tin cần bổ sung
+- 10. Final Cost Optimization Report
+
 
 ---
 
