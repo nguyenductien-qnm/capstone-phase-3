@@ -8,7 +8,7 @@ WORKDIR /app
 RUN apk update && \
     apk add --no-cache libc6-compat protobuf-dev protoc
 
-COPY ./src/pb/ /build/pb/
+COPY ./pb/ /build/pb/
 
 COPY ./src/frontend/package.json package.json
 COPY ./src/frontend/package-lock.json package-lock.json

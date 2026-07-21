@@ -43,7 +43,7 @@ COPY ./src/currency/src/ src/
 COPY ./src/currency/genproto/CMakeLists.txt genproto/CMakeLists.txt
 COPY ./src/currency/CMakeLists.txt CMakeLists.txt
 
-COPY ./src/pb/demo.proto proto/demo.proto
+COPY ./pb/demo.proto proto/demo.proto
 
 RUN mkdir -p build && cd build \
     && cmake .. \
