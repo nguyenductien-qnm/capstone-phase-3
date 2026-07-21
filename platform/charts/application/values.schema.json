@@ -267,6 +267,9 @@
         "podLabels": {
           "type": "object"
         },
+        "annotations": {
+          "type": "object"
+        },
         "podAnnotations": {
           "type": "object"
         },

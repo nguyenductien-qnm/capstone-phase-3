@@ -94,7 +94,6 @@ module "rds" {
   eks_node_security_group_id = module.eks.cluster_security_group_id
 
   enable_rotation                         = var.rds_enable_rotation
-  rotation_lambda_arn                     = var.rds_rotation_lambda_arn
   rotation_rules_automatically_after_days = var.rds_rotation_rules_automatically_after_days
   enable_logical_replication              = true
   track_activity_query_size               = var.rds_track_activity_query_size

@@ -186,9 +186,10 @@ components:
       env: true
     # Consumer Kafka async, KHÔNG HPA (scale nên theo lag, không phải CPU) và ngoài
     # critical path storefront → không cần PDB/spread (gián đoạn ngắn được Kafka đệm).
+    annotations:
+      reloader.stakater.com/auto: "true"
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
-      reloader.stakater.com/auto: "true"
     terminationGracePeriodSeconds: 30
     lifecycle:
       preStop:
@@ -1096,9 +1097,10 @@ components:
       periodSeconds: 10
       timeoutSeconds: 2
       failureThreshold: 6
+    annotations:
+      reloader.stakater.com/auto: "true"
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
-      reloader.stakater.com/auto: "true"
     env:
       - name: PRODUCT_CATALOG_PORT
         value: "8080"
@@ -1143,9 +1145,10 @@ components:
       name: product-reviews
     service:
       port: 3551
+    annotations:
+      reloader.stakater.com/auto: "true"
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
-      reloader.stakater.com/auto: "true"
     podDisruptionBudget:
       maxUnavailable: 1
     topologySpread: true
