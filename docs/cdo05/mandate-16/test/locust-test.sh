@@ -177,29 +177,63 @@ EOF
 
 cmd_run() {
     print_header "STARTING LOAD TEST"
-    
+
     # Check if deployment exists
     if ! kubectl get deploy "$DEPLOYMENT_NAME" -n "$NAMESPACE" &>/dev/null; then
         print_error "Deployment not found. Run './locust-test.sh setup' first."
         exit 1
     fi
-    
+
+    # Log start time
+    START_TIME=$(date '+%Y-%m-%d %H:%M:%S')
+    START_EPOCH=$(date +%s)
+    LOG_DIR="$(dirname "$0")/logs"
+    mkdir -p "$LOG_DIR"
+    LOG_FILE="$LOG_DIR/locust-$(date '+%Y%m%d-%H%M%S').log"
+
+    echo ""
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${BLUE}  TEST START${NC}"
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo ""
+    echo "  Start time:  $START_TIME"
+    echo "  Users:       $LOCUST_USERS"
+    echo "  Spawn rate:  $LOCUST_SPAWN_RATE"
+    echo "  Duration:    $LOCUST_DURATION"
+    echo "  Log file:    $LOG_FILE"
+    echo ""
+
+    # Write start log
+    cat > "$LOG_FILE" <<EOF
+# Locust Load Test Log
+# =====================
+start_time:    $START_TIME
+start_epoch:   $START_EPOCH
+users:         $LOCUST_USERS
+spawn_rate:    $LOCUST_SPAWN_RATE
+duration:      $LOCUST_DURATION
+namespace:     $NAMESPACE
+deployment:    $DEPLOYMENT_NAME
+image:         $IMAGE
+EOF
+
     # Check if pod is running
     echo "Waiting for pod to start..."
     kubectl rollout status deploy/"$DEPLOYMENT_NAME" -n "$NAMESPACE" --timeout=60s 2>&1 || true
-    
+
     echo ""
     echo "Pod status:"
     kubectl get pods -n "$NAMESPACE" -l app="$DEPLOYMENT_NAME"
-    
+
     echo ""
-    print_status "Load test started!"
+    print_status "Load test started at $START_TIME"
     echo ""
     echo "Monitor with:"
     echo "  ./locust-test.sh status    — Check pod status"
     echo "  ./locust-test.sh metrics   — Query Prometheus metrics"
     echo ""
     echo "The test will run for $LOCUST_DURATION then auto-stop."
+    echo "Expected end: $(date -d "+$(echo $LOCUST_DURATION | sed 's/m/*60/;s/h/*3600/')" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo 'calculate manually')"
 }
 
 cmd_status() {
@@ -309,10 +343,20 @@ cmd_cleanup() {
 
 cmd_stop() {
     print_header "STOPPING LOAD TEST"
-    
+
     if kubectl get deploy "$DEPLOYMENT_NAME" -n "$NAMESPACE" &>/dev/null; then
+        END_TIME=$(date '+%Y-%m-%d %H:%M:%S')
+        echo "Stop time: $END_TIME"
         kubectl scale deploy "$DEPLOYMENT_NAME" --replicas=0 -n "$NAMESPACE" 2>&1
         print_status "Scaled deployment to 0. Test stopped."
+
+        # Append to latest log file
+        LOG_DIR="$(dirname "$0")/logs"
+        LATEST_LOG=$(ls -t "$LOG_DIR"/locust-*.log 2>/dev/null | head -1)
+        if [ -n "$LATEST_LOG" ]; then
+            echo "end_time: $END_TIME" >> "$LATEST_LOG"
+            print_status "Logged end time to $LATEST_LOG"
+        fi
     else
         print_error "Deployment not found. Nothing to stop."
     fi

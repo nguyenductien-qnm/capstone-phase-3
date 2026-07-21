@@ -1,24 +1,27 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-import { LRUCache } from 'lru-cache';
 import ProductCatalogGateway from '../gateways/rpc/ProductCatalog.gateway';
 import CurrencyGateway from '../gateways/rpc/Currency.gateway';
 import { Money, Product } from '../protos/demo';
+import Redis from 'ioredis';
 
 const defaultCurrencyCode = 'USD';
 
-// Product cache: productId:currencyCode → Product (with converted price)
-const productCache = new LRUCache<string, Product>({
-  max: 500,
-  ttl: 60_000, // 60 seconds
+const redisUrl = process.env.VALKEY_ADDR ? `redis://${process.env.VALKEY_ADDR}` : 'redis://localhost:6379';
+const redis = new Redis(redisUrl, {
+  maxRetriesPerRequest: 1,
+  connectTimeout: 2000,
+  commandTimeout: 1000,
+  retryStrategy: times => Math.min(times * 50, 2000),
 });
 
-// List cache: list:currencyCode → Product[]
-const listCache = new LRUCache<string, Product[]>({
-  max: 10,
-  ttl: 60_000, // 60 seconds
+redis.on('error', err => {
+  console.warn('Redis/Valkey connection error:', err.message);
 });
+
+// Singleflight map to coalesce identical concurrent requests
+const inFlightPromises = new Map<string, Promise<any>>();
 
 const ProductCatalogService = () => ({
   async getProductPrice(price: Money, currencyCode: string) {
@@ -26,39 +29,81 @@ const ProductCatalogService = () => ({
       ? await CurrencyGateway.convert(price, currencyCode)
       : price;
   },
-  async listProducts(currencyCode = 'USD') {
+  async listProducts(currencyCode = 'USD'): Promise<Product[]> {
     const cacheKey = `list:${currencyCode}`;
-    const cached = listCache.get(cacheKey);
-    if (cached) return cached;
 
-    const { products: productList } = await ProductCatalogGateway.listProducts();
+    try {
+      const cached = await redis.get(cacheKey);
+      if (cached) return JSON.parse(cached);
+    } catch (err: any) {
+      console.warn('Redis get failed for listProducts, falling back to gRPC:', err.message);
+    }
 
-    const results = await Promise.all(
-      productList.map(async product => {
-        const priceUsd = await this.getProductPrice(product.priceUsd!, currencyCode);
-        return {
-          ...product,
-          priceUsd,
-        };
-      })
-    );
+    if (inFlightPromises.has(cacheKey)) {
+      return inFlightPromises.get(cacheKey);
+    }
 
-    listCache.set(cacheKey, results);
-    return results;
+    const promise = (async () => {
+      try {
+        const { products: productList } = await ProductCatalogGateway.listProducts();
+
+        const results = await Promise.all(
+          productList.map(async product => {
+            const priceUsd = await this.getProductPrice(product.priceUsd!, currencyCode);
+            return {
+              ...product,
+              priceUsd,
+            };
+          })
+        );
+        try {
+          await redis.set(cacheKey, JSON.stringify(results), 'EX', 60);
+        } catch (err: any) {
+          console.warn('Redis set failed for listProducts:', err.message);
+        }
+        return results;
+      } finally {
+        inFlightPromises.delete(cacheKey);
+      }
+    })();
+
+    inFlightPromises.set(cacheKey, promise);
+    return promise;
   },
   async getProduct(id: string, currencyCode = 'USD') {
-    const cacheKey = `${id}:${currencyCode}`;
-    const cached = productCache.get(cacheKey);
-    if (cached) return cached;
+    const cacheKey = `product:${id}:${currencyCode}`;
 
-    const product = await ProductCatalogGateway.getProduct(id);
-    const result = {
-      ...product,
-      priceUsd: await this.getProductPrice(product.priceUsd!, currencyCode),
-    };
+    try {
+      const cached = await redis.get(cacheKey);
+      if (cached) return JSON.parse(cached);
+    } catch (err: any) {
+      console.warn('Redis get failed for getProduct, falling back to gRPC:', err.message);
+    }
 
-    productCache.set(cacheKey, result);
-    return result;
+    if (inFlightPromises.has(cacheKey)) {
+      return inFlightPromises.get(cacheKey);
+    }
+
+    const promise = (async () => {
+      try {
+        const product = await ProductCatalogGateway.getProduct(id);
+        const result = {
+          ...product,
+          priceUsd: await this.getProductPrice(product.priceUsd!, currencyCode),
+        };
+        try {
+          await redis.set(cacheKey, JSON.stringify(result), 'EX', 30);
+        } catch (err: any) {
+          console.warn('Redis set failed for getProduct:', err.message);
+        }
+        return result;
+      } finally {
+        inFlightPromises.delete(cacheKey);
+      }
+    })();
+
+    inFlightPromises.set(cacheKey, promise);
+    return promise;
   },
 });
 

@@ -3,7 +3,7 @@
 
 import type { NextApiHandler } from 'next';
 import CartGateway from '../../gateways/rpc/Cart.gateway';
-import { AddItemRequest, Empty } from '../../protos/demo';
+import { AddItemRequest, Empty, Product } from '../../protos/demo';
 import ProductCatalogService from '../../services/ProductCatalog.service';
 import { IProductCart, IProductCartItem } from '../../types/Cart';
 import InstrumentationMiddleware from '../../utils/telemetry/InstrumentationMiddleware';
@@ -16,17 +16,17 @@ const handler: NextApiHandler<TResponse> = async ({ method, body, query }, res) 
       const { sessionId = '', currencyCode = '' } = query;
       const { userId, items } = await CartGateway.getCart(sessionId as string);
 
-      const productList: IProductCartItem[] = await Promise.all(
-        items.map(async ({ productId, quantity }) => {
-          const product = await ProductCatalogService.getProduct(productId, currencyCode as string);
+      const allProducts = await ProductCatalogService.listProducts(currencyCode as string);
 
-          return {
-            productId,
-            quantity,
-            product,
-          };
-        })
-      );
+      const productList: IProductCartItem[] = items.map(({ productId, quantity }) => {
+        const product = allProducts.find((p: Product) => p.id === productId) || ({} as Product);
+
+        return {
+          productId,
+          quantity,
+          product,
+        };
+      });
 
       return res.status(200).json({ userId, items: productList });
     }

@@ -17,9 +17,8 @@ const handler = async ({ method, query }: NextApiRequest, res: NextApiResponse<T
         sessionId as string,
         productIds as string[]
       );
-      const recommendedProductList = await Promise.all(
-        productList.slice(0, 4).map(id => ProductCatalogService.getProduct(id, currencyCode as string))
-      );
+      const allProducts = await ProductCatalogService.listProducts(currencyCode as string);
+      const recommendedProductList = productList.slice(0, 4).map(id => allProducts.find((p: Product) => p.id === id)).filter(Boolean);
 
       return res.status(200).json(recommendedProductList);
     }

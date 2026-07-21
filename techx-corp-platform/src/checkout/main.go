@@ -19,6 +19,8 @@ import (
 	"syscall"
 	"time"
 
+	"golang.org/x/sync/singleflight"
+
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/log/global"
 	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
@@ -146,6 +148,8 @@ type checkout struct {
 	currencySvcClient       pb.CurrencyServiceClient
 	emailSvcClient          pb.EmailServiceClient
 	paymentSvcClient        pb.PaymentServiceClient
+	productCatalogGroup     singleflight.Group
+	currencyGroup           singleflight.Group
 }
 
 func main() {
@@ -528,11 +532,14 @@ func (cs *checkout) prepOrderItems(ctx context.Context, items []*pb.CartItem, us
 		wg.Add(1)
 		go func(i int, item *pb.CartItem) {
 			defer wg.Done()
-			product, err := cs.productCatalogSvcClient.GetProduct(ctx, &pb.GetProductRequest{Id: item.GetProductId()})
+			v, err, _ := cs.productCatalogGroup.Do(item.GetProductId(), func() (interface{}, error) {
+				return cs.productCatalogSvcClient.GetProduct(context.WithoutCancel(ctx), &pb.GetProductRequest{Id: item.GetProductId()})
+			})
 			if err != nil {
 				errs[i] = fmt.Errorf("failed to get product #%q", item.GetProductId())
 				return
 			}
+			product := v.(*pb.Product)
 			price, err := cs.convertCurrency(ctx, product.GetPriceUsd(), userCurrency)
 			if err != nil {
 				errs[i] = fmt.Errorf("failed to convert price of %q to %s", item.GetProductId(), userCurrency)
@@ -555,13 +562,16 @@ func (cs *checkout) prepOrderItems(ctx context.Context, items []*pb.CartItem, us
 }
 
 func (cs *checkout) convertCurrency(ctx context.Context, from *pb.Money, toCurrency string) (*pb.Money, error) {
-	result, err := cs.currencySvcClient.Convert(ctx, &pb.CurrencyConversionRequest{
-		From:   from,
-		ToCode: toCurrency})
+	key := fmt.Sprintf("%s:%d:%d:%s", from.GetCurrencyCode(), from.GetUnits(), from.GetNanos(), toCurrency)
+	v, err, _ := cs.currencyGroup.Do(key, func() (interface{}, error) {
+		return cs.currencySvcClient.Convert(context.WithoutCancel(ctx), &pb.CurrencyConversionRequest{
+			From:   from,
+			ToCode: toCurrency})
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert currency: %+v", err)
 	}
-	return result, err
+	return v.(*pb.Money), nil
 }
 
 func (cs *checkout) chargeCard(ctx context.Context, amount *pb.Money, paymentInfo *pb.CreditCardInfo) (string, error) {

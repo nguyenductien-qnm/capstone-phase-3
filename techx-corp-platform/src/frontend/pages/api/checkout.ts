@@ -4,7 +4,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import InstrumentationMiddleware from '../../utils/telemetry/InstrumentationMiddleware';
 import CheckoutGateway from '../../gateways/rpc/Checkout.gateway';
-import { Empty, PlaceOrderRequest } from '../../protos/demo';
+import { Empty, PlaceOrderRequest, Product } from '../../protos/demo';
 import { IProductCheckoutItem, IProductCheckout } from '../../types/Cart';
 import ProductCatalogService from '../../services/ProductCatalog.service';
 
@@ -17,20 +17,20 @@ const handler = async ({ method, body, query }: NextApiRequest, res: NextApiResp
       const orderData = body as PlaceOrderRequest;
       const { order: { items = [], ...order } = {} } = await CheckoutGateway.placeOrder(orderData);
 
-      const productList: IProductCheckoutItem[] = await Promise.all(
-        items.map(async ({ item: { productId = '', quantity = 0 } = {}, cost }) => {
-          const product = await ProductCatalogService.getProduct(productId, currencyCode as string);
+      const allProducts = await ProductCatalogService.listProducts(currencyCode as string);
 
-          return {
-            cost,
-            item: {
-              productId,
-              quantity,
-              product,
-            },
-          };
-        })
-      );
+      const productList: IProductCheckoutItem[] = items.map(({ item: { productId = '', quantity = 0 } = {}, cost }) => {
+        const product = allProducts.find((p: Product) => p.id === productId) || ({} as Product);
+
+        return {
+          cost,
+          item: {
+            productId,
+            quantity,
+            product,
+          },
+        };
+      });
 
       return res.status(200).json({ ...order, items: productList });
     }
