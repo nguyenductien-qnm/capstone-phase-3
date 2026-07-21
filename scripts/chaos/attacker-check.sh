@@ -8,7 +8,7 @@
 #
 # KHÔNG chạy tự động.  ./attacker-check.sh [namespace]
 set -euo pipefail
-NS="${1:-techx-tf1}"
+NS="${1:-techx-develop}"
 
 echo ">> Tạo pod attacker (netshoot) trong namespace $NS ..."
 echo "   Chạy các lệnh sau BÊN TRONG pod và chụp kết quả:"

@@ -4,11 +4,11 @@
 #
 # KHÔNG chạy tự động. Chạy thủ công khi có cluster + kubeconfig đúng context.
 #   ./kill-dependency.sh <service> [namespace] [seconds]
-# Ví dụ:  ./kill-dependency.sh ad techx-tf1 120
+# Ví dụ:  ./kill-dependency.sh ad techx-develop 120
 set -euo pipefail
 
 SVC="${1:?Thiếu tên service, vd: ad hoặc recommendation}"
-NS="${2:-techx-tf1}"
+NS="${2:-techx-develop}"
 DURATION="${3:-120}"
 
 echo ">> Ghi lại số replica hiện tại của deploy/$SVC ..."
