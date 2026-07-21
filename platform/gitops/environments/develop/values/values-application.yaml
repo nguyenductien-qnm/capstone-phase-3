@@ -1,5 +1,15 @@
 # Develop starts without a public ALB, Product-like ACM certificate or DNS name.
 # Enable ingress only after a Develop-owned certificate and hostname are approved.
+
+# M17-R3: override NetworkPolicy cho VPC develop (10.60.0.0/16, KHÁC sandbox 10.0.0.0/16).
+# Develop KHÔNG cần egress-internet label: flagd dùng file local, LLM in-cluster (không Bedrock).
+# networkPolicy.enabled giữ default false (chart) -> bật ở PR sau khi verify Phase 1.
+networkPolicy:
+  observability:
+    apiServerCIDR: 10.60.0.0/16
+  datastoreEgress:
+    vpcCidr: 10.60.0.0/16
+
 components:
   frontend-proxy:
     ingress:
