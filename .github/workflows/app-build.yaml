@@ -66,7 +66,10 @@ env:
   ECR_REGISTRY: ${{ vars.ECR_REGISTRY || '804372444787.dkr.ecr.us-east-1.amazonaws.com' }}
   # 1 repo chung, service phân biệt bằng tag suffix (khớp chart _objects.tpl:73).
   ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY || 'ecommerce-dev-techx-corp' }}
-  # version trong tag = default.image.tag của chart (values.yaml). Bump khi chart lên version.
+  # Phần <version> trong tag <version>-<svc>-<sha>. Nguồn THẬT: GitHub Actions
+  # variable IMAGE_VERSION, fallback '1.0' — KHÔNG lấy từ default.image.tag của chart
+  # (sửa default.image.tag trong values.yaml KHÔNG làm tag build đổi). Muốn lên version:
+  # đổi vars.IMAGE_VERSION.
   IMAGE_VERSION: ${{ vars.IMAGE_VERSION || '1.0' }}
   BUILD_CONTEXT: techx-corp-platform
   # CI CHỈ ghi file tags tách riêng (không comment) -> yq bump không phá format
@@ -166,16 +169,45 @@ jobs:
                 selected=("${!DOCKERFILE[@]}")
               else
                 mapfile -t changed < <(git diff --name-only "$BASE_SHA" "${{ github.sha }}")
-                # Chart đổi -> ảnh hưởng mọi service, build tất cả.
+
+                # (1) Thay đổi trong src/<svc>/ -> build đúng service đó.
+                for svc in "${!DOCKERFILE[@]}"; do
+                  if printf '%s\n' "${changed[@]}" | grep -q "^techx-corp-platform/src/$svc/"; then
+                    selected+=("$svc")
+                  fi
+                done
+
+                # (2) values.yaml đổi: KHÔNG mặc định build tất cả nữa. Chỉ rebuild khi
+                # thay đổi là BUILD-RELEVANT. Field runtime thuần (resources/hpa/probes/
+                # env/replicas/service/...) inject lúc chạy, KHÔNG bake vào image -> chỉ
+                # cần Helm validate (validate-manifest), không rebuild.
+                #
+                # Cách xác định: xoá mọi key runtime khỏi .components[svc] rồi so phần
+                # CÒN LẠI base vs head. Khác nhau = có thay đổi build-relevant. Fail-safe:
+                # key lạ/mới KHÔNG nằm trong danh sách xoá vẫn ở phần còn lại -> build
+                # thừa (an toàn) thay vì skip nhầm -> deploy image cũ.
                 if printf '%s\n' "${changed[@]}" | grep -qx "$VALUES"; then
-                  echo "$VALUES đổi -> build tất cả."
-                  selected=("${!DOCKERFILE[@]}")
-                else
-                  for svc in "${!DOCKERFILE[@]}"; do
-                    if printf '%s\n' "${changed[@]}" | grep -q "^techx-corp-platform/src/$svc/"; then
-                      selected+=("$svc")
-                    fi
-                  done
+                  RT='del(.resources,.hpa,.podAnnotations,.env,.service,.securityContext,.readinessProbe,.livenessProbe,.startupProbe,.podDisruptionBudget,.topologySpread,.terminationGracePeriodSeconds,.lifecycle,.deploymentStrategy,.replicas,.ports,.serviceAccount,.command,.initContainers,.sidecarContainers,.additionalVolumes,.mountedConfigMaps,.mountedEmptyDirs,.ingress)'
+                  BASE_V=$(git show "$BASE_SHA:$VALUES" 2>/dev/null || true)
+                  HEAD_V=$(git show "${{ github.sha }}:$VALUES" 2>/dev/null || cat "$VALUES")
+
+                  if [ -z "$BASE_V" ]; then
+                    echo "Không đọc được $VALUES ở base -> build tất cả (an toàn)."
+                    selected=("${!DOCKERFILE[@]}")
+                  elif [ "$(yq 'del(.components)' <<<"$BASE_V")" != "$(yq 'del(.components)' <<<"$HEAD_V")" ]; then
+                    # Thay đổi NGOÀI .components (global/default/... ảnh hưởng mọi service).
+                    echo "$VALUES: đổi ngoài .components -> build tất cả."
+                    selected=("${!DOCKERFILE[@]}")
+                  else
+                    for svc in "${!DOCKERFILE[@]}"; do
+                      b=$(yq ".components[\"$svc\"] | $RT" <<<"$BASE_V")
+                      h=$(yq ".components[\"$svc\"] | $RT" <<<"$HEAD_V")
+                      if [ "$b" != "$h" ]; then
+                        echo "$VALUES: components.$svc đổi build-relevant -> build $svc."
+                        selected+=("$svc")
+                      fi
+                    done
+                  fi
                 fi
               fi
               ;;
