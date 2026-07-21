@@ -81,6 +81,20 @@ networkPolicy:
       - opentelemetry-collector
     # Dải chứa ENI control-plane (API server IP xoay) — VPC CIDR cluster này.
     apiServerCIDR: 10.0.0.0/16
+  # Egress tới managed datastore NGOÀI cluster (kafka/valkey/postgresql tắt in-cluster ->
+  # app gọi ElastiCache/MSK/RDS ở IP VPC 10.x; default-deny egress sẽ chặn nếu thiếu rule).
+  datastoreEgress:
+    vpcCidr: 10.0.0.0/16
+    stores:
+      - name: elasticache      # Redis/Valkey (VALKEY_ADDR, TLS)
+        ports: [6379]
+        consumers: [cart, product-reviews]
+      - name: msk              # Kafka (KAFKA_ADDR; 9092 plaintext / 9094 TLS / 9096 SASL)
+        ports: [9092, 9094, 9096]
+        consumers: [accounting, checkout, fraud-detection]
+      - name: rds              # Postgres (DB_CONNECTION_STRING)
+        ports: [5432]
+        consumers: [accounting, product-catalog, product-reviews]
   # per-service INGRESS: mỗi đích chỉ nhận từ đúng caller (đồ thị phụ thuộc đã xác minh từ *_ADDR).
   # flagd xử lý riêng ở trên; DB/queue (valkey-cart, kafka) và service lá cũng liệt kê.
   serviceIngress:
@@ -600,6 +614,8 @@ components:
         cpu: 100m
         memory: 20Mi
     topologySpread: true   # M17-R2: trải pod ra ≥2 AZ (money-path)
+    podDisruptionBudget:   # M17-R2: drain-az/rollout không hạ cả 2 pod cùng lúc
+      maxUnavailable: 1
     hpa:
       enabled: true
       minReplicas: 2       # M17-R2: HA, mất 1 AZ vẫn còn pod
@@ -1069,6 +1085,8 @@ components:
     enabled: true
     replicas: 2            # M17-R2: HA money-path
     topologySpread: true   # M17-R2: trải pod ra ≥2 AZ
+    podDisruptionBudget:   # M17-R2: drain-az/rollout không hạ cả 2 pod cùng lúc
+      maxUnavailable: 1
     imageOverride:
       tag: "1.0-payment-ae89fa2" # incident 2026-07-16: tag tran bi ECR lifecycle xoa, image rebuild tu source
     useDefault:
@@ -1427,6 +1445,8 @@ components:
     enabled: true
     replicas: 2            # M17-R2: HA money-path
     topologySpread: true   # M17-R2: trải pod ra ≥2 AZ
+    podDisruptionBudget:   # M17-R2: drain-az/rollout không hạ cả 2 pod cùng lúc
+      maxUnavailable: 1
     useDefault:
       env: true
     service:

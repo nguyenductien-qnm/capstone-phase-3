@@ -119,6 +119,25 @@
               "type": "string"
             }
           }
+        },
+        "datastoreEgress": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "vpcCidr": { "type": "string" },
+            "stores": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "name": { "type": "string" },
+                  "ports": { "type": "array", "items": { "type": "integer" } },
+                  "consumers": { "type": "array", "items": { "type": "string" } }
+                }
+              }
+            }
+          }
         }
       }
     }
