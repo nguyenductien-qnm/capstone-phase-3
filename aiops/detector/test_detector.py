@@ -139,8 +139,8 @@ def test_eval_metric_rule_insufficient_history():
     # Static threshold is 10.0, so static alert fires.
     # But EWMA shouldn't fire because len(history) < 5
     assert len(alerts) == 1
-    assert "Static" in alerts[0][1]
-    assert "EWMA" not in alerts[0][1]
+    assert "Static" in field_values(alerts[0])
+    assert "EWMA" not in field_values(alerts[0])
 
 
 def test_eval_metric_rule_op_lt():
@@ -168,7 +168,7 @@ def test_eval_metric_rule_op_lt():
     alerts = detector.eval_metric_rule(rule, prom)
     
     assert len(alerts) == 1
-    assert "EWMA 3-Sigma" in alerts[0][1]
+    assert "EWMA 3-Sigma" in field_values(alerts[0])
     assert "checkout" in alerts[0][0]
 
 

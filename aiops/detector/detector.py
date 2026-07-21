@@ -131,7 +131,7 @@ def eval_metric_rule(rule, prom):
                 # nen mean/std_dev da duoc gan o tren.
                 fields.append((
                     "📊 Giá trị đo / Baseline (mean ± 3σ)",
-                    f"{value:.4f} / {mean:.4f} ± {3 * std_dev:.4f}",
+                    f"{value:.4f} / {ewma_mean:.4f} ± {3 * ewma_std:.4f}",
                     True,
                 ))
             fields.append(("🔍 Phương pháp phát hiện", ", ".join(method_str), False))
