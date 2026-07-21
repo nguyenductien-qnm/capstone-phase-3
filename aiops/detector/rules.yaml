@@ -51,84 +51,88 @@ rules:
   - id: error-budget-burn-fast-standard
     type: metric
     severity: critical
-    summary: "Tỉ lệ lỗi 5xx > 0.5% — VI PHẠM SLO non-5xx (≥ 99.5%)"
+    summary: "Fast Burn Rate > 14.4x (CẢ 5m và 1h) — VI PHẠM SLO non-5xx (≥ 99.5%)"
     summary_dynamic: "Tỉ lệ lỗi 5xx TĂNG BẤT THƯỜNG so với baseline (chưa vượt SLO 0.5% — cảnh báo sớm)"
     query: >-
       (
-        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout", http_response_status_code=~"5.."}[5m]))
-        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout"}[5m])), 0.001)
-        <
-        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout", http_response_status_code=~"5.."}[1h]))
-        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout"}[1h])), 0.001)
+        (
+          sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout", http_response_status_code=~"5.."}[5m]))
+          / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout"}[5m])), 0.001)
+        ) / 0.005
       )
-      or
+      and
       (
-        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout", http_response_status_code=~"5.."}[1h]))
-        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout"}[1h])), 0.001)
+        (
+          sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout", http_response_status_code=~"5.."}[1h]))
+          / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout"}[1h])), 0.001)
+        ) / 0.005 > 14.4
       )
     op: gt
-    threshold: 0.072
+    threshold: 14.4
 
   - id: error-budget-burn-fast-checkout
     type: metric
     severity: critical
-    summary: "Tỉ lệ lỗi checkout > 1% — luồng RA TIỀN đang vỡ SLO (≥ 99%)"
+    summary: "Fast Burn Rate > 14.4x (CẢ 5m và 1h) — luồng RA TIỀN đang vỡ SLO (≥ 99%)"
     summary_dynamic: "Lỗi checkout TĂNG BẤT THƯỜNG so với baseline (chưa vượt SLO 1% — theo dõi sát)"
     query: >-
       (
-        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout", http_response_status_code=~"5.."}[5m]))
-        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout"}[5m])), 0.001)
-        <
-        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout", http_response_status_code=~"5.."}[1h]))
-        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout"}[1h])), 0.001)
+        (
+          sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout", http_response_status_code=~"5.."}[5m]))
+          / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout"}[5m])), 0.001)
+        ) / 0.01
       )
-      or
+      and
       (
-        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout", http_response_status_code=~"5.."}[1h]))
-        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout"}[1h])), 0.001)
+        (
+          sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout", http_response_status_code=~"5.."}[1h]))
+          / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout"}[1h])), 0.001)
+        ) / 0.01 > 14.4
       )
     op: gt
-    threshold: 0.144
+    threshold: 14.4
 
   - id: error-budget-burn-slow-standard
     type: metric
     severity: warning
-    summary: "Slow burn rate > 6x (30m/6h) - TICKET! (Non-checkout)"
+    summary: "Slow Burn Rate > 6.0x (CẢ 30m và 6h) - TICKET! (Non-checkout)"
     query: >-
       (
-        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout", http_response_status_code=~"5.."}[30m]))
-        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout"}[30m])), 0.001)
-        <
-        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout", http_response_status_code=~"5.."}[6h]))
-        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout"}[6h])), 0.001)
+        (
+          sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout", http_response_status_code=~"5.."}[30m]))
+          / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout"}[30m])), 0.001)
+        ) / 0.005
       )
-      or
+      and
       (
-        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout", http_response_status_code=~"5.."}[6h]))
-        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout"}[6h])), 0.001)
+        (
+          sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout", http_response_status_code=~"5.."}[6h]))
+          / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout"}[6h])), 0.001)
+        ) / 0.005 > 6.0
       )
     op: gt
-    threshold: 0.03
+    threshold: 6.0
 
   - id: error-budget-burn-slow-checkout
     type: metric
     severity: warning
-    summary: "Slow burn rate > 6x (30m/6h) - TICKET! (Checkout)"
+    summary: "Slow Burn Rate > 6.0x (CẢ 30m và 6h) - TICKET! (Checkout)"
     query: >-
       (
-        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout", http_response_status_code=~"5.."}[30m]))
-        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout"}[30m])), 0.001)
-        <
-        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout", http_response_status_code=~"5.."}[6h]))
-        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout"}[6h])), 0.001)
+        (
+          sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout", http_response_status_code=~"5.."}[30m]))
+          / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout"}[30m])), 0.001)
+        ) / 0.01
       )
-      or
+      and
       (
-        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout", http_response_status_code=~"5.."}[6h]))
-        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout"}[6h])), 0.001)
+        (
+          sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout", http_response_status_code=~"5.."}[6h]))
+          / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout"}[6h])), 0.001)
+        ) / 0.01 > 6.0
       )
     op: gt
-    threshold: 0.06
+    threshold: 6.0
 
   # ---- COST SIGNAL (chi phi LLM) ----
   - id: bedrock-cost-high
@@ -229,13 +233,13 @@ rules:
     window_minutes: 10
     min_count: 1
 
-  # ---- DRAFT (review K1/K4) - PHAI verify PromQL tren Prometheus song truoc khi tin ----
+  # SEMANTICS-VERIFIED 21/07 (Task B2 - SRE Workbook Chapter 5: Multi-window multi-burn-rate)
   # K1: multi-window multi-burn-rate cho error budget (non-5xx >= 99.5% => budget 0.5%).
-  # Fire khi burn-rate 5m > 14.4x VA 1h > 14.4x (SRE workbook page-level).
+  # Fire khi burn-rate 5m > 14.4x VA 1h > 14.4x (SRE workbook page-level critical).
   - id: error-budget-burn-fast
     type: metric
     severity: critical
-    summary: "DRAFT K1: đốt error budget > 14.4× ở CẢ 5m và 1h — tốc độ này cạn budget 24h trong dưới 2 giờ"
+    summary: "Fast Burn Rate > 14.4× ở CẢ 5m và 1h — tốc độ này cạn budget 24h trong dưới 2 giờ"
     query: >-
       (
         sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", http_response_status_code=~"5.."}[5m]))

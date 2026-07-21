@@ -15,7 +15,7 @@ Sửa lỗi phiên bản `openfeature-sdk==0.5.1` không tồn tại bằng các
 
 | Trường bắt buộc | Giá trị |
 |---|---|
-| Change owner / implementer | dinh144 (Gemini AI) |
+| Change owner / implementer | Lê Kim Dũng (03 lê kim dũng) |
 | Reviewer độc lập | |
 | Jira / Incident ID | N/A |
 | Resource và môi trường bị ảnh hưởng | Service `llm` |
