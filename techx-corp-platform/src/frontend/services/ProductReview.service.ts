@@ -143,7 +143,16 @@ const ProductReviewService = {
      * - Có thể phụ thuộc user/session/context.
      * - Cache key có thể chứa dữ liệu nhạy cảm.
      */
-    return ProductReviewGateway.askProductAIAssistant(productId, normalizedQuestion);
+    try {
+      return await ProductReviewGateway.askProductAIAssistant(productId, normalizedQuestion);
+    } catch (error) {
+      console.warn(`Failed to ask AI Assistant for ${productId}, using fallback:`, error);
+      return { 
+        text: "Xin lỗi, AI Assistant hiện không khả dụng do hệ thống đang bảo trì. Vui lòng thử lại sau.", 
+        traceId: "", 
+        citations: [] 
+      };
+    }
   },
 
   /**
