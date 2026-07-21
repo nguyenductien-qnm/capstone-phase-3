@@ -103,17 +103,27 @@ const ProductReviewService = {
   async getProductReviews(id: string): Promise<ProductReviews> {
     const productId = normalizeProductId(id);
 
-    return getOrLoad(productReviewsCache, productId, `reviews:${productId}`, () =>
-      ProductReviewGateway.getProductReviews(productId)
-    );
+    return getOrLoad(productReviewsCache, productId, `reviews:${productId}`, async () => {
+      try {
+        return await ProductReviewGateway.getProductReviews(productId);
+      } catch (error) {
+        console.warn(`Failed to fetch product reviews for ${productId}, using fallback:`, error);
+        return [];
+      }
+    });
   },
 
   async getAverageProductReviewScore(id: string): Promise<AverageProductReviewScore> {
     const productId = normalizeProductId(id);
 
-    return getOrLoad(averageScoreCache, productId, `average-score:${productId}`, () =>
-      ProductReviewGateway.getAverageProductReviewScore(productId)
-    );
+    return getOrLoad(averageScoreCache, productId, `average-score:${productId}`, async () => {
+      try {
+        return await ProductReviewGateway.getAverageProductReviewScore(productId);
+      } catch (error) {
+        console.warn(`Failed to fetch average score for ${productId}, using fallback:`, error);
+        return "0.0";
+      }
+    });
   },
 
   async askProductAIAssistant(
