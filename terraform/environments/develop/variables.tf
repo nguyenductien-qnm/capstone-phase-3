@@ -395,3 +395,58 @@ variable "mandate_12_alert_email" {
   description = "Email receiver for Mandate-12 CloudTrail tamper alerts"
   sensitive   = true
 }
+
+# ============ Cost Guard Automation Variables ============
+
+variable "enable_cost_guard_automation" {
+  type        = bool
+  description = "Bật/Tắt Cost Guard Automation module"
+  default     = false
+}
+
+variable "budget_limit" {
+  type        = number
+  description = "Giới hạn chi phí hàng tháng (USD)"
+  default     = 1000
+}
+
+variable "budget_alert_email_80" {
+  type        = string
+  description = "Email nhận cảnh báo ở 80% budget threshold"
+  default     = ""
+}
+
+variable "budget_alert_email_95" {
+  type        = string
+  description = "Email nhận cảnh báo CRITICAL ở 95% budget threshold"
+  default     = ""
+}
+
+variable "budget_periods" {
+  type = list(object({
+    name       = string
+    start_date = string
+    end_date   = string
+    amount     = number
+  }))
+  description = "Danh sách các khoản budget định kỳ tùy chỉnh theo khoảng thời gian"
+  default     = []
+}
+
+variable "lambda_timeout" {
+  type        = number
+  description = "Lambda execution timeout (seconds)"
+  default     = 300
+}
+
+variable "lambda_memory" {
+  type        = number
+  description = "Lambda memory allocation (MB)"
+  default     = 512
+}
+
+variable "cloudwatch_log_retention_days" {
+  type        = number
+  description = "CloudWatch Logs retention (days) cho Cost Guard Lambda"
+  default     = 14
+}

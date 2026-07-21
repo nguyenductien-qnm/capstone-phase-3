@@ -46,7 +46,6 @@ flowchart LR
 | `terraform/md/COST_GUARD_SETUP.md` | **NEW** | Tài liệu setup |
 | `terraform/modules/rds/outputs.tf` | **MODIFIED** | Thêm output `instance_id` |
 | `terraform/modules/elasticache/outputs.tf` | **MODIFIED** | Thêm output `cluster_id` |
-| `platform/.../cost-breakdown-dashboard.json` | **MODIFIED** | Chuyển từ Athena sang CloudWatch |
 
 ---
 
@@ -133,18 +132,7 @@ Thêm 8 biến mới:
 
 ---
 
-### 3.5. Grafana Dashboard (`cost-breakdown-dashboard.json`)
 
-| Thuộc tính | Trước (Athena) | Sau (CloudWatch) |
-|---|---|---|
-| Datasource | `athena` | `cloudwatch` |
-| Query | SQL Presto/Athena | `AWS/Billing` namespace metrics |
-| Variables | `athena_datasource`, `billing_database`, `billing_table`, `tag_key` | `cloudwatch_datasource`, `currency` |
-| Số panels | 6 | 5 |
-| Region | Không cố định | `us-east-1` (bắt buộc cho Billing) |
-| Granularity | Per row (billing export) | Per day (`period = 86400`) |
-
----
 
 ## 4. AWS Resources được tạo mới
 
@@ -190,11 +178,19 @@ Khi `enable_cost_guard_automation = true`:
 
 ### 🟢 Rủi ro thấp — Có thể chấp nhận
 
-| # | Vấn đề | Mô tả |
-|---|---|---|
 | 8 | Module tắt mặc định | `enable_cost_guard_automation = false` → không tạo resource |
 | 9 | Archive provider thêm mới | Cần `terraform init` lại sau merge |
-| 10 | Grafana dashboard thay đổi | Team đang dùng Athena sẽ mất panel cũ |
+
+---
+
+## 5.5. Phân tích Tác động tới SLO (Service Level Objectives)
+
+**Câu hỏi:** *Việc sửa thông số DB instance có làm xóa DB cũ và tạo mới gây ảnh hưởng đến SLO không?*
+
+**Trả lời:** **KHÔNG**.
+1. Nhánh này **KHÔNG sửa đổi thông số của DB instance**. File `terraform/modules/rds/main.tf` không hề có sự thay đổi. Thay đổi duy nhất nằm ở file `outputs.tf` (chỉ xuất thêm biến `instance_id`), hoàn toàn không tác động đến AWS resource.
+2. Lambda tự động hóa (Cost Guard) dùng hàm `rds.stop_db_instance` (chỉ áp dụng ở ngưỡng nguy hiểm 95%). Hành động này sẽ tạm dừng DB chứ không xóa hay recreate. 
+3. Nếu DB bị stop, SLO chắc chắn sẽ bị vi phạm (downtime). Do đó, module Cost Guard đang được cấu hình mặc định là **TẮT** (`enable_cost_guard_automation = false`) và chỉ nên bật ở môi trường **Sandbox/Dev**, tuyệt đối không bật ở Production.
 
 ---
 
@@ -245,14 +241,14 @@ echo "cost_guard.auto.tfvars" >> terraform/environments/sandbox/.gitignore
 
 ## 7. Checklist trước khi tạo PR sang `develop`
 
-- [ ] Xóa duplicate `data "aws_caller_identity"` ở `providers.tf`
-- [ ] Xóa duplicate output `msk_secret_arn` ở `outputs.tf`
-- [ ] Fix hoặc xóa `cost_filter` với `values = ["*"]`
+- [x] Xóa duplicate `data "aws_caller_identity"` ở `providers.tf`
+- [x] Xóa duplicate output `msk_secret_arn` ở `outputs.tf`
+- [x] Fix hoặc xóa `cost_filter` với `values = ["*"]`
+- [x] Sửa `time_period_start` fallback budget về ngày hiện tại
 - [ ] Thêm `cost_guard.auto.tfvars` vào `.gitignore`
-- [ ] Sửa `time_period_start` fallback budget về ngày hiện tại
-- [ ] `terraform init` thành công ✅
-- [ ] `terraform validate` thành công ✅
-- [ ] `terraform plan -var="enable_cost_guard_automation=false"` → no changes ✅
+- [ ] `terraform init` thành công
+- [ ] `terraform validate` thành công
+- [ ] `terraform plan -var="enable_cost_guard_automation=false"` → no changes
 - [ ] Review IAM permissions Lambda (quyền stop RDS, scale EKS về 0)
 - [ ] Email subscriptions phải được confirm từ hộp thư sau khi apply
 

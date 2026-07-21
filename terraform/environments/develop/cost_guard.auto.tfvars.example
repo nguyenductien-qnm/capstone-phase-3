@@ -39,6 +39,6 @@ budget_periods = [
 ]
 
 # Lambda configuration (optional - defaults are usually fine)
-cost_guard_lambda_timeout     = 300   # seconds
-cost_guard_lambda_memory      = 512   # MB
-cost_guard_log_retention_days = 14    # days
+lambda_timeout                = 300   # seconds
+lambda_memory                 = 512   # MB
+cloudwatch_log_retention_days = 14    # days

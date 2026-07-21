@@ -144,6 +144,7 @@ resource "aws_iam_role_policy" "lambda_elasticache_policy" {
       Effect = "Allow"
       Action = [
         "elasticache:ModifyReplicationGroup",
+        "elasticache:DecreaseReplicaCount",
         "elasticache:DescribeReplicationGroups",
         "elasticache:DescribeCacheClusters"
       ]
@@ -185,7 +186,7 @@ resource "aws_iam_role_policy" "lambda_ec2_policy" {
 # CloudWatch Log Group cho Lambda
 resource "aws_cloudwatch_log_group" "lambda_logs" {
   name              = "/aws/lambda/${local.cost_guard_name}"
-  retention_in_days = var.cost_guard_log_retention_days
+  retention_in_days = var.cloudwatch_log_retention_days
 
   tags = merge(
     local.common_tags,
@@ -210,8 +211,8 @@ resource "aws_lambda_function" "cost_guard" {
   role             = aws_iam_role.lambda_role.arn
   handler          = "index.handler"
   runtime          = "python3.11"
-  timeout          = var.cost_guard_lambda_timeout
-  memory_size      = var.cost_guard_lambda_memory
+  timeout          = var.lambda_timeout
+  memory_size      = var.lambda_memory
 
   environment {
     variables = {
@@ -321,10 +322,7 @@ resource "aws_budgets_budget" "custom_period" {
   time_period_end   = each.value.end_date
   time_unit         = var.budget_time_unit
 
-  cost_filter {
-    name   = "Service"
-    values = ["*"]
-  }
+
 
   notification {
     comparison_operator     = "GREATER_THAN"
@@ -357,14 +355,9 @@ resource "aws_budgets_budget" "monthly_80_percent" {
   budget_type       = "COST"
   limit_unit        = "USD"
   limit_amount      = var.budget_limit
-  time_period_start = "2024-01-01_00:00"
+  time_period_start = "2026-07-01_00:00"
   time_period_end   = "2087-12-31_23:59"
   time_unit         = var.budget_time_unit
-
-  cost_filter {
-    name   = "Service"
-    values = ["*"]
-  }
 
   notification {
     comparison_operator     = "GREATER_THAN"
@@ -388,14 +381,9 @@ resource "aws_budgets_budget" "monthly_95_percent" {
   budget_type       = "COST"
   limit_unit        = "USD"
   limit_amount      = var.budget_limit
-  time_period_start = "2024-01-01_00:00"
+  time_period_start = "2026-07-01_00:00"
   time_period_end   = "2087-12-31_23:59"
   time_unit         = var.budget_time_unit
-
-  cost_filter {
-    name   = "Service"
-    values = ["*"]
-  }
 
   notification {
     comparison_operator     = "GREATER_THAN"

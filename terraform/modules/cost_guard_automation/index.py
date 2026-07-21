@@ -23,12 +23,13 @@ def handler(event, context):
     
     try:
         # Parse SNS message
-        message = json.loads(event['Records'][0]['Sns']['Message'])
-        logger.info(f"Budget alarm message: {json.dumps(message)}")
+        message = event['Records'][0]['Sns']['Message']
+        logger.info(f"Budget alarm message: {message}")
         
-        # Xác định ngưỡng (80% hay 95%)
+        # Xác định ngưỡng (80% hay 95%) dựa trên TopicArn thay vì Subject
+        topic_arn = event['Records'][0]['Sns'].get('TopicArn', '')
+        is_critical = topic_arn.endswith('-95') or 'budget-alarms-95' in topic_arn
         alert_subject = event['Records'][0]['Sns'].get('Subject', '')
-        is_critical = '95%' in alert_subject or 'CRITICAL' in alert_subject.upper()
         
         logger.info(f"Alert type - Critical (95%): {is_critical}")
         
@@ -314,7 +315,8 @@ def reduce_elasticache_clusters(cluster_ids):
                     # Reduce cache nodes
                     elasticache.decrease_replica_count(
                         ReplicationGroupId=cluster_id,
-                        NewReplicaCount=new_nodes - 1
+                        NewReplicaCount=new_nodes - 1,
+                        ApplyImmediately=True
                     )
                     
                     actions.append({
