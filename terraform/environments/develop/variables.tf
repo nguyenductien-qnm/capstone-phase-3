@@ -384,12 +384,6 @@ variable "rds_enable_rotation" {
   default     = true
 }
 
-variable "rds_rotation_lambda_arn" {
-  type        = string
-  description = "ARN của Lambda function xoay vòng secret RDS"
-  default     = ""
-}
-
 variable "rds_rotation_rules_automatically_after_days" {
   type        = number
   description = "Số ngày tự động xoay vòng secret RDS"

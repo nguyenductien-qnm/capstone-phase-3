@@ -9,6 +9,10 @@ metadata:
   name: {{ .name }}
   labels:
     {{- include "techx-corp.labels" . | nindent 4 }}
+  {{- if .annotations }}
+  annotations:
+    {{- toYaml .annotations | nindent 4 }}
+  {{- end }}
 spec:
   {{- if not (.hpa).enabled }}
   replicas: {{ .replicas | default .defaultValues.replicas }}

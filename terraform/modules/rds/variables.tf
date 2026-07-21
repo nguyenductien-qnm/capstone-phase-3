@@ -89,12 +89,6 @@ variable "enable_rotation" {
   default     = false
 }
 
-variable "rotation_lambda_arn" {
-  type        = string
-  description = "ARN của Lambda function dùng để xoay vòng secret"
-  default     = ""
-}
-
 variable "rotation_rules_automatically_after_days" {
   type        = number
   description = "Số ngày tự động xoay vòng secret"

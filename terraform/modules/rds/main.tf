@@ -221,7 +221,7 @@ resource "aws_secretsmanager_secret_version" "db_credentials" {
 data "aws_region" "current" {}
 
 resource "aws_serverlessapplicationrepository_cloudformation_stack" "rds_rotation" {
-  count = (var.enable_rds_proxy && var.enable_rotation && var.rotation_lambda_arn == "") ? 1 : 0
+  count = (var.enable_rds_proxy && var.enable_rotation) ? 1 : 0
 
   name           = "${var.project_name}-${var.environment}-rds-rot"
   application_id = "arn:aws:serverlessrepo:us-east-1:297356227824:applications/SecretsManagerRDSPostgreSQLRotationSingleUser"
@@ -240,7 +240,7 @@ resource "aws_secretsmanager_secret_rotation" "db_credentials" {
   count = (var.enable_rds_proxy && var.enable_rotation) ? 1 : 0
 
   secret_id           = aws_secretsmanager_secret.db_credentials[0].id
-  rotation_lambda_arn = var.rotation_lambda_arn != "" ? var.rotation_lambda_arn : aws_serverlessapplicationrepository_cloudformation_stack.rds_rotation[0].outputs.RotationLambdaARN
+  rotation_lambda_arn = aws_serverlessapplicationrepository_cloudformation_stack.rds_rotation[0].outputs.RotationLambdaARN
 
   rotation_rules {
     automatically_after_days = var.rotation_rules_automatically_after_days
