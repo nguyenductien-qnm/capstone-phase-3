@@ -22,6 +22,7 @@ import numpy as np
 
 from sources import PrometheusClient, OpenSearchClient
 from alerter import Alerter
+from k8s_status import load_k8s_client, find_oom_pods
 
 logging.basicConfig(
     level=os.environ.get("LOG_LEVEL", "INFO"),
@@ -45,7 +46,7 @@ def _env_url(env_name):
 metric_history = {}
 
 def eval_metric_rule(rule, prom):
-    """Tra ve list cac alert (dedup_key, message) cho tung series vuot nguong hoac bat thuong dynamic 3-sigma."""
+    """Tra ve list cac alert (dedup_key, message, fields) cho tung series vuot nguong hoac bat thuong dynamic 3-sigma."""
     alerts = []
     try:
         series = prom.query(rule["query"])
@@ -119,9 +120,24 @@ def eval_metric_rule(rule, prom):
                     "summary_dynamic",
                     f"Lệch bất thường so với baseline của chính service (CHƯA chạm ngưỡng {threshold})",
                 )
-            msg = f"{headline} | service={svc} | Detected by: {', '.join(method_str)}"
-            alerts.append((dedup_key, msg))
-            
+
+            # Review 17/07: tach du lieu that (service/gia tri/phuong phap) thanh field
+            # rieng cho Discord embed, thay vi nhoi het vao 1 cau van dai.
+            fields = [("🎯 Dịch vụ", svc, True)]
+            if static_fired:
+                fields.append(("📊 Giá trị đo / Ngưỡng SLO", f"{value:.4f} / {threshold}", True))
+            else:
+                # dynamic_fired-only => nhanh `len(history) >= 5` chac chan da chay,
+                # nen mean/std_dev da duoc gan o tren.
+                fields.append((
+                    "📊 Giá trị đo / Baseline (mean ± 3σ)",
+                    f"{value:.4f} / {mean:.4f} ± {3 * std_dev:.4f}",
+                    True,
+                ))
+            fields.append(("🔍 Phương pháp phát hiện", ", ".join(method_str), False))
+
+            alerts.append((dedup_key, headline, fields))
+
     return alerts
 
 
@@ -137,25 +153,57 @@ def eval_log_rule(rule, osc):
 
     if count >= rule.get("min_count", 1):
         dedup_key = rule["id"]
-        msg = f"{rule['summary']} | số log khớp={count} trong {rule.get('window_minutes', 5)}m"
+        window_minutes = rule.get("window_minutes", 5)
+        # Review 17/07: tach so dem/log mau thanh field rieng cho Discord embed
+        # (xem alerter.py) thay vi nhoi vao 1 doan text dai.
+        fields = [("🔢 Số log khớp / Cửa sổ", f"{count} / {window_minutes}m", True)]
         if sample:
-            msg += f"\n  ví dụ log: {str(sample)[:200]}"
-        alerts.append((dedup_key, msg))
+            fields.append(("📝 Bằng chứng (log mẫu)", f"```{str(sample)[:200]}```", False))
+        alerts.append((dedup_key, rule["summary"], fields))
     return alerts
 
 
-def run_cycle(cfg, prom, osc, alerter):
+def eval_k8s_status_rule(rule, core_v1):
+    """Doc trang thai pod THAT tu K8s API (khong qua log). Bo sung cho rule kieu
+    OOMKilled: kernel SIGKILL container truoc khi no kip ghi log ve cai chet cua chinh
+    no, nen rule log-based khong bao gio khop (xac nhan qua chaos test that 17/07,
+    xem ADR-012 addendum)."""
+    alerts = []
+    namespace = rule.get("k8s_namespace", "techx-tf1")
+    service_label_key = rule.get("service_label_key", "opentelemetry.io/name")
+    lookback = rule.get("lookback_seconds", 300)
+    try:
+        oom_pods = find_oom_pods(core_v1, namespace, service_label_key, since_seconds=lookback)
+    except Exception as exc:  # noqa: BLE001
+        log.error("query K8s API loi (rule=%s): %s", rule["id"], exc)
+        return alerts
+
+    for oom in oom_pods:
+        svc = oom["service_label"]
+        dedup_key = f"{rule['id']}:{svc}"
+        fields = [
+            ("🎯 Dịch vụ", svc, True),
+            ("📦 Pod", oom["pod_name"], True),
+            ("🔍 Container", oom["container_name"], False),
+        ]
+        alerts.append((dedup_key, rule["summary"], fields))
+    return alerts
+
+
+def run_cycle(cfg, prom, osc, core_v1, alerter):
     fired = 0
     for rule in cfg["rules"]:
         if rule["type"] == "metric":
             results = eval_metric_rule(rule, prom)
         elif rule["type"] == "log":
             results = eval_log_rule(rule, osc)
+        elif rule["type"] == "k8s_status":
+            results = eval_k8s_status_rule(rule, core_v1)
         else:
             log.warning("rule %s co type khong hop le: %s", rule.get("id"), rule.get("type"))
             continue
-        for dedup_key, message in results:
-            if alerter.send(dedup_key, rule["severity"], rule["id"], message):
+        for dedup_key, message, fields in results:
+            if alerter.send(dedup_key, rule["severity"], rule["id"], message, fields=fields):
                 fired += 1
     return fired
 
@@ -182,6 +230,7 @@ def main():
         time_field=src.get("opensearch_time_field", "observedTimestamp"),
         timeout=src.get("http_timeout_seconds", 5),
     )
+    core_v1 = load_k8s_client()
 
     webhook = None if args.dry_run else os.environ.get(cfg["alert"]["webhook_env"]) # Deprecated in favor of direct env lookup in Alerter
     provider = "stdout" if args.dry_run else cfg["alert"].get("provider", "auto")
@@ -197,13 +246,13 @@ def main():
              alerter.provider, len(cfg["rules"]), cfg["poll_interval_seconds"])
 
     if args.once:
-        fired = run_cycle(cfg, prom, osc, alerter)
+        fired = run_cycle(cfg, prom, osc, core_v1, alerter)
         log.info("vong don hoan tat, da ban %d alert", fired)
         return
 
     while True:
         try:
-            run_cycle(cfg, prom, osc, alerter)
+            run_cycle(cfg, prom, osc, core_v1, alerter)
         except Exception as exc:  # noqa: BLE001 - giu vong lap song
             log.error("loi trong vong lap: %s", exc)
         time.sleep(cfg["poll_interval_seconds"])

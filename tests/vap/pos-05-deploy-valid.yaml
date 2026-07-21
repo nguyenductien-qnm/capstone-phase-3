@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vaptest-pos-05-deploy-valid
+  labels: { vaptest: "true" }
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: valid-deploy
+  template:
+    metadata:
+      labels:
+        app: valid-deploy
+    spec:
+      containers:
+      - name: app
+        image: ecommerce-dev-techx-corp:1.0-cart-aadff38
+        securityContext:
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities: { drop: ["ALL"] }
+        resources:
+          requests: { cpu: "10m", memory: "16Mi" }
+          limits: { cpu: "50m", memory: "32Mi" }

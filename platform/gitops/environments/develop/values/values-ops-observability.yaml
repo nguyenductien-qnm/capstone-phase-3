@@ -1,0 +1,154 @@
+# Develop observability overrides. The dedicated node is provisioned by the
+# EKS module as workload-tier=observability with a NoSchedule taint.
+
+observabilityStorage:
+  enabled: true
+
+opentelemetry-collector:
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: observability
+      effect: NoSchedule
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  config:
+    service:
+      pipelines:
+        logs:
+          exporters: [opensearch, debug]
+
+jaeger:
+  jaeger:
+    nodeSelector:
+      workload-tier: observability
+    tolerations:
+      - key: dedicated
+        operator: Equal
+        value: observability
+        effect: NoSchedule
+    resources:
+      requests:
+        cpu: 100m
+        memory: 640Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+
+prometheus:
+  kube-state-metrics:
+    nodeSelector:
+      workload-tier: observability
+    tolerations:
+      - key: dedicated
+        operator: Equal
+        value: observability
+        effect: NoSchedule
+    resources:
+      requests:
+        cpu: 25m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+  server:
+    nodeSelector:
+      workload-tier: observability
+    tolerations:
+      - key: dedicated
+        operator: Equal
+        value: observability
+        effect: NoSchedule
+    persistentVolume:
+      enabled: true
+      storageClass: gp3-observability
+      accessModes:
+        - ReadWriteOnce
+      size: 20Gi
+    resources:
+      requests:
+        cpu: 250m
+        memory: 768Mi
+      limits:
+        cpu: 1000m
+        memory: 1536Mi
+
+grafana:
+  nodeSelector:
+    workload-tier: observability
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: observability
+      effect: NoSchedule
+  plugins:
+    - grafana-opensearch-datasource
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      cpu: 500m
+      memory: 768Mi
+  sidecar:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 96Mi
+      limits:
+        cpu: 50m
+        memory: 128Mi
+
+opensearch:
+  enabled: true
+  nodeSelector:
+    workload-tier: observability
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: observability
+      effect: NoSchedule
+  persistence:
+    enabled: true
+    storageClass: gp3-observability
+    size: 10Gi
+    # Tắt initContainer fsgroup-volume (busybox root chown). Dùng podSecurityContext.fsGroup:1000
+    # (chart default) — kubelet tự chown PVC trên EBS gp3. Bỏ container root =>
+    # hết vi phạm priv-esc/caps/non-root/floating-tag của fsgroup-volume.
+    enableInitChown: false
+  # Resources cho init còn lại (configfile) => thỏa require-cpu-memory.
+  initResources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      cpu: 50m
+      memory: 32Mi
+
+components:
+  load-generator:
+    # Disabled for the Mandate-19 load test: the OTel Demo load-generator pumps
+    # background traffic into the app, so the baseline is not zero and every
+    # mCPU/rps denominator is wrong (master plan section 4, "Nhieu 2"). We drive
+    # load from a dedicated Locust runner instead. Re-enable after the test.
+    enabled: false
+    schedulingRules:
+      nodeSelector:
+        workload-tier: observability
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: observability
+          effect: NoSchedule
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 750m
+        memory: 512Mi

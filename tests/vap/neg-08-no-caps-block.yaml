@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: vaptest-neg-08-no-caps-block
+  labels: { vaptest: "true" }
+spec:
+  # KHÔNG có capabilities block -> psp-capabilities đòi drop ALL tường minh nên phải CHẶN
+  containers:
+  - name: app
+    image: ecommerce-dev-techx-corp:1.0-cart-aadff38
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      allowPrivilegeEscalation: false
+      # capabilities: <cố ý bỏ trống>   VI PHẠM psp-capabilities
+    resources:
+      requests: { cpu: "10m", memory: "16Mi" }
+      limits: { cpu: "50m", memory: "32Mi" }

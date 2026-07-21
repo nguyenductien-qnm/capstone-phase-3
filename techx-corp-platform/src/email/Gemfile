@@ -4,9 +4,18 @@ source "https://rubygems.org"
 
 gem "net-smtp", "~> 0.5.1"
 gem "pony",     "~> 1.13"
-gem "puma",     "~> 7.1"
+gem "puma",     "~> 7.2.1"
 gem "sinatra",  "~> 4.2"
 gem "rackup",   "~> 2.2"
+
+# Gem dưới đây pin để lấy bản vá CVE. erb/zlib là DEFAULT GEM của Ruby: bản đi kèm
+# interpreter không gỡ được, nhưng khai báo trong Gemfile thì bundler nạp bản mới từ
+# /usr/local/bundle/gems thay vì bản default -> runtime chạy bản đã vá.
+gem "erb",          "~> 4.0.4.1"  # CVE-2026-41316
+gem "net-imap",     "~> 0.5.14"   # CVE-2026-42245, CVE-2026-42246, CVE-2026-42257
+gem "rack",         "~> 3.2.6"    # CVE-2025-61770/61771/61772/61919, CVE-2026-22860/34785/34827/34829
+gem "rack-session", "~> 2.1.2"    # CVE-2026-39324
+gem "zlib",         "~> 3.2.3"    # CVE-2026-27820
 
 gem "google-protobuf", "~> 4.33.0"
 

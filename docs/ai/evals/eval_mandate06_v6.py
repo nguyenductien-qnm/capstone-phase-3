@@ -1,0 +1,106 @@
+"""Eval MANDATE-06 v6 (ADR-014) — reproducible red-team suite cho guardrail cascade.
+
+Chạy: AWS_PROFILE=default python docs/ai/evals/eval_mandate06_v6.py
+  (cần Bedrock us-east-1: nova-lite (injection judge) + nova-micro (grounding judge);
+   ML_GUARD_URL đặt nếu có pod ml-guard — không có thì cascade tự rơi xuống judge.)
+  Renamed from eval_mandate06_v5.py (20/07) — file name giờ khớp report file nó tạo ra
+  (eval_mandate06_v6_report.md), tránh nhầm case count khi đọc chéo docs.
+
+Trục chấm (mentor 14/07): injection VN+EN blocked, hallucination blocked
+("review không đề cập"), PII masked, system-prompt không lộ, tái tạo được.
+Kết quả 17/07 (local, default profile): injection 7/7, grounding 4/4, p50 614ms.
+Bộ case đã mở rộng sau đó lên 25 (16 injection, 6 grounding, 2 PII, 1 leak) —
+xem docs/ai/MANDATE_06_EVIDENCE.md §2 cho số hiện hành, report tự sinh ra
+eval_mandate06_v6_report.md.
+
+LƯU Ý: Đây là unit-level/no-network check (chạy nhanh qua hàm guardrails).
+MANDATE-06 evidence chính thức hiện đến từ eval_mandate06_prod.py (E2E).
+"""
+import importlib.util
+import json
+import os
+import statistics
+import sys
+import time
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[3]
+GUARDRAILS = ROOT / "techx-corp-platform" / "src" / "product-reviews" / "guardrails.py"
+
+spec = importlib.util.spec_from_file_location("guardrails", GUARDRAILS)
+g = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(g)
+
+import mandate06_cases as cases
+
+
+def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="Eval MANDATE-06")
+    parser.add_argument("--threshold", type=float, default=0.0, help="Minimum pass rate threshold (0.0 to 1.0)")
+    args = parser.parse_args()
+
+    import boto3
+    from botocore.config import Config
+    region = os.environ.get("AWS_REGION", "us-east-1")
+    client = boto3.client("bedrock-runtime", region_name=region,
+                          config=Config(connect_timeout=3, read_timeout=20, retries={"max_attempts": 2}))
+    lat, rows, fails = [], [], 0
+
+    for txt, exp, cat in cases.INJECTION_CASES:
+        t0 = time.time()
+        blocked, _ = g.apply_guardrail_input(client, txt)
+        dt = (time.time() - t0) * 1000
+        lat.append(dt)
+        ok = blocked == exp
+        fails += not ok
+        rows.append(("INPUT", cat, ok, f"blocked={blocked}", f"{dt:.0f}ms"))
+
+    for ans, exp, cat in cases.GROUNDING_CASES:
+        t0 = time.time()
+        blocked, _ = g.apply_guardrail_output(client, ans, cases.GROUNDING_SOURCE, "sản phẩm thế nào?")
+        dt = (time.time() - t0) * 1000
+        lat.append(dt)
+        ok = blocked == exp
+        fails += not ok
+        rows.append(("OUTPUT", cat, ok, f"blocked={blocked}", f"{dt:.0f}ms"))
+
+    for txt, expected_tokens in cases.PII_CASES:
+        masked = g.redact_pii(txt)
+        ok = all(tok in masked for tok in expected_tokens)
+        fails += not ok
+        rows.append(("PII", "redact", ok, masked[:60], "-"))
+
+    # leak detector thuần local
+    ok = g.leaks_system_prompt(cases.LEAK_SYSTEM_PROMPT, cases.LEAK_SYSTEM_PROMPT)
+    fails += not ok
+    rows.append(("LEAK", "verbatim", ok, "detected" if ok else "MISSED", "-"))
+
+    report = [
+        "# Eval MANDATE-06 v6 — kết quả chạy " + time.strftime("%Y-%m-%d %H:%M"),
+        "",
+        f"- Region: {region}; injection judge: {g.INJECTION_JUDGE_MODEL}; grounding judge: {g.JUDGE_MODEL}",
+        f"- ml-guard: {g.ML_GUARD_URL or 'OFF (fallback judge)'}; Bedrock Guardrails: {'ON' if g.GUARDRAIL_ENABLED else 'OFF (ADR-014)'}",
+        "",
+        "| Rail | Case | Pass | Chi tiết | Latency |",
+        "|---|---|---|---|---|",
+    ]
+    for rail, cat, ok, detail, l in rows:
+        report.append(f"| {rail} | {cat} | {'✅' if ok else '❌'} | {detail} | {l} |")
+    total = len(rows)
+    report += ["", f"**Tổng: {total - fails}/{total} pass** — latency p50 "
+               f"{statistics.median(lat):.0f}ms, max {max(lat):.0f}ms"]
+    out = Path(__file__).parent / "eval_mandate06_v6_report.md"
+    out.write_text("\n".join(report), encoding="utf-8")
+    print("\n".join(report))
+    print(f"\nreport -> {out}")
+    pass_rate = (total - fails) / total if total > 0 else 0.0
+    if pass_rate < args.threshold:
+        print(f"\nFAIL: pass rate {pass_rate:.2f} is below threshold {args.threshold}")
+        sys.exit(1)
+    else:
+        sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()

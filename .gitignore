@@ -36,6 +36,11 @@ tfplan
 # Ignore temporary logs
 *.log
 
+# Ignore local reports
+vinh/jira_week2_report.md
+
+# Ignore generated eval reports (TF-64)
+docs/ai/evals/eval_report_*.json
 # Build and test output
 dist/
 build/

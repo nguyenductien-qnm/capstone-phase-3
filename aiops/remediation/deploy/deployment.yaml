@@ -1,0 +1,74 @@
+# TF1-72 [AIOps-W2] - deploy remediation engine chay lien tuc tren EKS (namespace techx-tf1).
+# Deploy THU CONG giong het aiops-detector (.github/workflows/aiops-ci.yaml chi chay
+# pytest, khong tu deploy module aiops/ nao).
+#
+# Truoc khi apply (1 lan duy nhat):
+#   kubectl -n techx-tf1 apply -f rbac.yaml
+#   kubectl -n techx-tf1 apply -f deployment.yaml
+#
+# Build + push image (tu repo root, chay tren may co quyen ECR):
+#   aws ecr get-login-password --region us-east-1 | docker login --username AWS \
+#     --password-stdin 804372444787.dkr.ecr.us-east-1.amazonaws.com
+#   docker buildx build --platform linux/amd64 \
+#     -t 804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.1-aiops-remediation \
+#     --push aiops/remediation
+#
+# QUAN TRONG: pod nay khoi dong voi REMEDIATION_DRY_RUN=true (AN TOAN, chi log +
+# alert, KHONG goi K8s API ghi). Chi doi sang "false" sau khi da xac nhan hanh vi
+# dung qua dry-run that tren EKS (xem report/ chaos-test evidence).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aiops-remediation
+  namespace: techx-tf1
+  labels:
+    app: aiops-remediation
+    team: aio03
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aiops-remediation
+  template:
+    metadata:
+      labels:
+        app: aiops-remediation
+    spec:
+      serviceAccountName: aiops-remediation
+      # MANDATE-05: non-root, khong leo thang dac quyen, drop het capability.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: aiops-remediation
+          # MANDATE-05: pin tag co dinh, khong dung tag troi (:latest).
+          image: 804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.1-aiops-remediation
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: PROM_URL
+              value: "http://prometheus:9090"
+            - name: OPENSEARCH_URL
+              value: "http://opensearch:9200"
+            # AN TOAN mac dinh (spec anomaly_remediation.md Sec4.1) - doi tay sang
+            # "false" chi khi da san sang cho remediation act that len K8s.
+            - name: REMEDIATION_DRY_RUN
+              value: "true"
+            # Tai dung secret webhook cua aiops-detector - remediation gui audit/escalate
+            # alert vao cung kenh Discord, phan biet qua title "remediation-*".
+            - name: AIOPS_SLACK_WEBHOOK_CRITICAL
+              valueFrom:
+                secretKeyRef:
+                  name: aiops-alert
+                  key: webhook
+                  optional: true
+          resources:
+            requests: { cpu: "50m", memory: "64Mi" }
+            limits: { cpu: "200m", memory: "128Mi" }

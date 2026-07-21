@@ -30,3 +30,13 @@ output "tamper_protection_policy_json" {
   description = "Policy JSON for administrative review or permission-set integration"
   value       = data.aws_iam_policy_document.audit_log_tamper_protection.json
 }
+
+output "mandate_12_alert_rule_name" {
+  description = "Mandate-12 EventBridge rule name for audit tamper alerts, or null when disabled"
+  value       = try(aws_cloudwatch_event_rule.mandate_12_audit_tamper[0].name, null)
+}
+
+output "mandate_12_alert_topic_arn" {
+  description = "Mandate-12 SNS topic ARN for audit tamper email alerts, or null when disabled"
+  value       = try(aws_sns_topic.mandate_12_audit_tamper[0].arn, null)
+}

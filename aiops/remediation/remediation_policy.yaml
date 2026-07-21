@@ -1,0 +1,66 @@
+# TF1-72 [AIOps-W2] - Cau hinh vong khep kin auto-remediation (dry-run -> blast-radius
+# -> verify -> rollback -> circuit breaker). Config-driven, giong triet ly rules.yaml
+# cua detector: doi so lieu KHONG can sua code.
+#
+# Spec goc: docs/ai/03_specs/anomaly_remediation.md (da duyet, khop RULES.md Sec4).
+# Cac so o day la GIA DINH ban dau tu spec - PHAI thay bang so do chaos test that
+# tren EKS truoc khi coi la final (xem report/ va ADR trong docs/ai/05_adrs.md).
+
+poll_interval_seconds: 30
+
+sources:
+  prometheus_url_env: PROM_URL
+  opensearch_url_env: OPENSEARCH_URL
+  opensearch_index: "otel-logs-*"
+  opensearch_message_field: "body"
+  opensearch_time_field: "observedTimestamp"
+  http_timeout_seconds: 5
+
+k8s:
+  namespace: techx-tf1
+  # Nhan dung de tim pod cung service khi cho pod moi Ready sau restart
+  # (vd 'opentelemetry.io/name'). Doc tu chinh label cua pod bi OOM, khong hardcode
+  # 1 service - xem k8s_actions.find_oom_pods().
+  service_label_key: "opentelemetry.io/name"
+
+alert:
+  provider: auto
+  webhook_env: ALERT_WEBHOOK_URL
+  cooldown_seconds: 600
+
+policies:
+  - rule_id: oom-detected
+    # Review 17/07 (chaos test that): OOM dot ngot khien app bi SIGKILL truoc khi kip
+    # ghi log ve cai chet cua chinh no -> rule log-based KHONG BAO GIO khop. K8s API
+    # (containerStatuses[].lastState.terminated) la tin hieu CHINH, dang tin cay hon.
+    # Log OpenSearch (neu co) chi la bang chung PHU dinh kem alert, khong dung de gate.
+    trigger:
+      type: k8s_pod_status
+      lookback_seconds: 300
+    action:
+      type: k8s_restart_pod
+      grace_period_seconds: 30
+      require_readiness_gate: true
+    safety_boundaries:
+      # Mac dinh AN TOAN - phai set REMEDIATION_DRY_RUN=false ro rang moi act that
+      # len K8s (xem remediation.py). Khong doi mac dinh nay trong file config,
+      # phai doi qua bien moi truong khi da san sang bat that.
+      dry_run: true
+      error_budget_check:
+        enabled: true
+        # Tai dung dung query 5xx-ratio da co trong rules.yaml (error-budget-burn-fast-standard),
+        # khong bia nguong moi.
+        query: >-
+          sum(rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", http_response_status_code=~"5.."}[5m]))
+          / clamp_min(sum(rate(http_server_request_duration_seconds_count{service_namespace="techx-corp"}[5m])), 0.001)
+        max_ratio: 0.005 # tai dung nguong SLO 0.5% da co (rules.yaml)
+      blast_radius:
+        max_actions: 1
+        time_window_seconds: 3600
+        scope: namespace
+      verify:
+        duration_seconds: 120
+        poll_interval_seconds: 20 # ~6 poll/120s, thoa toi thieu 3 poll/60s cua spec
+      circuit_breaker:
+        max_consecutive_failures: 3
+        reset_timeout_seconds: 86400 # 24h theo spec mau

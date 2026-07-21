@@ -25,7 +25,41 @@ resource "aws_ecr_repository" "this" {
   }
 }
 
-# Lifecycle Policy cho ECR để dọn dẹp ảnh cũ, tối ưu chi phí lưu trữ
+# Lifecycle Policy cho ECR để dọn dẹp ảnh cũ, tối ưu chi phí lưu trữ.
+# CHÚ Ý (incident 2026-07-16): tagStatus="any" + imageCountMoreThan từng xóa cả
+# image ĐANG DEPLOY (repo >100 ảnh -> mất 7 tag đang chạy, email/cart/aiops-detector
+# chết ImagePullBackOff). Chỉ được expire ảnh UNTAGGED — ảnh có tag là ảnh còn
+# được tham chiếu (deploy hoặc cosign .sig), không bao giờ tự xóa theo số lượng.
+# Cross-account pull: cluster ở account khác (develop) pull image từ ECR chung.
+# Chỉ cấp 3 action pull tối thiểu theo repository. ecr:GetAuthorizationToken là
+# action registry-level, thuộc IAM policy phía node role (đã có trong
+# AmazonEC2ContainerRegistryReadOnly/Pull) — không nằm trong repository policy.
+# Thiếu repository policy -> cluster khác account bị ImagePullBackOff (403) dù
+# IAM node role đủ quyền; thiếu đường mạng (NAT/VPC endpoint) -> timeout.
+resource "aws_ecr_repository_policy" "cross_account_pull" {
+  for_each = length(var.pull_principal_arns) > 0 ? toset(var.ecr_repositories) : toset([])
+
+  repository = aws_ecr_repository.this[each.key].name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "CrossAccountPull"
+        Effect = "Allow"
+        Principal = {
+          AWS = var.pull_principal_arns
+        }
+        Action = [
+          "ecr:GetDownloadUrlForLayer",
+          "ecr:BatchGetImage",
+          "ecr:BatchCheckLayerAvailability"
+        ]
+      }
+    ]
+  })
+}
+
 resource "aws_ecr_lifecycle_policy" "this" {
   for_each = toset(var.ecr_repositories)
 
@@ -35,11 +69,12 @@ resource "aws_ecr_lifecycle_policy" "this" {
     rules = [
       {
         rulePriority = 1
-        description  = "Chi giu lai toi da 100 images de tiet kiem chi phi"
+        description  = "Expire UNTAGGED images only, 7 days"
         selection = {
-          tagStatus   = "any"
-          countType   = "imageCountMoreThan"
-          countNumber = 100
+          tagStatus   = "untagged"
+          countType   = "sinceImagePushed"
+          countUnit   = "days"
+          countNumber = 7
         }
         action = {
           type = "expire"

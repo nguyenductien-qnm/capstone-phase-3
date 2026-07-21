@@ -12,21 +12,28 @@ on:
   push:
     branches: ["develop", "main"]
     paths:
-      - "terraform/**"
+      - "terraform/environments/sandbox/**"
+      - "terraform/modules/**"
       - ".github/workflows/infra-cd.yaml"
   pull_request:
     branches: ["develop", "main"]
     paths:
-      - "terraform/**"
+      - "terraform/environments/sandbox/**"
+      - "terraform/modules/**"
       - ".github/workflows/infra-cd.yaml"
   schedule:
-    # 07:17 ICT (UTC+7) hằng ngày — chống drift (auto-apply nếu có thay đổi).
+    # 07:17 ICT (UTC+7) hằng ngày — phát hiện drift bằng plan, không tự apply.
     - cron: "17 0 * * *"
   workflow_dispatch:
     inputs:
       apply:
         description: "Apply after a successful plan"
         required: true
+        default: false
+        type: boolean
+      refresh_only:
+        description: "Only refresh Terraform state from live infrastructure"
+        required: false
         default: false
         type: boolean
       confirm:
@@ -72,6 +79,9 @@ env:
   TF_VAR_eks_public_access_cidrs: ${{ vars.TF_VAR_EKS_PUBLIC_ACCESS_CIDRS }}
   TF_VAR_eks_control_plane_log_retention_days: ${{ vars.TF_VAR_EKS_CONTROL_PLANE_LOG_RETENTION_DAYS }}
   TF_VAR_eks_access_entries: ${{ vars.TF_VAR_EKS_ACCESS_ENTRIES }}
+  # Node role cluster develop pull cross-account tu ECR chung. Fallback '[]' de
+  # workflow khong vo khi chua set variable (list rong -> khong tao repo policy).
+  TF_VAR_ecr_pull_principal_arns: ${{ vars.TF_VAR_ECR_PULL_PRINCIPAL_ARNS || '[]' }}
   TF_VAR_db_name: ${{ vars.TF_VAR_DB_NAME }}
   TF_VAR_db_username: ${{ vars.TF_VAR_DB_USERNAME }}
   TF_VAR_rds_instance_class: ${{ vars.TF_VAR_RDS_INSTANCE_CLASS }}
@@ -170,7 +180,7 @@ jobs:
           terraform -chdir="$TF_ROOT" validate
 
       - name: Trivy IaC scan
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: config
           scan-ref: terraform
@@ -194,6 +204,10 @@ jobs:
     needs: terraform-static-checks
     runs-on: ubuntu-latest
     environment: sandbox
+    env:
+      TF_VAR_audit_slack_webhook_url: ${{ secrets.AUDIT_SLACK_WEBHOOK_URL }}
+      TF_VAR_audit_pipeline_health_email: ${{ secrets.AUDIT_PIPELINE_HEALTH_EMAIL }}
+      TF_VAR_mandate_12_alert_email: ${{ secrets.MANDATE_12_ALERT_EMAIL }}
     concurrency:
       group: terraform-sandbox-state
       cancel-in-progress: false
@@ -202,6 +216,7 @@ jobs:
         working-directory: ${{ env.TF_ROOT }}
     outputs:
       has_changes: ${{ steps.plan.outputs.has_changes }}
+      refresh_only: ${{ steps.mode.outputs.refresh_only }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -212,6 +227,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.TF_AWS_ROLE_ARN }}
+          allowed-account-ids: "804372444787"
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: gha-${{ github.actor }}-${{ github.run_id }}
 
@@ -224,13 +240,39 @@ jobs:
       - name: Terraform init
         run: terraform init -input=false
 
+      - name: Select Terraform plan mode
+        id: mode
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REFRESH_ONLY_INPUT: ${{ github.event.inputs.refresh_only || 'false' }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$REFRESH_ONLY_INPUT" = "true" ]; then
+            echo "refresh_only=true" >> "$GITHUB_OUTPUT"
+            echo "Terraform plan mode: refresh-only"
+          else
+            echo "refresh_only=false" >> "$GITHUB_OUTPUT"
+            echo "Terraform plan mode: normal"
+          fi
+
       - name: Terraform plan
         id: plan
+        env:
+          REFRESH_ONLY: ${{ steps.mode.outputs.refresh_only }}
         run: |
           set +e
-          terraform plan -no-color -input=false -lock-timeout="$TF_LOCK_TIMEOUT" \
-            -var-file="primary-capacity.tfvars" \
-            -detailed-exitcode -out=tfplan
+          PLAN_ARGS=(
+            -no-color
+            -input=false
+            -lock-timeout="$TF_LOCK_TIMEOUT"
+            -var-file="primary-capacity.tfvars"
+            -detailed-exitcode
+            -out=tfplan
+          )
+          if [ "$REFRESH_ONLY" = "true" ]; then
+            PLAN_ARGS=(-refresh-only "${PLAN_ARGS[@]}")
+          fi
+          terraform plan "${PLAN_ARGS[@]}"
           PLAN_EXIT=$?
           set -e
           if [ "$PLAN_EXIT" -eq 1 ]; then
@@ -259,8 +301,9 @@ jobs:
           script: |
             const fs = require('fs');
             const plan = fs.readFileSync(`${process.env.TF_ROOT}/tfplan.txt`, 'utf8');
+            const mode = '${{ steps.mode.outputs.refresh_only }}' === 'true' ? 'refresh-only' : 'normal';
             const body = [
-              '### Terraform sandbox plan',
+              `### Terraform sandbox plan (${mode})`,
               '',
               '```',
               plan.slice(-60000),
@@ -274,31 +317,25 @@ jobs:
             });
 
   # ------------------------------------------------------------------ #
-  # Apply: gated. Chạy khi:                                            #
-  #   - push develop/main (auto-apply)                                 #
-  #   - schedule (chống drift)                                         #
-  #   - dispatch apply=true & confirm=apply-sandbox                    #
-  # Chỉ khi plan có thay đổi.                                          #
+  # Apply: chỉ chạy thủ công khi plan có thay đổi và người vận hành    #
+  # chọn apply=true, đồng thời nhập confirm=apply-sandbox.              #
   # ------------------------------------------------------------------ #
   terraform-apply:
     name: Terraform apply sandbox
     needs: terraform-plan
     if: |
       needs.terraform-plan.outputs.has_changes == 'true' &&
-      (
-        github.event_name == 'schedule' ||
-        (
-          github.event_name == 'push' &&
-          (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')
-        ) ||
-        (
-          github.event_name == 'workflow_dispatch' &&
-          github.event.inputs.apply == 'true' &&
-          github.event.inputs.confirm == 'apply-sandbox'
-        )
-      )
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.apply == 'true' &&
+      github.event.inputs.confirm == 'apply-sandbox'
     runs-on: ubuntu-latest
     environment: sandbox
+    env:
+      # Ephemeral/write-only values are not stored in the saved plan, so the
+      # apply job must receive the same GitHub Environment secrets again.
+      TF_VAR_audit_slack_webhook_url: ${{ secrets.AUDIT_SLACK_WEBHOOK_URL }}
+      TF_VAR_audit_pipeline_health_email: ${{ secrets.AUDIT_PIPELINE_HEALTH_EMAIL }}
+      TF_VAR_mandate_12_alert_email: ${{ secrets.MANDATE_12_ALERT_EMAIL }}
     concurrency:
       group: terraform-sandbox-state
       cancel-in-progress: false
@@ -315,6 +352,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.TF_AWS_ROLE_ARN }}
+          allowed-account-ids: "804372444787"
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: gha-${{ github.actor }}-${{ github.run_id }}
 
@@ -347,8 +385,10 @@ jobs:
   # ================================================================== #
   bootstrap-argocd:
     name: Bootstrap ArgoCD vào EKS
-    needs: terraform-apply
-    if: needs.terraform-apply.result == 'success'
+    needs: [terraform-plan, terraform-apply]
+    if: |
+      needs.terraform-apply.result == 'success' &&
+      needs.terraform-plan.outputs.refresh_only != 'true'
     runs-on: ubuntu-latest
     environment: sandbox
     permissions:
@@ -369,6 +409,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.TF_AWS_ROLE_ARN }}
+          allowed-account-ids: "804372444787"
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: gha-${{ github.actor }}-${{ github.run_id }}
 
@@ -484,6 +525,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.TF_AWS_ROLE_ARN }}
+          allowed-account-ids: "804372444787"
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: gha-${{ github.actor }}-${{ github.run_id }}
 

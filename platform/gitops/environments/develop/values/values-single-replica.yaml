@@ -1,0 +1,26 @@
+# Develop capacity policy for load-test parity with Production (Mandate-19).
+#
+# Previously this file pinned every Deployment to 1 replica with HPA disabled.
+# For the throughput-ceiling work Develop must mirror Production's autoscaling so
+# measured numbers carry over. Core storefront-flow services now run prod-like HPA
+# (min=2/max=6, checkout max=5, currency/recommendation min=1/max=4, target 70%
+# from the chart defaults). The primary MNG was raised 2->3 nodes
+# (develop-capacity.tfvars) so these replicas schedule without Pending.
+#
+# The AI-assistant branch (ml-guard) stays single/off: ml-guard requests a full
+# CPU and, per Mandate scope, the AI flow (llm/copilot/bedrock) is out of scope
+# for the ceiling test. Keeping it off leaves node headroom for the flows we do
+# measure and avoids the ml-guard Pending that made this app report Degraded.
+default:
+  replicas: 1
+
+components:
+  # AI-assistant branch — fully disabled on Develop (out of Mandate-19 scope).
+  # ml-guard requests a full CPU (limit 2 CPU / 2Gi, 2.4GB image); leaving it
+  # running kept all three app nodes at 74-95% CPU requests at idle, starving the
+  # HPA of room to scale during the load test. enabled:false drops the Deployment
+  # entirely (chart component.yaml gates on $config.enabled), not just its HPA.
+  # TODO: measure ml-guard ceiling separately later (dedicated node or pin the
+  # other services to 1 replica to free CPU).
+  ml-guard:
+    enabled: false

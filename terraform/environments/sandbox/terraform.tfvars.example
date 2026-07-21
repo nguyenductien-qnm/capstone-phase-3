@@ -110,7 +110,11 @@ valkey_num_cache_clusters = 2
 # ============================================================
 # Cấu hình ECR
 # ============================================================
-ecr_repositories = ["<REPO_NAME>"]   # vd: ["techx-corp"]
+ecr_repositories = ["techx-corp"]
+# Node role cluster develop được pull cross-account từ ECR chung.
+# Lấy ARN: cd terraform/environments/develop && terraform output -raw eks_managed_node_role_arn
+# (thêm cả eks_karpenter_node_role_arn khi bật Karpenter ở develop)
+ecr_pull_principal_arns = []   # vd: ["arn:aws:iam::<DEVELOP_ACCOUNT_ID>:role/<PROJECT>-develop-eks-node-role"]
 
 # ============================================================
 # Cấu hình CloudFront & Custom Domain
@@ -141,3 +145,13 @@ cloudtrail_object_lock_retention_days = 30
 audit_administrator_principals       = []
 audit_break_glass_principals          = []
 audit_operator_role_names             = []
+
+# ============================================================
+# MANDATE-11 audit detection (CDO-05)
+# ============================================================
+# Các tài nguyên đã tồn tại trong sandbox state nên phải giữ true. Chỉ truyền
+# Slack URL và email qua GitHub Environment Secrets/TF_VAR; không ghi vào tfvars.
+audit_detection_enabled               = true
+audit_slack_webhook_secret_version    = 1
+audit_slack_webhook_kms_key_arn       = null
+audit_detection_break_glass_role_arns = []

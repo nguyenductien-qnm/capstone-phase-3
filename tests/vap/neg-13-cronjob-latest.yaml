@@ -1,0 +1,22 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: vaptest-neg-13-cronjob-latest
+  labels: { vaptest: "true" }
+spec:
+  schedule: "*/5 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: app
+            image: nginx:latest
+            securityContext:
+              runAsNonRoot: true
+              allowPrivilegeEscalation: false
+              capabilities: { drop: ["ALL"] }
+            resources:
+              requests: { cpu: "10m", memory: "16Mi" }
+              limits: { cpu: "50m", memory: "32Mi" }
+          restartPolicy: OnFailure

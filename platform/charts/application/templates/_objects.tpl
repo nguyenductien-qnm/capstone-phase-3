@@ -219,7 +219,7 @@ spec:
     {{- if and .service .service.port }}
     - port: {{ .service.port}}
       name: tcp-service
-      targetPort: {{ .service.port }}
+      targetPort: {{ .service.targetPort | default .service.port }}
     {{- if .service.nodePort }}
       nodePort: {{ .service.nodePort }}
     {{- end }}

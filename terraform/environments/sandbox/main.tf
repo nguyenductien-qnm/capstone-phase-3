@@ -2,6 +2,9 @@ data "aws_iam_role" "github_terraform" {
   name = var.github_terraform_role_name
 }
 
+data "aws_region" "current" {}
+data "aws_caller_identity" "current" {}
+
 locals {
   github_terraform_access_entry = {
     github_terraform = {
@@ -89,6 +92,7 @@ module "rds" {
   enable_rds_proxy           = var.enable_rds_proxy
   multi_az                   = var.rds_multi_az
   eks_node_security_group_id = module.eks.cluster_security_group_id
+  enable_logical_replication = true
 }
 
 module "elasticache" {
@@ -111,6 +115,17 @@ module "ecr" {
   project_name     = var.project_name
   environment      = var.environment
   ecr_repositories = var.ecr_repositories
+
+  # Tag convention <version>-<svc>-<sha> + Cosign ký digest GIẢ ĐỊNH tag không bị
+  # ghi đè -> bật IMMUTABLE cho khớp (trước giờ repo đang MUTABLE dù comment CI
+  # nói ngược lại). Đánh đổi: tag cosign sha256-*.sig/.att cũng chỉ ghi được 1
+  # lần -> re-run sign/attest trên CÙNG digest sẽ fail (exclusion filter cần AWS
+  # provider mới hơn ~> 4.0 đang pin, chưa dùng được).
+  image_mutability = "IMMUTABLE"
+
+  # Node role của cluster develop (account khác) pull image từ ECR chung này.
+  # ARN lấy từ output `eks_managed_node_role_arn` của terraform/environments/develop.
+  pull_principal_arns = var.ecr_pull_principal_arns
 }
 
 # IRSA cho external-dns: quyền ghi record trong ĐÚNG hosted zone của subdomain.
@@ -177,17 +192,41 @@ module "cloudtrail" {
   project_name = var.project_name
   environment  = var.environment
 
-  enable_kms_encryption          = var.cloudtrail_enable_kms_encryption
-  enable_cloudwatch_logs         = var.cloudtrail_enable_cloudwatch_logs
-  cloudwatch_log_retention_days  = var.cloudtrail_cloudwatch_log_retention_days
-  s3_retention_days              = var.cloudtrail_s3_retention_days
-  s3_transition_days             = var.cloudtrail_s3_transition_days
-  s3_transition_storage_class    = var.cloudtrail_s3_transition_storage_class
-  enable_object_lock             = var.cloudtrail_enable_object_lock
-  object_lock_retention_days     = var.cloudtrail_object_lock_retention_days
-  audit_administrator_principals = var.audit_administrator_principals
-  break_glass_principals         = var.audit_break_glass_principals
-  operator_role_names            = var.audit_operator_role_names
+  enable_kms_encryption                = var.cloudtrail_enable_kms_encryption
+  enable_cloudwatch_logs               = var.cloudtrail_enable_cloudwatch_logs
+  cloudwatch_log_retention_days        = var.cloudtrail_cloudwatch_log_retention_days
+  s3_retention_days                    = var.cloudtrail_s3_retention_days
+  s3_transition_days                   = var.cloudtrail_s3_transition_days
+  s3_transition_storage_class          = var.cloudtrail_s3_transition_storage_class
+  enable_object_lock                   = var.cloudtrail_enable_object_lock
+  object_lock_retention_days           = var.cloudtrail_object_lock_retention_days
+  audit_administrator_principals       = var.audit_administrator_principals
+  break_glass_principals               = var.audit_break_glass_principals
+  operator_role_names                  = var.audit_operator_role_names
+  cloudtrail_s3_data_event_bucket_arns = var.cloudtrail_s3_data_event_bucket_arns
+  enable_mandate_12_alert              = var.enable_mandate_12_alert
+  mandate_12_alert_email               = var.mandate_12_alert_email
+}
+
+# MANDATE-11 audit detection is enabled by default because its resources already
+# exist in the sandbox remote state. It inherits this root's AWS provider and backend.
+module "audit_detection" {
+  count  = var.audit_detection_enabled ? 1 : 0
+  source = "../../audit-detection"
+
+  project_name = var.project_name
+  environment  = var.environment
+  # SNS subscription endpoints are Terraform resource keys and therefore cannot
+  # remain marked sensitive; GitHub still masks the source Environment secret.
+  pipeline_health_email_endpoints = toset([nonsensitive(var.audit_pipeline_health_email)])
+  slack_webhook_url               = var.audit_slack_webhook_url
+  slack_webhook_secret_version    = var.audit_slack_webhook_secret_version
+  slack_webhook_kms_key_arn       = var.audit_slack_webhook_kms_key_arn
+  break_glass_role_arns           = var.audit_detection_break_glass_role_arns
+
+  tags = {
+    Stack = "sandbox"
+  }
 }
 
 # IRSA role cho External Secrets Operator đọc endpoint/credential từ Secrets Manager
@@ -206,6 +245,7 @@ module "external_secrets_irsa" {
     module.elasticache.secret_arn,
     module.msk.msk_secret_arn,
     module.msk.msk_endpoint_secret_arn,
+    "arn:aws:secretsmanager:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secret:${var.project_name}-${var.environment}-bedrock-config-*"
   ]
 
   # Secret MSK mã hoá bằng KMS key riêng của module msk -> ESO cần kms:Decrypt trên

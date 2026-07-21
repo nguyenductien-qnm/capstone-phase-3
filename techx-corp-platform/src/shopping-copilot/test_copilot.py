@@ -13,6 +13,9 @@ No AWS, no live gRPC. A scripted fake Bedrock client drives the agent loop and
 Run: ``python test_copilot.py``
 """
 
+import os
+os.environ["LLM_INJECTION_JUDGE"] = "false"
+
 import copilot_server as srv
 import agent
 import tools
@@ -55,6 +58,11 @@ def test_confirmation_gate_two_phase():
     tools.execute_add_item = lambda uid, pid, qty: executed.append((uid, pid, qty)) or '{"status":"success"}'
     try:
         bedrock = FakeBedrock([
+            # LLM_INJECTION_JUDGE=false (set before import above) disables the T2
+            # injection judge, so run_agent's converse loop is the only consumer of
+            # scripted items — no judge placeholder needed (stale "NO" item removed
+            # 18/07: with the judge off it was consumed as the final answer and the
+            # confirmation token was never produced).
             _tool_use("add_item_to_cart", {"product_id": "OLJCESPC7Z", "quantity": 2}),
             _end("Tôi đã chuẩn bị thêm vào giỏ. Vui lòng xác nhận."),
         ])
@@ -83,7 +91,10 @@ def test_confirmation_gate_two_phase():
 def test_read_tool_routing_and_audit():
     orig = tools.get_product_reviews
     seen = []
-    tools.get_product_reviews = lambda pid: seen.append(pid) or '{"status":"ok","review_count":3,"average_score":4.8,"summary":"good"}'
+    tools.get_product_reviews = lambda pid: seen.append(pid) or (
+        '{"status":"ok","review_count":1,"average_score":4.8,"summary":"good",'
+        '"citations":[{"review_id":"alice","snippet":"good","score":"4.8"}]}'
+    )
     try:
         bedrock = FakeBedrock([
             _tool_use("get_product_reviews", {"product_id": "L9ECAV7KIM"}),
@@ -93,6 +104,9 @@ def test_read_tool_routing_and_audit():
         assert seen == ["L9ECAV7KIM"], f"tool not routed: {seen}"
         assert res.pending is None
         assert any(a.tool_name == "get_product_reviews" and a.succeeded for a in res.actions_taken)
+        # Phase 5: citations collected from the tool result must reach AgentResult
+        # (unless the output-grounding guardrail blocked the answer).
+        assert res.citations == [{"review_id": "alice", "snippet": "good", "score": "4.8"}], res.citations
     finally:
         tools.get_product_reviews = orig
 
@@ -118,10 +132,19 @@ def test_degraded_on_bedrock_failure():
 
 
 
+def test_thinking_tags_are_stripped():
+    res = agent.run_agent(FakeBedrock([_end("<thinking>hidden</thinking> Visible answer")]), "m",
+                          [{"role": "user", "content": [{"text": "hi"}]}], "u1")
+    assert "thinking" not in res.text.lower()
+    assert "hidden" not in res.text
+    assert res.text == "Visible answer"
+
+
 if __name__ == "__main__":
     test_confirmation_gate_two_phase()
     test_read_tool_routing_and_audit()
     test_max_loop_limit()
     test_degraded_on_bedrock_failure()
+    test_thinking_tags_are_stripped()
 
     print("OK — all shopping-copilot self-checks passed")

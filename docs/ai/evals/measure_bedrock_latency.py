@@ -13,7 +13,7 @@ implemented as botocore read_timeout values per Bedrock call.
 
 Example:
   AWS_PROFILE=Phase3-CDO-PermissionSet-804372444787 \\
-    python docs/ai/evals/measure_bedrock_latency.py --region us-east-2 --n 10 \\
+    python docs/ai/evals/measure_bedrock_latency.py --region us-east-1 --n 10 \\
     --markdown-out docs/ai/evals/bedrock_latency_results_2026-07-15.md
 """
 
@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import statistics
 import time
 from dataclasses import dataclass
@@ -53,6 +54,31 @@ FAKE_REVIEWS_TEXT = (
     "family solar viewing. The image is clear for beginners, though the tripod "
     "can shake in wind. Shipping was fast. 4/5 stars. "
 ) * 45
+
+
+def create_bedrock_runtime_client(*, session: boto3.Session, region_name: str):
+    role_arn = os.environ.get("BEDROCK_AWS_ROLE_ARN")
+    if role_arn:
+        assume_role_kwargs = {
+            "RoleArn": role_arn,
+            "RoleSessionName": os.environ.get("BEDROCK_AWS_ROLE_SESSION_NAME", "measure-bedrock-latency"),
+        }
+        external_id = os.environ.get("BEDROCK_AWS_EXTERNAL_ID")
+        if external_id:
+            assume_role_kwargs["ExternalId"] = external_id
+
+        sts = session.client("sts")
+        response = sts.assume_role(**assume_role_kwargs)
+        credentials = response["Credentials"]
+        assumed = boto3.Session(
+            aws_access_key_id=credentials["AccessKeyId"],
+            aws_secret_access_key=credentials["SecretAccessKey"],
+            aws_session_token=credentials["SessionToken"],
+        )
+        print("Using IRSA/profile credentials to assume BEDROCK_AWS_ROLE_ARN")
+        return assumed.client("bedrock-runtime", region_name=region_name)
+
+    return session.client("bedrock-runtime", region_name=region_name)
 
 REVIEWS_TOOL_CONFIG = {
     "tools": [
@@ -417,7 +443,7 @@ def main() -> None:
 
     n = args.n if args.n is not None else (args.legacy_n if args.legacy_n is not None else 10)
     session = boto3.Session(profile_name=args.profile) if args.profile else boto3.Session()
-    client = session.client("bedrock-runtime", region_name=args.region)
+    client = create_bedrock_runtime_client(session=session, region_name=args.region)
 
     cases = [
         Case(

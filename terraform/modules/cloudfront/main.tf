@@ -11,7 +11,7 @@ resource "aws_cloudfront_distribution" "this" {
     custom_origin_config {
       http_port              = 80
       https_port             = 443
-      origin_protocol_policy = "match-viewer" # Tự động khớp giao thức HTTP/HTTPS của client
+      origin_protocol_policy = "http-only" # Gọi NLB origin qua HTTP port 80
       origin_ssl_protocols   = ["TLSv1.2"]
     }
   }
