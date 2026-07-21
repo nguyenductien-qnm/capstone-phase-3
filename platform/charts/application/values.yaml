@@ -330,6 +330,13 @@ components:
       env: true
     service:
       port: 8080
+    topologySpread: true   # M17-R2: trải pod ra ≥2 AZ (browse-path SLO)
+    podDisruptionBudget:   # M17-R2: drain-az không hạ cả 2 pod cùng lúc
+      maxUnavailable: 1
+    hpa:
+      enabled: true
+      minReplicas: 2       # M17-R2: HA, mất 1 AZ vẫn còn pod
+      maxReplicas: 4
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
     env:
@@ -1339,9 +1346,12 @@ components:
       limits:
         cpu: 200m # Mandate 5: bắt buộc đủ 4 field requests/limits
         memory: 500Mi # This is high to enable supporting the recommendationCache feature flag use case
+    topologySpread: true   # M17-R2: trải pod ra ≥2 AZ (browse-path SLO)
+    podDisruptionBudget:   # M17-R2: drain-az không hạ cả 2 pod cùng lúc
+      maxUnavailable: 1
     hpa:
       enabled: true
-      minReplicas: 1
+      minReplicas: 2       # M17-R2: HA, mất 1 AZ vẫn còn pod (tăng từ 1)
       maxReplicas: 4
 
   shopping-copilot:
