@@ -1,0 +1,195 @@
+{{- /*
+CDO-219/230 (Mandate 17 — R3): Khoanh mạng bằng NetworkPolicy (zero-trust nội bộ).
+Mô hình:
+  - default-deny toàn bộ ingress + egress.
+  - allow DNS egress (bắt buộc).
+  - allow intra-namespace EGRESS (caller gọi được callee); ingress KHÔNG mở đại trà.
+  - per-service INGRESS: mỗi service chỉ nhận từ đúng caller (chặn lateral movement).
+  - flagd nhận ingress từ mọi pod app trên cổng 8013 (config chung, không đụng flagd).
+  - chỉ pod gắn label `egress-internet: "true"` mới ra Internet.
+Gate bằng .Values.networkPolicy.enabled (mặc định false). Bật khi đã review đồ thị.
+Selector label chuẩn của chart: opentelemetry.io/name: <service>.
+*/}}
+{{- if .Values.networkPolicy.enabled }}
+{{- $np := .Values.networkPolicy }}
+---
+# 1) Default-deny mọi ingress + egress.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  labels: { app.kubernetes.io/part-of: techx-corp }
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+{{- if $np.allowDNS }}
+---
+# 2) Allow DNS egress (nếu thiếu, gọi theo tên service sẽ hỏng).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-egress
+  labels: { app.kubernetes.io/part-of: techx-corp }
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels: { k8s-app: kube-dns }
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+{{- end }}
+{{- if $np.allowIntraNamespaceEgress }}
+---
+# 3) Allow intra-namespace EGRESS: caller gọi được callee trong cùng namespace.
+# Containment nằm ở INGRESS per-service (mục 5) — attacker gửi được nhưng đích từ chối.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-intra-namespace-egress
+  labels: { app.kubernetes.io/part-of: techx-corp }
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector: {}
+{{- end }}
+{{- if $np.flagdPort }}
+---
+# 4) flagd nhận ingress từ mọi pod app trên cổng flagd (config chung).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-flagd-ingress
+  labels: { app.kubernetes.io/part-of: techx-corp }
+spec:
+  podSelector:
+    matchLabels: { opentelemetry.io/name: flagd }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {}
+      ports:
+        - { protocol: TCP, port: {{ $np.flagdPort }} }
+{{- end }}
+{{- /* 5a) public edge: service ở rìa (frontend-proxy) nhận ingress từ mọi nguồn (ALB/Internet). */}}
+{{- range $svc := $np.publicIngress }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-public-{{ $svc }}
+  labels: { app.kubernetes.io/part-of: techx-corp }
+spec:
+  podSelector:
+    matchLabels: { opentelemetry.io/name: {{ $svc }} }
+  policyTypes: [Ingress]
+  ingress:
+    - {}
+{{- end }}
+{{- /* 5b) per-service INGRESS: mỗi đích chỉ nhận từ đúng caller (đồ thị phụ thuộc đã xác minh). */}}
+{{- range $svc, $sources := $np.serviceIngress }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-{{ $svc }}
+  labels: { app.kubernetes.io/part-of: techx-corp }
+spec:
+  podSelector:
+    matchLabels: { opentelemetry.io/name: {{ $svc }} }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+      {{- range $src := $sources }}
+        - podSelector:
+            matchLabels: { opentelemetry.io/name: {{ $src }} }
+      {{- end }}
+{{- end }}
+{{- if $np.observability }}
+{{- if $np.observability.scrapers }}
+---
+# 5c) Cho phép scraper (prometheus/otel) ingress tới MỌI pod app (nếu không, bật NP sẽ
+# chặn scrape -> mất metrics -> mất dashboard SLO). Nhãn subchart: app.kubernetes.io/name.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-metrics-scrape
+  labels: { app.kubernetes.io/part-of: techx-corp }
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+      {{- range $s := $np.observability.scrapers }}
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: {{ $s }} }
+      {{- end }}
+{{- end }}
+{{- if and $np.observability.apiServerEgress $np.observability.apiServerCIDR }}
+---
+# 5e) Pod observability cần gọi Kubernetes API server (prometheus SD, kube-state-metrics
+# list/watch, otel k8sattributes). API server là ENI RFC1918 -> không match được bằng
+# podSelector và bị allow-internet (except RFC1918) chặn -> mở egress 443 tới VPC CIDR.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-apiserver-egress-observability
+  labels: { app.kubernetes.io/part-of: techx-corp }
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+        {{- range $o := $np.observability.apiServerEgress }}
+          - {{ $o }}
+        {{- end }}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: {{ $np.observability.apiServerCIDR }}
+      ports:
+        - { protocol: TCP, port: 443 }
+{{- end }}
+{{- range $sink := ($np.observability.sinks | default list) }}
+---
+# 5d) Sink observability ({{ $sink }}) nhận telemetry từ mọi pod trong namespace.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-observability-sink-{{ $sink }}
+  labels: { app.kubernetes.io/part-of: techx-corp }
+spec:
+  podSelector:
+    matchLabels: { app.kubernetes.io/name: {{ $sink }} }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {}
+{{- end }}
+{{- end }}
+---
+# 6) Chỉ pod gắn label egress-internet: "true" mới ra Internet (payment, Bedrock...).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-internet-egress-selected
+  labels: { app.kubernetes.io/part-of: techx-corp }
+spec:
+  podSelector:
+    matchLabels: { egress-internet: "true" }
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16]
+      ports:
+        - { protocol: TCP, port: 443 }
+{{- end }}

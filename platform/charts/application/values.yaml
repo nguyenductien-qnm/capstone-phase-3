@@ -46,6 +46,62 @@ default:
     runAsNonRoot: true
     seccompProfile:
       type: RuntimeDefault
+  # CDO-220 (M17-R4): mặc định không mount token ServiceAccount cho mọi pod.
+  # Override per-component: components.<name>.automountServiceAccountToken: true (chỉ service cần K8s API).
+  automountServiceAccountToken: false
+
+# CDO-219/230 (M17-R3): NetworkPolicy khoanh mạng (chống lateral movement + chặn egress).
+# Mặc định TẮT để review kỹ trước khi bật. Bật: --set networkPolicy.enabled=true
+networkPolicy:
+  enabled: false
+  # DNS egress (bắt buộc, nếu không gọi theo tên service sẽ hỏng).
+  allowDNS: true
+  # Cho phép EGRESS trong cùng namespace (caller gọi callee). Containment nằm ở ingress per-service.
+  allowIntraNamespaceEgress: true
+  # Cổng flagd — mọi pod app được ingress tới flagd ở cổng này (config chung, không đụng flagd).
+  flagdPort: 8013
+  # Service ở rìa public (nhận traffic từ ALB/Internet) — mở ingress từ mọi nguồn.
+  publicIngress:
+    - frontend-proxy
+  # Observability (subchart -> nhãn app.kubernetes.io/name, KHÁC opentelemetry.io/name).
+  observability:
+    # Được phép scrape/nhận từ MỌI pod app (nếu thiếu -> mất metrics -> mất dashboard SLO).
+    scrapers:
+      - prometheus
+      - opentelemetry-collector
+    # Sink nhận telemetry ingress từ mọi pod trong namespace.
+    sinks:
+      - opentelemetry-collector
+      - jaeger
+      - prometheus
+    # Pod cần egress tới Kubernetes API server (443) — SD/list-watch/k8sattributes.
+    apiServerEgress:
+      - prometheus
+      - kube-state-metrics
+      - opentelemetry-collector
+    # Dải chứa ENI control-plane (API server IP xoay) — VPC CIDR cluster này.
+    apiServerCIDR: 10.0.0.0/16
+  # per-service INGRESS: mỗi đích chỉ nhận từ đúng caller (đồ thị phụ thuộc đã xác minh từ *_ADDR).
+  # flagd xử lý riêng ở trên; DB/queue (valkey-cart, kafka) và service lá cũng liệt kê.
+  serviceIngress:
+    cart: [frontend, checkout, shopping-copilot]
+    checkout: [frontend]
+    currency: [frontend, checkout]
+    product-catalog: [frontend, checkout, recommendation, shopping-copilot]
+    product-reviews: [frontend, shopping-copilot]
+    recommendation: [frontend]
+    shipping: [frontend, checkout]
+    payment: [checkout]
+    email: [checkout]
+    ad: [frontend]
+    shopping-copilot: [frontend]
+    quote: [shipping]
+    ml-guard: [product-reviews, shopping-copilot]
+    valkey-cart: [cart]
+    kafka: [accounting, checkout, fraud-detection]
+    llm: [shopping-copilot]
+    frontend: [frontend-proxy, load-generator]
+  # Pod gắn label `egress-internet: "true"` mới được ra Internet (payment provider, Bedrock...).
 
 serviceAccount:
   # Specifies whether a service account should be created
@@ -543,9 +599,10 @@ components:
       limits:
         cpu: 100m
         memory: 20Mi
+    topologySpread: true   # M17-R2: trải pod ra ≥2 AZ (money-path)
     hpa:
       enabled: true
-      minReplicas: 1
+      minReplicas: 2       # M17-R2: HA, mất 1 AZ vẫn còn pod
       maxReplicas: 4
 
   email:
@@ -1010,6 +1067,8 @@ components:
     topologySpread: true
   payment:
     enabled: true
+    replicas: 2            # M17-R2: HA money-path
+    topologySpread: true   # M17-R2: trải pod ra ≥2 AZ
     imageOverride:
       tag: "1.0-payment-ae89fa2" # incident 2026-07-16: tag tran bi ECR lifecycle xoa, image rebuild tu source
     useDefault:
@@ -1366,6 +1425,8 @@ components:
         memory: 100Mi
   shipping:
     enabled: true
+    replicas: 2            # M17-R2: HA money-path
+    topologySpread: true   # M17-R2: trải pod ra ≥2 AZ
     useDefault:
       env: true
     service:
