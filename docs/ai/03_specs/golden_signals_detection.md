@@ -10,7 +10,7 @@ Soạn thảo đặc tả kỹ thuật giám sát hai tín hiệu vàng (Golden 
 - **Latency (p95):** SLO cam kết < 1s.
 - **Error Rate (HTTP 5xx):** Tỷ lệ lỗi backend.
 
-Sử dụng EWMA (alpha = 0.2, threshold = 3σ) để lọc nhiễu và chuyển đổi time-series metrics thô thành tín hiệu bất thường thật sự.
+Sử dụng **SMA 3σ** (Simple Moving Average trên cửa sổ trượt 30 mẫu, threshold = 3σ) để lọc nhiễu và chuyển đổi time-series metrics thô thành tín hiệu bất thường thật sự. *(Đính chính 21/07: spec ban đầu ghi EWMA α=0.2 — sai so với code runtime. `detector.py` và `evaluate_detector.py` dùng SMA đơn giản: `mean = sum(history[-30:]) / len(history[-30:])`, không có hệ số alpha. Xem chi tiết §3.)*
 
 ---
 
@@ -18,92 +18,99 @@ Sử dụng EWMA (alpha = 0.2, threshold = 3σ) để lọc nhiễu và chuyển
 
 | Signal | Metric | SLO / Alert Threshold | Detection Method |
 |---|---|---|---|
-| **Latency** | `http_request_duration_seconds` (p95) | SLO: < 1s · Alert: EWMA deviation > 3σ | EWMA + Prometheus rule |
-| **Error Rate** | `http_requests_total{status=~"5.."}` / tổng requests | Alert: > 1% trong 5 phút | Prometheus rule + EWMA |
+| **Latency** | `http_request_duration_seconds` (p95) | SLO: < 1s · Alert: SMA deviation > 3σ | SMA 3σ + Prometheus rule |
+| **Error Rate** | `http_requests_total{status=~"5.."}` / tổng requests | Alert: > 1% trong 5 phút | Prometheus rule + SMA 3σ |
 
 ---
 
-## 3. Detection Configuration (EWMA)
+## 3. Detection Configuration (SMA 3σ)
 
-### 3.1 p95 Latency — EWMA Detection
+> **Đính chính 21/07:** Spec phiên bản trước mô tả EWMA với `alpha = 0.2` — đây là thuật toán không được triển khai trong code. Runtime thực tế (`detector.py:55–76`, `evaluate_detector.py`) dùng **SMA đơn giản** trên cửa sổ trượt 30 mẫu. Spec này đã được cập nhật để khớp code.
 
-Theo dõi `http_request_duration_seconds` (p95) qua thuật toán EWMA để phát hiện **gradual degradation**.
+### 3.1 p95 Latency — SMA 3σ Detection
 
-**Tham số EWMA:**
+Theo dõi `http_request_duration_seconds` (p95) qua thuật toán SMA 3σ để phát hiện **gradual degradation**.
+
+**Tham số SMA:**
 
 | Tham số | Giá trị | Lý do chọn |
 |---|---|---|
-| `alpha` | **0.2** | p95 latency storefront có variance cao trong giờ cao điểm — α thấp hơn mức mặc định 0.3 để baseline nhớ xa hơn, giảm false alarm. Phù hợp detect **gradual degradation** (ví dụ: connection pool cạn dần, memory leak), không phải sudden spike. |
-| `threshold` | **3.0 σ** | ~0.3% false-positive rate với phân phối chuẩn công nghiệp. |
+| `window` | **30 mẫu** | Cửa sổ đủ rộng để baseline ổn định; tương đương ~7.5 phút với scrape 15s. |
+| `min_history` | **5 mẫu** | Số mẫu tối thiểu trước khi bắt đầu tính dynamic threshold. |
+| `threshold` | **3.0 σ** | ~0.3% false-positive rate với phân phối chuẩn; canon SPC (L=3 theo Montgomery/NIST). |
 | Scrape interval | **15s** | Đủ granular để bắt degradation trong vòng 2–3 phút. |
 
 **Giới hạn & Bù đắp:**
-- α = 0.2 cần ~12–15 data points liên tục deviate mới trigger alert.
-- Sudden spike (p95 vọt lên đột ngột trong 1–2 scrape) được bắt bởi Prometheus rule riêng (xem Section 4.3).
+- SMA phản ứng chậm với drift dài hạn (baseline tự trượt theo) — bắt được gradual degradation nhờ variance tăng dần trước khi mean dịch chuyển hẳn.
+- Sudden spike (p95 vọt lên đột ngột trong 1–2 scrape) được bắt bởi Prometheus rule riêng (xem §3.3).
 
-**Implementation:**
+**Implementation (khớp `detector.py`):**
 
 ```python
-import pandas as pd
-import numpy as np
-
-
-def detect_latency_anomaly(series: pd.Series, alpha: float = 0.2, threshold: float = 3.0) -> pd.Series:
+def detect_latency_anomaly(history: list[float], new_value: float, threshold: float = 3.0) -> bool:
     """
-    Phát hiện latency anomaly bằng EWMA.
-    
+    Phát hiện latency anomaly bằng SMA 3σ — khớp detector.py runtime.
+
     Args:
-        series: p95 latency values (pd.Series, indexed by timestamp).
-        alpha: smoothing factor (0.2 cho storefront).
+        history: danh sách giá trị lịch sử (tối đa 30 mẫu gần nhất).
+        new_value: giá trị p95 latency mới nhất.
         threshold: std deviation threshold (mặc định 3σ).
-    
+
     Returns:
-        pd.Series[bool] — True tại các điểm anomaly.
+        True nếu new_value lệch > threshold × std_dev so với mean.
     """
-    ewma_mean = series.ewm(alpha=alpha, adjust=False).mean()
-    ewma_std = series.ewm(alpha=alpha, adjust=False).std().replace(0, 1e-10)
-    return (np.abs(series - ewma_mean) / ewma_std) > threshold
+    if len(history) < 5:
+        return False
+    mean = sum(history) / len(history)
+    variance = sum((x - mean) ** 2 for x in history) / len(history)
+    std_dev = variance ** 0.5
+    dynamic_th = mean + threshold * std_dev
+    return new_value > dynamic_th and (new_value - mean) > 0.001
 ```
 
-### 3.2 HTTP 5xx Error Rate — EWMA Detection
+### 3.2 HTTP 5xx Error Rate — SMA 3σ Detection
 
-Theo dõi tỷ lệ lỗi HTTP 5xx qua EWMA để phát hiện **gradual increase** trong error rate.
+Theo dõi tỷ lệ lỗi HTTP 5xx qua SMA 3σ để phát hiện **gradual increase** trong error rate.
 
-**Tham số EWMA:**
+**Tham số SMA:**
 
 | Tham số | Giá trị | Lý do chọn |
 |---|---|---|
-| `alpha` | **0.2** | Cùng lý do latency — giảm false alarm từ transient errors. |
+| `window` | **30 mẫu** | Cùng latency — consistency giữa 2 signal. |
 | `threshold` | **3.0 σ** | ~0.3% false-positive rate. |
 | Scrape interval | **15s** | Theo latency. |
 
 **Lưu ý:**
-- Error rate baseline phụ thuộc vào traffic volume — EWMA tự động normalize qua std deviation.
+- Error rate baseline phụ thuộc vào traffic volume — SMA 3σ tự normalize qua std deviation.
 - Ví dụ: nếu baseline error rate = 0.05% ± 0.02% (1σ), thì alert trigger khi error rate > 0.11% (baseline + 3σ).
 
 **Implementation:**
 
 ```python
-def detect_error_rate_anomaly(series: pd.Series, alpha: float = 0.2, threshold: float = 3.0) -> pd.Series:
+def detect_error_rate_anomaly(history: list[float], new_value: float, threshold: float = 3.0) -> bool:
     """
-    Phát hiện error rate anomaly bằng EWMA.
-    
+    Phát hiện error rate anomaly bằng SMA 3σ — khớp detector.py runtime.
+
     Args:
-        series: error rate values in [0, 1] (e.g., 0.01 = 1%), indexed by timestamp.
-        alpha: smoothing factor.
+        history: danh sách giá trị lịch sử error rate (tối đa 30 mẫu).
+        new_value: error rate mới nhất trong [0, 1].
         threshold: std deviation threshold.
-    
+
     Returns:
-        pd.Series[bool] — True tại các điểm anomaly.
+        True nếu new_value lệch > threshold × std_dev so với mean.
     """
-    ewma_mean = series.ewm(alpha=alpha, adjust=False).mean()
-    ewma_std = series.ewm(alpha=alpha, adjust=False).std().replace(0, 1e-10)
-    return (np.abs(series - ewma_mean) / ewma_std) > threshold
+    if len(history) < 5:
+        return False
+    mean = sum(history) / len(history)
+    variance = sum((x - mean) ** 2 for x in history) / len(history)
+    std_dev = variance ** 0.5
+    dynamic_th = mean + threshold * std_dev
+    return new_value > dynamic_th and (new_value - mean) > 0.001
 ```
 
 ### 3.3 Complementary Prometheus Rules — Bắt Sudden Spikes
 
-EWMA chậm (cần 12–15 data points) → cần rule Prometheus để bắt sudden spike:
+SMA 3σ cần ≥5 mẫu lịch sử và phản ứng chậm với spike đột ngột → cần rule Prometheus để bắt nhanh:
 
 ```yaml
 # prometheus-rules.yaml
@@ -141,7 +148,7 @@ groups:
 ```
 
 **Giải thích:**
-- **Rule 1:** Latency > 1s (SLO) trong 2 phút → alert. Bắt sudden spike mà EWMA chưa kịp detect.
+- **Rule 1:** Latency > 1s (SLO) trong 2 phút → alert. Bắt sudden spike mà SMA 3σ chưa kịp detect (cần ≥5 mẫu lịch sử).
 - **Rule 2:** Error rate > 1% trong 5 phút → alert. Ngưỡng 1% được chọn vì:
   - Thường xuyên error rate < 0.1% (healthy state).
   - 1% tương đương ~1 lỗi per 100 requests → đáng để alert.
@@ -155,8 +162,8 @@ groups:
 
 Vì bất kỳ anomaly detection nào cũng kích hoạt remediation tự động, chi phí của false positive cao. Chiến lược:
 
-- **Dual detection:** EWMA (sensitive to trends) + Prometheus rule (fast spike catch). Chỉ trigger remediation khi cả hai đồng ý hoặc escalate to on-call.
-- **Threshold tuning:** α = 0.2, threshold = 3σ được chọn để minimize false alarm từ giờ cao điểm traffic spikes.
+- **Dual detection:** SMA 3σ (sensitive to trends) + Prometheus rule (fast spike catch). Chỉ trigger remediation khi cả hai đồng ý hoặc escalate to on-call.
+- **Threshold tuning:** window=30, threshold=3σ được chọn để minimize false alarm từ giờ cao điểm traffic spikes.
 - **Verification buffer:** Remediation engine chỉ confirm recovery khi p95 < 800ms (buffer 200ms so với SLO 1s) — tránh flip-flopping ở edge.
 
 ### 4.2 Blast-radius Awareness
@@ -172,13 +179,13 @@ Detection spec phải biết rằng:
 
 | Metric | Detection Method | Tham số | Tác dụng |
 |---|---|---|---|
-| **p95 Latency** | EWMA | α=0.2, threshold=3σ, interval=15s | Bắt gradual degradation (trend shift) |
+| **p95 Latency** | SMA 3σ | window=30, min_history=5, threshold=3σ, interval=15s | Bắt gradual degradation (trend shift) |
 | **p95 Latency** | Prometheus rule | threshold > 1s, for=2m | Bắt sudden spike |
-| **Error Rate** | EWMA | α=0.2, threshold=3σ, interval=15s | Bắt gradual increase trong error rate |
+| **Error Rate** | SMA 3σ | window=30, min_history=5, threshold=3σ, interval=15s | Bắt gradual increase trong error rate |
 | **Error Rate** | Prometheus rule | threshold > 1%, for=5m | Bắt sudden spike / threshold breach |
 
 **Lý do dual detection:**
-- EWMA: nhạy với trend, bắt được degradation dần dần.
+- SMA 3σ: nhạy với trend, bắt được degradation dần dần khi variance tăng.
 - Prometheus rule: phản ứng nhanh, bắt spike đột ngột.
 - Cùng nhau: coverage đầy đủ cho cả 2 loại anomaly, đồng thời giảm false alarm bằng cách yêu cầu confirmation.
 

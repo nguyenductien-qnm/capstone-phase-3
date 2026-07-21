@@ -138,7 +138,7 @@ Hệ quả cho câu hỏi poll interval (G4): đề chỉ đòi (a) chạy liên
 ### G1. Điểm cộng — đã verify đúng ✅
 - **9 rule bám đúng SLO.md nguyên văn**: `latency-p95-high` threshold 1.0, `error-rate-high` 0.005, `checkout-failure-high` 0.01 — khớp `onboarding/SLO.md` (p95 < 1s, non-5xx ≥ 99.5%, checkout ≥ 99%). Config-driven trong `rules.yaml`, không hardcode; cooldown 600s chống alert spam. Đây là mẫu tốt về số-có-nguồn.
 - **Claim "read-only, không ghi Kubernetes" đúng**: grep toàn bộ detector/alerter/sources — không có call ghi K8s; `alerter.py` chỉ webhook Slack/Discord + stdout fallback.
-- Detector runtime có hybrid static + EWMA 3σ (`detector.py:60-76`) — khớp spec, khớp `evaluate_detector.py`.
+- Detector runtime có hybrid static + **SMA 3σ** (`detector.py:60-76`) — khớp `evaluate_detector.py`. *(Đính chính 21/07: spec `golden_signals_detection.md` ghi "EWMA α=0.2" là sai; code dùng SMA đơn giản — `mean = sum(history)/len(history)` trên cửa sổ trượt 30 mẫu, không có hệ số alpha. Spec đã được cập nhật để khớp. Xem G5 cho vấn đề backtest window.)*
 - Drain3 `sim_th=0.4, depth=4` = default thư viện (đã verify ở E).
 
 ### G2. HIGH — rule GenAI nửa chết vì coupling chuỗi log với code vừa đổi
@@ -200,9 +200,10 @@ Con số 30s ban đầu là default không căn cứ; sau phép đo nó **tình 
 
 **Finding mới (HIGH) — G6. Log viết để làm hài lòng rule, gây chẩn đoán sai:** code product-reviews log `"Rate limit reached. Bedrock ThrottlingException"` cho MỌI exception Bedrock (kể cả NoCredentials/AccessDenied) nhằm khớp match_phrase của rule AIOps. Hậu quả đo được: on-call nhận alert "429 rate-limit" trong khi sự cố thật là thiếu credentials — **alert đúng lúc, sai bản chất, dẫn RCA lạc đường**. Fix: log đúng error code thật (`err_code` đã có sẵn trong except), rule match theo marker máy-đọc (`AI_SUMMARY_FALLBACK reason=<code>`) — một marker phục vụ cả rule 429 lẫn rule genai-failure (G2).
 
-### G5. MEDIUM — tham số EWMA chưa có backtest
-- `alpha = 0.2, 3σ`: nằm trong canon SPC (λ ∈ [0.05, 0.25], L = 3 theo Montgomery/NIST) — chọn không sai. Nhưng lý do trong spec ("thấp hơn mức mặc định 0.3") không có nguồn cho "0.3 là mặc định", và chưa hề backtest trên metric thật của chính hệ thống dù Prometheus đã chạy sẵn nhiều ngày.
-- **Fix:** export 24–48h p95 thật từ Prometheus, chạy `evaluate_detector.py` trên dữ liệu đó (thay synthetic) với dải alpha 0.1/0.2/0.3 — vừa có evidence chọn alpha, vừa nâng cấp G3 cùng lúc.
+### G5. MEDIUM — ~~tham số EWMA~~ cửa sổ SMA chưa có backtest *(đính chính 21/07)*
+- **Đính chính:** G5 ban đầu ghi "`alpha = 0.2, 3σ`" — tham số này không tồn tại trong code. Runtime dùng SMA với `window=30, min_history=5, threshold=3σ`. Spec `golden_signals_detection.md` đã được cập nhật để khớp (21/07).
+- Vấn đề thực sự vẫn còn: `window=30` là default chưa backtest trên metric thật của hệ thống, dù Prometheus đã chạy sẵn nhiều ngày. Tham số `threshold=3σ` nằm trong canon SPC (L=3 theo Montgomery/NIST) — chọn không sai; nhưng `window=30` chưa có nguồn.
+- **Fix:** export 24–48h p95 thật từ Prometheus, chạy `evaluate_detector.py` trên dữ liệu đó (thay synthetic) với dải window 10/20/30 — vừa có evidence chọn window, vừa nâng cấp G3 cùng lúc.
 
 ## G7. Tương quan metrics — trả lời thẳng: hiểu CHƯA đủ để làm căn cứ quyết định
 
@@ -216,7 +217,7 @@ Câu hỏi: "đã thực sự hiểu tất cả metrics, tính chất và độ 
 **Chưa có (nói thẳng, không vẽ):**
 1. **Ma trận tương quan giữa golden signals** (p95 ↔ error-rate ↔ RPS ↔ saturation, theo service, theo lag) — cần cho: đặt alert không trùng lặp (2 rule cùng bắn cho 1 sự cố = double-page), chọn leading indicator (saturation thường dẫn trước latency).
 2. **Alert co-occurrence**: rule nào hay bắn cùng rule nào → dedup/correlation (đề AIOps mở rộng "RCA cross-service" cần chính cái này).
-3. **EWMA alpha ↔ (FP, MTTD) trade-off curve** trên metric thật (G5).
+3. **SMA window ↔ (FP, MTTD) trade-off curve** trên metric thật (G5). *(Đính chính: trước đây ghi "EWMA alpha" — code không có alpha; bài toán thực là chọn window SMA.)*
 
 **Cách đóng gap (đo được, tuần 2):** export 24h Prometheus (locust load) → Pearson/Spearman giữa các signal per-service ở các lag 0/30/60s; log co-firing từ chính detector log (đã có alerter history). Script ~100 dòng, chạy trên data sẵn có. Trước khi có bảng này, mọi quyết định đặt thêm rule/ngưỡng mới nên coi là tạm.
 
@@ -248,7 +249,7 @@ Tiêu chí "phương pháp tối ưu" theo đề: (1) giải đúng bài đề n
 | `valkey_caching` | Cache-aside + versioned key + dynamic TTL | ⚠️ **Nửa tối ưu** | Cache-aside + versioned key + reuse valkey-cart ($0) ✓ đúng đề. Dynamic TTL **phản tối ưu**: chỉ có 10 cache key, data tĩnh (C2) — công thức TTL là complexity thuần. Thiếu: phân tích maxmemory chung với cart (INC-2 từng OOM) — cache reviews chung instance với cart là quyết định blast-radius chưa được cân nhắc thành văn. |
 | `semantic_search.md` | Titan V2 embeddings + pgvector HNSW (+option RRF) | ❌ **Over-engineered với N=10**<br><br>*(GHI CHÚ MỚI: 14/07)*<br>✅ **BÁC BỎ LỜI PHÊ NÀY.** Quyết định mới nhất áp dụng pgvector để đạt chuẩn Cloud-Native Enterprise. Đã chốt thực thi. | HNSW là index *approximate* cho hàng trăm nghìn–triệu vector; với **10 sản phẩm**, brute-force < 1ms, và tối ưu thật theo đề (intent "tìm sản phẩm NL") là **nhét cả catalog (~vài trăm token) vào prompt Copilot** — zero infra, zero embedding cost, đạt "Done" của đề. Số "embed 80ms + HNSW 8ms" chưa đo và vô nghĩa ở N=10. pgvector chỉ đáng khi BTC bơm directive scale catalog — ghi làm "trigger để nâng cấp", đừng build trước (YAGNI). <br><br>**[ADDENDUM 14/07]** Ban Kiến trúc sư đánh giá giải pháp Dynamic Prompting là Anti-pattern. Đã lật kèo và chính thức chốt `pgvector` trên RDS 16.14. |
 | RAG reviews (copilot) | Tool `fetch_product_reviews` đưa thẳng vào context | ✅ **Tối ưu** | 5 reviews/sản phẩm → fetch trực tiếp toàn bộ là grounded-QA đúng nghĩa, không cần vector store. Giữ nguyên, đừng "nâng cấp" thành embedding RAG. |
-| `golden_signals_detection.md` | Hybrid static-threshold + EWMA 3σ | ⚠️ **Hạ verdict (xem K1)** — EWMA hợp lý, nhưng rule error-rate là single-window raw threshold, vi phạm nguyên tắc burn-rate của chính giáo trình AIOps course | Xem K1. Backtest alpha (G5), MTTD pipeline đã đo (G4). |
+| `golden_signals_detection.md` | Hybrid static-threshold + **SMA 3σ** *(spec ghi "EWMA" là sai — xem G5)* | ⚠️ **Hạ verdict (xem K1)** — SMA 3σ hợp lý, nhưng rule error-rate là single-window raw threshold, vi phạm nguyên tắc burn-rate của chính giáo trình AIOps course | Xem K1. Backtest window SMA (G5), MTTD pipeline đã đo (G4). |
 | `log_clustering.md` | Drain3, sim_th 0.4 depth 4 | ✅ **Chuẩn canon** | Drain là phương pháp chuẩn log template mining; params = default thư viện; phù hợp quy mô. |
 | `anomaly_remediation.md` | Dry-run → blast radius 1 pod/h → verify 120s → CB 3 fails → escalate | ✅ **Tối ưu theo cấu trúc** (đề trích nguyên văn pipeline này ở RULES.md §4 AIOps core) | Các số 120s/3 fails/1 pod/h là assumption hợp lý nhưng cần label + eval khi bật auto-remediation (tuần sau). Tuần 1 detect-only là đúng trình tự. |
 | Copilot spec (3 intent + confirmation gate) | Tool-calling agent + gate xác nhận trước ghi cart | ✅ **Đề bắt buộc đúng dạng này** | **[CẬP NHẬT 15/07]** Đã thực thi xong trên codebase (MANDATE-06, xem ADR-011). |
@@ -317,7 +318,7 @@ Ba mảnh đã verify từ code/config thật, ghép lại thành chuỗi hỏng
 ### K6. Đối chiếu ngược: những verdict cũ của review ĐỨNG VỮNG qua lens giáo trình
 - Remediation spec khớp nguyên văn vòng khép kín của giáo trình (dry-run → blast-radius → act → **verify** → rollback → CB) ✓.
 - Drain masking-first: baseline của chính course (`log-clusterer.py` mask `<NUM>/<IP>/<UUID>` trước khi so) — củng cố khuyến nghị G8 ✓.
-- EWMA cho detect khi data non-stationary: đúng bậc thang giáo trình (baseline 3σ → EWMA khi cần) ✓.
+- SMA 3σ cho detect khi data non-stationary: đúng bậc thang giáo trình (baseline 3σ → EWMA khi cần — nhóm dùng SMA đơn giản, là bước cơ bản, có thể nâng lên EWMA nếu thấy baseline drift). ✓
 - "Metrics + logs kết hợp" — nhóm làm đúng hướng (3 rule metric + 5 rule log) ✓.
 
 ## L. Fix ĐÃ ÁP DỤNG trên nhánh này (12/07) + bằng chứng runtime
@@ -361,7 +362,7 @@ Các fix nằm trong working tree nhánh `review/week1-baseline-verify` (chưa c
 4. **B2** — đổi circuit breaker sang error-rate-based (tránh vùng xám disqualify).
 5. **B1** — non-blocking semaphore → mock (KHÔNG phải thu nhỏ semaphore — xem thí nghiệm) + load test in-cluster.
 6. **B3/B5/G3** — đo thật thay mô phỏng: chaos test flagd đo MTTD + error-rate trước/sau; chạy `evals/measure_bedrock_latency.py` khi có AWS creds; mở rộng golden dataset; CI.
-7. **G5** — backtest alpha EWMA trên metric Prometheus thật; **G4** — đo ingest lag + FP rate 24h để chốt poll interval với CDO.
+7. **G5** — backtest window SMA trên metric Prometheus thật; **G4** — đo ingest lag + FP rate 24h để chốt poll interval với CDO.
 8. **C1–C4** — sửa versioned key, bỏ dynamic TTL, đồng bộ docs, đóng gap deploy IRSA.
 
 ### Script tái tạo đi kèm review này
