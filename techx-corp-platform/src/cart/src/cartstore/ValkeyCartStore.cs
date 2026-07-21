@@ -65,7 +65,7 @@ public sealed class ValkeyCartStore : ICartStore, IDisposable, IAsyncDisposable
             ]
         });
 
-    private static readonly Histogram<double> EmptyCartHistogram = CartMeter.CreateHistogram(
+    private static readonly Histogram<double> EmptyCartHistogram = CartMeter.CreateHistogram<double>(
         "app.cart.empty_cart.latency",
         unit: "s");
 
@@ -92,10 +92,7 @@ public sealed class ValkeyCartStore : ICartStore, IDisposable, IAsyncDisposable
         bool valkeyTls = false,
         int poolSize = DefaultPoolSize)
     {
-        if (logger is null)
-        {
-            throw new ArgumentNullException(nameof(logger));
-        }
+        ArgumentNullException.ThrowIfNull(logger);
 
         if (string.IsNullOrWhiteSpace(valkeyAddress))
         {
@@ -570,8 +567,9 @@ public sealed class ValkeyCartStore : ICartStore, IDisposable, IAsyncDisposable
         }
         else if (!string.Equals(cart.UserId, userId, StringComparison.Ordinal))
         {
-            throw new InvalidProtocolBufferException(
-                "The stored cart belongs to a different user identifier.");
+            throw new RpcException(new Status(
+                StatusCode.DataLoss,
+                "The stored cart belongs to a different user identifier."));
         }
 
         return cart;
@@ -582,8 +580,8 @@ public sealed class ValkeyCartStore : ICartStore, IDisposable, IAsyncDisposable
         string productId,
         int quantity)
     {
-        Oteldemo.CartItem? target = null;
-        List<Oteldemo.CartItem>? duplicates = null;
+        Oteldemo.CartItem target = null;
+        List<Oteldemo.CartItem> duplicates = null;
 
         foreach (var item in cart.Items)
         {
@@ -674,6 +672,9 @@ public sealed class ValkeyCartStore : ICartStore, IDisposable, IAsyncDisposable
     {
         switch (exception)
         {
+            case RpcException rpcEx:
+                return rpcEx;
+
             case InvalidProtocolBufferException:
                 if (_logger.IsEnabled(LogLevel.Error))
                 {
@@ -779,9 +780,6 @@ public sealed class ValkeyCartStore : ICartStore, IDisposable, IAsyncDisposable
 
     private void ThrowIfDisposed()
     {
-        if (Volatile.Read(ref _disposed) != 0)
-        {
-            throw new ObjectDisposedException(nameof(ValkeyCartStore));
-        }
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
     }
 }
