@@ -17,6 +17,8 @@ import argparse
 import logging
 
 import yaml
+import pandas as pd
+import numpy as np
 
 from sources import PrometheusClient, OpenSearchClient
 from alerter import Alerter
@@ -70,21 +72,33 @@ def eval_metric_rule(rule, prom):
             
         history = metric_history[history_key]
         
-        if len(history) >= 5:
-            mean = sum(history) / len(history)
-            variance = sum((x - mean) ** 2 for x in history) / len(history)
-            std_dev = variance ** 0.5
-            dynamic_threshold = mean + 3 * std_dev
-            # Dynamic alert when value exceeds 3-sigma threshold and variance is non-negligible
-            if op == "gt" and value > dynamic_threshold and (value - mean) > 0.001:
-                dynamic_fired = True
-            elif op == "lt" and value < (mean - 3 * std_dev) and (mean - value) > 0.001:
-                dynamic_fired = True
-
         # Append current metric value to history (cap at 30 values)
         history.append(value)
         if len(history) > 30:
             history.pop(0)
+
+        # 2. Dynamic anomaly detection (EWMA)
+        dynamic_fired = False
+        dynamic_threshold = 0.0
+        ewma_mean = 0.0
+        
+        if len(history) >= 5:
+            # Calculate EWMA on history excluding current point (t-1)
+            # to prevent a current spike from inflating the std_dev and masking the anomaly.
+            series = pd.Series(history[:-1])
+            alpha = 0.2
+            
+            # Use pandas EWM to calculate mean and std according to spec
+            ewma_mean = series.ewm(alpha=alpha, adjust=False).mean().iloc[-1]
+            ewma_std = series.ewm(alpha=alpha, adjust=False).std().replace(0, 1e-10).iloc[-1]
+            
+            dynamic_threshold = ewma_mean + 3 * ewma_std
+            
+            # Dynamic alert when value exceeds 3-sigma threshold and variance is non-negligible
+            if op == "gt" and value > dynamic_threshold and (value - ewma_mean) > 0.001:
+                dynamic_fired = True
+            elif op == "lt" and value < (ewma_mean - 3 * ewma_std) and (ewma_mean - value) > 0.001:
+                dynamic_fired = True
 
         # Trigger alert if either threshold is breached
         if static_fired or dynamic_fired:
@@ -93,7 +107,7 @@ def eval_metric_rule(rule, prom):
             if static_fired:
                 method_str.append(f"Static (val={value:.4f} > th={threshold})")
             if dynamic_fired:
-                method_str.append(f"3-Sigma (val={value:.4f} > th_dev={dynamic_threshold:.4f}, mean={sum(history[:-1])/len(history[:-1]):.4f})")
+                method_str.append(f"EWMA 3-Sigma (val={value:.4f} > th_dev={dynamic_threshold:.4f}, mean={ewma_mean:.4f})")
 
             # Headline theo LOP phat hien (review 16/07: alert cart 6ms tung mang
             # headline "p95 > 1s" cua lop static du chi lop 3-sigma keu -> gay hieu nham).
@@ -117,7 +131,7 @@ def eval_metric_rule(rule, prom):
                 # nen mean/std_dev da duoc gan o tren.
                 fields.append((
                     "📊 Giá trị đo / Baseline (mean ± 3σ)",
-                    f"{value:.4f} / {mean:.4f} ± {3 * std_dev:.4f}",
+                    f"{value:.4f} / {ewma_mean:.4f} ± {3 * ewma_std:.4f}",
                     True,
                 ))
             fields.append(("🔍 Phương pháp phát hiện", ", ".join(method_str), False))

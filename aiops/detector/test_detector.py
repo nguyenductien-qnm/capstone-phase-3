@@ -113,6 +113,116 @@ def test_metric_rule_dynamic_only_uses_dynamic_headline():
     assert "VI PHAM SLO" not in alerts[0][1]
 
 
+
+def test_eval_metric_rule_insufficient_history():
+    prom = MagicMock()
+    rule = {
+        "id": "latency-test",
+        "type": "metric",
+        "query": "dummy_query",
+        "op": "gt",
+        "threshold": 10.0,
+        "summary": "High latency alert",
+        "severity": "warning",
+    }
+    detector.metric_history.clear()
+    
+    # Only 3 points in history
+    for val in [0.1, 0.1, 0.1]:
+        prom.query.return_value = [(val, {"service_name": "storefront"})]
+        detector.eval_metric_rule(rule, prom)
+        
+    # Send an anomaly
+    prom.query.return_value = [(15.0, {"service_name": "storefront"})]
+    alerts = detector.eval_metric_rule(rule, prom)
+    
+    # Static threshold is 10.0, so static alert fires.
+    # But EWMA shouldn't fire because len(history) < 5
+    assert len(alerts) == 1
+    assert "Static" in field_values(alerts[0])
+    assert "EWMA" not in field_values(alerts[0])
+
+
+def test_eval_metric_rule_op_lt():
+    prom = MagicMock()
+    rule = {
+        "id": "success-rate-drop",
+        "type": "metric",
+        "query": "dummy_query",
+        "op": "lt",
+        "threshold": 0.5, # Static threshold is 0.5
+        "summary": "Success rate drop",
+        "severity": "critical",
+    }
+    detector.metric_history.clear()
+    
+    # Stable baseline around 0.99
+    for val in [0.99, 0.98, 1.0, 0.99, 0.995]:
+        prom.query.return_value = [(val, {"service_name": "checkout"})]
+        detector.eval_metric_rule(rule, prom)
+        
+    # Sudden drop to 0.8. 
+    # Static threshold is 0.5, so static won't fire.
+    # But 0.8 is significantly below the baseline of 0.99 (mean) - 3*std
+    prom.query.return_value = [(0.8, {"service_name": "checkout"})]
+    alerts = detector.eval_metric_rule(rule, prom)
+    
+    assert len(alerts) == 1
+    assert "EWMA 3-Sigma" in field_values(alerts[0])
+    assert "checkout" in alerts[0][0]
+
+
+def test_eval_log_rule_below_min_count():
+    osc = MagicMock()
+    osc.count_matches.return_value = (1, "ERROR something minor")
+
+    rule = {
+        "id": "db-error",
+        "type": "log",
+        "match_phrases": ["connection pool"],
+        "min_count": 3,
+        "window_minutes": 5,
+        "summary": "DB error detected",
+        "severity": "critical",
+    }
+
+    alerts = detector.eval_log_rule(rule, osc)
+    # Should not trigger because 1 < 3
+    assert len(alerts) == 0
+
+
+def test_eval_metric_rule_multiple_services():
+    prom = MagicMock()
+    rule = {
+        "id": "multi-service",
+        "type": "metric",
+        "query": "dummy_query",
+        "op": "gt",
+        "threshold": 10.0,
+        "summary": "High latency",
+        "severity": "warning",
+    }
+    detector.metric_history.clear()
+    
+    # Send stable baseline for both services
+    for i in range(5):
+        prom.query.return_value = [
+            (0.1, {"service_name": "storefront"}),
+            (0.5, {"service_name": "checkout"})
+        ]
+        detector.eval_metric_rule(rule, prom)
+        
+    # Anomaly on storefront only
+    prom.query.return_value = [
+        (2.0, {"service_name": "storefront"}),
+        (0.5, {"service_name": "checkout"})
+    ]
+    alerts = detector.eval_metric_rule(rule, prom)
+    
+    # Only storefront should trigger an alert
+    assert len(alerts) == 1
+    assert "storefront" in alerts[0][0]
+    assert "checkout" not in alerts[0][0]
 # ---- k8s_status rule (review 17/07: OOM dot ngot khong log duoc, phai doc K8s API) ----
 
 from types import SimpleNamespace
@@ -176,3 +286,4 @@ def test_eval_k8s_status_rule_handles_api_error_gracefully():
     rule = {"id": "oom-detected", "type": "k8s_status", "summary": "x"}
     alerts = detector.eval_k8s_status_rule(rule, core_v1)
     assert alerts == []
+
