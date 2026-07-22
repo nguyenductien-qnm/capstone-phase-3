@@ -13,8 +13,8 @@ budget_limit = 300
 # Email addresses for budget alerts
 # 80% threshold: Gửi cảnh báo warning + scale down 50%
 # 95% threshold: Gửi cảnh báo CRITICAL + stop/scale down 100%
-budget_alert_email_80  = "nguyenkhang.28102004@gmail.com"
-budget_alert_email_95  = "ndtien317@gmail.com"
+budget_alert_email_80 = "nguyenkhang.28102004@gmail.com"
+budget_alert_email_95 = "ndtien317@gmail.com"
 
 # Custom weekly budget periods
 budget_periods = [
@@ -39,6 +39,6 @@ budget_periods = [
 ]
 
 # Lambda configuration (optional - defaults are usually fine)
-lambda_timeout                = 300   # seconds
-lambda_memory                 = 512   # MB
-cloudwatch_log_retention_days = 14    # days
+lambda_timeout                = 300 # seconds
+lambda_memory                 = 512 # MB
+cloudwatch_log_retention_days = 14  # days
