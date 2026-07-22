@@ -1,0 +1,750 @@
+# Kiểm kê các run load test trên develop, 19/07/2026 → 22/07/2026
+# Mục đích: ghép timestamp với metrics Prometheus (retention 7d) để sizing Prometheus.
+# Sinh 22/07/2026 ~09:00 UTC từ artifact/doc/git có sẵn — KHÔNG chạy test mới.
+# Run EC2 (phase65-ec2-nlb) LOẠI khỏi kiểm kê theo quyết định user 22/07: artifact mất theo EC2, không truy vết thời gian được.
+#
+# Quy ước:
+# - observed  = đọc trực tiếp từ artifact (log/CSV/README bảng số/git/kubectl).
+# - inferred  = suy từ ngữ cảnh (ghi rõ nguồn suy luận).
+# - null      = không xác định được, liệt kê trong missing_fields.
+# - Local timezone = Asia/Ho_Chi_Minh (UTC+7).
+#
+# Hạ tầng DÙNG CHUNG cả cửa sổ 19–22/07 (observed 22/07, kubectl + git):
+# - cluster: ecommerce-develop-dev-eks (account 458), namespace: techx-develop
+# - prometheus: image quay.io/prometheus/prometheus:v3.11.3, Deployment revision=1
+#   (KHÔNG đổi từ khi dựng ~19/07 03:30Z), replicas=1, requests 250m/768Mi,
+#   limits 1cpu/1536Mi, retention 7d, PVC 20Gi gp3-observability,
+#   scrape_interval global 1m (một job 5m), node ops (taint dedicated=observability)
+# - node: 4× t3.large (3 app + 1 ops), allocatable 1930m CPU / ~7080Mi RAM mỗi node
+# - vì prometheus revision=1 suốt cửa sổ: MỌI run dưới đây đều so sánh được với nhau
+#   về phía Prometheus; khác biệt giữa run nằm ở app config (ghi per-run).
+
+runs:
+  # ---------------------------------------------------------------- 19–20/07
+  - run_id: pre-phase2-catalog-partial
+    start_time_local: null
+    start_time_utc: null   # khoảng 19–20/07, trước khi cluster ổn định baseline
+    end_time_local: null
+    end_time_utc: null
+    users_max: 40
+    spawn_rate: null
+    stages: "step tới 40u (chi tiết mất theo CSV)"
+    hold_duration: null
+    total_duration: null
+    test_type: api
+    scenarios: catalog browse flow
+    endpoints: ["/", "/api/products", "/api/products/{id}"]
+    browser_telemetry: false
+    feature_flags: []
+    result: aborted   # CSV mất khi pod chết (/tmp), chỉ còn số đọc live
+    incidents: "actor locust-loadtest ngoài kiểm soát tự tái tạo, nhiễu HPA (xem entry actor-locust-loadtest)"
+    command: "locust headless catalog flow (bản Job v1, trước khi chuyển emptyDir)"
+    infrastructure:
+      cluster: ecommerce-develop-dev-eks
+      namespace: techx-develop
+      prometheus_image: quay.io/prometheus/prometheus:v3.11.3   # inferred (rev=1 từ 19/07)
+      prometheus_revision: 1
+      prometheus_replicas: 1
+      cpu_request: 250m
+      cpu_limit: "1"
+      memory_request: 768Mi
+      memory_limit: 1536Mi
+      node_instance_type: t3.large
+      node_allocatable: "1930m CPU / ~7080Mi"
+      retention: 7d
+      scrape_interval: 1m
+      pvc_size: 20Gi
+      otel_config_revision: null
+      application_revision: null   # trước b1d9ef5
+      workload_replicas: "frontend max 8 thời điểm đó (số cũ trong README lịch sử)"
+      hpa_state: "frontend kịch max, throttle 13.7% @40u (đọc live, số sơ bộ)"
+    evidence:
+      - source: "README lịch sử (bản trước PR #274)"
+        path: "git show 4204549:docs/mandate-19/loadtest/README.md (mục 'Phát hiện sơ bộ')"
+        observed_or_inferred: observed
+    missing_fields: [start_time, end_time, spawn_rate, stages_detail, duration, command_exact, application_revision]
+
+  # ---------------------------------------------------------------- 21/07
+  - run_id: phase2-before-catalog
+    start_time_local: "2026-07-21T09:35+07:00"
+    start_time_utc: "2026-07-21T02:35Z"
+    end_time_local: "2026-07-21T09:51+07:00"
+    end_time_utc: "2026-07-21T02:51Z"
+    users_max: 40
+    spawn_rate: "2/2/3/4 theo bậc"
+    stages: "(240s,5u)(480s,10u)(720s,20u)(960s,40u)"
+    hold_duration: "240s mỗi bậc"
+    total_duration: 960s
+    test_type: api
+    scenarios: catalog browse flow (CatalogFlowUser)
+    endpoints: ["/", "/api/products", "/api/products/{id}"]
+    browser_telemetry: false   # LOCUST_BROWSER_TRAFFIC_ENABLED=false
+    feature_flags: []
+    result: completed   # 0 fail toàn bộ, failures.csv rỗng
+    incidents: none
+    command: "kubectl apply -f locust-catalog-job.yaml (locust headless, LoadTestShape, --csv, host http://frontend-proxy:80)"
+    infrastructure:
+      cluster: ecommerce-develop-dev-eks
+      namespace: techx-develop
+      prometheus_image: quay.io/prometheus/prometheus:v3.11.3
+      prometheus_revision: 1
+      prometheus_replicas: 1
+      cpu_request: 250m
+      cpu_limit: "1"
+      memory_request: 768Mi
+      memory_limit: 1536Mi
+      node_instance_type: t3.large
+      node_allocatable: "1930m CPU / ~7080Mi"
+      retention: 7d
+      scrape_interval: 1m
+      pvc_size: 20Gi
+      otel_config_revision: null
+      application_revision: "develop @ ~b1d9ef5 (image tags 6354aa9 20/07); frontend limits.cpu=200m"
+      workload_replicas: "frontend scale 2→6 trong run; product-catalog giữ 2"
+      hpa_state: "7 HPA prod-like min2/max6 target 70%; frontend kịch max 6 @40u"
+    evidence:
+      - source: "bảng BEFORE + điều kiện run"
+        path: docs/mandate-19/loadtest/README.md (mục 'Kết quả BEFORE')
+        observed_or_inferred: observed
+      - source: "job manifest (shape/command)"
+        path: docs/mandate-19/loadtest/locust-catalog-job.yaml
+        observed_or_inferred: observed
+      - source: "CSV catalog_stats_history.csv"
+        path: null   # đọc trong pod qua emptyDir, KHÔNG commit vào repo
+        observed_or_inferred: observed
+    missing_fields: [csv_committed, html_report]
+
+  - run_id: phase2-after-catalog
+    start_time_local: "2026-07-21T10:20+07:00"
+    start_time_utc: "2026-07-21T03:20Z"
+    end_time_local: "2026-07-21T10:37+07:00"
+    end_time_utc: "2026-07-21T03:37Z"
+    users_max: 40
+    spawn_rate: "2/2/3/4 theo bậc"
+    stages: "(240s,5u)(480s,10u)(720s,20u)(960s,40u)"
+    hold_duration: "240s mỗi bậc"
+    total_duration: 960s
+    test_type: api
+    scenarios: catalog browse flow — biến duy nhất đổi so BEFORE là frontend limit 500m
+    endpoints: ["/", "/api/products", "/api/products/{id}"]
+    browser_telemetry: false
+    feature_flags: []
+    result: completed   # 0 fail
+    incidents: none
+    command: "kubectl apply -f locust-catalog-job.yaml"
+    infrastructure:
+      cluster: ecommerce-develop-dev-eks
+      namespace: techx-develop
+      prometheus_image: quay.io/prometheus/prometheus:v3.11.3
+      prometheus_revision: 1
+      prometheus_replicas: 1
+      cpu_request: 250m
+      cpu_limit: "1"
+      memory_request: 768Mi
+      memory_limit: 1536Mi
+      node_instance_type: t3.large
+      node_allocatable: "1930m CPU / ~7080Mi"
+      retention: 7d
+      scrape_interval: 1m
+      pvc_size: 20Gi
+      otel_config_revision: null
+      application_revision: "develop @ 4204549 (PR #249 merge 03:05Z 21/07 — frontend limits.cpu 500m, ArgoCD sync + rollout trước run)"
+      workload_replicas: "frontend 2→6 trong run"
+      hpa_state: "7 HPA min2/max6; frontend chạm max 6 @40u, throttle còn 2.1%"
+    evidence:
+      - source: "bảng AFTER + so sánh BEFORE→AFTER"
+        path: docs/mandate-19/loadtest/README.md
+        observed_or_inferred: observed
+      - source: "merge anchor PR #249"
+        path: "git 4204549 (2026-07-21T10:05+07)"
+        observed_or_inferred: observed
+    missing_fields: [csv_committed, html_report]
+
+  - run_id: phase3-perpod-catalog
+    start_time_local: "2026-07-21T10:47+07:00"
+    start_time_utc: "2026-07-21T03:47Z"
+    end_time_local: "2026-07-21T11:08+07:00"
+    end_time_utc: "2026-07-21T04:08Z"
+    users_max: 120
+    spawn_rate: "4/4/8/8 theo bậc"
+    stages: "(300s,20u)(600s,40u)(900s,80u)(1200s,120u)"
+    hold_duration: "300s mỗi bậc"
+    total_duration: 1240s
+    test_type: api
+    scenarios: catalog flow, frontend GHIM 1 pod (HPA min=max=1) để đo trần per-pod
+    endpoints: ["/", "/api/products", "/api/products/{id}"]
+    browser_telemetry: false
+    feature_flags: []
+    result: completed   # fails 0.13/s @120u, trong budget SLO
+    incidents: "ArgoCD auto-sync TẮT TẠM trong run (để patch HPA không bị revert); khôi phục sau run"
+    command: "kubectl apply -f locust-catalog-phase3-job.yaml (--run-time 1240s, --csv /data/phase3)"
+    infrastructure:
+      cluster: ecommerce-develop-dev-eks
+      namespace: techx-develop
+      prometheus_image: quay.io/prometheus/prometheus:v3.11.3
+      prometheus_revision: 1
+      prometheus_replicas: 1
+      cpu_request: 250m
+      cpu_limit: "1"
+      memory_request: 768Mi
+      memory_limit: 1536Mi
+      node_instance_type: t3.large
+      node_allocatable: "1930m CPU / ~7080Mi"
+      retention: 7d
+      scrape_interval: 1m
+      pvc_size: 20Gi
+      otel_config_revision: null
+      application_revision: "develop @ 4204549; frontend 500m"
+      workload_replicas: "frontend=1 (ghim); product-catalog+frontend-proxy min=max=4 (nới tạm)"
+      hpa_state: "patch-tay tạm thời, KHÔNG phải trạng thái git — khôi phục 2/6 sau run"
+    evidence:
+      - source: "bảng Phase 3 + điều kiện"
+        path: docs/mandate-19/loadtest/README.md (mục 'Phase 3')
+        observed_or_inferred: observed
+      - source: "job manifest"
+        path: docs/mandate-19/loadtest/locust-catalog-phase3-job.yaml
+        observed_or_inferred: observed
+    missing_fields: [csv_committed]
+
+  - run_id: yc4-shed-demo
+    start_time_local: "2026-07-21T14:44+07:00"
+    start_time_utc: "2026-07-21T07:44Z"
+    end_time_local: null   # ~07:46Z (chạy 120s), suy từ duration
+    end_time_utc: null
+    users_max: 100
+    spawn_rate: null
+    stages: "flood phẳng ~631 rps tổng"
+    hold_duration: 120s
+    total_duration: 120s
+    test_type: api
+    scenarios: "flood browse (/api/products) + cart để demo shed; shed CM mount tay"
+    endpoints: ["/api/products", "/api/cart"]
+    browser_telemetry: false
+    feature_flags: []
+    result: completed
+    incidents: "shed cấu hình qua ConfigMap mount tay (KHÔNG phải image); auto-sync tắt tạm"
+    command: null   # locustfile flood 100u — config không commit vào repo
+    infrastructure:
+      cluster: ecommerce-develop-dev-eks
+      namespace: techx-develop
+      prometheus_image: quay.io/prometheus/prometheus:v3.11.3
+      prometheus_revision: 1
+      prometheus_replicas: 1
+      cpu_request: 250m
+      cpu_limit: "1"
+      memory_request: 768Mi
+      memory_limit: 1536Mi
+      node_instance_type: t3.large
+      node_allocatable: "1930m CPU / ~7080Mi"
+      retention: 7d
+      scrape_interval: 1m
+      pvc_size: 20Gi
+      otel_config_revision: null
+      application_revision: "develop @ ec72350 (image bump 06:52Z 21/07); envoy shed qua CM, chưa bake image"
+      workload_replicas: null
+      hpa_state: null
+    evidence:
+      - source: "bảng demo shed (browse 70.4% 429, cart 0%)"
+        path: docs/mandate-19/loadtest/README.md (mục 'YC4')
+        observed_or_inferred: observed
+      - source: "failures.csv (45372× 429)"
+        path: null   # /data/shed_failures.csv trong pod, KHÔNG commit
+        observed_or_inferred: observed
+    missing_fields: [end_time, spawn_rate, command, csv_committed, workload_replicas, hpa_state]
+
+  - run_id: phase4-mixed-60u
+    start_time_local: "2026-07-21T15:24+07:00"
+    start_time_utc: "2026-07-21T08:24Z"
+    end_time_local: null   # ~08:34Z (run-time 600s)
+    end_time_utc: null
+    users_max: 60
+    spawn_rate: 5
+    stages: "ramp thẳng -u 60 -r 5, giữ tới hết 600s"
+    hold_duration: ~588s
+    total_duration: 600s
+    test_type: api
+    scenarios: "mixed weight OTel-demo: index1 browse10 recos3 reviews2 ads3 viewcart3 addcart2 checkout1 multi1"
+    endpoints: ["/", "/api/products", "/api/recommendations", "/api/product-reviews", "/api/data(ads)", "/api/cart", "/api/checkout"]
+    browser_telemetry: false
+    feature_flags: []
+    result: completed
+    incidents: "fail 7.2% toàn là product-reviews CrashLoop (protobuf) — lỗi có sẵn, các flow khác 0 fail"
+    command: "kubectl apply -f locust-mixed-phase4-job.yaml (locust -u 60 -r 5 --run-time 600s)"
+    infrastructure:
+      cluster: ecommerce-develop-dev-eks
+      namespace: techx-develop
+      prometheus_image: quay.io/prometheus/prometheus:v3.11.3
+      prometheus_revision: 1
+      prometheus_replicas: 1
+      cpu_request: 250m
+      cpu_limit: "1"
+      memory_request: 768Mi
+      memory_limit: 1536Mi
+      node_instance_type: t3.large
+      node_allocatable: "1930m CPU / ~7080Mi"
+      retention: 7d
+      scrape_interval: 1m
+      pvc_size: 20Gi
+      otel_config_revision: null
+      application_revision: "develop @ ec72350; HPA để nguyên (bức tranh thật)"
+      workload_replicas: "đỉnh: frontend 5; cart/checkout/catalog/proxy 2; còn lại 1"
+      hpa_state: "không patch — trạng thái git"
+    evidence:
+      - source: "bảng Phase 4 (22rps, p95 52ms, replica đỉnh)"
+        path: docs/mandate-19/loadtest/README.md (mục 'Phase 4')
+        observed_or_inferred: observed
+      - source: "job manifest"
+        path: docs/mandate-19/loadtest/locust-mixed-phase4-job.yaml
+        observed_or_inferred: observed
+    missing_fields: [end_time, csv_committed]
+
+  - run_id: checkout-before
+    start_time_local: "2026-07-21T16:07+07:00"
+    start_time_utc: "2026-07-21T09:07Z"
+    end_time_local: null   # ~09:28Z (run-time 1240s)
+    end_time_utc: null
+    users_max: 60
+    spawn_rate: "2/3/4/5 theo bậc"
+    stages: "(300s,10u)(600s,20u)(900s,40u)(1200s,60u)"
+    hold_duration: "300s mỗi bậc"
+    total_duration: 1240s
+    test_type: api
+    scenarios: checkout flow single+multi qua SSR (CheckoutUser)
+    endpoints: ["/api/cart", "/api/checkout"]
+    browser_telemetry: false
+    feature_flags: []
+    result: completed   # 0 fail
+    incidents: none
+    command: "kubectl apply -f locust-checkout-job.yaml (--run-time 1240s, --csv /data/checkout)"
+    infrastructure:
+      cluster: ecommerce-develop-dev-eks
+      namespace: techx-develop
+      prometheus_image: quay.io/prometheus/prometheus:v3.11.3
+      prometheus_revision: 1
+      prometheus_replicas: 1
+      cpu_request: 250m
+      cpu_limit: "1"
+      memory_request: 768Mi
+      memory_limit: 1536Mi
+      node_instance_type: t3.large
+      node_allocatable: "1930m CPU / ~7080Mi"
+      retention: 7d
+      scrape_interval: 1m
+      pvc_size: 20Gi
+      otel_config_revision: null
+      application_revision: "develop @ ec72350; chain limit CŨ (email/payment/currency 100m, cart/checkout 200m); email/quote/shipping/payment 1 replica KHÔNG HPA"
+      workload_replicas: "cart 3 (scale trong run); chain còn lại 1"
+      hpa_state: "để nguyên git — chưa có HPA checkout-path"
+    evidence:
+      - source: "bảng checkout BEFORE (trần ~27rps, throttle email 95.7%)"
+        path: docs/mandate-19/loadtest/README.md (mục 'Checkout flow')
+        observed_or_inferred: observed
+      - source: "job manifest"
+        path: docs/mandate-19/loadtest/locust-checkout-job.yaml
+        observed_or_inferred: observed
+    missing_fields: [end_time, csv_committed]
+
+  - run_id: checkout-after-limits
+    start_time_local: "2026-07-21T16:39+07:00"
+    start_time_utc: "2026-07-21T09:39Z"
+    end_time_local: null   # ~10:00Z
+    end_time_utc: null
+    users_max: 60
+    spawn_rate: "2/3/4/5 theo bậc"
+    stages: "(300s,10u)(600s,20u)(900s,40u)(1200s,60u)"
+    hold_duration: "300s mỗi bậc"
+    total_duration: 1240s
+    test_type: api
+    scenarios: "checkout flow — sau khi nâng limit chain (email 400m, payment 300m, currency 250m, cart/checkout 350m, patch-tay develop)"
+    endpoints: ["/api/cart", "/api/checkout"]
+    browser_telemetry: false
+    feature_flags: []
+    result: completed
+    incidents: "limit chain là PATCH-TAY tại thời điểm run (commit vào git sau, PR #274 22/07)"
+    command: "kubectl apply -f locust-checkout-job.yaml"
+    infrastructure:
+      cluster: ecommerce-develop-dev-eks
+      namespace: techx-develop
+      prometheus_image: quay.io/prometheus/prometheus:v3.11.3
+      prometheus_revision: 1
+      prometheus_replicas: 1
+      cpu_request: 250m
+      cpu_limit: "1"
+      memory_request: 768Mi
+      memory_limit: 1536Mi
+      node_instance_type: t3.large
+      node_allocatable: "1930m CPU / ~7080Mi"
+      retention: 7d
+      scrape_interval: 1m
+      pvc_size: 20Gi
+      otel_config_revision: null
+      application_revision: "develop @ ec72350 + patch-tay limit chain (chưa trong git lúc đo)"
+      workload_replicas: null
+      hpa_state: "chưa có HPA checkout-path lúc run này"
+    evidence:
+      - source: "bảng checkout AFTER (trần ~76rps, throttle sập)"
+        path: docs/mandate-19/loadtest/README.md
+        observed_or_inferred: observed
+    missing_fields: [end_time, csv_committed, workload_replicas]
+
+  - run_id: sizing-sau-shed
+    start_time_local: "2026-07-21T17:11+07:00"
+    start_time_utc: "2026-07-21T10:11Z"
+    end_time_local: null
+    end_time_utc: null
+    users_max: null
+    spawn_rate: null
+    stages: "flood browse ~661 rps vào shed + đo CPU/pod phần lọt qua"
+    hold_duration: null
+    total_duration: null
+    test_type: api
+    scenarios: "flood browse khi shed BẬT (Envoy shed 71%), đo working CPU để right-size requests"
+    endpoints: ["/api/products", "/", "/api/cart", "/api/checkout"]
+    browser_telemetry: false
+    feature_flags: []
+    result: completed
+    incidents: "shed qua CM mount + auto-sync tắt tạm; checkout fail 0.4% (được bảo vệ)"
+    command: null
+    infrastructure:
+      cluster: ecommerce-develop-dev-eks
+      namespace: techx-develop
+      prometheus_image: quay.io/prometheus/prometheus:v3.11.3
+      prometheus_revision: 1
+      prometheus_replicas: 1
+      cpu_request: 250m
+      cpu_limit: "1"
+      memory_request: 768Mi
+      memory_limit: 1536Mi
+      node_instance_type: t3.large
+      node_allocatable: "1930m CPU / ~7080Mi"
+      retention: 7d
+      scrape_interval: 1m
+      pvc_size: 20Gi
+      otel_config_revision: null
+      application_revision: "develop @ ec72350 + patch-tay (limit chain + shed CM)"
+      workload_replicas: null
+      hpa_state: null
+    evidence:
+      - source: "bảng Sizing SAU-SHED (CPU thật từng service, requests mới)"
+        path: docs/mandate-19/loadtest/README.md (mục 'Sizing SAU-SHED')
+        observed_or_inferred: observed
+    missing_fields: [end_time, users_max, spawn_rate, duration, command, csv_committed]
+
+  - run_id: flashsale-200u-max10
+    start_time_local: "2026-07-21T18:57:42+07:00"
+    start_time_utc: "2026-07-21T11:57:42Z"
+    end_time_local: "2026-07-21T19:12:41+07:00"
+    end_time_utc: "2026-07-21T12:12:41Z"
+    users_max: 200
+    spawn_rate: 20
+    stages: "ramp 20u/s tới 200u (đủ 200u lúc 11:57:51Z), giữ tới hết"
+    hold_duration: ~890s
+    total_duration: 900s
+    test_type: api
+    scenarios: "flash-sale mixed: Browser×140 + CheckoutUser×60 (browse/addcart/viewcart/checkout)"
+    endpoints: ["browse", "addcart", "viewcart", "checkout"]
+    browser_telemetry: false
+    feature_flags: []
+    result: completed   # chạy hết 900s; exit code 1 do có failure (45/101220 = 0.04%)
+    incidents: "45 fail: 29× 503 (browse/viewcart/addcart), 15× 500 (checkout/addcart)"
+    command: "locust in-cluster (pod locust-flashsale-zzdr7), Locust 2.31.8, run-time 900s"
+    infrastructure:
+      cluster: ecommerce-develop-dev-eks
+      namespace: techx-develop
+      prometheus_image: quay.io/prometheus/prometheus:v3.11.3
+      prometheus_revision: 1
+      prometheus_replicas: 1
+      cpu_request: 250m
+      cpu_limit: "1"
+      memory_request: 768Mi
+      memory_limit: 1536Mi
+      node_instance_type: t3.large
+      node_allocatable: "1930m CPU / ~7080Mi"
+      retention: 7d
+      scrape_interval: 1m
+      pvc_size: 20Gi
+      otel_config_revision: null
+      application_revision: "develop @ ec72350 + patch-tay; tên file gợi ý frontend HPA max=10 đang patch (inferred)"
+      workload_replicas: null
+      hpa_state: "frontend max 10 (inferred từ tên file, chưa trong git lúc đo)"
+    evidence:
+      - source: "log locust đầy đủ (stats + percentiles + error report + CSV inline)"
+        path: docs/mandate-19/loadtest/runs/flashsale-200u-max10/locust.log
+        observed_or_inferred: observed
+      - source: "ghi chú: '1914' trong tên file ≈ giờ lưu file local (19:14+07), lệch 2 phút sau end-time trong log — không coi là conflict"
+        path: null
+        observed_or_inferred: inferred
+    missing_fields: [workload_replicas]
+
+  - run_id: flood-tuned-system-yc4
+    start_time_local: null
+    start_time_utc: null   # 21/07, sau 13:00Z (CM shed khôi phục 13:00Z, pod proxy restart 16:06–16:47Z)
+    end_time_local: null
+    end_time_utc: null
+    users_max: 100
+    spawn_rate: null
+    stages: "load-generator nền 10u → tăng 100u khi bật cờ flood"
+    hold_duration: null
+    total_duration: null
+    test_type: api
+    scenarios: "flood homepage bằng CỜ FLAGD THẬT loadGeneratorFloodHomepage=on (mỗi user GET / ×100); đỉnh ~697 span GET / mỗi giây (~93× nền)"
+    endpoints: ["/"]
+    browser_telemetry: false
+    feature_flags: ["loadGeneratorFloodHomepage=on (patch-tay CM flagd-config, backup + revert sau test)"]
+    result: completed
+    incidents: "checkout SLI giữ 100%, node giữ 4, không pod Pending; product-reviews CrashLoop loại trừ khỏi đánh giá"
+    command: "bật cờ flagd + patch LOCUST_USERS load-generator 10→100 (đã revert)"
+    infrastructure:
+      cluster: ecommerce-develop-dev-eks
+      namespace: techx-develop
+      prometheus_image: quay.io/prometheus/prometheus:v3.11.3
+      prometheus_revision: 1
+      prometheus_replicas: 1
+      cpu_request: 250m
+      cpu_limit: "1"
+      memory_request: 768Mi
+      memory_limit: 1536Mi
+      node_instance_type: t3.large
+      node_allocatable: "1930m CPU / ~7080Mi"
+      retention: 7d
+      scrape_interval: 1m
+      pvc_size: 20Gi
+      otel_config_revision: null
+      application_revision: "develop @ ec72350 + patch-tay hệ đã tune; shed qua CM frontend-proxy-shed"
+      workload_replicas: "frontend 2→10 (max) khi flood; load-generator CPU 31m→558m"
+      hpa_state: "frontend max10 + HPA checkout-path min2/max4 (đều patch-tay)"
+    evidence:
+      - source: "report flood test đầy đủ (bảng baseline vs flood)"
+        path: docs/mandate-19/loadtest/flood-test-tuned-system.md
+        observed_or_inferred: observed
+    missing_fields: [start_time, end_time, spawn_rate, duration]
+
+  # ---------------------------------------------------------------- 22/07
+  - run_id: shed-verification-probes
+    start_time_local: null
+    start_time_utc: null   # 22/07, trước ~03:00Z (trước khi dọn revert)
+    end_time_local: null
+    end_time_utc: null
+    users_max: null
+    spawn_rate: null
+    stages: "probe curl song song: 2000 req ClusterIP, 800/500 req thẳng pod IP; chạy CÙNG LÚC flood load-generator 200u"
+    hold_duration: null
+    total_duration: null
+    test_type: api
+    scenarios: "verify shed: ClusterIP không thấy 429 (bucket per-pod); pod IP shed kích (GET / 41%, /api/products 53%)"
+    endpoints: ["/", "/api/products", "/api/cart"]
+    browser_telemetry: false
+    feature_flags: ["loadGeneratorFloodHomepage=on trong lúc probe (revert sau)"]
+    result: completed
+    incidents: none
+    command: "curl fork song song từ trong cụm (ClusterIP frontend-proxy:80 và pod IP :8080)"
+    infrastructure:
+      cluster: ecommerce-develop-dev-eks
+      namespace: techx-develop
+      prometheus_image: quay.io/prometheus/prometheus:v3.11.3
+      prometheus_revision: 1
+      prometheus_replicas: 1
+      cpu_request: 250m
+      cpu_limit: "1"
+      memory_request: 768Mi
+      memory_limit: 1536Mi
+      node_instance_type: t3.large
+      node_allocatable: "1930m CPU / ~7080Mi"
+      retention: 7d
+      scrape_interval: 1m
+      pvc_size: 20Gi
+      otel_config_revision: null
+      application_revision: "develop + shed CM (trước khi selfHeal revert); 2 pod frontend-proxy"
+      workload_replicas: "frontend-proxy 2"
+      hpa_state: null
+    evidence:
+      - source: "report verify shed"
+        path: docs/mandate-19/loadtest/shed-verification-clusterip-vs-podip.md
+        observed_or_inferred: observed
+    missing_fields: [start_time, end_time, duration]
+    note: "KHÔNG phải load test đúng nghĩa (probe verify) nhưng có tạo tải + 429 — tính vào nếu correlate Prometheus cửa sổ 22/07 sáng"
+
+  - run_id: m16-before-100u
+    start_time_local: "2026-07-22T10:09:47+07:00"
+    start_time_utc: "2026-07-22T03:09:47Z"
+    end_time_local: "2026-07-22T10:25:07+07:00"
+    end_time_utc: "2026-07-22T03:25:07Z"
+    users_max: 100
+    spawn_rate: null
+    stages: null
+    hold_duration: null
+    total_duration: 15m20s
+    test_type: api
+    scenarios: "Mandate-16 (NGƯỜI KHÁC CHẠY, PR #276): baseline tail-latency; run này fail 71.94% (12624× HTTP 500) — chính metadata họ ghi 'không dùng làm baseline sạch'"
+    endpoints: ["full-flow OTel-demo"]
+    browser_telemetry: null
+    feature_flags: null
+    result: failed-dependency   # theo metadata của họ
+    incidents: "12624× HTTP 500; 2 HPA kịch max, 19 restart trong cửa sổ chụp"
+    command: "xem docs/cdo05/mandate-16/test/ trong PR #276"
+    infrastructure:
+      cluster: ecommerce-develop-dev-eks
+      namespace: techx-develop
+      prometheus_image: quay.io/prometheus/prometheus:v3.11.3
+      prometheus_revision: 1
+      prometheus_replicas: 1
+      cpu_request: 250m
+      cpu_limit: "1"
+      memory_request: 768Mi
+      memory_limit: 1536Mi
+      node_instance_type: t3.large
+      node_allocatable: "1930m CPU / ~7080Mi"
+      retention: 7d
+      scrape_interval: 1m
+      pvc_size: 20Gi
+      otel_config_revision: null
+      application_revision: "develop @ 1b5ab1b (họ anchor SHA lúc run end)"
+      workload_replicas: null
+      hpa_state: "2 HPA max trong cửa sổ"
+    evidence:
+      - source: "metadata.md + CSV + screenshot Grafana/Jaeger (PR #276, chưa merge)"
+        path: "PR #276: docs/cdo05/mandate-16/before/100-users/"
+        observed_or_inferred: observed
+    missing_fields: [spawn_rate, stages, browser_telemetry, feature_flags]
+
+  - run_id: m16-before-150u / m16-before-300u
+    start_time_local: null
+    start_time_utc: null   # 22/07 sáng, giữa 03:25Z và 05:31Z (inferred từ thứ tự)
+    end_time_local: null
+    end_time_utc: null
+    users_max: "150 / 300"
+    spawn_rate: null
+    stages: null
+    hold_duration: null
+    total_duration: null
+    test_type: api
+    scenarios: "Mandate-16 baseline các mức 150u và 300u (PR #276)"
+    endpoints: ["full-flow OTel-demo"]
+    browser_telemetry: null
+    feature_flags: null
+    result: unknown   # chưa đọc metadata 2 run này
+    incidents: null
+    command: "PR #276: docs/cdo05/mandate-16/test/locust-*.sh"
+    infrastructure:
+      cluster: ecommerce-develop-dev-eks
+      namespace: techx-develop
+      prometheus_image: quay.io/prometheus/prometheus:v3.11.3
+      prometheus_revision: 1
+      prometheus_replicas: 1
+      cpu_request: 250m
+      cpu_limit: "1"
+      memory_request: 768Mi
+      memory_limit: 1536Mi
+      node_instance_type: t3.large
+      node_allocatable: "1930m CPU / ~7080Mi"
+      retention: 7d
+      scrape_interval: 1m
+      pvc_size: 20Gi
+      otel_config_revision: null
+      application_revision: null
+      workload_replicas: null
+      hpa_state: null
+    evidence:
+      - source: "metadata.md + CSV mỗi run (PR #276, chưa merge — cần đọc để lấy timestamp)"
+        path: "PR #276: docs/cdo05/mandate-16/before/150-users/ và before/300-users/"
+        observed_or_inferred: observed
+    missing_fields: [start_time, end_time, spawn_rate, duration, result, application_revision]
+
+  - run_id: m16-after-stepped
+    start_time_local: "2026-07-22T12:31:38+07:00"
+    start_time_utc: "2026-07-22T05:31:38Z"
+    end_time_local: "2026-07-22T12:56:38+07:00"
+    end_time_utc: "2026-07-22T05:56:38Z"   # từ tên file screenshot ...20260722T053138Z-055638Z
+    users_max: null
+    spawn_rate: null
+    stages: "stepped (mandate16_after_shape.py trong PR)"
+    hold_duration: null
+    total_duration: ~25m
+    test_type: api
+    scenarios: "Mandate-16 AFTER: gRPC deadline + cache-aside + bounded admission; E2E p95 giảm 82.6%"
+    endpoints: ["full-flow OTel-demo"]
+    browser_telemetry: null
+    feature_flags: null
+    result: completed
+    incidents: null
+    command: "PR #276: docs/cdo05/mandate-16/test/run-after-stepped.sh"
+    infrastructure:
+      cluster: ecommerce-develop-dev-eks
+      namespace: techx-develop
+      prometheus_image: quay.io/prometheus/prometheus:v3.11.3
+      prometheus_revision: 1
+      prometheus_replicas: 1
+      cpu_request: 250m
+      cpu_limit: "1"
+      memory_request: 768Mi
+      memory_limit: 1536Mi
+      node_instance_type: t3.large
+      node_allocatable: "1930m CPU / ~7080Mi"
+      retention: 7d
+      scrape_interval: 1m
+      pvc_size: 20Gi
+      otel_config_revision: null
+      application_revision: "SAU PR #274 merge (05:08Z) → chạy trên hệ ĐÃ có sizing M19 (lưu ý khi so với m16-before!)"
+      workload_replicas: null
+      hpa_state: "frontend max 10, HPA checkout-path 2/4 (từ git, đã sync)"
+    evidence:
+      - source: "screenshot + CSV + stage-windows.tsv + metadata (PR #276)"
+        path: "PR #276: docs/cdo05/mandate-16/after/"
+        observed_or_inferred: observed
+      - source: "timestamp lấy từ TÊN FILE screenshot"
+        path: "after-full-grafana-latency-20260722T053138Z-055538Z.png"
+        observed_or_inferred: inferred
+    missing_fields: [users_max, spawn_rate, hold_duration]
+
+  # ------------------------------------------------- nguồn tải KHÔNG kiểm soát
+  - run_id: actor-locust-loadtest-uncontrolled
+    start_time_local: null
+    start_time_utc: null   # tái diễn nhiều đợt ~19–21/07, mỗi đợt ~15m, tự tái tạo mỗi 3–18 phút
+    end_time_local: null
+    end_time_utc: null
+    users_max: 100
+    spawn_rate: null
+    stages: null
+    hold_duration: "RUN_DURATION=15m mỗi đợt"
+    total_duration: "nhiều đợt lặp lại"
+    test_type: api
+    scenarios: "KHÔNG PHẢI RUN CHỦ ĐÍCH: Deployment locust-loadtest + CM locust-full-flow tự tái tạo bằng kubectl-client-side-apply từ nguồn ngoài máy chính; full-flow 100u đẩy mọi HPA lên max"
+    endpoints: ["full-flow OTel-demo vào frontend-proxy:80"]
+    browser_telemetry: null
+    feature_flags: null
+    result: uncontrolled
+    incidents: "nhiễu mọi phép đo trong lúc hoạt động; nguồn chưa tìm ra (đã loại trừ repo/ArgoCD/CronJob/crontab máy chính)"
+    command: unknown
+    infrastructure:
+      cluster: ecommerce-develop-dev-eks
+      namespace: techx-develop
+      prometheus_image: quay.io/prometheus/prometheus:v3.11.3
+      prometheus_revision: 1
+      prometheus_replicas: 1
+      cpu_request: 250m
+      cpu_limit: "1"
+      memory_request: 768Mi
+      memory_limit: 1536Mi
+      node_instance_type: t3.large
+      node_allocatable: "1930m CPU / ~7080Mi"
+      retention: 7d
+      scrape_interval: 1m
+      pvc_size: 20Gi
+      otel_config_revision: null
+      application_revision: null
+      workload_replicas: "hiện scale 0 (deploy locust-loadtest 0 replica, 22/07)"
+      hpa_state: "đẩy mọi HPA lên max khi hoạt động"
+    evidence:
+      - source: "mô tả actor trong README lịch sử"
+        path: "git show 4204549:docs/mandate-19/loadtest/README.md (mục 'CHẶN LỚN')"
+        observed_or_inferred: observed
+      - source: "các cửa sổ hoạt động cụ thể — truy vấn kube_pod_info{pod=~'locust-loadtest.*'} trong Prometheus để dựng lại"
+        path: null
+        observed_or_inferred: inferred
+    missing_fields: [start_time, end_time, spawn_rate, command, source_of_actor]
+    note: "QUAN TRỌNG cho sizing Prometheus: các đợt actor tạo series + tải KHÔNG có trong kế hoạch — phải dựng cửa sổ hoạt động từ kube_pod_info trước khi correlate"
+
+# Job manifest có trong repo nhưng KHÔNG tìm thấy kết quả run tương ứng:
+unexecuted_or_undocumented:
+  - manifest: docs/mandate-19/loadtest/locust-catalog-eur-job.yaml
+    note: "catalog-EUR (đo N+1 currency convert) — không có bảng kết quả trong README/EVIDENCE; không rõ đã chạy chưa"
