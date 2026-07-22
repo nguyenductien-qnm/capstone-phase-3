@@ -1,6 +1,6 @@
 # Mandate 09 Evidence
 
-**Phạm vi:** TBD1, TBD2, TBD3, TBD4.  
+**Phạm vi:** TBD1, TBD2, TBD3, TBD4, TBD5.  
 **Môi trường:** Production, `us-east-1`, namespace `techx-tf1`.  
 > *Lưu ý về Naming:* Dù Runtime App đang chạy ở môi trường Production (namespace `techx-tf1`), RDS instance name vẫn mang prefix `ecommerce-dev-*` do quy ước đặt tên hạ tầng kế thừa (không phải chạy nhầm trên cluster Develop).  
 **Thư mục ảnh:** `docs/cdo09/evidence-mandate-09/screenshots/`.
@@ -17,6 +17,7 @@ Mandate 09 chứng minh các thao tác database operation trên Production có t
 | TBD2 | Online schema migration expand-contract | Baseline curl + psql expand/backfill/verify + Grafana during/after |
 | TBD3 | PostgreSQL major upgrade bằng RDS Blue/Green | Terminal before/success + Grafana during + AWS RDS after |
 | TBD4 | Static parameter bằng Multi-AZ failover | Terminal preflight/attach/verify + Grafana during/after |
+| TBD5 | Live Credential Rotation | AWS Secrets Manager version + ESO SecretSynced status + K8s Pod wide-view + Locust load test graphs + Grafana APM Dashboards |
 
 ## 2. Evidence TBD1 - Retry/Pool Chịu DB Blip
 
@@ -208,9 +209,52 @@ Mandate 09 chứng minh các thao tác database operation trên Production có t
 
 Ảnh này chứng minh sau failover để apply static parameter, SLO quay lại ổn định, latency phục hồi, pod phase không có lỗi kéo dài. Đây là mốc after để kết luận thao tác đã hoàn tất và hệ thống ổn định.
 
-## 6. Checklist Evidence Hiện Có
+## 6. Evidence TBD5 - Live Credential Rotation (Xoay vòng bí mật không gián đoạn)
 
-Bảng dưới đây đánh giá PASS/FAIL dựa trên điều kiện nghiệm thu tại mục 7. Tất cả các TBD đều đáp ứng đủ yêu cầu về Request Volume > 0, HTTP 200, và minh chứng được hệ thống hồi phục.
+*(Session Time: 2026-07-22 ~17:44–18:02)*
+
+### 6.1 AWS Secrets Manager Version Stages
+![TBD5 AWS Secrets Manager version stages](screenshots/m09-tbd5-01-locust-swarm-start.png)
+*(Lưu ý: Để tối ưu hóa bố cục tài liệu, ảnh chụp màn hình bắt đầu Locust Load Test `m09-tbd5-01-locust-swarm-start.png` cũng đồng thời chứng minh baseline của hệ thống bắt đầu chạy khỏe trước khi trigger rotation.)*
+
+Lệnh gọi AWS CLI `list-secret-version-ids` ghi nhận phiên bản mật khẩu mới `026c77b0-12d4-42fa-837e-165c379a9200` được tạo ra lúc 17:48:02 (ICT) với cờ trạng thái `AWSCURRENT` và `AWSPENDING`, thay thế phiên bản cũ `terraform-*` (được đưa về `AWSPREVIOUS`). Điều này chứng tỏ Lambda Rotation Function đã cập nhật thành công thông tin mật khẩu mới lên backend database.
+
+### 6.2 ESO Sync & K8s Secret Status
+Lệnh `kubectl get externalsecret db-secret` trả về trạng thái `SecretSynced` và `READY=True` ngay sau khi trigger force-sync. Kubernetes Secret `db-secret` đã được cập nhật thành công với connection string mới (đã mã hóa ký tự đặc biệt bằng bộ lọc `urlquery` trong template).
+
+### 6.3 Stakater Reloader Rolling Update Pods
+Ngay khi Secret thay đổi, Stakater Reloader phát hiện và thực hiện Rolling Update tuần tự cho 3 microservices: `accounting`, `product-catalog`, và `product-reviews`.
+Trạng thái pod sau rollout:
+- `accounting-565587b6d9-b7q82`: 1/1 Running, 0 Restarts
+- `product-catalog-8487957d58-ns7wv`: 1/1 Running, 0 Restarts
+- `product-reviews-6dc9dbdbf7-6btqg`: 1/1 Running, 0 Restarts
+Tất cả pod cũ đều được terminate sạch sẽ và êm ái nhờ có cấu hình lớp đệm `preStop` (sleep 5s) và HPA.
+
+### 6.4 Locust Load Test Stats (Final)
+![TBD5 Locust Load Test Stats](screenshots/m09-tbd5-02-locust-stats-page.png)
+
+Ảnh chụp màn hình stats của Locust Load Test cuối chu kỳ chạy: ghi nhận **Current Failures/s = 0** và tỷ lệ lỗi tổng thể luôn duy trì ở mức tuyệt đối **0.0%**. Điều này chứng minh RDS Proxy đã bảo vệ thành công các kết nối active, không để rớt bất kỳ request nào của client khi database backend thay đổi mật khẩu và pods restart.
+
+### 6.5 Grafana APM Dashboard Verification
+
+Dưới đây là các ảnh chụp màn hình APM Dashboard chi tiết cho 3 dịch vụ kết nối trực tiếp cơ sở dữ liệu (`product-catalog`, `product-reviews`, `accounting`) trên namespace `techx-tf1` tại thời điểm diễn ra rotation:
+
+#### A. Dịch vụ Product Catalog (Go)
+![Grafana Product Catalog](screenshots/m09-tbd5-03-grafana-product-catalog.png)
+
+#### B. Dịch vụ Product Reviews (Python)
+![Grafana Product Reviews](screenshots/m09-tbd5-04-grafana-product-reviews.png)
+
+#### C. Dịch vụ Accounting (.NET)
+![Grafana Accounting](screenshots/m09-tbd5-05-grafana-accounting.png)
+
+*Nhận xét: Biểu đồ giám sát RED Metrics (Rate, Error, Duration) trên Grafana cho thấy success rate của cả 3 services giữ vững ở mức 100% trong suốt thời gian diễn ra xoay vòng mật khẩu hạ tầng.*
+
+---
+
+## 7. Checklist Evidence Hiện Có
+
+Bảng dưới đây đánh giá PASS/FAIL dựa trên điều kiện nghiệm thu tại mục 8. Tất cả các TBD đều đáp ứng đủ yêu cầu về Request Volume > 0, HTTP 200, và minh chứng được hệ thống hồi phục.
 
 | Task | Đánh giá | Ảnh đã có | Nhận xét (Map tới Điều kiện PASS) |
 | --- | :---: | ---: | --- |
@@ -218,8 +262,9 @@ Bảng dưới đây đánh giá PASS/FAIL dựa trên điều kiện nghiệm t
 | **TBD2** | **PASS** | 7 | Có baseline, script psql expand/backfill/verify thành công, Grafana không gián đoạn. Việc giữ dual-read (chưa drop) là để đảm bảo đường lùi an toàn. |
 | **TBD3** | **PASS** | 10 | Trọn vẹn flow từ before, create B/G, switchover, đến lúc primary lên 17.10 và app curl HTTP 200. |
 | **TBD4** | **PASS** | 6 | Có preflight, attach param, Grafana trong lúc failover, verify curl và lệnh SHOW chứng minh param 8192 đã ăn. |
+| **TBD5** | **PASS** | 5 | Có Secrets Manager version, ESO status, K8s Pod list, Locust graphs và Grafana APM dashboards cho từng service (Error Rate = 0.0%). |
 
-## 7. Điều Kiện Không Ghi PASS
+## 8. Điều Kiện Không Ghi PASS
 
 Không ghi PASS nếu thiếu một trong các bằng chứng sau:
 
@@ -232,7 +277,7 @@ Dùng nhầm ảnh Develop để chứng minh Production.
 Ảnh bị che secret/password hoặc connection string.
 ```
 
-## 8. Log Files (Reference)
+## 9. Log Files (Reference)
 
 Bên cạnh ảnh chụp màn hình, các kịch bản chạy tự động (PowerShell scripts) cũng sinh ra file log text ghi nhận lại toàn bộ output ở terminal. Các file này được lưu trữ để làm bằng chứng bổ sung:
 

@@ -1,0 +1,10 @@
+### R3 - MONEY PATH DƯỚI NETWORKPOLICY @ 2026-07-22T11:18:03Z  sessionId=m17np-1784719083
+--- add to cart ---
+HTTP 200 0.742999s
+--- currency convert ---
+HTTP 200
+--- recommendations ---
+HTTP 200
+--- CHECKOUT ---
+HTTP 200 1.439667s
+orderId: {"orderId":"03625589-85bf-11f1-a01d-2aacf2a180bf","shippingTrackingId":"14a37007-e6af-405a-9c4f-37b008bae226","shippingC

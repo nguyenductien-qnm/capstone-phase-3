@@ -2,6 +2,7 @@ apiVersion: karpenter.sh/v1
 kind: NodePool
 metadata:
   name: default
+  namespace: kube-system
 spec:
   template:
     spec:
@@ -24,6 +25,11 @@ spec:
         - key: karpenter.k8s.aws/instance-generation
           operator: Gt
           values: ["2"]
+        # CDO-217/226 (M17-R2): buộc NodePool cân nhắc ≥2 AZ để mất trọn 1 AZ vẫn còn node.
+        # Exists + minValues (Karpenter v1) — không hardcode tên AZ (subnet chọn theo tag).
+        - key: topology.kubernetes.io/zone
+          operator: Exists
+          minValues: 2
       nodeClassRef:
         group: karpenter.k8s.aws
         kind: EC2NodeClass

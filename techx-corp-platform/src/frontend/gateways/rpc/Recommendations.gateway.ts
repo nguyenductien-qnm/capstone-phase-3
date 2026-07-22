@@ -13,11 +13,12 @@ const { RECOMMENDATION_ADDR = '' } = process.env;
 
 const client = new RecommendationServiceClient(RECOMMENDATION_ADDR, ChannelCredentials.createInsecure());
 
+// Tạm thời tắt CircuitBreaker.execute()
+
 const RecommendationsGateway = () => ({
   listRecommendations(userId: string, productIds: string[]) {
     return unaryWithDeadline<ListRecommendationsRequest, ListRecommendationsResponse>(
-      (request, metadata, options, callback) =>
-        client.listRecommendations(request, metadata, options, callback),
+      (request, metadata, options, callback) => client.listRecommendations(request, metadata, options, callback),
       { userId, productIds },
       GrpcDeadlineMs.recommendation
     );

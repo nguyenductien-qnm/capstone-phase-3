@@ -1,0 +1,23 @@
+### R2 - PRE-DRAIN STATE @ 2026-07-22T10:42:36Z
+--- nodes + AZ ---
+NAME                           STATUS   ROLES    AGE   VERSION               ZONE         NODEPOOL
+ip-10-60-11-81.ec2.internal    Ready    <none>   4d    v1.36.2-eks-8f14419   us-east-1a   
+ip-10-60-12-102.ec2.internal   Ready    <none>   42h   v1.36.2-eks-8f14419   us-east-1b   
+ip-10-60-12-251.ec2.internal   Ready    <none>   4d    v1.36.2-eks-8f14419   us-east-1b   
+ip-10-60-12-28.ec2.internal    Ready    <none>   4d    v1.36.2-eks-8f14419   us-east-1b   
+
+--- pod trên node sắp drain: ip-10-60-11-81 ---
+NAME                             READY   STATUS    RESTARTS   AGE    IP             NODE                          NOMINATED NODE   READINESS GATES
+ad-6674445b84-txhhn              1/1     Running   0          15m    10.60.11.85    ip-10-60-11-81.ec2.internal   <none>           <none>
+cart-56666cdfd-xzrhs             1/1     Running   0          34m    10.60.11.221   ip-10-60-11-81.ec2.internal   <none>           <none>
+checkout-bd88cc78b-cntxw         1/1     Running   0          49m    10.60.11.212   ip-10-60-11-81.ec2.internal   <none>           <none>
+currency-5bcc987d58-g4q5t        1/1     Running   0          49m    10.60.11.200   ip-10-60-11-81.ec2.internal   <none>           <none>
+email-6bc859d59-v4xqc            1/1     Running   0          49m    10.60.11.219   ip-10-60-11-81.ec2.internal   <none>           <none>
+frontend-5c8c6f6865-5lzk4        0/1     Running   0          34m    10.60.11.58    ip-10-60-11-81.ec2.internal   <none>           <none>
+frontend-5c8c6f6865-9lz66        0/1     Running   0          1s     10.60.11.20    ip-10-60-11-81.ec2.internal   <none>           <none>
+frontend-proxy-dd4c75cf7-n5bks   1/1     Running   0          49m    10.60.11.234   ip-10-60-11-81.ec2.internal   <none>           <none>
+otel-collector-agent-nfz6v       1/1     Running   0          3d7h   10.60.11.45    ip-10-60-11-81.ec2.internal   <none>           <none>
+product-catalog-dd8756f5-nj788   1/1     Running   0          49m    10.60.11.100   ip-10-60-11-81.ec2.internal   <none>           <none>
+quote-9c44d4586-g4w5t            1/1     Running   0          49m    10.60.11.174   ip-10-60-11-81.ec2.internal   <none>           <none>
+recommendation-8b6b866bf-7wv6c   1/1     Running   0          49m    10.60.11.57    ip-10-60-11-81.ec2.internal   <none>           <none>
+shipping-65cdfb486d-kv52z        1/1     Running   0          49m    10.60.11.119   ip-10-60-11-81.ec2.internal   <none>           <none>

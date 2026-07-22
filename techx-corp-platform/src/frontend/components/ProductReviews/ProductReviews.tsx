@@ -6,6 +6,7 @@ import { useProductReview } from '../../providers/ProductReview.provider';
 import { useAiAssistant } from '../../providers/ProductAIAssistant.provider';
 import React, { useState, useMemo } from 'react';
 import { CypressFields } from '../../utils/enums/CypressFields';
+import { TraceCitationPanel } from '../TraceCitationPanel';
 
 const clamp = (n: number, min = 0, max = 5) => Math.max(min, Math.min(max, n));
 
@@ -139,26 +140,12 @@ const ProductReviews = () => {
                         {typeof aiResponse === 'string' ? aiResponse : aiResponse.text}
                     </S.AIMessage>
                     
-                    {typeof aiResponse !== 'string' && aiResponse.citations && aiResponse.citations.length > 0 && (
-                        <S.CitationList data-cy="AICitations">
-                            <strong>Sources:</strong>
-                            {aiResponse.citations.map((c, i) => (
-                                <S.CitationItem key={i}>
-                                    "{c.snippet}" - <em>{c.review_id}</em> ({c.score}★)
-                                </S.CitationItem>
-                            ))}
-                        </S.CitationList>
-                    )}
-
-                    {typeof aiResponse !== 'string' && aiResponse.traceId && (
-                        <S.TraceIdLabel
-                            type="button"
-                            title={`Trace ID: ${aiResponse.traceId} (click to copy)`}
-                            onClick={() => navigator.clipboard?.writeText(aiResponse.traceId || '')}
-                            data-cy="AITraceId"
-                        >
-                            trace: {aiResponse.traceId.slice(0, 8)}
-                        </S.TraceIdLabel>
+                    {typeof aiResponse !== 'string' && (aiResponse.traceId || (aiResponse.citations && aiResponse.citations.length > 0) || (aiResponse.traceSteps && aiResponse.traceSteps.length > 0)) && (
+                        <TraceCitationPanel 
+                            traceId={aiResponse.traceId} 
+                            citations={aiResponse.citations} 
+                            traceSteps={aiResponse.traceSteps} 
+                        />
                     )}
                 </div>
             )}

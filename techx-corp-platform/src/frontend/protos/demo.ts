@@ -120,10 +120,17 @@ export interface ProductReviewCitation {
   score: string;
 }
 
+export interface TraceStep {
+  stepName: string;
+  latencyMs: number;
+  status: string;
+}
+
 export interface AskProductAIAssistantResponse {
   response: string;
   traceId: string;
   citations: ProductReviewCitation[];
+  traceSteps: TraceStep[];
 }
 
 export interface GetQuoteRequest {
@@ -1704,8 +1711,100 @@ export const ProductReviewCitation: MessageFns<ProductReviewCitation> = {
   },
 };
 
+function createBaseTraceStep(): TraceStep {
+  return { stepName: "", latencyMs: 0, status: "" };
+}
+
+export const TraceStep: MessageFns<TraceStep> = {
+  encode(message: TraceStep, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.stepName !== "") {
+      writer.uint32(10).string(message.stepName);
+    }
+    if (message.latencyMs !== 0) {
+      writer.uint32(16).int64(message.latencyMs);
+    }
+    if (message.status !== "") {
+      writer.uint32(26).string(message.status);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): TraceStep {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseTraceStep();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.stepName = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.latencyMs = longToNumber(reader.int64());
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.status = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): TraceStep {
+    return {
+      stepName: isSet(object.stepName) ? globalThis.String(object.stepName) : "",
+      latencyMs: isSet(object.latencyMs) ? globalThis.Number(object.latencyMs) : 0,
+      status: isSet(object.status) ? globalThis.String(object.status) : "",
+    };
+  },
+
+  toJSON(message: TraceStep): unknown {
+    const obj: any = {};
+    if (message.stepName !== "") {
+      obj.stepName = message.stepName;
+    }
+    if (message.latencyMs !== 0) {
+      obj.latencyMs = Math.round(message.latencyMs);
+    }
+    if (message.status !== "") {
+      obj.status = message.status;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<TraceStep>, I>>(base?: I): TraceStep {
+    return TraceStep.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<TraceStep>, I>>(object: I): TraceStep {
+    const message = createBaseTraceStep();
+    message.stepName = object.stepName ?? "";
+    message.latencyMs = object.latencyMs ?? 0;
+    message.status = object.status ?? "";
+    return message;
+  },
+};
+
 function createBaseAskProductAIAssistantResponse(): AskProductAIAssistantResponse {
-  return { response: "", traceId: "", citations: [] };
+  return { response: "", traceId: "", citations: [], traceSteps: [] };
 }
 
 export const AskProductAIAssistantResponse: MessageFns<AskProductAIAssistantResponse> = {
@@ -1718,6 +1817,9 @@ export const AskProductAIAssistantResponse: MessageFns<AskProductAIAssistantResp
     }
     for (const v of message.citations) {
       ProductReviewCitation.encode(v!, writer.uint32(26).fork()).join();
+    }
+    for (const v of message.traceSteps) {
+      TraceStep.encode(v!, writer.uint32(34).fork()).join();
     }
     return writer;
   },
@@ -1753,6 +1855,14 @@ export const AskProductAIAssistantResponse: MessageFns<AskProductAIAssistantResp
           message.citations.push(ProductReviewCitation.decode(reader, reader.uint32()));
           continue;
         }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.traceSteps.push(TraceStep.decode(reader, reader.uint32()));
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1769,6 +1879,9 @@ export const AskProductAIAssistantResponse: MessageFns<AskProductAIAssistantResp
       citations: globalThis.Array.isArray(object?.citations)
         ? object.citations.map((e: any) => ProductReviewCitation.fromJSON(e))
         : [],
+      traceSteps: globalThis.Array.isArray(object?.traceSteps)
+        ? object.traceSteps.map((e: any) => TraceStep.fromJSON(e))
+        : [],
     };
   },
 
@@ -1783,6 +1896,9 @@ export const AskProductAIAssistantResponse: MessageFns<AskProductAIAssistantResp
     if (message.citations?.length) {
       obj.citations = message.citations.map((e) => ProductReviewCitation.toJSON(e));
     }
+    if (message.traceSteps?.length) {
+      obj.traceSteps = message.traceSteps.map((e) => TraceStep.toJSON(e));
+    }
     return obj;
   },
 
@@ -1796,6 +1912,7 @@ export const AskProductAIAssistantResponse: MessageFns<AskProductAIAssistantResp
     message.response = object.response ?? "";
     message.traceId = object.traceId ?? "";
     message.citations = object.citations?.map((e) => ProductReviewCitation.fromPartial(e)) || [];
+    message.traceSteps = object.traceSteps?.map((e) => TraceStep.fromPartial(e)) || [];
     return message;
   },
 };

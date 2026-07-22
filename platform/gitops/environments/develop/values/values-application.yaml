@@ -1,5 +1,26 @@
 # Develop starts without a public ALB, Product-like ACM certificate or DNS name.
 # Enable ingress only after a Develop-owned certificate and hostname are approved.
+
+# M17-R3: override NetworkPolicy cho VPC develop (10.60.0.0/16, KHÁC sandbox 10.0.0.0/16).
+# Develop KHÔNG cần egress-internet label: flagd dùng file local, LLM in-cluster (không Bedrock)
+# — verify trên cluster 22/07/2026: product-reviews/shopping-copilot trỏ LLM_HOST=llm,
+# không có BEDROCK_AWS_ROLE_ARN (các biến nova-* chỉ là tên model truyền cho LLM in-cluster).
+#
+# Bật enabled CHỈ ở develop, chart default vẫn false: sandbox auto-sync từ nhánh develop
+# nhưng VPC CNI bên đó CHƯA bật --enable-network-policy, bật chung sẽ thành mìn hẹn giờ.
+# Điều kiện tiên quyết đã thoả trên develop: aws-eks-nodeagent chạy --enable-network-policy=true.
+# Đã chạy thật 32 policy trên develop 22/07/2026 — bằng chứng ở docs/cdo09/evidence-mandate-17.
+networkPolicy:
+  enabled: true
+  observability:
+    apiServerCIDR: 10.60.0.0/16
+    scraperEgress:
+      # Bắt buộc override kèm apiServerCIDR: default chart là 10.0.0.0/16 (VPC sandbox).
+      # Thiếu dòng này thì scrape kubelet trên develop trỏ nhầm dải -> 6 target node DOWN.
+      nodeCIDR: 10.60.0.0/16
+  datastoreEgress:
+    vpcCidr: 10.60.0.0/16
+
 components:
   frontend:
     # Mandate-19 (throughput ceiling): frontend (Next.js SSR) là nút thắt — ở 40 user

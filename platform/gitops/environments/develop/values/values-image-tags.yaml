@@ -3,61 +3,61 @@
 components:
   accounting:
     imageOverride:
-      tag: 1.0-accounting-ef8b835
+      tag: 1.0-accounting-c7e6dbb
   ad:
     imageOverride:
-      tag: 1.0-ad-ec72350
+      tag: 1.0-ad-c7e6dbb
   cart:
     imageOverride:
-      tag: 1.0-cart-e80b0dc
+      tag: 1.0-cart-c7e6dbb
   checkout:
     imageOverride:
-      tag: 1.0-checkout-e80b0dc
+      tag: 1.0-checkout-c7e6dbb
   currency:
     imageOverride:
-      tag: 1.0-currency-ec72350
+      tag: 1.0-currency-c7e6dbb
   fraud-detection:
     imageOverride:
-      tag: 1.0-fraud-detection-ec72350
+      tag: 1.0-fraud-detection-c7e6dbb
   frontend:
     imageOverride:
-      tag: 1.0-frontend-e80b0dc
+      tag: 1.0-frontend-c7e6dbb
   frontend-proxy:
     imageOverride:
-      tag: 1.0-frontend-proxy-e80b0dc
+      tag: 1.0-frontend-proxy-c7e6dbb
   image-provider:
     imageOverride:
-      tag: 1.0-image-provider-ec72350
+      tag: 1.0-image-provider-c7e6dbb
   llm:
     imageOverride:
-      tag: 1.0-llm-ec72350
+      tag: 1.0-llm-c7e6dbb
   load-generator:
     imageOverride:
-      tag: 1.0-load-generator-ec72350
+      tag: 1.0-load-generator-c7e6dbb
   ml-guard:
     imageOverride:
-      tag: 1.0-ml-guard-ec72350
+      tag: 1.0-ml-guard-c7e6dbb
   payment:
     imageOverride:
-      tag: 1.0-payment-ec72350
+      tag: 1.0-payment-c7e6dbb
   product-catalog:
     imageOverride:
-      tag: 1.0-product-catalog-e80b0dc
+      tag: 1.0-product-catalog-c7e6dbb
   product-reviews:
     imageOverride:
-      tag: 1.0-product-reviews-61f161e
+      tag: 1.0-product-reviews-c7e6dbb
   quote:
     imageOverride:
-      tag: 1.0-quote-ec72350
+      tag: 1.0-quote-c7e6dbb
   recommendation:
     imageOverride:
-      tag: 1.0-recommendation-ec72350
+      tag: 1.0-recommendation-c7e6dbb
   shipping:
     imageOverride:
-      tag: 1.0-shipping-ec72350
+      tag: 1.0-shipping-c7e6dbb
   shopping-copilot:
     imageOverride:
-      tag: 1.0-shopping-copilot-ec72350
+      tag: 1.0-shopping-copilot-c7e6dbb
   email:
     imageOverride:
-      tag: 1.0-email-ec72350
+      tag: 1.0-email-c7e6dbb

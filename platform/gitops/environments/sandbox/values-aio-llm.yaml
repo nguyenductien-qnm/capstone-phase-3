@@ -2,6 +2,9 @@
 # Secret llm-api-key tạo trước: kubectl -n techx-<aio> create secret generic llm-api-key --from-literal=key=<REAL_KEY>
 components:
   product-reviews:
+    # M17-R3: gọi AWS Bedrock (cross-account, public 443) -> cần egress ra Internet.
+    podLabels:
+      egress-internet: "true"
     envOverrides:
       # --- AWS Bedrock Guardrails configuration ---
       - name: LLM_BEDROCK_GUARDRAIL
@@ -24,6 +27,9 @@ components:
       - name: AWS_REGION
         value: "us-east-1"
   shopping-copilot:
+    # M17-R3: gọi AWS Bedrock (cross-account, public 443) -> cần egress ra Internet.
+    podLabels:
+      egress-internet: "true"
     securityContext:
       allowPrivilegeEscalation: false
       runAsNonRoot: true

@@ -48,6 +48,10 @@ CVE-2026-42496  # perl-base/Archive::Tar — fix_deferred; upstream vá ở CPAN
 CVE-2026-42497  # perl-base/Archive::Tar — như trên
 CVE-2026-48962  # perl-base/IO-Compress
 CVE-2026-57432  # perl-base — integer overflow
+# CVE-2026-57433 (thêm 22/07/2026): perl-base/Storable signed integer overflow. CRITICAL nhưng
+# Trivy báo status=affected, Fixed Version TRỐNG -> Debian chưa release bản vá ở trixie/sid.
+# Upstream vá ở Storable 3.41; Debian nhúng Storable trong perl-base (Essential=yes) nên không
+# bump/gỡ riêng được. Cùng họ với CVE-2026-57432 ở trên. Review: 2026-08-20.
 CVE-2026-57433  # perl-base/Storable — no fixed Debian trixie version; review 2026-08-20
 CVE-2026-8376   # perl-base — đã fixed ở sid, CHƯA xuống trixie (review sớm)
 CVE-2026-9538   # perl-base/Archive::Tar — fix_deferred
@@ -94,3 +98,4 @@ CVE-2026-56000  # xvfb
 
 # product-catalog / checkout — gRPC Go vulnerability
 GHSA-hrxh-6v49-42gf
+
