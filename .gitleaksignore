@@ -1,0 +1,2 @@
+# Ignore false positive generic-api-key on commit b5afb93 for cost guard module
+b5afb93666d82b6e59c91e5ab93af1598708eefb:terraform/modules/cost_guard_automation/main.tf:generic-api-key:220
