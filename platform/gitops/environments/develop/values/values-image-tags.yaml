@@ -27,7 +27,7 @@ components:
       tag: 1.0-frontend-proxy-d816ba2
   image-provider:
     imageOverride:
-      tag: 1.0-image-provider-c7e6dbb
+      tag: 1.0-image-provider-ee80bf6
   llm:
     imageOverride:
       tag: 1.0-llm-c7e6dbb
