@@ -215,6 +215,7 @@ variable "replica_instance_class" {
 variable "enable_rds_proxy" {
   type        = bool
   description = "Bật/Tắt tạo RDS Proxy cho PostgreSQL"
+  default     = true
 }
 
 variable "valkey_node_type" {
@@ -435,3 +436,16 @@ variable "audit_detection_break_glass_role_arns" {
     error_message = "Every audit detection break-glass value must be an IAM role ARN."
   }
 }
+
+variable "rds_enable_rotation" {
+  type        = bool
+  description = "Bật/Tắt xoay vòng secret tự động cho RDS"
+  default     = true
+}
+
+variable "rds_rotation_rules_automatically_after_days" {
+  type        = number
+  description = "Số ngày tự động xoay vòng secret RDS"
+  default     = 30
+}
+
