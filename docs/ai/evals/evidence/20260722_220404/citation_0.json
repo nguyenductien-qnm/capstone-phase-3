@@ -1,0 +1,64 @@
+{
+  "case_id": "citation_0",
+  "rail": "CITATION",
+  "functional_pass": true,
+  "trace_id": "ddfc010eac268cd2cf77fbdb269d7daf",
+  "trace_link": "https://jaeger-tf1.tail101540.ts.net/jaeger/ui/trace/ddfc010eac268cd2cf77fbdb269d7daf",
+  "span_count": 4,
+  "spans": [
+    {
+      "name": "guardrail_input",
+      "attributes": {
+        "guardrail.blocked": false
+      }
+    },
+    {
+      "name": "bedrock_converse",
+      "attributes": {
+        "gen_ai.request.model": "amazon.nova-pro-v1:0",
+        "gen_ai.response.finish_reason": "tool_use",
+        "gen_ai.usage.input_tokens": 3152,
+        "gen_ai.usage.output_tokens": 67
+      }
+    },
+    {
+      "name": "tool_call",
+      "attributes": {
+        "tool.arguments": "{\"product_id\": \"L9ECAV7KIM\"}",
+        "tool.name": "get_product_reviews",
+        "tool.result_preview": "{\"status\": \"ok\", \"product_id\": \"L9ECAV7KIM\", \"average_score\": 4.6, \"review_count\": 5, \"summary\": \"This kit is a lifesaver for all my optics. The brush and wipes work perfectly without leaving any residue. My lenses have never been cleaner. | Essential for any photographer or telescope owner. It safe",
+        "tool.succeeded": true
+      }
+    }
+  ],
+  "citation_count": 5,
+  "citations": [
+    {
+      "reviewId": "clean_optics",
+      "snippet": "This kit is a lifesaver for all my optics. The brush and wipes work perfectly without leaving any residue. My lenses have never been cleaner.",
+      "score": "5.0"
+    },
+    {
+      "reviewId": "photog_pro",
+      "snippet": "Essential for any photographer or telescope owner. It safely removes dust and fingerprints. A high-quality cleaning solution.",
+      "score": "4.5"
+    },
+    {
+      "reviewId": "daily_cleaner",
+      "snippet": "I use this on my binoculars, camera lenses, and even my phone screen. It's very effective and gentle. A versatile cleaning kit.",
+      "score": "4.0"
+    },
+    {
+      "reviewId": "tech_maintenance",
+      "snippet": "Great value for money. The different cleaning options cover all needs. Keeps my expensive equipment in pristine condition.",
+      "score": "5.0"
+    },
+    {
+      "reviewId": "sharp_view",
+      "snippet": "Works as advertised, my telescope views are much clearer after using this. The fluid and cloth are excellent. Definitely recommend.",
+      "score": "4.5"
+    }
+  ],
+  "response": "Based on the customer reviews, the Lens Cleaning Kit (product ID: L9ECAV7KIM) has an average score of 4.6 out of 5. Here are some highlights from the reviews:\n- \"This kit is a lifesaver for all my optics. The brush and wipes work perfectly without leaving any residue. My lenses have never been cleaner.\"\n- \"Essential for any photographer or telescope owner. It safely removes dust and fingerprints. A high-quality cleaning solution.\"\n- \"I use this on my binoculars, camera lenses, and even my phone screen. It's very effective and gentle. A versatile cleaning kit.\"\n- \"Great value for money. The different cleaning options cover all needs. Keeps my expensive equipment in pristine condition.\"\n- \"Works as advertised, my telescope views are much clearer after using this. The fluid and cloth are excellent. Definitely recommend.\"",
+  "error": ""
+}

@@ -45,6 +45,30 @@ def test_fetch_trace_polls_until_exported(monkeypatch):
     )
 
 
+def test_fetch_trace_waits_for_request_span(monkeypatch):
+    partial = Mock(status_code=200)
+    partial.json.return_value = {
+        "data": [{"spans": [{"operationName": "guardrail_input", "tags": []}]}]
+    }
+    complete = Mock(status_code=200)
+    complete.json.return_value = {
+        "data": [{"spans": [
+            {"operationName": "guardrail_input", "tags": []},
+            {"operationName": "shopping_copilot.chat", "tags": []},
+        ]}]
+    }
+    get = Mock(side_effect=[partial, complete])
+    monkeypatch.setattr(jaeger_client.requests, "get", get)
+    monkeypatch.setattr(jaeger_client.time, "sleep", lambda _: None)
+
+    result = jaeger_client.fetch_trace(
+        TRACE_ID, "https://jaeger.example", wait_timeout=1
+    )
+
+    assert result == complete.json.return_value
+    assert get.call_count == 2
+
+
 def test_span_count_is_not_limited_to_known_summary_spans():
     trace_json = {
         "data": [{
@@ -76,5 +100,7 @@ def test_eval_reads_protobuf_camel_case_response_fields():
 def test_eval_keeps_snake_case_compatibility_and_has_citation_probe():
     _, trace_id, _ = eval_mandate06_prod.extract_response_fields({"trace_id": TRACE_ID})
     assert trace_id == TRACE_ID
-    assert any(case_id == "citation_0" and rail == "CITATION"
-               for case_id, rail, *_ in eval_mandate06_prod.build_cases())
+    citation_cases = [case for case in eval_mandate06_prod.build_cases()
+                      if case[0] == "citation_0" and case[1] == "CITATION"]
+    assert len(citation_cases) == 1
+    assert eval_mandate06_prod.EVAL_PRODUCT_ID in citation_cases[0][2]

@@ -35,6 +35,7 @@ from botocore.config import Config
 from bedrock_client import create_bedrock_runtime_client
 from guardrails import apply_guardrail_input
 import model_router
+import demo_pb2
 import shopping_copilot_pb2 as pb
 import shopping_copilot_pb2_grpc as pb_grpc
 
@@ -113,7 +114,7 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
             blocked, sanitized_question = apply_guardrail_input(self._bedrock, request.question)
             input_span.set_attribute("guardrail.blocked", blocked)
         lat_in = int((time.time() - start_in) * 1000)
-        trace_steps.append(pb.TraceStep(
+        trace_steps.append(demo_pb2.TraceStep(
             step_name="Input Guardrail (PII/Prompt Guard)",
             latency_ms=lat_in,
             status="blocked" if blocked else "pass"
@@ -130,14 +131,14 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
         start_llm = time.time()
         result = agent.run_agent(self._bedrock, routed_model, session, request.user_id)
         lat_llm = int((time.time() - start_llm) * 1000)
-        trace_steps.append(pb.TraceStep(
+        trace_steps.append(demo_pb2.TraceStep(
             step_name="Model Gateway & Bedrock Nova",
             latency_ms=lat_llm,
             status="ok"
         ))
         
         for ts in result.trace_steps:
-            trace_steps.append(pb.TraceStep(
+            trace_steps.append(demo_pb2.TraceStep(
                 step_name=ts.get("step_name", ""),
                 latency_ms=ts.get("latency_ms", 0),
                 status=ts.get("status", "")

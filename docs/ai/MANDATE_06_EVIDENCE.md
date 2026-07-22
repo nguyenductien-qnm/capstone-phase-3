@@ -25,8 +25,22 @@ kubectl exec -it <shopping-copilot-pod> -n techx-tf1 -- python3 docs/ai/evals/in
 cd techx-corp-platform/src/product-reviews && python3 eval_guardrails.py --mode=llm-judge
 ```
 
+When the public Jaeger hostname is not resolvable locally, keep
+`JAEGER_BASE_URL` as the reviewer-facing UI URL and tunnel only the Query API:
+
+```bash
+kubectl port-forward -n techx-tf1 service/jaeger 16687:16686
+export JAEGER_QUERY_BASE_URL="http://127.0.0.1:16687/jaeger/ui"
+export EVAL_RUN_LABEL="patched local runtime with production dependencies"
+python3 docs/ai/evals/eval_mandate06_prod.py
+```
+
+The citation probe defaults to seeded product `L9ECAV7KIM`, which has review
+sources. Override it with `EVAL_PRODUCT_ID` only when the target environment
+uses a different seeded catalog.
+
 The production eval accepts either the Jaeger origin or the full `/jaeger/ui`
-base path, waits briefly for asynchronous trace export, and writes one evidence
+base path, waits for the asynchronous request span export, and writes one evidence
 JSON file per case. A dedicated `CITATION/product-review` case verifies that
 review citations survive the gRPC -> Next.js -> HTTP response path.
 

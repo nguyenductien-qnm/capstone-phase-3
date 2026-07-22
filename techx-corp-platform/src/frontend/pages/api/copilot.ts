@@ -40,6 +40,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
             degraded: response.degraded,
             traceId: response.traceId || '',
             citations: response.citations || [],
+            traceSteps: response.traceSteps || [],
         });
     } catch (error) {
         console.error('Copilot gRPC Error:', error);

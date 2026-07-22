@@ -20,8 +20,13 @@ BASE_URL = os.environ.get(
 JAEGER_BASE_URL = os.environ.get(
     "JAEGER_BASE_URL", "https://jaeger-tf1.tail101540.ts.net/jaeger/ui"
 ).rstrip("/")
+JAEGER_QUERY_BASE_URL = os.environ.get(
+    "JAEGER_QUERY_BASE_URL", JAEGER_BASE_URL
+).rstrip("/")
 JAEGER_TRACE_WAIT_SECONDS = float(os.environ.get("JAEGER_TRACE_WAIT_SECONDS", "10"))
-EVAL_PRODUCT_ID = os.environ.get("EVAL_PRODUCT_ID", cases.PROD_PRODUCT_ID)
+# This product is present in the seeded review service with non-empty citations.
+EVAL_PRODUCT_ID = os.environ.get("EVAL_PRODUCT_ID", "L9ECAV7KIM")
+EVAL_RUN_LABEL = os.environ.get("EVAL_RUN_LABEL", "production")
 
 
 def extract_response_fields(data: dict) -> tuple[str, str, list]:
@@ -125,7 +130,7 @@ def main():
             trace_link = jaeger_client.jaeger_ui_link(trace_id, JAEGER_BASE_URL)
             trace_json = jaeger_client.fetch_trace(
                 trace_id,
-                JAEGER_BASE_URL,
+                JAEGER_QUERY_BASE_URL,
                 wait_timeout=JAEGER_TRACE_WAIT_SECONDS,
             )
             if trace_json:
@@ -161,6 +166,11 @@ def main():
 
     report = [
         f"# Eval MANDATE-06 Prod E2E - {time.strftime('%Y-%m-%d %H:%M')}",
+        "",
+        f"- Copilot endpoint: `{BASE_URL}`",
+        f"- Jaeger UI: `{JAEGER_BASE_URL}`",
+        f"- Citation product: `{EVAL_PRODUCT_ID}`",
+        f"- Run mode: `{EVAL_RUN_LABEL}`",
         "",
         "| Rail | Case | Pass | Trace | Spans | Citations | Latency |",
         "|---|---|---|---|---|---|---|",

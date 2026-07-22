@@ -39,8 +39,9 @@ def fetch_trace(
     request_timeout: float = 5.0,
     wait_timeout: float = 10.0,
     poll_interval: float = 0.5,
+    required_operation: str | None = "shopping_copilot.chat",
 ):
-    """Fetch one trace, briefly polling while the collector exports it."""
+    """Fetch one trace, polling until its request span has been exported."""
     normalized_trace_id = (trace_id or "").strip()
     ui_base = jaeger_ui_base(base_url)
     if not ui_base or not _TRACE_ID_RE.fullmatch(normalized_trace_id):
@@ -48,6 +49,7 @@ def fetch_trace(
 
     url = f"{ui_base}/api/traces/{quote(normalized_trace_id, safe='')}"
     deadline = time.monotonic() + max(0.0, wait_timeout)
+    latest_payload = None
 
     while True:
         try:
@@ -61,12 +63,21 @@ def fetch_trace(
             except ValueError:
                 return None
             if isinstance(payload, dict) and payload.get("data"):
-                return payload
+                latest_payload = payload
+                operation_names = {
+                    span.get("operationName", "")
+                    for trace_data in payload["data"]
+                    if isinstance(trace_data, dict)
+                    for span in trace_data.get("spans", [])
+                    if isinstance(span, dict)
+                }
+                if required_operation is None or required_operation in operation_names:
+                    return payload
         elif response.status_code != 404:
             return None
 
         if time.monotonic() >= deadline:
-            return None
+            return latest_payload
         time.sleep(max(0.05, poll_interval))
 
 
