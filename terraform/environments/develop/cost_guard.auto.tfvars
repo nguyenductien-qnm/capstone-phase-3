@@ -19,12 +19,6 @@ budget_alert_email_95 = "ndtien317@gmail.com"
 # Custom weekly budget periods
 budget_periods = [
   {
-    name       = "week-13-19-jul"
-    start_date = "2026-07-13_00:00"
-    end_date   = "2026-07-19_23:59"
-    amount     = 300
-  },
-  {
     name       = "week-20-26-jul"
     start_date = "2026-07-20_00:00"
     end_date   = "2026-07-26_23:59"
