@@ -9,6 +9,12 @@ terraform {
       source  = "hashicorp/tls"
       version = "~> 4.0"
     }
+
+    # Kafka provider
+    kafka = {
+      source = "Mongey/kafka"
+      version = "~> 0.7.0"
+    }
   }
 
   # Backend settings are supplied only by the Develop GitHub Environment.
@@ -28,4 +34,14 @@ provider "aws" {
       Owner       = "CDO-09"
     }
   }
+}
+
+# Kafka provider needs the MSK brokers and credentials to connect
+provider "kafka" {
+  bootstrap_servers = split(",", module.msk.bootstrap_brokers_sasl_scram)
+
+  tls_enabled = true
+  sasl_username = jsondecode(data.aws_secretmanager_secret_version.msk_credentials_secret_string)["username"]
+  sasl_password = jsondecode(data.aws_secretsmanager_secret_version.msk_credentials_secret_string)["password"]
+  sasl_mechanism = "scram-sha512"
 }
