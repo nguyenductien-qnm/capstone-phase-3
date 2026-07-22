@@ -88,6 +88,58 @@ def test_eval_log_rule():
     assert "connection pool timeout" in field_values(alerts[0])
 
 
+def test_eval_metric_rule_3sigma_ignores_tiny_relative_jitter():
+    """Review 16/07: cart p95 ~6ms bi FP - baseline nho (giay) lam band 3-sigma qua
+    siet, sàn tuyet doi cu (0.001) qua long nen jitter khong y nghia van vuot. Sàn
+    tuong doi (20%) phai chan truong hop nay du ve mat thong ke van "vuot 3-sigma"."""
+    prom = MagicMock()
+    rule = {
+        "id": "latency-test",
+        "type": "metric",
+        "query": "dummy_query",
+        "op": "gt",
+        "threshold": 10.0,
+        "summary": "High latency alert",
+        "severity": "warning",
+    }
+    detector.metric_history.clear()
+    # baseline ~5.1ms, std rat nho -> band 3-sigma hep
+    for val in [0.005, 0.005, 0.005, 0.005, 0.0055]:
+        prom.query.return_value = [(val, {"service_name": "cart"})]
+        detector.eval_metric_rule(rule, prom)
+
+    # 6.11ms: lech tuyet doi 1.01ms (> sàn cu 0.001) va vuot 3-sigma thong ke,
+    # nhung lech tuong doi ~19.8% (< sàn 20%) -> KHONG duoc fire.
+    prom.query.return_value = [(0.00611, {"service_name": "cart"})]
+    alerts = detector.eval_metric_rule(rule, prom)
+    assert len(alerts) == 0
+
+
+def test_eval_metric_rule_3sigma_fires_on_large_relative_jump_small_scale():
+    """Doi chung voi test tren: metric thang do nho (giay) van phai bat duoc bat
+    thuong THAT (lech tuong doi lon), khong phai sàn moi lam mu toan bo rule nho."""
+    prom = MagicMock()
+    rule = {
+        "id": "latency-test",
+        "type": "metric",
+        "query": "dummy_query",
+        "op": "gt",
+        "threshold": 10.0,
+        "summary": "High latency alert",
+        "severity": "warning",
+    }
+    detector.metric_history.clear()
+    for val in [0.005, 0.005, 0.005, 0.005, 0.0055]:
+        prom.query.return_value = [(val, {"service_name": "cart"})]
+        detector.eval_metric_rule(rule, prom)
+
+    # 10ms: gan gap doi baseline (~96% lech tuong doi) -> phai fire.
+    prom.query.return_value = [(0.01, {"service_name": "cart"})]
+    alerts = detector.eval_metric_rule(rule, prom)
+    assert len(alerts) == 1
+    assert "3-Sigma" in alerts[0][1]
+
+
 def test_metric_rule_dynamic_only_uses_dynamic_headline():
     """Chi lop 3-sigma keu -> headline KHONG duoc la summary static (trend hieu nham
     'p95 > 1s' khi gia tri thuc 6ms — review 16/07)."""
