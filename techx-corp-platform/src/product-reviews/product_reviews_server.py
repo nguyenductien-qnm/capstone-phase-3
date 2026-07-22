@@ -297,7 +297,7 @@ def get_bedrock_primary_client():
     global bedrock_primary_client
     if bedrock_primary_client is None:
         aws_region = os.environ.get('AWS_REGION', 'us-east-1')
-        main_timeout = float(os.environ.get('LLM_REVIEWS_TIMEOUT', '4.0'))
+        main_timeout = float(os.environ.get('LLM_REVIEWS_TIMEOUT', '2.6'))
         primary_config = Config(connect_timeout=1.0, read_timeout=main_timeout, retries={'max_attempts': 0})
         bedrock_primary_client = create_bedrock_runtime_client(region_name=aws_region, config=primary_config)
     return bedrock_primary_client
@@ -306,7 +306,7 @@ def get_bedrock_fallback_client():
     global bedrock_fallback_client
     if bedrock_fallback_client is None:
         aws_region = os.environ.get('AWS_REGION', 'us-east-1')
-        fallback_timeout = float(os.environ.get('LLM_REVIEWS_FALLBACK_TIMEOUT', '2.0'))
+        fallback_timeout = float(os.environ.get('LLM_REVIEWS_FALLBACK_TIMEOUT', '2.3'))
         fallback_config = Config(connect_timeout=1.0, read_timeout=fallback_timeout, retries={'max_attempts': 0})
         bedrock_fallback_client = create_bedrock_runtime_client(region_name=aws_region, config=fallback_config)
     return bedrock_fallback_client
@@ -545,7 +545,7 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                 time_remaining = context.time_remaining()
                 if time_remaining is not None:
                     logger.info(f"gRPC request time remaining: {time_remaining:.3f}s")
-                    deadline_floor = float(os.environ.get('LLM_REVIEWS_FALLBACK_TIMEOUT', '2.0'))
+                    deadline_floor = float(os.environ.get('LLM_REVIEWS_FALLBACK_TIMEOUT', '2.3'))
                     if time_remaining < deadline_floor:
                         logger.warning(f"Time remaining {time_remaining:.3f}s is less than hard floor {deadline_floor:.1f}s. Fail-fast to Mock Summary.")
                         logger.error("AI_SUMMARY_FALLBACK stage=deadline reason=DeadlineTooClose")
@@ -752,7 +752,7 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                 if context is not None:
                     try:
                         _tr = context.time_remaining()
-                        if _tr is not None and _tr < float(os.environ.get('LLM_REVIEWS_FALLBACK_TIMEOUT', '2.0')):
+                        if _tr is not None and _tr < float(os.environ.get('LLM_REVIEWS_FALLBACK_TIMEOUT', '2.3')):
                             logger.error("AI_SUMMARY_FALLBACK stage=deadline reason=DeadlineTooCloseFinalRound")
                             ai_assistant_response.response = MOCK_SUMMARY_VI
                             return ai_assistant_response

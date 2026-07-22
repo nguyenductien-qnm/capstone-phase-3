@@ -110,11 +110,11 @@ Bối cảnh của ADR này đã thay đổi do CDO migrate hạ tầng cache:
   - **Tác vụ Reviews Summary (Tải cực cao, độ phức tạp thấp):**
     - Định tuyến chính (Primary): Amazon Nova Lite (`amazon.nova-lite-v1:0`). TTFT ~1.04s, ~175.7 tok/s theo [Artificial Analysis](https://artificialanalysis.ai/models/nova-lite) *(sửa 12/07 — bản đầu ghi 0.4s sai nguồn)*, chi phí cực rẻ ([$0.06/$0.24 per 1M tokens](https://aws.amazon.com/bedrock/pricing/)).
     - Dự phòng (Fallback): Amazon Nova Micro (`amazon.nova-micro-v1:0`) và cuối cùng là Mock Summary.
-    - Timeout: **4.0 giây (4000ms)** — chốt theo P95 đo thật 15/07/2026 (`measure_bedrock_latency.py`, Reviews Lite flow P95 3.969s). Đặt thấp hơn sẽ cắt ngang đuôi phân phối latency, huỷ đúng lúc sắp thành công rồi retry lại từ đầu: trả tiền token nhiều lần cho 0 kết quả và dội tải ngược lên Bedrock đúng lúc nó đang chậm. Đổi lại **không được gì**, vì tóm tắt AI là **best-effort, không SLA cứng** (`SLO.md`) và chỉ chạy khi khách bấm nút, không chặn render trang → không tính vào SLO storefront p95 < 1s.
+    - Timeout: **2.6 giây (2600ms)** — cập nhật theo baseline hiện hành 21/07/2026 (`bedrock_latency_results_current.md`, Reviews Lite flow P95 2.542s). Tóm tắt AI là **best-effort, không SLA cứng** (`SLO.md`) và chỉ chạy khi khách bấm nút, không chặn render trang → không tính vào SLO storefront p95 < 1s.
   - **Tác vụ Shopping Copilot (Tải thấp, độ phức tạp cao, cần độ chính xác gọi tool tuyệt đối):**
     - Định tuyến chính (Primary): Amazon Nova Pro (`amazon.nova-pro-v1:0`). Đảm bảo độ chính xác gọi tool xuất sắc và chi phí được cấn trừ hoàn toàn 100% bằng AWS Credits (tiền mặt thật = $0).
     - Dự phòng (Fallback): Amazon Nova Lite (`amazon.nova-lite-v1:0`).
-    - Timeout: Giới hạn **5.7 giây (5700ms)** theo P95 tool loop đo thật; fallback Nova Lite **2.5 giây**.
+    - Timeout: Giới hạn **6.9 giây (6900ms)** theo baseline P95 tool loop 21/07; fallback Nova Lite **2.7 giây**.
 - **Phương án khác đã cân:**
   - *Option A - Sử dụng Claude (A1):* Bị loại bỏ hoàn toàn vì Claude thuộc AWS Marketplace, bắt buộc trả bằng tiền mặt thật, không được trừ vào credit. Quyết định: Loại bỏ Claude để đưa chi phí tiền mặt về $0.
   - *Option B - Sử dụng thuần Amazon Nova Lite (A2):* Tiết kiệm nhất nhưng bị loại do khả năng gọi tool tiếng Việt của Nova Lite chưa đủ tin cậy cho Copilot Agent so với Nova Pro.

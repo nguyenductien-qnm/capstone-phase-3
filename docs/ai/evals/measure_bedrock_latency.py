@@ -425,6 +425,8 @@ def markdown_table(rows: list[dict], region: str, profile: str | None) -> str:
             "- Reviews flow latency is end-to-end for two Converse rounds.",
             "- Copilot flow latency is end-to-end for the measured tool loop until end_turn or 5-tool cap.",
             "- Per-call latency pools all Converse calls in the measured flow.",
+            "- Timeout is the raw end-to-end flow budget. Service env vars configure botocore per-call read timeouts,",
+            "  so production values must also respect per-call P95, retries, and the 30s Envoy route budget.",
         ]
     )
     return "\n".join(lines) + "\n"
