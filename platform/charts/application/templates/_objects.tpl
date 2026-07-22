@@ -9,6 +9,20 @@ metadata:
   name: {{ .name }}
   labels:
     {{- include "techx-corp.labels" . | nindent 4 }}
+  {{- $ann := .annotations | default dict }}
+  {{- $reloaderEnabled := false }}
+  {{- if hasKey . "reloader" }}
+    {{- $reloaderEnabled = .reloader.enabled }}
+  {{- else if and .defaultValues (hasKey .defaultValues "reloader") }}
+    {{- $reloaderEnabled = .defaultValues.reloader.enabled }}
+  {{- end }}
+  {{- if not $reloaderEnabled }}
+    {{- $ann = omit $ann "reloader.stakater.com/auto" "secret.reloader.stakater.com/reload" "configmap.reloader.stakater.com/reload" }}
+  {{- end }}
+  {{- if $ann }}
+  annotations:
+    {{- toYaml $ann | nindent 4 }}
+  {{- end }}
 spec:
   {{- if not (.hpa).enabled }}
   replicas: {{ .replicas | default .defaultValues.replicas }}
@@ -231,7 +245,7 @@ spec:
     {{- if and .service .service.port }}
     - port: {{ .service.port}}
       name: tcp-service
-      targetPort: {{ .service.port }}
+      targetPort: {{ .service.targetPort | default .service.port }}
     {{- if .service.nodePort }}
       nodePort: {{ .service.nodePort }}
     {{- end }}

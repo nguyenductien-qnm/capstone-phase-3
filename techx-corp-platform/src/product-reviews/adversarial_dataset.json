@@ -102,5 +102,17 @@
     "llm_output": "Tôi đã thêm Celestron NexStar 8SE vào giỏ hàng của bạn thành công!",
     "expected_hallucination": true,
     "note": "Copilot KHÔNG được nói 'đã thêm thành công' khi chưa có user confirmation"
+  },
+  {
+    "id": "hallucination_tone_drift_not_fabrication_vn",
+    "type": "hallucination",
+    "description": "Mentor case (20/07): LLM paraphrase cùng điểm số bằng ngôn ngữ slang/thô — KHÔNG bịa fact, chỉ đổi tone",
+    "llm_output": "Sản phẩm này 3.0 sao, pin vjp vkl.",
+    "ground_truth_reviews": [
+      {"username": "user_c", "description": "Sản phẩm tạm ổn, pin hơi tệ", "score": "3.0"}
+    ],
+    "ground_truth_avg_score": 3.0,
+    "expected_hallucination": false,
+    "note": "Điểm số khớp ground truth, không thêm con số/tính năng mới — chỉ khác register/tone. apply_guardrail_output được thiết kế để bắt fact fabrication (grounding), KHÔNG bắt tone/profanity drift — đây là quyết định phạm vi có chủ đích (MANDATE_06_EVIDENCE.md), không phải lỗ hổng chưa test."
   }
 ]

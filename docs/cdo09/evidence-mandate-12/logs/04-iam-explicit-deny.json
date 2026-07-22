@@ -1,0 +1,41 @@
+{
+  "capturedAtUtc": "2026-07-20T14:29:50Z",
+  "trailName": "ecommerce-dev-audit-trail",
+  "simulations": [
+    {
+      "roleName": "AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568",
+      "evaluationResults": [
+        {
+          "action": "cloudtrail:StopLogging",
+          "decision": "explicitDeny"
+        },
+        {
+          "action": "cloudtrail:DeleteTrail",
+          "decision": "explicitDeny"
+        },
+        {
+          "action": "cloudtrail:PutEventSelectors",
+          "decision": "explicitDeny"
+        }
+      ]
+    },
+    {
+      "roleName": "AWSReservedSSO_Phase3-Mentor-PermissionSet_05d2f6060a74cb33",
+      "evaluationResults": [
+        {
+          "action": "cloudtrail:StopLogging",
+          "decision": "explicitDeny"
+        },
+        {
+          "action": "cloudtrail:DeleteTrail",
+          "decision": "explicitDeny"
+        },
+        {
+          "action": "cloudtrail:PutEventSelectors",
+          "decision": "explicitDeny"
+        }
+      ]
+    }
+  ],
+  "note": "Read-only IAM policy simulation. Account-specific principal and resource ARNs were omitted from saved evidence."
+}

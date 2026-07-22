@@ -140,6 +140,9 @@
           }
         }
       }
+    },
+    "reloader": {
+      "type": "object"
     }
   },
   "required": [
@@ -355,6 +358,9 @@
         "podLabels": {
           "type": "object"
         },
+        "annotations": {
+          "type": "object"
+        },
         "podAnnotations": {
           "type": "object"
         },
@@ -554,6 +560,9 @@
           "type": "string"
         },
         "port": {
+          "type": "integer"
+        },
+        "targetPort": {
           "type": "integer"
         },
         "nodePort": {

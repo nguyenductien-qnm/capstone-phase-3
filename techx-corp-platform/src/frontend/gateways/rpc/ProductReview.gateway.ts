@@ -21,8 +21,10 @@ const ProductReviewGateway = () => ({
         );
     },
     askProductAIAssistant(productId: string, question: string) {
-        return new Promise<string>((resolve, reject) =>
-            client.askProductAiAssistant({ productId, question }, (error, response) => (error ? reject(error) : resolve(response.response)))
+        return new Promise<any>((resolve, reject) =>
+            client.askProductAiAssistant({ productId, question }, (error, response) => 
+                (error ? reject(error) : resolve({ text: response.response, traceId: response.traceId, citations: response.citations }))
+            )
         );
     },
 });

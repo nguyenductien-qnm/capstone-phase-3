@@ -44,7 +44,7 @@ variable "db_username" {
 variable "engine_version" {
   type        = string
   description = "PostgreSQL engine version supported by the target AWS region"
-  default     = "16.14"
+  default     = "17.10"
 }
 
 variable "instance_class" {
@@ -81,6 +81,24 @@ variable "multi_az" {
 variable "eks_node_security_group_id" {
   type        = string
   description = "EKS node security group ID to allow access to RDS"
+}
+
+variable "enable_rotation" {
+  type        = bool
+  description = "Bật/Tắt xoay vòng secret tự động"
+  default     = false
+}
+
+variable "rotation_rules_automatically_after_days" {
+  type        = number
+  description = "Số ngày tự động xoay vòng secret"
+  default     = 30
+}
+
+variable "app_subnet_ids" {
+  type        = list(string)
+  description = "Danh sách ID của các subnets tầng Application để chạy Lambda xoay vòng"
+  default     = []
 }
 
 variable "enable_logical_replication" {

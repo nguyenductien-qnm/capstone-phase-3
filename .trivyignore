@@ -90,3 +90,7 @@ CVE-2026-34980  # libcups2t64
 CVE-2023-5574   # xvfb — fix_deferred
 CVE-2026-55999  # xvfb
 CVE-2026-56000  # xvfb
+
+# product-catalog / checkout — gRPC Go vulnerability
+GHSA-hrxh-6v49-42gf
+

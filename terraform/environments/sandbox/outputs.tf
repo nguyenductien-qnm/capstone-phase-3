@@ -243,3 +243,13 @@ output "audit_detection_pipeline_health_topic_arn" {
   description = "SNS pipeline-health topic ARN when MANDATE-11 detection is enabled"
   value       = try(module.audit_detection[0].pipeline_health_topic_arn, null)
 }
+
+output "mandate_12_alert_rule_name" {
+  description = "Mandate-12 EventBridge rule name for audit tamper alerts"
+  value       = module.cloudtrail.mandate_12_alert_rule_name
+}
+
+output "mandate_12_alert_topic_arn" {
+  description = "Mandate-12 SNS topic ARN for audit tamper email alerts"
+  value       = module.cloudtrail.mandate_12_alert_topic_arn
+}

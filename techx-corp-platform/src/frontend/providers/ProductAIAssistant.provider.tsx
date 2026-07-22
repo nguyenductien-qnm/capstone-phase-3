@@ -9,7 +9,11 @@ export interface AiRequestPayload {
     question: string;
 }
 
-export type AiResponse = { text: string } | string;
+export type AiResponse = { 
+    text: string;
+    traceId?: string;
+    citations?: { review_id?: string; snippet?: string; score?: string; }[];
+} | string;
 
 interface AiAssistantContextValue {
     aiResponse: AiResponse | null;

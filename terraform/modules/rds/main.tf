@@ -218,6 +218,35 @@ resource "aws_secretsmanager_secret_version" "db_credentials" {
   })
 }
 
+data "aws_region" "current" {}
+
+resource "aws_serverlessapplicationrepository_cloudformation_stack" "rds_rotation" {
+  count = (var.enable_rds_proxy && var.enable_rotation) ? 1 : 0
+
+  name           = "${var.project_name}-${var.environment}-rds-rot"
+  application_id = "arn:aws:serverlessrepo:us-east-1:297356227824:applications/SecretsManagerRDSPostgreSQLRotationSingleUser"
+
+  capabilities = ["CAPABILITY_IAM", "CAPABILITY_RESOURCE_POLICY"]
+
+  parameters = {
+    functionName        = "${var.project_name}-${var.environment}-rds-rotation"
+    vpcSubnetIds        = join(",", length(var.app_subnet_ids) > 0 ? var.app_subnet_ids : var.database_subnet_ids)
+    vpcSecurityGroupIds = var.eks_node_security_group_id
+    endpoint            = "https://secretsmanager.${data.aws_region.current.name}.amazonaws.com"
+  }
+}
+
+resource "aws_secretsmanager_secret_rotation" "db_credentials" {
+  count = (var.enable_rds_proxy && var.enable_rotation) ? 1 : 0
+
+  secret_id           = aws_secretsmanager_secret.db_credentials[0].id
+  rotation_lambda_arn = aws_serverlessapplicationrepository_cloudformation_stack.rds_rotation[0].outputs.RotationLambdaARN
+
+  rotation_rules {
+    automatically_after_days = var.rotation_rules_automatically_after_days
+  }
+}
+
 # IAM Role để RDS Proxy đọc Secret
 resource "aws_iam_role" "rds_proxy" {
   count = var.enable_rds_proxy ? 1 : 0
@@ -337,8 +366,6 @@ resource "aws_secretsmanager_secret_version" "db_endpoint" {
     # phải biết env có replica hay không.
     replica_endpoint = var.enable_read_replica ? aws_db_instance.replica[0].address : (var.enable_rds_proxy ? aws_db_proxy.this[0].endpoint : aws_db_instance.this.address)
     port             = 5432
-    username         = var.db_username
-    password         = random_password.db_password.result
     dbname           = var.db_name
   })
 }
