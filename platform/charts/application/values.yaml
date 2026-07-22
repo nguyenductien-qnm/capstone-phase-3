@@ -1085,6 +1085,7 @@ components:
     startupProbe: # Go + chờ Postgres (~120s)
       grpc: { port: 8080, service: "readiness" }
       periodSeconds: 5
+      timeoutSeconds: 3
       failureThreshold: 24
     readinessProbe:
       grpc: { port: 8080, service: "readiness" }
