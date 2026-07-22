@@ -1,0 +1,29 @@
+name: Evals CI
+
+on:
+  push:
+    paths:
+      - 'docs/ai/evals/**'
+      - 'requirements-copilot.txt'
+  pull_request:
+    paths:
+      - 'docs/ai/evals/**'
+      - 'requirements-copilot.txt'
+
+jobs:
+  test-evals:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-copilot.txt
+          pip install pytest
+      - name: Run eval tests
+        run: |
+          pytest docs/ai/evals -q
