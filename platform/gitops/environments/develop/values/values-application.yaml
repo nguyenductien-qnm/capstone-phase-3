@@ -10,6 +10,76 @@ components:
     resources:
       limits:
         cpu: 500m
+    hpa:
+      # Mandate-19 PHASE 6.5: trần đo từ EC2 = 98rps@200u, gãy 280u vì frontend
+      # throttle 9.4% khi đã kịch max 6. Nâng max 6->10 cho headroom scale-out
+      # (SSR ~20rps/pod); node vẫn 4 — pod nhỏ 100m requests, bin-pack đủ.
+      maxReplicas: 10
+  # Mandate-19 (mở rộng): checkout flow nút thắt = backend chain bị CPU-throttle bởi
+  # limit=100m khi checkout tải cao (đo 21/07 @60u): email 95.7%, payment 34.2%,
+  # currency 29.1% throttle → checkout gãy SLO sớm (~14rps vs catalog 20rps). Nới limit
+  # để nâng trần luồng ra tiền. Giữ requests → HPA target không đổi. Override CHỈ develop.
+  # requests right-size từ CPU thực-sau-shed (avg steady-state, đặt để avg ~50-55%
+  # so requests → HPA có headroom, không flapping). email/payment under-request (dùng
+  # >requests), catalog/cart/checkout over-request (dùng «requests). frontend GIỮ 100m
+  # (size theo TRẦN vì ở trước điểm shed — browse lọt qua vẫn render SSR; HPA lo scale).
+  # HPA checkout-path (đo 21/07, pod ép node ops + warm): email/quote/shipping/payment
+  # kẹt 1 replica KHÔNG có HPA -> throttle email 43%, quote 58% dù limit đã nới.
+  # Thêm HPA min2/max4 -> email 43%->2.1%, quote 30%->8%, shipping->0.4% (EVIDENCE.md).
+  # min>=2 khớp chuẩn PDB×min-replicas (INC-2); max4 đủ vì mỗi service nhẹ (<=100m limit
+  # sau sizing, trừ email/payment đã nới riêng). target CPU 70% dùng default.hpa.
+  email:
+    hpa:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 4
+    resources:
+      requests:
+        cpu: 100m   # dùng thật 62m (was 50m = under-request 124%)
+      limits:
+        cpu: 400m   # throttle 95.7%@100m — nghẽn nặng nhất chain
+  payment:
+    hpa:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 4
+    resources:
+      requests:
+        cpu: 80m    # dùng thật 44m (was 50m = 88%)
+      limits:
+        cpu: 300m   # throttle 34.2%@100m — luồng ra tiền, không được throttle
+  quote:
+    hpa:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 4
+  shipping:
+    hpa:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 4
+  currency:
+    resources:
+      requests:
+        cpu: 50m    # dùng 33m = 66%, giữ nguyên
+      limits:
+        cpu: 250m   # throttle 29.1%@100m — dùng chung nhiều flow
+  cart:
+    resources:
+      requests:
+        cpu: 60m    # dùng thật 37m (was 100m = over-request 37%)
+      limits:
+        cpu: 350m   # throttle 13.0%@200m — dù đã scale 3 replica
+  checkout:
+    resources:
+      requests:
+        cpu: 60m    # dùng thật 31m (was 100m = over-request 31%)
+      limits:
+        cpu: 350m   # throttle 12.9%@200m — core checkout
+  product-catalog:
+    resources:
+      requests:
+        cpu: 40m    # dùng 9m sau-shed (was 100m) — browse bị shed trước khi tới catalog
   frontend-proxy:
     ingress:
       enabled: false
