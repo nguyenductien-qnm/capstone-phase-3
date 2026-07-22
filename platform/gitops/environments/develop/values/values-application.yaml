@@ -14,6 +14,10 @@ networkPolicy:
   enabled: true
   observability:
     apiServerCIDR: 10.60.0.0/16
+    scraperEgress:
+      # Bắt buộc override kèm apiServerCIDR: default chart là 10.0.0.0/16 (VPC sandbox).
+      # Thiếu dòng này thì scrape kubelet trên develop trỏ nhầm dải -> 6 target node DOWN.
+      nodeCIDR: 10.60.0.0/16
   datastoreEgress:
     vpcCidr: 10.60.0.0/16
 

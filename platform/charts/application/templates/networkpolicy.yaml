@@ -190,7 +190,9 @@ spec:
   egress:
     - to:
         - ipBlock:
-            cidr: {{ $np.observability.apiServerCIDR }}
+            # nodeCIDR (dải NODE) chứ KHÔNG phải apiServerCIDR (dải ENI control-plane):
+            # kubelet chạy trên node. Hai dải hiện trùng nhau nhưng ý nghĩa khác nhau.
+            cidr: {{ $se.nodeCIDR | default $np.observability.apiServerCIDR }}
       ports:
         - { protocol: TCP, port: {{ $se.kubeletPort }} }
     {{- if and $se.infraNamespaces $se.infraPorts }}

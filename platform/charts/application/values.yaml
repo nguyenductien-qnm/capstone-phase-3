@@ -94,6 +94,12 @@ networkPolicy:
     scraperEgress:
       # Cổng kubelet trên node (job kubernetes-nodes + kubernetes-nodes-cadvisor).
       kubeletPort: 10250
+      # Dải chứa NODE (kubelet), KHÁC ý nghĩa với apiServerCIDR (dải chứa ENI
+      # control-plane) dù hiện tại hai dải trùng nhau. Tách riêng để lỡ ai thu hẹp
+      # apiServerCIDR xuống đúng subnet control-plane — việc hardening rất hợp lý —
+      # thì scrape kubelet không gãy theo. Gãy kiểu đó rất khó truy: triệu chứng là
+      # 6 target node DOWN + dashboard tài nguyên trống, cách nguyên nhân rất xa.
+      nodeCIDR: 10.0.0.0/16
       # Namespace hạ tầng cho phép scrape cross-namespace.
       infraNamespaces:
         - kube-system
