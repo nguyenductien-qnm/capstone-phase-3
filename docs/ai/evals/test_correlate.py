@@ -33,8 +33,18 @@ import json
 import math
 import time
 
-import numpy as np
 import pytest
+
+try:
+    import numpy as np
+    HAS_NUMPY = True
+except ImportError:
+    HAS_NUMPY = False
+
+numpy_required = pytest.mark.skipif(
+    not HAS_NUMPY,
+    reason="numpy/scipy not installed — install requirements from aiops/detector/requirements.txt"
+)
 
 import sys, os
 # Allow import when run from docs/ai/evals (source lives in aiops/detector)
@@ -45,17 +55,29 @@ _DETECTOR_DIR = os.path.normpath(
 if _DETECTOR_DIR not in sys.path:
     sys.path.insert(0, _DETECTOR_DIR)
 
-from correlate import (
-    COOC_BUCKET_SECONDS,
-    _drop_nan_pairs,
-    _shift,
-    _synthetic_alert_history,
-    _synthetic_timeseries,
-    compute_cooccurrence_matrix,
-    compute_correlation_matrix,
-    load_alert_history,
+try:
+    from correlate import (
+        COOC_BUCKET_SECONDS,
+        _drop_nan_pairs,
+        _shift,
+        _synthetic_alert_history,
+        _synthetic_timeseries,
+        compute_cooccurrence_matrix,
+        compute_correlation_matrix,
+        load_alert_history,
+    )
+    from alerter import _fingerprint, _time_bucket
+    HAS_CORRELATE = True
+except ImportError:
+    HAS_CORRELATE = False
+
+correlate_required = pytest.mark.skipif(
+    not HAS_CORRELATE or not HAS_NUMPY,
+    reason="correlate module or numpy/scipy not available"
 )
-from alerter import _fingerprint, _time_bucket
+
+# Apply skip condition to every test in this module
+pytestmark = correlate_required
 
 
 # ---------------------------------------------------------------------------
