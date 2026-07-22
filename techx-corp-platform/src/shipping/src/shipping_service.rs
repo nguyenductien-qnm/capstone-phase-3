@@ -12,6 +12,18 @@ use tracking::create_tracking_id;
 
 mod shipping_types;
 pub use shipping_types::*;
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize)]
+pub struct ValidateAddressRequest {
+    pub address: Address,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ValidateAddressResponse {
+    pub valid: bool,
+    pub message: String,
+}
 
 const NANOS_MULTIPLE: u32 = 10000000u32;
 
@@ -43,6 +55,38 @@ pub async fn get_quote(req: web::Json<GetQuoteRequest>) -> impl Responder {
 
     HttpResponse::Ok().json(reply)
 }
+
+#[post("/validate-address")]
+pub async fn validate_address(req: web::Json<ValidateAddressRequest>) -> impl Responder {
+    let mut valid = true;
+    let mut message = String::from("Valid address");
+
+    if req.address.street_address.trim().is_empty() {
+        valid = false;
+        message = String::from("Street address is required");
+    } else if req.address.city.trim().is_empty() {
+        valid = false;
+        message = String::from("City is required");
+    } else if req.address.state.trim().is_empty() {
+        valid = false;
+        message = String::from("State is required");
+    } else if req.address.country.trim().is_empty() {
+        valid = false;
+        message = String::from("Country is required");
+    } else if req.address.zip_code.trim().is_empty() {
+        valid = false;
+        message = String::from("Zip code is required");
+    }
+
+    info!(
+        name = "ValidateAddress",
+        valid = valid,
+        message = message.as_str()
+    );
+
+    HttpResponse::Ok().json(ValidateAddressResponse { valid, message })
+}
+
 
 #[post("/ship-order")]
 pub async fn ship_order(_req: web::Json<ShipOrderRequest>) -> impl Responder {

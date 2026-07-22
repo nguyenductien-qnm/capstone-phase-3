@@ -32,7 +32,7 @@ const handler = async ({ method, body, query }: NextApiRequest, res: NextApiResp
         })
       );
 
-      return res.status(200).json({ ...order, items: productList });
+      return res.status(202).json({ ...order, items: productList });
     }
 
     default: {

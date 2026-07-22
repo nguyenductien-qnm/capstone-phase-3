@@ -26,6 +26,7 @@ import (
 
 	"github.com/IBM/sarama"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	otelhooks "github.com/open-feature/go-sdk-contrib/hooks/open-telemetry/pkg"
 	flagd "github.com/open-feature/go-sdk-contrib/providers/flagd/pkg"
 	"github.com/open-feature/go-sdk/openfeature"
@@ -149,6 +150,8 @@ type checkout struct {
 	currencySvcClient       pb.CurrencyServiceClient
 	emailSvcClient          pb.EmailServiceClient
 	paymentSvcClient        pb.PaymentServiceClient
+	
+	dbPool                  *pgxpool.Pool
 }
 
 func main() {
@@ -198,6 +201,24 @@ func main() {
 	tracer = tp.Tracer("checkout")
 
 	svc := new(checkout)
+
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL != "" {
+		poolConfig, err := pgxpool.ParseConfig(dbURL)
+		if err != nil {
+			logger.Error(fmt.Sprintf("Unable to parse DATABASE_URL: %v", err))
+		} else {
+			dbPool, err := pgxpool.NewWithConfig(context.Background(), poolConfig)
+			if err != nil {
+				logger.Error(fmt.Sprintf("Unable to create connection pool: %v", err))
+			} else {
+				svc.dbPool = dbPool
+				defer dbPool.Close()
+			}
+		}
+	} else {
+		logger.Warn("DATABASE_URL not set, DB features disabled")
+	}
 
 	mustMapEnv(&svc.shippingSvcAddr, "SHIPPING_ADDR")
 	c := mustCreateClient(svc.shippingSvcAddr)
@@ -348,6 +369,16 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		}
 	}()
 
+	// Makes a synchronous HTTP request to the Shipping Service (POST /validate-address) to verify all shipping fields are present
+	if err := cs.validateAddress(ctx, req.Address); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid shipping address: %v", err)
+	}
+	// Makes a synchronous gRPC call to the Payment Service (Validate) to ensure the credit card is a valid Visa/Mastercard, hasn't expired, and passes standard format checks
+	if err := cs.validatePayment(ctx, req.CreditCard); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid payment information: %v", err)
+	}
+	// If any of these validations fail, the service immediately throws an error back to the frontend, stopping the entire process 
+
 	orderID, err := uuid.NewUUID()
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to generate order uuid")
@@ -357,42 +388,124 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
-	span.AddEvent("prepared")
 
-	total := &pb.Money{CurrencyCode: req.UserCurrency,
-		Units: 0,
-		Nanos: 0}
+	// 36.75$
+	// { 
+    //   "currencyCode": "USD",
+    //   "units": 36,
+    //   "nanos": 750000000
+    // }
+	total := &pb.Money{CurrencyCode: req.UserCurrency, Units: 0, Nanos: 0}
 	total = money.Must(money.Sum(total, prep.shippingCostLocalized))
 	for _, it := range prep.orderItems {
 		multPrice := money.MultiplySlow(it.Cost, uint32(it.GetItem().GetQuantity()))
 		total = money.Must(money.Sum(total, multPrice))
 	}
 
-	txID, err := cs.chargeCard(ctx, total, req.CreditCard)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to charge card: %+v", err)
+	span.AddEvent("prepared")
+
+	if cs.dbPool != nil {
+		tx, err := cs.dbPool.Begin(ctx)
+		if err != nil {
+			logger.Error(fmt.Sprintf("failed to begin transaction: %v", err))
+		} else {
+			// req
+			// {
+		    //     "user_id": "usr-12345-abcde",
+		    //     "user_currency": "USD",
+		    //     "email": "customer@example.com",
+		    //     "address": {
+		    //       "street_address": "1600 Amphitheatre Parkway",
+		    //       "city": "Mountain View",
+		    //       "state": "CA",
+		    //       "country": "USA",
+		    //       "zip_code": "94043"
+		    //     },
+		    //     "credit_card": {
+		    //       "credit_card_number": "4111222233334444",
+		    //       "credit_card_cvv": 123,
+		    //       "credit_card_expiration_year": 2028,
+		    //       "credit_card_expiration_month": 10
+		    //     }
+		    // }
+			orderMetadata := struct {
+				*pb.PlaceOrderRequest
+				OrderItems            []*pb.OrderItem `json:"orderItems"`
+				CartItems             []*pb.CartItem  `json:"cartItems"`
+				ShippingCostLocalized *pb.Money       `json:"shippingCostLocalized"`
+				Total *pb.Money `json:"total"` 
+			}{
+				PlaceOrderRequest:     req,
+				OrderItems:            prep.orderItems,
+				CartItems:             prep.cartItems,
+				ShippingCostLocalized: prep.shippingCostLocalized,
+				Total: total,
+			}
+			// add these fields into req
+			// {                                                                                                                                                                                                
+		    //     "orderItems": [                                                                                                                                                                                
+		    //       {                                                                                                                                                                                            
+		    //         "item": {                                                                                                                                                                                  
+		    //           "productId": "OLJCESPC7Z",                                                                                                                                                               
+		    //           "quantity": 2                                                                                                                                                                            
+		    //         },                                                                                                                                                                                         
+		    //         "cost": {                                                                                                                                                                                  
+		    //           "currencyCode": "EUR",                                                                                                                                                                   
+		    //           "units": 15,                                                                                                                                                                             
+		    //           "nanos": 500000000                                                                                                                                                                       
+		    //         }                                                                                                                                                                                          
+		    //       }                                                                                                                                                                                            
+		    //     ],                                                                                                                                                                                             
+		    //     "cartItems": [                                                                                                                                                                                 
+		    //       {                                                                                                                                                                                            
+		    //         "productId": "OLJCESPC7Z",                                                                                                                                                                 
+		    //         "quantity": 2                                                                                                                                                                              
+		    //       }                                                                                                                                                                                            
+		    //     ],                                                                                                                                                                                             
+		    //     "shippingCostLocalized": {                                                                                                                                                                     
+		    //       "currencyCode": "EUR",                                                                                                                                                                       
+		    //       "units": 5,                                                                                                                                                                                  
+		    //       "nanos": 0                                                                                                                                                                                   
+		    //     }                                                                                                                                                                                              
+		    // }
+			orderMetadataBytes, err := json.Marshal(orderMetadata)
+			if err != nil {
+				logger.Error(fmt.Sprintf("failed to convert Go struct into a JSONB format: %v", err))	
+			}
+
+			_, err = tx.Exec(ctx, `
+				INSERT INTO checkout.orders 
+				(order_id, user_id, currency_code, status, order_metadata) 
+				VALUES ($1, $2, $3, $4, $5)`,
+				orderID.String(), req.UserId, req.UserCurrency, "PROCESSING", orderMetadataBytes,
+			)
+			if err != nil {
+				tx.Rollback(ctx)
+				logger.Error(fmt.Sprintf("failed to insert order: %v", err))
+			} else {
+				_, err = tx.Exec(ctx, `
+					INSERT INTO checkout.outbox 
+					(aggregate_type, aggregate_id, event_type, order_id) 
+					VALUES ($1, $2, $3, $4)`,
+					"Order", orderID.String(), "ORDER_PLACED", orderID.String(),
+				)
+				if err != nil {
+					tx.Rollback(ctx)
+					logger.Error(fmt.Sprintf("failed to insert outbox event: %v", err))
+				} else {
+					if err := tx.Commit(ctx); err != nil {
+						logger.Error(fmt.Sprintf("failed to commit transaction: %v", err))
+					} else {
+						logger.Info("successfully saved order and outbox event to DB")
+					}
+				}
+			}
+		}
 	}
-
-	span.AddEvent("charged",
-		trace.WithAttributes(attribute.String("app.payment.transaction.id", txID)))
-	logger.LogAttrs(
-		ctx,
-		slog.LevelInfo, "payment went through",
-		slog.String("transaction_id", txID),
-	)
-
-	shippingTrackingID, err := cs.shipOrder(ctx, req.Address, prep.cartItems)
-	if err != nil {
-		return nil, status.Errorf(codes.Unavailable, "shipping error: %+v", err)
-	}
-	shippingTrackingAttribute := attribute.String("app.shipping.tracking.id", shippingTrackingID)
-	span.AddEvent("shipped", trace.WithAttributes(shippingTrackingAttribute))
-
-	_ = cs.emptyUserCart(ctx, req.UserId)
-
+	
 	orderResult := &pb.OrderResult{
 		OrderId:            orderID.String(),
-		ShippingTrackingId: shippingTrackingID,
+		ShippingTrackingId: "",
 		ShippingCost:       prep.shippingCostLocalized,
 		ShippingAddress:    req.Address,
 		Items:              prep.orderItems,
@@ -406,29 +519,15 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		attribute.Float64("app.shipping.amount", shippingCostFloat),
 		attribute.Float64("app.order.amount", totalPriceFloat),
 		attribute.Int("app.order.items.count", len(prep.orderItems)),
-		shippingTrackingAttribute,
 	)
 	logger.LogAttrs(
 		ctx,
-		slog.LevelInfo, "order placed",
+		slog.LevelInfo, "order placed (asynchronous)",
 		slog.String("app.order.id", orderID.String()),
 		slog.Float64("app.shipping.amount", shippingCostFloat),
 		slog.Float64("app.order.amount", totalPriceFloat),
 		slog.Int("app.order.items.count", len(prep.orderItems)),
-		slog.String("app.shipping.tracking.id", shippingTrackingID),
 	)
-
-	if err := cs.sendOrderConfirmation(ctx, req.Email, orderResult); err != nil {
-		logger.Warn(fmt.Sprintf("failed to send order confirmation to %q: %+v", req.Email, err))
-	} else {
-		logger.Info(fmt.Sprintf("order confirmation email sent to %q", req.Email))
-	}
-
-	// send to kafka only if kafka broker address is set
-	if cs.kafkaBrokerSvcAddr != "" {
-		logger.Info("sending to postProcessor")
-		cs.sendToPostProcessor(ctx, orderResult)
-	}
 
 	resp := &pb.PlaceOrderResponse{Order: orderResult}
 	return resp, nil
@@ -440,6 +539,16 @@ type orderPrep struct {
 	shippingCostLocalized *pb.Money
 }
 
+// In checkout service 
+//   1. getUserCart: 
+// 		- Calls Cart service using userID to retrieve the current list of items in the user's cart
+//   2. prepOrderItems: 
+// 		- For each item in the cart, calls the Product Catalog service to fetch the product's base price (USD). 
+// 		- It then calls the Currency service to convert that base price into the user's local currency (userCurrency).
+//   3. Gets a Shipping Quote (quoteShipping): 
+// 		- It sends the cart items and the destination address to the Shipping service to get a calculated shipping cost (returned in USD).
+//   4. Converts the Shipping Currency (convertCurrency): 
+// 		- It calls the Currency service again to convert the USD shipping cost into the user's local userCurrency.
 func (cs *checkout) prepareOrderItemsAndShippingQuoteFromCart(ctx context.Context, userID, userCurrency string, address *pb.Address) (orderPrep, error) {
 
 	ctx, span := tracer.Start(ctx, "prepareOrderItemsAndShippingQuoteFromCart")
@@ -589,6 +698,63 @@ func (cs *checkout) chargeCard(ctx context.Context, amount *pb.Money, paymentInf
 		return "", fmt.Errorf("could not charge the card: %+v", err)
 	}
 	return paymentResp.GetTransactionId(), nil
+}
+
+func (cs *checkout) validatePayment(ctx context.Context, paymentInfo *pb.CreditCardInfo) error {
+	paymentService := cs.paymentSvcClient
+	if cs.isFeatureFlagEnabled(ctx, "paymentUnreachable") {
+		badAddress := "badAddress:50051"
+		c := mustCreateClient(badAddress)
+		paymentService = pb.NewPaymentServiceClient(c)
+	}
+
+	resp, err := paymentService.Validate(ctx, &pb.ValidatePaymentRequest{
+		CreditCard: paymentInfo,
+	})
+	if err != nil {
+		return fmt.Errorf("could not reach payment validation: %v", err)
+	}
+	if !resp.GetValid() {
+		return fmt.Errorf("payment validation failed: %s", resp.GetMessage())
+	}
+	return nil
+}
+
+func (cs *checkout) validateAddress(ctx context.Context, address *pb.Address) error {
+	valPayload, err := json.Marshal(map[string]interface{}{
+		"address": address,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to marshal address validation request: %+v", err)
+	}
+
+	resp, err := otelhttp.Post(ctx, cs.shippingSvcAddr+"/validate-address", "application/json", bytes.NewBuffer(valPayload))
+	if err != nil {
+		return fmt.Errorf("failed POST to shipping service for validation: %+v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed address validation: expected 200, got %d", resp.StatusCode)
+	}
+
+	valRespBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read address validation response: %+v", err)
+	}
+
+	var valResp struct {
+		Valid   bool   `json:"valid"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(valRespBytes, &valResp); err != nil {
+		return fmt.Errorf("failed to unmarshal address validation response: %+v", err)
+	}
+
+	if !valResp.Valid {
+		return fmt.Errorf("address validation failed: %s", valResp.Message)
+	}
+	return nil
 }
 
 func (cs *checkout) sendOrderConfirmation(ctx context.Context, email string, order *pb.OrderResult) error {

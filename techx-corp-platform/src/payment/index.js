@@ -30,6 +30,18 @@ async function chargeServiceHandler(call, callback) {
   }
 }
 
+async function validateServiceHandler(call, callback) {
+  try {
+    logger.info({ request: call.request }, "Validate payment request received.");
+    const response = await charge.validate(call.request);
+    callback(null, response);
+  } catch (err) {
+    logger.warn({ err });
+    callback(null, { valid: false, message: err.message });
+  }
+}
+
+
 async function closeGracefully(signal) {
   server.forceShutdown()
   process.kill(process.pid, signal)
@@ -42,7 +54,10 @@ server.addService(health.service, new health.Implementation({
   '': health.servingStatus.SERVING
 }))
 
-server.addService(otelDemoPackage.oteldemo.PaymentService.service, { charge: chargeServiceHandler })
+server.addService(otelDemoPackage.oteldemo.PaymentService.service, {
+  charge: chargeServiceHandler,
+  validate: validateServiceHandler
+})
 
 
 let ip = "0.0.0.0";
