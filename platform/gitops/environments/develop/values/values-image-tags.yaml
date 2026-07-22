@@ -21,7 +21,7 @@ components:
       tag: 1.0-fraud-detection-ec72350
   frontend:
     imageOverride:
-      tag: 1.0-frontend-ec72350
+      tag: 1.0-frontend-49a7c53
   frontend-proxy:
     imageOverride:
       tag: 1.0-frontend-proxy-2bc5a20
@@ -39,7 +39,7 @@ components:
       tag: 1.0-ml-guard-ec72350
   payment:
     imageOverride:
-      tag: 1.0-payment-ec72350
+      tag: 1.0-payment-49a7c53
   product-catalog:
     imageOverride:
       tag: 1.0-product-catalog-ef8b835
