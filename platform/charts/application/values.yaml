@@ -186,8 +186,19 @@ components:
       env: true
     # Consumer Kafka async, KHÔNG HPA (scale nên theo lag, không phải CPU) và ngoài
     # critical path storefront → không cần PDB/spread (gián đoạn ngắn được Kafka đệm).
+    annotations:
+      reloader.stakater.com/auto: "true"
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
+    deploymentStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 0
+        maxSurge: 1
     env:
       - name: KAFKA_ADDR
         valueFrom:
@@ -1086,6 +1097,8 @@ components:
       periodSeconds: 10
       timeoutSeconds: 2
       failureThreshold: 6
+    annotations:
+      reloader.stakater.com/auto: "true"
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
     env:
@@ -1132,8 +1145,22 @@ components:
       name: product-reviews
     service:
       port: 3551
+    annotations:
+      reloader.stakater.com/auto: "true"
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
+    podDisruptionBudget:
+      maxUnavailable: 1
+    topologySpread: true
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
+    deploymentStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 0
+        maxSurge: 1
     env:
       - name: OPENAI_API_KEY
         value: dummy
@@ -1197,6 +1224,10 @@ components:
       limits:
         cpu: 500m
         memory: 512Mi
+    hpa:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 4
 
   quote:
     enabled: true
