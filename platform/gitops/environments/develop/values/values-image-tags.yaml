@@ -3,16 +3,16 @@
 components:
   accounting:
     imageOverride:
-      tag: 1.0-accounting-ec72350
+      tag: 1.0-accounting-ef8b835
   ad:
     imageOverride:
       tag: 1.0-ad-ec72350
   cart:
     imageOverride:
-      tag: 1.0-cart-aff5707
+      tag: 1.0-cart-e80b0dc
   checkout:
     imageOverride:
-      tag: 1.0-checkout-aff5707
+      tag: 1.0-checkout-e80b0dc
   currency:
     imageOverride:
       tag: 1.0-currency-ec72350
@@ -21,10 +21,10 @@ components:
       tag: 1.0-fraud-detection-ec72350
   frontend:
     imageOverride:
-      tag: 1.0-frontend-aff5707
+      tag: 1.0-frontend-e80b0dc
   frontend-proxy:
     imageOverride:
-      tag: 1.0-frontend-proxy-eda5a0e
+      tag: 1.0-frontend-proxy-e80b0dc
   image-provider:
     imageOverride:
       tag: 1.0-image-provider-ec72350
@@ -42,10 +42,10 @@ components:
       tag: 1.0-payment-ec72350
   product-catalog:
     imageOverride:
-      tag: 1.0-product-catalog-ec72350
+      tag: 1.0-product-catalog-e80b0dc
   product-reviews:
     imageOverride:
-      tag: 1.0-product-reviews-39e8171
+      tag: 1.0-product-reviews-61f161e
   quote:
     imageOverride:
       tag: 1.0-quote-ec72350

@@ -1,0 +1,89 @@
+# Mandate-19 (mở rộng) — CHECKOUT flow tải cao. Luồng ra tiền: checkout → cart +
+# currency + catalog + payment + shipping + email (6 downstream). payment/shipping/
+# email đều 1 replica KHÔNG HPA → ứng viên nút thắt. Đẩy tới gãy SLO / bão hòa backend.
+# HPA để nguyên (bức tranh thật). Checkout có side-effect thật (đã verify 200 OK).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: locust-checkout
+  namespace: techx-develop
+data:
+  locustfile.py: |
+    import random, uuid
+    from locust import HttpUser, task, between, LoadTestShape
+
+    PRODUCTS = ["0PUK6V6EV0","1YMWWN1N4O","2ZYFJ3GM2N","66VCHSJNUP","6E92ZMYYFZ",
+                "9SIQT8TOJO","L9ECAV7KIM","LS4PSXUNUM","OLJCESPC7Z","HQTGWGPNH4"]
+    PERSON = {"email":"a@b.com","address":{"streetAddress":"1 Main","zipCode":"94043",
+              "city":"MV","state":"CA","country":"US"},"userCurrency":"USD",
+              "creditCard":{"creditCardNumber":"4432-8015-6152-0454",
+              "creditCardExpirationMonth":1,"creditCardExpirationYear":2039,"creditCardCvv":672}}
+
+    class CheckoutUser(HttpUser):
+        wait_time = between(1, 3)
+        @task(1)
+        def checkout_single(self):
+            u = str(uuid.uuid1())
+            self.client.post("/api/cart", name="addcart", json={"item":{"productId":random.choice(PRODUCTS),"quantity":1},"userId":u})
+            p = dict(PERSON); p["userId"] = u
+            self.client.post("/api/checkout", json=p, name="checkout")
+        @task(1)
+        def checkout_multi(self):
+            u = str(uuid.uuid1())
+            for _ in range(random.choice([2,3,4])):
+                self.client.post("/api/cart", name="addcart", json={"item":{"productId":random.choice(PRODUCTS),"quantity":random.choice([1,2])},"userId":u})
+            p = dict(PERSON); p["userId"] = u
+            self.client.post("/api/checkout", json=p, name="checkout-multi")
+
+    class StepShape(LoadTestShape):
+        # checkout nặng hơn browse → bậc thấp hơn: 10/20/40/60u, mỗi bậc 300s
+        stages = [(300,10,2),(600,20,3),(900,40,4),(1200,60,5)]
+        def tick(self):
+            t = self.get_run_time()
+            for end, users, rate in self.stages:
+                if t < end:
+                    return (users, rate)
+            return None
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: locust-checkout
+  namespace: techx-develop
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 7200
+  template:
+    metadata:
+      labels: { app: locust-checkout }
+    spec:
+      restartPolicy: Never
+      nodeSelector: { workload-tier: observability }
+      tolerations:
+        - { key: dedicated, operator: Equal, value: observability, effect: NoSchedule }
+      securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: locust
+          image: 804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.0-load-generator-5369fc8
+          command: ["sh","-c"]
+          args:
+            - >
+              locust -f /mnt/locust/locustfile.py --host http://frontend-proxy:80
+              --headless --csv /data/checkout --csv-full-history --run-time 1240s;
+              echo "LOCUST_DONE exit=$?";
+              sleep 3600
+          env:
+            - { name: LOCUST_BROWSER_TRAFFIC_ENABLED, value: "false" }
+            - { name: PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION, value: python }
+          securityContext: { allowPrivilegeEscalation: false, runAsNonRoot: true, capabilities: { drop: ["ALL"] } }
+          resources:
+            requests: { cpu: "500m", memory: "512Mi" }
+            limits: { cpu: "1", memory: "1Gi" }
+          volumeMounts:
+            - { name: lf, mountPath: /mnt/locust }
+            - { name: data, mountPath: /data }
+      volumes:
+        - name: lf
+          configMap: { name: locust-checkout }
+        - name: data
+          emptyDir: {}

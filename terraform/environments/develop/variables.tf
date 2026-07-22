@@ -234,6 +234,7 @@ variable "replica_instance_class" {
 variable "enable_rds_proxy" {
   type        = bool
   description = "Bật/Tắt tạo RDS Proxy cho PostgreSQL"
+  default     = true
 }
 
 variable "rds_track_activity_query_size" {
@@ -375,6 +376,18 @@ variable "audit_operator_role_names" {
   type        = list(string)
   default     = []
   description = "IAM role names to attach the tamper-deny policy; leave empty for Identity Center manual attachment"
+}
+
+variable "rds_enable_rotation" {
+  type        = bool
+  description = "Bật/Tắt xoay vòng secret tự động cho RDS"
+  default     = true
+}
+
+variable "rds_rotation_rules_automatically_after_days" {
+  type        = number
+  description = "Số ngày tự động xoay vòng secret RDS"
+  default     = 30
 }
 
 variable "cloudtrail_s3_data_event_bucket_arns" {

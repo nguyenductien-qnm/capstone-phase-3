@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-07-22
-- Decision owners: CDO05 team
+- Decision owners: DANG NHAT MINH
 - Scope: browse -> cart -> checkout under sustained load
 - Implementation branch: `feat/mandate16`
 - Evidence image revision: `e80b0dc`
