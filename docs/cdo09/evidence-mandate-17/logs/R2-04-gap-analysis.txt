@@ -1,0 +1,11 @@
+### R2 - PHÂN TÍCH 5 REQUEST LỖI @ 2026-07-22T10:54:55Z
+--- frontend-proxy có preStop hook / grace period không? ---
+terminationGracePeriodSeconds=30
+preStop={"preStop":{"exec":{"command":["/bin/sh","-c","sleep 5"]}}}
+--- service frontend-proxy: annotation deregistration delay ---
+\"service.beta.kubernetes.io/aws-load-balancer-nlb-target-type\":\"ip\"
+"service.beta.kubernetes.io/aws-load-balancer-nlb-target-type":"ip"
+
+--- service type ---
+NAME             TYPE           CLUSTER-IP      EXTERNAL-IP                                                                     PORT(S)        AGE    SELECTOR
+frontend-proxy   LoadBalancer   172.20.113.12   k8s-techxdev-frontend-118a6a4592-b1456caad7e2a2b9.elb.us-east-1.amazonaws.com   80:30851/TCP   3d7h   opentelemetry.io/name=frontend-proxy

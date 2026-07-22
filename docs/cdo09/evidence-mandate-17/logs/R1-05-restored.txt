@@ -1,0 +1,8 @@
+### R1 - RESTORE @ 2026-07-22T10:26:24Z
+NAME   READY   UP-TO-DATE   AVAILABLE   AGE
+ad     2/2     2            2           3d6h
+NAME   REFERENCE       TARGETS              MINPODS   MAXPODS   REPLICAS   AGE
+ad     Deployment/ad   cpu: <unknown>/70%   2         4         0          8s
+NAME                  READY   STATUS    RESTARTS   AGE   IP             NODE                           NOMINATED NODE   READINESS GATES
+ad-6674445b84-d6d6f   1/1     Running   0          16s   10.60.11.138   ip-10-60-11-81.ec2.internal    <none>           <none>
+ad-6674445b84-kfkjh   1/1     Running   0          16s   10.60.12.136   ip-10-60-12-251.ec2.internal   <none>           <none>
