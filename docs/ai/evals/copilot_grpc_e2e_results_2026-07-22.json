@@ -1,0 +1,467 @@
+{
+  "target": "localhost:50052",
+  "cart_target": "localhost:56437",
+  "n": 10,
+  "summaries": {
+    "catalog_search": {
+      "n": 10,
+      "passed": 10,
+      "latency_p50_s": 3.7423424500011606,
+      "latency_p95_s": 4.2626450000097975,
+      "latency_max_s": 4.2626450000097975,
+      "tool_latency_p50_ms": 53.5,
+      "tool_latency_p95_ms": 92,
+      "tool_latency_max_ms": 92
+    },
+    "product_reviews": {
+      "n": 10,
+      "passed": 10,
+      "latency_p50_s": 4.96030014999269,
+      "latency_p95_s": 6.689263999985997,
+      "latency_max_s": 6.689263999985997,
+      "tool_latency_p50_ms": 78.0,
+      "tool_latency_p95_ms": 95,
+      "tool_latency_max_ms": 95
+    },
+    "cart_read": {
+      "n": 10,
+      "passed": 10,
+      "latency_p50_s": 4.022708150005201,
+      "latency_p95_s": 4.455413599993335,
+      "latency_max_s": 4.455413599993335,
+      "tool_latency_p50_ms": 53.5,
+      "tool_latency_p95_ms": 68,
+      "tool_latency_max_ms": 68
+    }
+  },
+  "samples": {
+    "catalog_search": [
+      {
+        "case": "catalog_search",
+        "latency_s": 3.678430500003742,
+        "tool_names": [
+          "search_products"
+        ],
+        "tool_latencies_ms": [
+          83
+        ],
+        "degraded": false,
+        "passed": true,
+        "error": ""
+      },
+      {
+        "case": "catalog_search",
+        "latency_s": 4.2626450000097975,
+        "tool_names": [
+          "search_products"
+        ],
+        "tool_latencies_ms": [
+          92
+        ],
+        "degraded": false,
+        "passed": true,
+        "error": ""
+      },
+      {
+        "case": "catalog_search",
+        "latency_s": 3.783414899982745,
+        "tool_names": [
+          "search_products"
+        ],
+        "tool_latencies_ms": [
+          55
+        ],
+        "degraded": false,
+        "passed": true,
+        "error": ""
+      },
+      {
+        "case": "catalog_search",
+        "latency_s": 3.6623326999833807,
+        "tool_names": [
+          "search_products"
+        ],
+        "tool_latencies_ms": [
+          60
+        ],
+        "degraded": false,
+        "passed": true,
+        "error": ""
+      },
+      {
+        "case": "catalog_search",
+        "latency_s": 3.9714799000066705,
+        "tool_names": [
+          "search_products"
+        ],
+        "tool_latencies_ms": [
+          50
+        ],
+        "degraded": false,
+        "passed": true,
+        "error": ""
+      },
+      {
+        "case": "catalog_search",
+        "latency_s": 3.625280499982182,
+        "tool_names": [
+          "search_products"
+        ],
+        "tool_latencies_ms": [
+          49
+        ],
+        "degraded": false,
+        "passed": true,
+        "error": ""
+      },
+      {
+        "case": "catalog_search",
+        "latency_s": 3.764431199990213,
+        "tool_names": [
+          "search_products"
+        ],
+        "tool_latencies_ms": [
+          53
+        ],
+        "degraded": false,
+        "passed": true,
+        "error": ""
+      },
+      {
+        "case": "catalog_search",
+        "latency_s": 3.504985100007616,
+        "tool_names": [
+          "search_products"
+        ],
+        "tool_latencies_ms": [
+          54
+        ],
+        "degraded": false,
+        "passed": true,
+        "error": ""
+      },
+      {
+        "case": "catalog_search",
+        "latency_s": 3.7202537000121083,
+        "tool_names": [
+          "search_products"
+        ],
+        "tool_latencies_ms": [
+          50
+        ],
+        "degraded": false,
+        "passed": true,
+        "error": ""
+      },
+      {
+        "case": "catalog_search",
+        "latency_s": 3.896230399986962,
+        "tool_names": [
+          "search_products"
+        ],
+        "tool_latencies_ms": [
+          53
+        ],
+        "degraded": false,
+        "passed": true,
+        "error": ""
+      }
+    ],
+    "product_reviews": [
+      {
+        "case": "product_reviews",
+        "latency_s": 4.295226199988974,
+        "tool_names": [
+          "get_product_reviews"
+        ],
+        "tool_latencies_ms": [
+          50
+        ],
+        "degraded": false,
+        "passed": true,
+        "error": ""
+      },
+      {
+        "case": "product_reviews",
+        "latency_s": 5.073901099996874,
+        "tool_names": [
+          "get_product_reviews"
+        ],
+        "tool_latencies_ms": [
+          65
+        ],
+        "degraded": false,
+        "passed": true,
+        "error": ""
+      },
+      {
+        "case": "product_reviews",
+        "latency_s": 4.430206999997608,
+        "tool_names": [
+          "get_product_reviews"
+        ],
+        "tool_latencies_ms": [
+          89
+        ],
+        "degraded": false,
+        "passed": true,
+        "error": ""
+      },
+      {
+        "case": "product_reviews",
+        "latency_s": 5.0028641000099014,
+        "tool_names": [
+          "get_product_reviews"
+        ],
+        "tool_latencies_ms": [
+          78
+        ],
+        "degraded": false,
+        "passed": true,
+        "error": ""
+      },
+      {
+        "case": "product_reviews",
+        "latency_s": 4.532044399995357,
+        "tool_names": [
+          "get_product_reviews"
+        ],
+        "tool_latencies_ms": [
+          75
+        ],
+        "degraded": false,
+        "passed": true,
+        "error": ""
+      },
+      {
+        "case": "product_reviews",
+        "latency_s": 6.689263999985997,
+        "tool_names": [
+          "get_product_reviews"
+        ],
+        "tool_latencies_ms": [
+          80
+        ],
+        "degraded": false,
+        "passed": true,
+        "error": ""
+      },
+      {
+        "case": "product_reviews",
+        "latency_s": 5.302163399988785,
+        "tool_names": [
+          "get_product_reviews"
+        ],
+        "tool_latencies_ms": [
+          88
+        ],
+        "degraded": false,
+        "passed": true,
+        "error": ""
+      },
+      {
+        "case": "product_reviews",
+        "latency_s": 5.610829699988244,
+        "tool_names": [
+          "get_product_reviews"
+        ],
+        "tool_latencies_ms": [
+          76
+        ],
+        "degraded": false,
+        "passed": true,
+        "error": ""
+      },
+      {
+        "case": "product_reviews",
+        "latency_s": 4.270165399997495,
+        "tool_names": [
+          "get_product_reviews"
+        ],
+        "tool_latencies_ms": [
+          78
+        ],
+        "degraded": false,
+        "passed": true,
+        "error": ""
+      },
+      {
+        "case": "product_reviews",
+        "latency_s": 4.917736199975479,
+        "tool_names": [
+          "get_product_reviews"
+        ],
+        "tool_latencies_ms": [
+          95
+        ],
+        "degraded": false,
+        "passed": true,
+        "error": ""
+      }
+    ],
+    "cart_read": [
+      {
+        "case": "cart_read",
+        "latency_s": 3.9119703999895137,
+        "tool_names": [
+          "get_cart"
+        ],
+        "tool_latencies_ms": [
+          68
+        ],
+        "degraded": false,
+        "passed": true,
+        "error": ""
+      },
+      {
+        "case": "cart_read",
+        "latency_s": 4.455413599993335,
+        "tool_names": [
+          "get_cart"
+        ],
+        "tool_latencies_ms": [
+          56
+        ],
+        "degraded": false,
+        "passed": true,
+        "error": ""
+      },
+      {
+        "case": "cart_read",
+        "latency_s": 3.9913767999969423,
+        "tool_names": [
+          "get_cart"
+        ],
+        "tool_latencies_ms": [
+          52
+        ],
+        "degraded": false,
+        "passed": true,
+        "error": ""
+      },
+      {
+        "case": "cart_read",
+        "latency_s": 4.0540395000134595,
+        "tool_names": [
+          "get_cart"
+        ],
+        "tool_latencies_ms": [
+          64
+        ],
+        "degraded": false,
+        "passed": true,
+        "error": ""
+      },
+      {
+        "case": "cart_read",
+        "latency_s": 3.7251060999988113,
+        "tool_names": [
+          "get_cart"
+        ],
+        "tool_latencies_ms": [
+          65
+        ],
+        "degraded": false,
+        "passed": true,
+        "error": ""
+      },
+      {
+        "case": "cart_read",
+        "latency_s": 4.389367099996889,
+        "tool_names": [
+          "get_cart"
+        ],
+        "tool_latencies_ms": [
+          52
+        ],
+        "degraded": false,
+        "passed": true,
+        "error": ""
+      },
+      {
+        "case": "cart_read",
+        "latency_s": 4.180436900001951,
+        "tool_names": [
+          "get_cart"
+        ],
+        "tool_latencies_ms": [
+          53
+        ],
+        "degraded": false,
+        "passed": true,
+        "error": ""
+      },
+      {
+        "case": "cart_read",
+        "latency_s": 3.7502268999814987,
+        "tool_names": [
+          "get_cart"
+        ],
+        "tool_latencies_ms": [
+          52
+        ],
+        "degraded": false,
+        "passed": true,
+        "error": ""
+      },
+      {
+        "case": "cart_read",
+        "latency_s": 3.5573143000074197,
+        "tool_names": [
+          "get_cart"
+        ],
+        "tool_latencies_ms": [
+          54
+        ],
+        "degraded": false,
+        "passed": true,
+        "error": ""
+      },
+      {
+        "case": "cart_read",
+        "latency_s": 4.43305209997925,
+        "tool_names": [
+          "get_cart"
+        ],
+        "tool_latencies_ms": [
+          53
+        ],
+        "degraded": false,
+        "passed": true,
+        "error": ""
+      }
+    ]
+  },
+  "confirmation_gate": {
+    "user_id": "e2e-gate-f2424e27e9",
+    "product_id": "1YMWWN1N4O",
+    "product_name": "Eclipsmart Travel Refractor Telescope",
+    "gate_tools": [
+      "add_item_to_cart"
+    ],
+    "pending_arguments": {
+      "product_id": "1YMWWN1N4O",
+      "quantity": 1
+    },
+    "pending_confirmation_returned": true,
+    "pending_product_id_correct": true,
+    "unchanged_before_confirmation": true,
+    "written_after_confirmation": true,
+    "passed": true,
+    "gate_latency_s": 3.6640725000179373,
+    "confirmation_latency_s": 0.09460489999037236,
+    "cart_read_before_latency_ms": 50.543,
+    "cart_read_after_gate_latency_ms": 4.297,
+    "confirmation_tools": [
+      "add_item_to_cart"
+    ],
+    "cart_before": [],
+    "cart_after_gate": [],
+    "cart_after_confirmation": [
+      [
+        "1YMWWN1N4O",
+        1
+      ]
+    ]
+  }
+}

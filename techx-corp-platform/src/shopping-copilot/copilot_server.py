@@ -30,6 +30,7 @@ from grpc_health.v1 import health, health_pb2, health_pb2_grpc
 from opentelemetry import trace
 
 import agent
+import demo_pb2
 import tools
 from botocore.config import Config
 from bedrock_client import create_bedrock_runtime_client
@@ -100,7 +101,7 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
             blocked, sanitized_question = apply_guardrail_input(self._bedrock, request.question)
             input_span.set_attribute("guardrail.blocked", blocked)
         lat_in = int((time.time() - start_in) * 1000)
-        trace_steps.append(pb.TraceStep(
+        trace_steps.append(demo_pb2.TraceStep(
             step_name="Input Guardrail (PII/Prompt Guard)",
             latency_ms=lat_in,
             status="blocked" if blocked else "pass"
@@ -117,14 +118,14 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
         start_llm = time.time()
         result = agent.run_agent(self._bedrock, routed_model, session, request.user_id)
         lat_llm = int((time.time() - start_llm) * 1000)
-        trace_steps.append(pb.TraceStep(
+        trace_steps.append(demo_pb2.TraceStep(
             step_name="Model Gateway & Bedrock Nova",
             latency_ms=lat_llm,
             status="ok"
         ))
         
         for ts in result.trace_steps:
-            trace_steps.append(pb.TraceStep(
+            trace_steps.append(demo_pb2.TraceStep(
                 step_name=ts.get("step_name", ""),
                 latency_ms=ts.get("latency_ms", 0),
                 status=ts.get("status", "")
@@ -186,7 +187,7 @@ def _to_records(actions: list[agent.ToolCall]) -> list:
 
 
 def serve():
-    main_timeout = float(os.environ.get('LLM_COPILOT_TIMEOUT', '4.9'))
+    main_timeout = float(os.environ.get('LLM_COPILOT_TIMEOUT', '6.9'))
     primary_config = Config(connect_timeout=1.0, read_timeout=main_timeout, retries={'max_attempts': 0})
     bedrock = create_bedrock_runtime_client(region_name=AWS_REGION, config=primary_config)
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=MAX_WORKERS))
