@@ -147,6 +147,11 @@ networkPolicy:
     kafka: [accounting, checkout, fraud-detection]
     llm: [shopping-copilot]
     frontend: [frontend-proxy, load-generator]
+    # image-provider phục vụ ảnh sản phẩm + logo. frontend-proxy route `/images/` sang
+    # đây (envoy.tmpl.yaml), frontend gọi khi render server-side. THIẾU dòng này thì
+    # default-deny chặn sạch ingress -> toàn bộ ảnh trên storefront biến mất, trong khi
+    # API và checkout vẫn xanh nên các bài kiểm tra money-path KHÔNG phát hiện ra.
+    image-provider: [frontend-proxy, frontend]
   # Pod gắn label `egress-internet: "true"` mới được ra Internet (payment provider, Bedrock...).
 
 serviceAccount:
