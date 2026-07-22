@@ -31,7 +31,16 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
                 resolve(response as ChatWithCopilotResponse);
             });
         });
-        res.status(200).json(response);
+        // Keep the HTTP contract explicit. In particular, traceId and citations
+        // must survive the gRPC -> Next.js -> evidence/UI response path.
+        res.status(200).json({
+            response: response.response,
+            pendingConfirmation: response.pendingConfirmation,
+            actionsTaken: response.actionsTaken || [],
+            degraded: response.degraded,
+            traceId: response.traceId || '',
+            citations: response.citations || [],
+        });
     } catch (error) {
         console.error('Copilot gRPC Error:', error);
         res.status(500).json({ error: (error as Error).message });

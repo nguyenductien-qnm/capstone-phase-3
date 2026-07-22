@@ -84,6 +84,19 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
         self._pending = _PendingStore(CONFIRM_TTL_SECONDS)
 
     def ChatWithCopilot(self, request, context):
+        # Keep one explicit request span so trace_id is available even when the
+        # optional gRPC auto-instrumentation is absent or misconfigured.
+        with tracer.start_as_current_span("shopping_copilot.chat") as request_span:
+            response = self._handle_chat(request)
+            span_context = request_span.get_span_context()
+            if span_context.is_valid:
+                response.trace_id = format(span_context.trace_id, "032x")
+            request_span.set_attribute("copilot.degraded", response.degraded)
+            request_span.set_attribute("copilot.citation_count", len(response.citations))
+            request_span.set_attribute("copilot.tool_call_count", len(response.actions_taken))
+            return response
+
+    def _handle_chat(self, request):
         # --- Phase 2: user approved a pending write -> execute it, skip the LLM.
         if request.confirmation_token:
             return self._execute_confirmed(request)

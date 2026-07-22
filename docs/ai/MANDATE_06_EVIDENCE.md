@@ -15,6 +15,7 @@ To comply with MANDATE-06 requirement #4 ("eval + số đo tái tạo được t
 ```bash
 # E2E Production Measurement (Source of Truth)
 # Requires Tailscale access to the cluster and JAEGER_BASE_URL
+export JAEGER_BASE_URL="https://jaeger-tf1.<tailnet-name>.ts.net/jaeger/ui"
 python3 docs/ai/evals/eval_mandate06_prod.py
 
 # In-Pod Baseline Measurement
@@ -23,6 +24,11 @@ kubectl exec -it <shopping-copilot-pod> -n techx-tf1 -- python3 docs/ai/evals/in
 # LLM-Judge Local Run
 cd techx-corp-platform/src/product-reviews && python3 eval_guardrails.py --mode=llm-judge
 ```
+
+The production eval accepts either the Jaeger origin or the full `/jaeger/ui`
+base path, waits briefly for asynchronous trace export, and writes one evidence
+JSON file per case. A dedicated `CITATION/product-review` case verifies that
+review citations survive the gRPC -> Next.js -> HTTP response path.
 
 **Live Measurements (Captured 2026-07-20)**:
 * **E2E Production (`eval_mandate06_prod.py`)**: 10/25 Pass (40.00%) — p50: 2767ms, p95: 19187ms. *(Note: Low pass rate and extreme latency up to 20s are caused by missing LLM timeouts in `copilot_server.py`. The eval script was updated to a 75s timeout to successfully measure these hangs without client-side network disconnects. A fix has been calculated via `measure_bedrock_latency.py` to set the primary timeout to 5.1s.)*
