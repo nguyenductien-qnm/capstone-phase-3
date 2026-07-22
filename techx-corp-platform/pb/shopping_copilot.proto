@@ -7,6 +7,8 @@ package oteldemo;
 
 option go_package = "genproto/oteldemo";
 
+import "demo.proto";
+
 // Dịch vụ Shopping Copilot Agent
 service ShoppingCopilotService {
   // Thực hiện hội thoại với AI Agent
@@ -60,6 +62,9 @@ message Citation {
   string score = 3;       // điểm số của review đó
 }
 
+// Báo cáo chi tiết từng bước (guardrail, latency) cho UI trace panel
+// (TraceStep defined in demo.proto)
+
 // Phản hồi từ Agent
 message ChatWithCopilotResponse {
   string response = 1;        // Câu trả lời tổng hợp dạng text từ Agent
@@ -83,4 +88,7 @@ message ChatWithCopilotResponse {
   // Review cụ thể agent dùng làm nguồn cho câu trả lời. Rỗng nếu câu trả lời
   // không dựa trên review nào (vd. câu hỏi về giá, hoặc "không có thông tin").
   repeated Citation citations = 6;
+
+  // Dữ liệu từng bước cho UI trace panel
+  repeated TraceStep trace_steps = 7;
 }

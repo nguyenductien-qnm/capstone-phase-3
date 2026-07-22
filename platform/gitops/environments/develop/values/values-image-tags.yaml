@@ -21,7 +21,7 @@ components:
       tag: 1.0-fraud-detection-f33f5bf
   frontend:
     imageOverride:
-      tag: 1.0-frontend-f33f5bf
+      tag: 1.0-frontend-bdce702
   frontend-proxy:
     imageOverride:
       tag: 1.0-frontend-proxy-f33f5bf
@@ -36,7 +36,7 @@ components:
       tag: 1.0-load-generator-f33f5bf
   ml-guard:
     imageOverride:
-      tag: 1.0-ml-guard-f33f5bf
+      tag: 1.0-ml-guard-bdce702
   payment:
     imageOverride:
       tag: 1.0-payment-f33f5bf
@@ -45,19 +45,19 @@ components:
       tag: 1.0-product-catalog-f33f5bf
   product-reviews:
     imageOverride:
-      tag: 1.0-product-reviews-f33f5bf
+      tag: 1.0-product-reviews-bdce702
   quote:
     imageOverride:
       tag: 1.0-quote-f33f5bf
   recommendation:
     imageOverride:
-      tag: 1.0-recommendation-f33f5bf
+      tag: 1.0-recommendation-bdce702
   shipping:
     imageOverride:
       tag: 1.0-shipping-f33f5bf
   shopping-copilot:
     imageOverride:
-      tag: 1.0-shopping-copilot-f33f5bf
+      tag: 1.0-shopping-copilot-bdce702
   email:
     imageOverride:
       tag: 1.0-email-f33f5bf
