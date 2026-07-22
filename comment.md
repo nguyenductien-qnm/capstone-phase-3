@@ -16,15 +16,15 @@ Sửa lỗi phiên bản `openfeature-sdk==0.5.1` không tồn tại bằng các
 | Trường bắt buộc | Giá trị |
 |---|---|
 | Change owner / implementer | Lê Kim Dũng (03 lê kim dũng) |
-| Reviewer độc lập | |
-| Jira / Incident ID | N/A |
-| Resource và môi trường bị ảnh hưởng | Service `llm` |
-| Before → After | `openfeature-sdk==0.5.1` → `0.6.0` |
+| Reviewer độc lập | Nguyễn Hữu Định (AI Lead) |
+| Jira / Incident ID | TF1-94, TF1-96, TF1-74 |
+| Resource và môi trường bị ảnh hưởng | Service `llm`, `shopping-copilot`, `aiops-detector` |
+| Before → After | Pass rate 40% → 96.0% (EKS Live + ML-Guard), PromQL -> Multi-window Multi-burn-rate |
 | Blast radius / SLO impact | Low |
 | Terraform plan hoặc Helm diff/render | N/A |
 | GitHub workflow run ID | N/A |
-| Rollback command / revert commit | N/A |
-| Evidence path (không chứa secret) | N/A |
+| Rollback command / revert commit | git revert 881fde4 |
+| Evidence path (không chứa secret) | docs/ai/04_eval_report.md, docs/ai/MANDATE_06_EVIDENCE.md |
 
 - [x] Không dùng shared account; thay đổi quy được về danh tính cá nhân.
 - [x] Không chứa secret, access key, token, `terraform.tfvars` hoặc account ID đầy đủ.
