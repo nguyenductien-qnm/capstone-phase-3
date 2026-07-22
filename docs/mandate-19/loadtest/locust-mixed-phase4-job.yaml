@@ -1,0 +1,100 @@
+# Mandate-19 PHASE 4 — Mixed traffic. Nhiều flow theo weight OTel-demo chuẩn
+# (workload đã ghi rõ, không tự bịa tỷ lệ). Loại flow AI (ml-guard/llm tắt trên dev).
+# Mục tiêu: đo REPLICA CONCURRENCY thật — service nào peak cùng lúc → đầu vào Quota (§3.3).
+# HPA để NGUYÊN (Phase 4 = bức tranh thật, không ghim). Checkout có side-effect thật (đã verify OK).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: locust-mixed-phase4
+  namespace: techx-develop
+data:
+  locustfile.py: |
+    import json, random, uuid
+    from locust import HttpUser, task, between
+
+    PRODUCTS = ["0PUK6V6EV0","1YMWWN1N4O","2ZYFJ3GM2N","66VCHSJNUP","6E92ZMYYFZ",
+                "9SIQT8TOJO","L9ECAV7KIM","LS4PSXUNUM","OLJCESPC7Z","HQTGWGPNH4"]
+    CATEGORIES = ["binoculars","telescopes","accessories","assembly","travel","books",None]
+    PERSON = {"email":"a@b.com","address":{"streetAddress":"1 Main","zipCode":"94043",
+              "city":"MV","state":"CA","country":"US"},"userCurrency":"USD",
+              "creditCard":{"creditCardNumber":"4432-8015-6152-0454",
+              "creditCardExpirationMonth":1,"creditCardExpirationYear":2039,"creditCardCvv":672}}
+
+    class ShopUser(HttpUser):
+        wait_time = between(1, 5)
+        # weight OTel-demo: index1 browse10 recos3 reviews2 ads3 viewcart3 addcart2 checkout1 multi1
+        @task(1)
+        def index(self):
+            self.client.get("/", name="index /")
+        @task(10)
+        def browse_product(self):
+            self.client.get(f"/api/products/{random.choice(PRODUCTS)}", name="browse /api/products/:id")
+        @task(3)
+        def recommendations(self):
+            self.client.get("/api/recommendations", params={"productIds":[random.choice(PRODUCTS)]},
+                            name="recos /api/recommendations")
+        @task(2)
+        def reviews(self):
+            self.client.get(f"/api/product-reviews/{random.choice(PRODUCTS)}", name="reviews /api/product-reviews/:id")
+        @task(3)
+        def ads(self):
+            self.client.get("/api/data/", params={"contextKeys":[random.choice(CATEGORIES)]}, name="ads /api/data")
+        @task(3)
+        def view_cart(self):
+            self.client.get("/api/cart", name="viewcart /api/cart")
+        @task(2)
+        def add_to_cart(self):
+            u = str(uuid.uuid1())
+            self.client.get(f"/api/products/{random.choice(PRODUCTS)}", name="browse /api/products/:id")
+            self.client.post("/api/cart", name="addcart /api/cart",
+                             json={"item":{"productId":random.choice(PRODUCTS),"quantity":random.choice([1,2,3])},"userId":u})
+        @task(1)
+        def checkout(self):
+            u = str(uuid.uuid1())
+            self.client.post("/api/cart", name="addcart /api/cart",
+                             json={"item":{"productId":random.choice(PRODUCTS),"quantity":1},"userId":u})
+            p = dict(PERSON); p["userId"] = u
+            self.client.post("/api/checkout", json=p, name="checkout /api/checkout")
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: locust-mixed-phase4
+  namespace: techx-develop
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 7200
+  template:
+    metadata:
+      labels: { app: locust-mixed-phase4 }
+    spec:
+      restartPolicy: Never
+      nodeSelector: { workload-tier: observability }
+      tolerations:
+        - { key: dedicated, operator: Equal, value: observability, effect: NoSchedule }
+      securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: locust
+          image: 804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.0-load-generator-5369fc8
+          command: ["sh","-c"]
+          args:
+            - >
+              locust -f /mnt/locust/locustfile.py --host http://frontend-proxy:80
+              --headless -u 60 -r 5 --run-time 600s --csv /data/mixed --csv-full-history;
+              echo "LOCUST_DONE exit=$?";
+              sleep 3600
+          env:
+            - { name: LOCUST_BROWSER_TRAFFIC_ENABLED, value: "false" }
+            - { name: PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION, value: python }
+          securityContext: { allowPrivilegeEscalation: false, runAsNonRoot: true, capabilities: { drop: ["ALL"] } }
+          resources:
+            requests: { cpu: "500m", memory: "512Mi" }
+            limits: { cpu: "1", memory: "1Gi" }
+          volumeMounts:
+            - { name: lf, mountPath: /mnt/locust }
+            - { name: data, mountPath: /data }
+      volumes:
+        - name: lf
+          configMap: { name: locust-mixed-phase4 }
+        - name: data
+          emptyDir: {}
