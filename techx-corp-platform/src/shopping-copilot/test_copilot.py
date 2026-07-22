@@ -19,6 +19,7 @@ os.environ["LLM_INJECTION_JUDGE"] = "false"
 import copilot_server as srv
 import agent
 import tools
+from opentelemetry.sdk.trace import TracerProvider
 
 
 class FakeBedrock:
@@ -111,6 +112,34 @@ def test_read_tool_routing_and_audit():
         tools.get_product_reviews = orig
 
 
+def test_trace_and_citations_reach_grpc_response():
+    original_tool = tools.get_product_reviews
+    original_tracer = srv.tracer
+    provider = TracerProvider()
+    srv.tracer = provider.get_tracer("shopping-copilot-test")
+    tools.get_product_reviews = lambda _pid: (
+        '{"status":"ok","review_count":1,"average_score":4.8,"summary":"good",'
+        '"citations":[{"review_id":"alice","snippet":"good","score":"4.8"}]}'
+    )
+    try:
+        bedrock = FakeBedrock([
+            _tool_use("get_product_reviews", {"product_id": "L9ECAV7KIM"}),
+            _end("Grounded review score: 4.8."),
+        ])
+        response = srv.ShoppingCopilotServicer(bedrock).ChatWithCopilot(
+            _Req(question="reviews for L9ECAV7KIM"), None
+        )
+
+        assert len(response.trace_id) == 32
+        int(response.trace_id, 16)
+        assert len(response.citations) == 1
+        assert response.citations[0].review_id == "alice"
+    finally:
+        tools.get_product_reviews = original_tool
+        srv.tracer = original_tracer
+        provider.shutdown()
+
+
 def test_max_loop_limit():
     # Always ask for another tool -> must stop at MAX_TOOL_CALLS, not loop forever.
     scripted = [_tool_use("get_cart", {}) for _ in range(agent.MAX_TOOL_CALLS + 3)]
@@ -143,6 +172,7 @@ def test_thinking_tags_are_stripped():
 if __name__ == "__main__":
     test_confirmation_gate_two_phase()
     test_read_tool_routing_and_audit()
+    test_trace_and_citations_reach_grpc_response()
     test_max_loop_limit()
     test_degraded_on_bedrock_failure()
     test_thinking_tags_are_stripped()
