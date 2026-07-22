@@ -514,10 +514,10 @@ jobs:
   # cosign attest spdxjson. Đặt CÙNG file để giữ cùng BUILD_IDENTITY    #
   # (subject app-build.yaml@refs/heads/develop) mà Kyverno/verify dùng. #
   #                                                                     #
-  # ECR IMMUTABLE: mỗi digest chỉ chứa 1 tag .att. Verify 2026-07-21:   #
-  # repo có 352 .sig / 0 .att -> promoted-develop chưa từng chạy, nên   #
-  # SBOM .att là lần ghi ĐẦU/digest -> không bị chặn. Nếu sau này bật   #
-  # promoted-develp trên cùng digest thì phải tách COSIGN_REPOSITORY.   #
+  # ECR IMMUTABLE: mỗi digest chỉ chứa 1 tag .att -> SBOM là ATTESTATION #
+  # DUY NHẤT trong repo image (lần ghi đầu/digest, không bị chặn).      #
+  # Attestation promoted-develop của app-attest.yaml đã TÁCH sang repo  #
+  # attest riêng (mutable) qua COSIGN_REPOSITORY -> không đụng nhau.    #
   # ------------------------------------------------------------------ #
   attest-sbom:
     name: Attest SBOM (prod digests)
