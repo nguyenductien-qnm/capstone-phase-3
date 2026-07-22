@@ -1,7 +1,7 @@
 import requests
 
 def fetch_trace(trace_id, base_url):
-    url = f"{base_url}/jaeger/ui/api/traces/{trace_id}"
+    url = f"{base_url}/api/traces/{trace_id}"
     try:
         resp = requests.get(url, timeout=10)
         if resp.status_code == 200:
