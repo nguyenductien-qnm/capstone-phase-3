@@ -12,15 +12,6 @@ type AverageProductReviewScore = Awaited<ReturnType<typeof ProductReviewGateway.
 
 const inFlightPromises = new Map<string, Promise<unknown>>();
 
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error(`Timeout after ${ms}ms`)), ms)
-    )
-  ]);
-}
-
 const productReviewsCache = new LRUCache<string, ProductReviews>({
   max: 500,
   ttl: CACHE_TTL_MS,
@@ -114,7 +105,7 @@ const ProductReviewService = {
 
     return getOrLoad(productReviewsCache, productId, `reviews:${productId}`, async () => {
       try {
-        return await withTimeout(ProductReviewGateway.getProductReviews(productId), 2000);
+        return await ProductReviewGateway.getProductReviews(productId);
       } catch (error) {
         console.warn(`Failed to fetch product reviews for ${productId}, using fallback:`, error);
         return [];
@@ -127,7 +118,7 @@ const ProductReviewService = {
 
     return getOrLoad(averageScoreCache, productId, `average-score:${productId}`, async () => {
       try {
-        return await withTimeout(ProductReviewGateway.getAverageProductReviewScore(productId), 2000);
+        return await ProductReviewGateway.getAverageProductReviewScore(productId);
       } catch (error) {
         console.warn(`Failed to fetch average score for ${productId}, using fallback:`, error);
         return "0.0";
@@ -153,7 +144,7 @@ const ProductReviewService = {
      * - Cache key có thể chứa dữ liệu nhạy cảm.
      */
     try {
-      return await withTimeout(ProductReviewGateway.askProductAIAssistant(productId, normalizedQuestion), 2000);
+      return await ProductReviewGateway.askProductAIAssistant(productId, normalizedQuestion);
     } catch (error) {
       console.warn(`Failed to ask AI Assistant for ${productId}, using fallback:`, error);
       return { 

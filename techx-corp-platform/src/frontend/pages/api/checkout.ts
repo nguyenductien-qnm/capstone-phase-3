@@ -17,7 +17,14 @@ const handler = async ({ method, body, query }: NextApiRequest, res: NextApiResp
       const orderData = body as PlaceOrderRequest;
       const { order: { items = [], ...order } = {} } = await CheckoutGateway.placeOrder(orderData);
 
-      const allProducts = await ProductCatalogService.listProducts(currencyCode as string);
+      let allProducts: Product[] = [];
+      try {
+        allProducts = await ProductCatalogService.listProducts(currencyCode as string);
+      } catch (error) {
+        // The order is already committed. Return a degraded response instead of
+        // turning enrichment failure into a retryable checkout failure.
+        console.warn('Product catalog enrichment failed after order placement:', error);
+      }
 
       const productList: IProductCheckoutItem[] = items.map(({ item: { productId = '', quantity = 0 } = {}, cost }) => {
         const product = allProducts.find((p: Product) => p.id === productId) || ({} as Product);
