@@ -17,3 +17,6 @@ Notes:
 - Reviews flow latency is end-to-end for two Converse rounds.
 - Copilot flow latency is end-to-end for the measured tool loop until end_turn or 5-tool cap.
 - Per-call latency pools all Converse calls in the measured flow.
+- The configured service values are per-call read timeouts: Reviews `2.6/2.3s`, Copilot `6.9/2.7s`.
+- Direct-model access was re-verified on 2026-07-22 with the CDO SSO role in `us-east-1`; see
+  `bedrock_latency_results_2026-07-22.md` for the direct-ID run and cold-tail evidence.
