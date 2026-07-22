@@ -196,17 +196,10 @@ resource "aws_cloudwatch_log_group" "lambda_logs" {
   )
 }
 
-# Archive Lambda function code
-data "archive_file" "lambda_code" {
-  type        = "zip"
-  source_file = "${path.module}/index.py"
-  output_path = "${path.module}/lambda_function.zip"
-}
-
 # Lambda function
 resource "aws_lambda_function" "cost_guard" {
-  filename         = data.archive_file.lambda_code.output_path
-  source_code_hash = data.archive_file.lambda_code.output_base64sha256
+  filename         = "${path.module}/lambda_function.zip"
+  source_code_hash = filebase64sha256("${path.module}/lambda_function.zip")
   function_name    = local.cost_guard_name
   role             = aws_iam_role.lambda_role.arn
   handler          = "index.handler"
