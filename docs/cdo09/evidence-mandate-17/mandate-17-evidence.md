@@ -71,7 +71,7 @@ kubectl -n techx-develop get pods -l opentelemetry.io/name=ad     # kỳ vọng:
 
 ![Grafana trong và sau sự cố R1](screenshots/SS-01c-grafana-after-recovery.png)
 
-<details><summary>Ảnh phụ + log thô R1</summary>
+<details open><summary>Ảnh phụ + log thô R1</summary>
 
 - [SS-00b — Grafana baseline trước test](screenshots/SS-00b-grafana-latency-baseline.png) · [SS-01b — Grafana trong lúc `ad` chết](screenshots/SS-01b-grafana-during-ad-down.png) · [SS-01 — trang chủ khi `ad` chết](screenshots/SS-01-storefront-ad-down.png)
 - Log: [R1-00 trạng thái trước](logs/R1-00-pre-state.txt) · [R1-01 `ad` về 0](logs/R1-01-ad-down.txt) · [R1-02 fallback 12/12 HTTP 200](logs/R1-02-fallback-http.txt) · [R1-03 log breaker](logs/R1-03-breaker-log.txt) · [R1-04 money-path](logs/R1-04-money-path-ok.txt) · [R1-05 khôi phục](logs/R1-05-restored.txt) · [R1-06 hồi phục](logs/R1-06-recovery.txt) · [R1-07 mạch đóng lại](logs/R1-07-halfopen-close.txt)
@@ -143,7 +143,7 @@ kubectl uncordon ip-10-60-11-81.ec2.internal     # BẮT BUỘC khôi phục
 
 ![Grafana cửa sổ drain](screenshots/SS-06-grafana-r2-drain-window.png)
 
-<details><summary>Ảnh phụ + log thô R2</summary>
+<details open><summary>Ảnh phụ + log thô R2</summary>
 
 - [SS-05 — Grafana Kubernetes scaling](screenshots/SS-05-grafana-during-drain.png) · [SS-05b — storefront sau khi khôi phục](screenshots/SS-05b-storefront-after-drain-restore.png)
 - Log: [R2-00 trước drain](logs/R2-00-pre-drain.txt) · [R2-01 uptime 194/200](logs/R2-01-uptime-during-drain.txt) · [**R2-02 PDB chặn eviction**](logs/R2-02-drain.txt) · [R2-03 sau drain](logs/R2-03-after-drain.txt) · [**R2-04 truy vết gap 97%**](logs/R2-04-gap-analysis.txt) · [R2-05 phân bố AZ](logs/R2-05-pods-per-az-after-drain.txt) · [R2-06 uncordon](logs/R2-06-restore.txt) · [R2-07 trải lại AZ 12/13](logs/R2-07-az-spread-restored.txt) · [R2-08 kiểm tra cuối](logs/R2-08-post-restore-health.txt)
@@ -229,7 +229,7 @@ kubectl -n techx-develop delete pod attacker
 
 ![Grafana khỏe dưới NetworkPolicy](screenshots/SS-08-grafana-healthy-under-netpol.png)
 
-<details><summary>Ảnh phụ + log thô R3</summary>
+<details open><summary>Ảnh phụ + log thô R3</summary>
 
 - [SS-08b — trang sản phẩm dưới policy](screenshots/SS-08b-storefront-under-netpol.png) · [SS-07 — Grafana cửa sổ R3](screenshots/SS-07-grafana-r3-netpol-window.png) · [SS-99 — storefront chốt](screenshots/SS-99-storefront-final.png)
 - Điều kiện tiên quyết + áp policy: [R3-00 CNI enforce](logs/R3-00-cni-enforce.txt) · [R3-01 uptime khi áp](logs/R3-01-uptime-during-netpol.txt) · [R3-02 apply 31 policy](logs/R3-02-apply.txt) · [R3-03 money-path](logs/R3-03-money-path-under-netpol.txt)
