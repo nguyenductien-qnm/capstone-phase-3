@@ -4,6 +4,10 @@
 # truy cập vu vơ từ internet; TF không tự đổi được flag vì nguồn trung tâm sync đè lên.
 components:
   flagd:
+    # M17-R3: flagd sync flag từ nguồn HTTP public (mục 2 dưới) -> cần egress ra Internet.
+    # Label này cho phép flagd lọt allow-internet-egress-selected khi NetworkPolicy bật.
+    podLabels:
+      egress-internet: "true"
     # 1) Gỡ flagd-ui local (không cho toggle bằng web trong cluster TF)
     sidecarContainers: []
     # 2) Đổi nguồn flag: từ file local -> central http có bearer (token literal, không cần shell expand)
