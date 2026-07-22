@@ -4,6 +4,7 @@ package money
 
 import (
 	"errors"
+	"math/big"
 
 	pb "github.com/open-telemetry/techx-corp/src/checkout/genproto/oteldemo"
 )
@@ -108,13 +109,26 @@ func Sum(l, r *pb.Money) (*pb.Money, error) {
 		CurrencyCode: l.GetCurrencyCode()}, nil
 }
 
-// MultiplySlow is a slow multiplication operation done through adding the value
-// to itself n-1 times.
-func MultiplySlow(m *pb.Money, n uint32) *pb.Money {
-	out := m
-	for n > 1 {
-		out = Must(Sum(out, m))
-		n--
+// Multiply scales a money value in constant time while preserving the
+// protobuf units/nanos representation. big.Int avoids intermediate int64
+// overflow for large quantities and keeps the result exact.
+func Multiply(m *pb.Money, n uint32) *pb.Money {
+	if n == 0 {
+		return &pb.Money{CurrencyCode: m.GetCurrencyCode()}
 	}
-	return out
+
+	billion := big.NewInt(nanosMod)
+	totalNanos := new(big.Int).Mul(big.NewInt(m.GetUnits()), billion)
+	totalNanos.Add(totalNanos, big.NewInt(int64(m.GetNanos())))
+	totalNanos.Mul(totalNanos, new(big.Int).SetUint64(uint64(n)))
+
+	units := new(big.Int)
+	nanos := new(big.Int)
+	units.QuoRem(totalNanos, billion, nanos)
+
+	return &pb.Money{
+		Units:        units.Int64(),
+		Nanos:        int32(nanos.Int64()),
+		CurrencyCode: m.GetCurrencyCode(),
+	}
 }

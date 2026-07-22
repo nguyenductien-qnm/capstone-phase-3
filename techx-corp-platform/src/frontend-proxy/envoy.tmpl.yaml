@@ -114,6 +114,15 @@ static_resources:
                   - name: envoy.filters.http.grpc_web
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.grpc_web.v3.GrpcWeb
+                  - name: envoy.filters.http.cache
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.cache.v3.CacheConfig
+                      typed_config:
+                        "@type": type.googleapis.com/envoy.extensions.http.cache.file_system_http_cache.v3.FileSystemHttpCacheConfig
+                        manager_config:
+                          thread_pool:
+                            thread_count: 1
+                        cache_path: "/tmp/envoy_cache"
                   - name: envoy.filters.http.fault
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.fault.v3.HTTPFault
