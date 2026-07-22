@@ -21,6 +21,13 @@ import json
 import os
 import re
 import logging
+import threading
+try:
+    from opentelemetry.propagate import inject
+except ImportError:
+    def inject(headers): pass
+
+_ml_guard_semaphore = threading.Semaphore(2)
 
 logger = logging.getLogger(__name__)
 
@@ -49,13 +56,16 @@ def _apply_protect(text, anonymize_only=False):
         return text, False
     import urllib.request
     try:
+        headers = {"Content-Type": "application/json"}
+        inject(headers)
         req = urllib.request.Request(
             f"{ML_GUARD_URL}/v1/protect",
             data=json.dumps({"text": text}).encode(),
-            headers={"Content-Type": "application/json"},
+            headers=headers,
         )
-        with urllib.request.urlopen(req, timeout=ML_GUARD_TIMEOUT) as r:
-            res = json.loads(r.read())
+        with _ml_guard_semaphore:
+            with urllib.request.urlopen(req, timeout=ML_GUARD_TIMEOUT) as r:
+                res = json.loads(r.read())
             anonymized = res.get("text", text)
             label = res.get("injection_label", "")
             score = res.get("injection_score", 0.0)
@@ -77,7 +87,7 @@ _VN_DIACRITICS = re.compile(r'[àáạảãâầấậẩẫăằắặẳẵè�
 # ml-guard (ADR-014): self-host NLI grounding gate (mDeBERTa-xnli, VN trong XNLI).
 # Bench local 17/07: block-rule contra>=0.5 bắt 100% case bịa/bóp méo VN.
 ML_GUARD_URL = os.environ.get("ML_GUARD_URL", "")  # chốt: http://ml-guard:8090 (ClusterIP, ns techx-tf1)
-ML_GUARD_TIMEOUT = float(os.environ.get("ML_GUARD_TIMEOUT", "8.0"))
+ML_GUARD_TIMEOUT = float(os.environ.get("ML_GUARD_TIMEOUT", "25.0"))
 # Judge models — chọn theo đo 17/07 (us-east-1, default profile):
 #   grounding: Nova Micro 4/4 VN, p50 ~560ms, ~$0.00004/check
 #   injection: Nova Micro 4/7 (trượt VN jailbreak) -> Nova Lite 7/7, p50 ~546ms, ~$0.00002
@@ -145,13 +155,16 @@ def _ml_grounding(source, answer):
         return None
     import urllib.request
     try:
+        headers = {"Content-Type": "application/json"}
+        inject(headers)
         req = urllib.request.Request(
             f"{ML_GUARD_URL}/v1/grounding",
             data=json.dumps({"source": source, "answer": answer}).encode(),
-            headers={"Content-Type": "application/json"},
+            headers=headers,
         )
-        with urllib.request.urlopen(req, timeout=ML_GUARD_TIMEOUT) as r:
-            return json.loads(r.read())
+        with _ml_guard_semaphore:
+            with urllib.request.urlopen(req, timeout=ML_GUARD_TIMEOUT) as r:
+                return json.loads(r.read())
     except Exception as e:
         logger.warning("ml-guard unreachable (%s) — grounding falls through to judge.", e)
         return None

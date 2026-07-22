@@ -21,6 +21,7 @@ const {
   PRODUCT_REVIEWS_ADDR = '',
   RECOMMENDATION_ADDR = '',
   SHIPPING_ADDR = '',
+  VALKEY_ADDR = '',
   ENV_PLATFORM = '',
   OTEL_EXPORTER_OTLP_TRACES_ENDPOINT = '',
   OTEL_SERVICE_NAME = 'frontend',
@@ -38,6 +39,28 @@ const nextConfig = {
   turbopack: {
     // Set root to current directory to avoid confusion with parent lockfile
     root: __dirname,
+  },
+  async headers() {
+    return [
+      {
+        source: '/api/products',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=3600, stale-while-revalidate=86400',
+          },
+        ],
+      },
+      {
+        source: '/api/products/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=3600, stale-while-revalidate=86400',
+          },
+        ],
+      },
+    ];
   },
   // Keep webpack config for backwards compatibility if --webpack flag is used
   webpack: (config, { isServer }) => {
@@ -60,6 +83,7 @@ const nextConfig = {
     PRODUCT_REVIEWS_ADDR,
     RECOMMENDATION_ADDR,
     SHIPPING_ADDR,
+    VALKEY_ADDR,
     OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
     NEXT_PUBLIC_PLATFORM: ENV_PLATFORM,
     NEXT_PUBLIC_OTEL_SERVICE_NAME: OTEL_SERVICE_NAME,

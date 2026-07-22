@@ -38,3 +38,9 @@ output "db_username" {
   description = "Username quản trị database"
   value       = var.db_username
 }
+
+output "instance_id" {
+  description = "ID/Identifier của RDS instance"
+  value       = aws_db_instance.this.identifier
+}
+

@@ -96,17 +96,17 @@ def _get_ai_recommendations(input_product_ids, max_results=5):
     Computes the average embedding vector of seed products, queries PostgreSQL using pgvector cosine distance,
     and returns the top 5 similar products. Fallbacks to random selection if any database error occurs.
     """
-    span = trace.get_current_span()
-    db_connection_str = os.environ.get('DB_CONNECTION_STRING')
-    if not db_connection_str:
-        logger.warning("DB_CONNECTION_STRING not set, falling back to random recommendations")
-        return _get_random_recommendations(input_product_ids, max_results)
-        
-    try:
-        with psycopg2.connect(db_connection_str) as connection:
-            register_vector(connection)
-            with connection.cursor() as cursor:
-                placeholders = ','.join(['%s'] * len(input_product_ids))
+    with tracer.start_as_current_span("recommendation.ai_inference") as span:
+        db_connection_str = os.environ.get('DB_CONNECTION_STRING')
+        if not db_connection_str:
+            logger.warning("DB_CONNECTION_STRING not set, falling back to random recommendations")
+            return _get_random_recommendations(input_product_ids, max_results)
+            
+        try:
+            with psycopg2.connect(db_connection_str) as connection:
+                register_vector(connection)
+                with connection.cursor() as cursor:
+                    placeholders = ','.join(['%s'] * len(input_product_ids))
                 cursor.execute(f"""
                     SELECT AVG(embedding) as avg_embedding
                     FROM catalog.products
@@ -134,9 +134,9 @@ def _get_ai_recommendations(input_product_ids, max_results=5):
                 if not results:
                     return _get_random_recommendations(input_product_ids, max_results)
                 return results
-    except Exception as e:
-        logger.error(f"Error in AI recommendations: {e}")
-        return _get_random_recommendations(input_product_ids, max_results)
+        except Exception as e:
+            logger.error(f"Error in AI recommendations: {e}")
+            return _get_random_recommendations(input_product_ids, max_results)
 
 def _get_random_recommendations(request_product_ids, max_responses=5):
     global first_run

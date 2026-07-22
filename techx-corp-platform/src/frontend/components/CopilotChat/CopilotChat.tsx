@@ -23,9 +23,11 @@ const loadingDots = keyframes`
   60%, 100% { content: "..."; }
 `;
 
+import { TraceCitationPanel } from '../TraceCitationPanel';
+
 const ChatWrapper = styled.div`
   position: fixed;
-  bottom: 30px;
+  bottom: 24px;
   right: 30px;
   z-index: 9999;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -363,6 +365,7 @@ interface Message {
   pendingAction?: PendingConfirmation | null;
   citations?: Citation[];
   traceId?: string;
+  traceSteps?: any[];
 }
 
 export default function CopilotChat() {
@@ -415,7 +418,8 @@ export default function CopilotChat() {
         isUser: false,
         pendingAction: data.pendingConfirmation || null,
         citations: data.citations || [],
-        traceId: data.traceId || ''
+        traceId: data.traceId || '',
+        traceSteps: data.traceSteps || []
       }]);
     } catch (err) {
       console.error(err);
@@ -479,25 +483,12 @@ export default function CopilotChat() {
                 </ActionGateCard>
               )}
 
-              {!msg.isUser && !!msg.citations?.length && (
-                <SourcesPanel>
-                  <summary>Sources ({msg.citations.length})</summary>
-                  {msg.citations.map((c, i) => (
-                    <SourceItem key={`${msg.id}-src-${i}`}>
-                      <strong>{c.reviewId || 'review'}</strong> ({c.score}): {c.snippet}
-                    </SourceItem>
-                  ))}
-                </SourcesPanel>
-              )}
-
-              {!msg.isUser && !!msg.traceId && (
-                <TraceIdLabel
-                  type="button"
-                  title={`Trace ID: ${msg.traceId} (click to copy)`}
-                  onClick={() => navigator.clipboard?.writeText(msg.traceId || '')}
-                >
-                  trace: {msg.traceId.slice(0, 8)}
-                </TraceIdLabel>
+              {!msg.isUser && (msg.traceId || (msg.citations && msg.citations.length > 0) || (msg.traceSteps && msg.traceSteps.length > 0)) && (
+                <TraceCitationPanel 
+                  traceId={msg.traceId} 
+                  citations={msg.citations} 
+                  traceSteps={msg.traceSteps} 
+                />
               )}
             </MessageGroup>
           ))}

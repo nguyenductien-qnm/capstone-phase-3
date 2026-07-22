@@ -1,0 +1,10 @@
+### R3 - ROLLBACK: GỠ 31 POLICY @ 2026-07-22T11:22:34Z
+Mục đích: (a) kiểm chứng nhân quả với ksm, (b) trả develop về nguyên trạng.
+networkpolicy.networking.k8s.io "allow-datastore-egress-msk" deleted from techx-develop namespace
+networkpolicy.networking.k8s.io "allow-datastore-egress-rds" deleted from techx-develop namespace
+networkpolicy.networking.k8s.io "allow-internet-egress-selected" deleted from techx-develop namespace
+--- số policy còn lại (kỳ vọng 0) ---
+0
+--- ksm sau khi gỡ policy (nếu khỏe lại => chính policy gây crash) ---
+NAME                                                    READY   STATUS    RESTARTS       AGE
+develop-techx-corp-kube-state-metrics-f7dd44847-9pgjn   1/1     Running   7 (3m8s ago)   3d7h

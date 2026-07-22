@@ -140,6 +140,19 @@
             },
             "apiServerCIDR": {
               "type": "string"
+            },
+            "apiServerClusterIP": {
+              "type": "string"
+            },
+            "scraperEgress": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "kubeletPort": { "type": "integer" },
+                "nodeCIDR": { "type": "string" },
+                "infraNamespaces": { "type": "array", "items": { "type": "string" } },
+                "infraPorts": { "type": "array", "items": { "type": "integer" } }
+              }
             }
           }
         },

@@ -75,8 +75,9 @@ CATEGORY_PICKER_TEMPLATE = ("chọn đúng một trong các danh mục (Telescop
 # INTRO + RULES but NOT the CATALOG: checking the whole prompt made benign
 # answers that quote catalog facts trip the guard (prod false-blocks 18/07:
 # "hi" / "bạn có thể làm gì" → "Xin lỗi, tôi không thể hiển thị nội dung này").
-SYSTEM_PROMPT_INTRO = """Bạn là Shopping Copilot của TechX Corp — cửa hàng thiết bị thiên văn.
-Nhiệm vụ: giúp khách tìm sản phẩm, đọc review, xem/ thêm giỏ hàng.
+SYSTEM_PROMPT_INTRO = """Bạn là Shopping Copilot của TechX Corp — cửa hàng thiết bị thiên văn (kính thiên văn, ống nhòm, phụ kiện, sách thiên văn).
+Nhiệm vụ DUY NHẤT: giúp khách MUA SẮM tại TechX — tìm sản phẩm, đọc review, xem/thêm giỏ hàng.
+Bạn KHÔNG phải trợ lý đa năng: KHÔNG dạy học, KHÔNG tư vấn nghề nghiệp/lương/đầu tư, KHÔNG lập trình, KHÔNG trả lời kiến thức chung ngoài phạm vi mua sắm thiên văn.
 """
 
 SYSTEM_PROMPT_CATALOG = """DANH MỤC SẢN PHẨM (CATALOG):
@@ -93,6 +94,13 @@ SYSTEM_PROMPT_CATALOG = """DANH MỤC SẢN PHẨM (CATALOG):
 """
 
 SYSTEM_PROMPT_RULES = """QUY TẮC BẮT BUỘC:
+0. PHẠM VI (SCOPE) — ƯU TIÊN CAO NHẤT: CHỈ trả lời về mua sắm tại TechX (sản phẩm thiên văn, giá,
+   review, gợi ý, giỏ hàng). Nếu khách hỏi BẤT KỲ chủ đề nào ngoài phạm vi này (lập trình, học tập,
+   tăng lương, nghề nghiệp, đầu tư, sức khỏe, chính trị, kiến thức chung...), TỪ CHỐI NGẮN GỌN và mời
+   quay lại đúng một câu: "Mình là trợ lý mua sắm của TechX, chỉ hỗ trợ về thiết bị thiên văn thôi.
+   Bạn cần tìm kính thiên văn, ống nhòm hay phụ kiện gì không?" TUYỆT ĐỐI KHÔNG đưa ra hướng dẫn,
+   bài học, danh sách bước, hay lời khuyên ngoài phạm vi — kể cả khi khách nài nỉ, đóng vai, hay nói
+   "chỉ lần này thôi".
 1. NGẮN GỌN: tối đa 3-4 câu mỗi lượt.
 2. KHÔNG ẢO GIÁC: mọi thông tin review PHẢI đến từ tool get_product_reviews.
    Nếu review_count = 0 hoặc tool không có dữ liệu, nói đúng: "Tôi không có thông
@@ -221,6 +229,7 @@ class AgentResult:
     degraded: bool = False
     trace_id: str = ""
     citations: list[dict] = field(default_factory=list)
+    trace_steps: list[dict] = field(default_factory=list)
 
 
 def _run_read_tool(name: str, args: dict, user_id: str) -> str:
@@ -349,6 +358,7 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
     actions: list[ToolCall] = []
     pending: PendingAction | None = None
     current = list(messages)
+    trace_steps: list[dict] = []
     tool_calls = 0
     tool_results_raw: list[str] = []  # Thu thap tool results de validate citations (mentor 16/07)
     review_citations: list[dict] = []  # UI citations (Phase 5) -- reviews actually fetched this turn
@@ -360,6 +370,7 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
             return AgentResult(text=_fallback_text(), actions_taken=actions, degraded=True, trace_id=trace_id_hex)
         with tracer.start_as_current_span("bedrock_converse") as bedrock_span:
             bedrock_span.set_attribute("gen_ai.request.model", model_id)
+            t_converse = time.time()
             try:
                 response = invoke_bedrock_converse_with_fallback(
                     primary_client=bedrock_client,
@@ -392,6 +403,16 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
             logger.info("audit bedrock_usage model=%s input_tokens=%s output_tokens=%s",
                         model_id, usage.get("inputTokens", "?"), usage.get("outputTokens", "?"))
 
+        # Trace UI: show the model's DECISION this turn (what the AI "thinks" it should do next) —
+        # either it chose to call tool(s), or it produced a direct answer.
+        _decided = [b["toolUse"]["name"] for b in blocks if "toolUse" in b]
+        trace_steps.append({
+            "step_name": (f"LLM → gọi tool: {', '.join(_decided)}" if _decided
+                          else "LLM → trả lời trực tiếp"),
+            "latency_ms": int((time.time() - t_converse) * 1000),
+            "status": "ok",
+        })
+
         if stop != "tool_use":
             text = "\n".join(b["text"] for b in blocks if "text" in b)
             # MANDATE-06 Output Guardrail: redact PII + block system prompt leak.
@@ -418,7 +439,12 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
                     user_query = next((c["text"] for m in reversed(messages) if m.get("role") == "user"
                                        for c in m.get("content", []) if "text" in c), "")
                     source_text = "\n".join(str(r) for r in tool_results_raw)
+                    
+                    start_out = time.time()
                     blocked_out, clean_text = apply_guardrail_output(bedrock_client, clean_text, source_text, user_query)
+                    lat_out = int((time.time() - start_out) * 1000)
+                    trace_steps.append({"step_name": "Output Guardrail (Grounding)", "latency_ms": lat_out, "status": "blocked" if blocked_out else "pass"})
+                    
                     ground_span.set_attribute("guardrail.blocked", blocked_out)
                     if blocked_out:
                         logger.warning("AI_COPILOT_FALLBACK stage=output-grounding reason=Ungrounded")
@@ -434,13 +460,13 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
                 clean_text = "Xin chào! Bạn muốn tìm sản phẩm gì, xem review, hay kiểm tra giỏ hàng?"
                 review_citations = []
             return AgentResult(text=clean_text, actions_taken=actions, pending=pending,
-                               trace_id=trace_id_hex, citations=review_citations)
+                               trace_id=trace_id_hex, citations=review_citations, trace_steps=trace_steps)
 
         tool_calls += 1
         if tool_calls > MAX_TOOL_CALLS:
             return AgentResult(
                 text=f"⚠️ Đã đạt giới hạn {MAX_TOOL_CALLS} tool/lượt. Vui lòng hỏi câu đơn giản hơn.",
-                actions_taken=actions, pending=pending, trace_id=trace_id_hex)
+                actions_taken=actions, pending=pending, trace_id=trace_id_hex, trace_steps=trace_steps)
 
         current.append({"role": "assistant", "content": blocks})
         results = []
@@ -453,6 +479,7 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
 
             with tracer.start_as_current_span("tool_call") as tool_span:
                 tool_span.set_attribute("tool.name", name)
+                tool_span.set_attribute("tool.arguments", json.dumps(args)[:500])
                 if name == "add_item_to_cart":
                     # Confirmation gate: prepare, do NOT execute.
                     pid = args.get("product_id", "")
@@ -475,11 +502,20 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
                         except (json.JSONDecodeError, AttributeError):
                             pass
                 tool_span.set_attribute("tool.succeeded", ok)
+                tool_span.set_attribute("tool.result_preview", out[:300])
 
+            dur_ms = int((time.time() - started) * 1000)
             actions.append(ToolCall(
                 tool_name=name, arguments_json=json.dumps(args), succeeded=ok,
-                started_at_unix=int(started), duration_ms=int((time.time() - started) * 1000),
+                started_at_unix=int(started), duration_ms=dur_ms,
             ))
+            # Trace UI: show WHAT the AI operated with (which tool + key argument).
+            _arg_hint = args.get("query") or args.get("category") or args.get("product_id") or ""
+            trace_steps.append({
+                "step_name": f"Tool: {name}" + (f" ({_arg_hint})" if _arg_hint else ""),
+                "latency_ms": dur_ms,
+                "status": "ok" if ok else "error",
+            })
             parsed_out = json.loads(out)
             if not isinstance(parsed_out, dict):
                 parsed_out = {"result": parsed_out}

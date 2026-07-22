@@ -154,8 +154,58 @@ spec:
     - to:
         - ipBlock:
             cidr: {{ $np.observability.apiServerCIDR }}
+        # VPC CNI đối chiếu policy với đích GỐC, TRƯỚC khi kube-proxy DNAT. Client dùng
+        # `kubernetes.default` đi qua ClusterIP (172.20.0.1), không khớp CIDR ENI ở trên
+        # nên bị drop — kube-state-metrics kẹt list/watch, /livez không serve, kubelet
+        # giết -> CrashLoopBackOff. Verify trên develop 22/07/2026: cùng pod, ClusterIP
+        # 172.20.0.1:443 -> 000 (drop) trong khi ENI 10.60.11.189:443 -> 401 (thông).
+        # Mở đúng /32 của API server, không mở cả service CIDR.
+        - ipBlock:
+            cidr: {{ $np.observability.apiServerClusterIP }}
       ports:
         - { protocol: TCP, port: 443 }
+{{- end }}
+{{- if and $np.observability.scrapers $np.observability.scraperEgress }}
+{{- $se := $np.observability.scraperEgress }}
+---
+# 5f) Scraper lấy metrics NGOÀI namespace: kubelet/cadvisor trên node (:10250) và pod hạ
+# tầng ở kube-system (CoreDNS :9153, ALB controller :8080). Cả hai đều không match được
+# bằng podSelector trong namespace này. Thiếu rule -> 6 target node + CoreDNS chuyển DOWN
+# (`context deadline exceeded`) và dashboard tài nguyên trống.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-scraper-egress-cluster
+  labels: { app.kubernetes.io/part-of: techx-corp }
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+        {{- range $s := $np.observability.scrapers }}
+          - {{ $s }}
+        {{- end }}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            # nodeCIDR (dải NODE) chứ KHÔNG phải apiServerCIDR (dải ENI control-plane):
+            # kubelet chạy trên node. Hai dải hiện trùng nhau nhưng ý nghĩa khác nhau.
+            cidr: {{ $se.nodeCIDR | default $np.observability.apiServerCIDR }}
+      ports:
+        - { protocol: TCP, port: {{ $se.kubeletPort }} }
+    {{- if and $se.infraNamespaces $se.infraPorts }}
+    - to:
+      {{- range $ns := $se.infraNamespaces }}
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: {{ $ns }} }
+      {{- end }}
+      ports:
+      {{- range $p := $se.infraPorts }}
+        - { protocol: TCP, port: {{ $p }} }
+      {{- end }}
+    {{- end }}
 {{- end }}
 {{- range $sink := ($np.observability.sinks | default list) }}
 ---
