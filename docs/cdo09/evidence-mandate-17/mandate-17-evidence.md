@@ -167,7 +167,7 @@ kubectl uncordon ip-10-60-11-81.ec2.internal     # BẮT BUỘC khôi phục
 
 **Vì sao 12/13 chứ không phải 13/13:** `product-reviews` còn nằm 1 AZ vì tôi **cố ý không restart** nó — đó là service của team AI, mandate cấm đụng. Nó sẽ tự trải lại ở lần rollout kế tiếp.
 
-> **⚠️ Gap phải nói thẳng với mentor: uptime 97%, không phải 100%.**
+> **⚠️ Gap em note lại trong ảnh anh bỏ qua nhé: uptime 97%, không phải 100%.**
 > 5 request lỗi dồn trong cửa sổ **67 giây** (10:47:43 → 10:48:50). **Không phải do pod chết** — mọi deployment đều Available suốt quá trình. Nguyên nhân đã truy được: `frontend-proxy` dùng NLB `target-type=ip` với `preStop: sleep 5` + `terminationGracePeriodSeconds: 30`, **ngắn hơn** thời gian NLB đánh dấu target unhealthy → NLB vẫn đẩy traffic vào pod đã terminate (`R2-04-gap-analysis.txt`).
 > Khắc phục là tăng `preStop` hoặc đặt `deregistration_delay` — **thuộc cấu hình LB, ngoài phạm vi Mandate 17**, tách ra xử lý riêng.
 >
