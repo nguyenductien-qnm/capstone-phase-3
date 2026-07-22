@@ -219,7 +219,7 @@ resource "aws_lambda_function" "cost_guard" {
       EKS_CLUSTER_NAME         = var.eks_cluster_name
       RDS_INSTANCE_IDENTIFIERS = jsonencode(var.rds_instance_identifiers)
       ELASTICACHE_CLUSTER_IDS  = jsonencode(var.elasticache_cluster_ids)
-      EC2_INSTANCE_TAG_KEY     = var.ec2_instance_tags.key
+      EC2_INSTANCE_TAG_NAME    = var.ec2_instance_tags.tag_name
       EC2_INSTANCE_TAG_VALUE   = var.ec2_instance_tags.value
       AUTO_SCALING_GROUP_NAMES = jsonencode(var.auto_scaling_group_names)
       ALERT_EMAIL_80           = var.alert_emails.threshold_80

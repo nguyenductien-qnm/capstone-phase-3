@@ -53,7 +53,7 @@ def handler(event, context):
         eks_cluster_name = os.environ.get('EKS_CLUSTER_NAME')
         rds_instances = json.loads(os.environ.get('RDS_INSTANCE_IDENTIFIERS', '[]'))
         elasticache_clusters = json.loads(os.environ.get('ELASTICACHE_CLUSTER_IDS', '[]'))
-        ec2_tag_key = os.environ.get('EC2_INSTANCE_TAG_KEY')
+        ec2_tag_key = os.environ.get('EC2_INSTANCE_TAG_NAME')
         ec2_tag_value = os.environ.get('EC2_INSTANCE_TAG_VALUE')
         asg_names = json.loads(os.environ.get('AUTO_SCALING_GROUP_NAMES', '[]'))
         

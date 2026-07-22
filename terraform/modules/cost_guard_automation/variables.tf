@@ -75,13 +75,13 @@ variable "elasticache_cluster_ids" {
 
 variable "ec2_instance_tags" {
   type = object({
-    key   = string
-    value = string
+    tag_name = string
+    value    = string
   })
   description = "Tag để filter EC2 instances cần stop"
   default = {
-    key   = "AutoStop"
-    value = "true"
+    tag_name = "AutoStop"
+    value    = "true"
   }
 }
 
