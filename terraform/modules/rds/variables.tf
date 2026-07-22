@@ -83,6 +83,24 @@ variable "eks_node_security_group_id" {
   description = "EKS node security group ID to allow access to RDS"
 }
 
+variable "enable_rotation" {
+  type        = bool
+  description = "Bật/Tắt xoay vòng secret tự động"
+  default     = false
+}
+
+variable "rotation_rules_automatically_after_days" {
+  type        = number
+  description = "Số ngày tự động xoay vòng secret"
+  default     = 30
+}
+
+variable "app_subnet_ids" {
+  type        = list(string)
+  description = "Danh sách ID của các subnets tầng Application để chạy Lambda xoay vòng"
+  default     = []
+}
+
 variable "enable_logical_replication" {
   type        = bool
   description = "Enable logical replication (creates custom parameter group)"
