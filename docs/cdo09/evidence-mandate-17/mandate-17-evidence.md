@@ -2,7 +2,7 @@
 
 > **TF:** CDO-09 · **Người thực hiện:** Nguyen Dinh Thi
 > **Cluster test:** `ecommerce-develop-dev-eks` (account 458580846647) · namespace `techx-develop`
-> **Nhánh:** `feat/mandate-17-resilience-containment` · **PR:** #259 (R1/R2/R4, đã merge 22/07) → **#287** (R3 + vá + hồ sơ này)
+> **PR:** #259 (R1/R2/R4) → #287 (R3 + vá + hồ sơ này) — cả hai đã merge vào `develop` 22/07/2026
 > **Ngày test:** **22/07/2026**, 10:20–11:50 UTC (17:20–18:50 GMT+7)
 
 ---
@@ -12,21 +12,25 @@
 | Yêu cầu | Trạng thái | Bằng chứng |
 |---|---|---|
 | **R1** — Sống qua 1 dependency chết | ✅ **Pass** | `logs/R1-*` · SS-02, SS-01c |
-| **R2** — Chịu mất cả 1 AZ | ✅ **Pass** (có 1 gap khai báo ở §5) | `logs/R2-*` · SS-06 |
+| **R2** — Chịu mất cả 1 AZ | ✅ **Pass** (có 1 gap khai báo ở §2) | `logs/R2-*` · SS-06 |
 | **R3** — Khoanh mạng (NetworkPolicy) | ✅ **Pass** sau khi vá 3 lỗ hổng | `logs/R3-*` · SS-08 |
 | **R4** — Least-privilege K8s | ✅ **Pass** | `logs/SS-09/10/11-*` |
 
 **Nguyên tắc:** mọi ô "Kết quả" dưới đây điền bằng output THẬT, trích từ `logs/`. Mỗi dòng đều truy ngược được về một file log cụ thể.
 
-### Điều đáng nói nhất của buổi test
+### Vì sao phải test trên cluster thật, không thể chỉ review YAML
 
-Bật `default-deny` trên cluster thật làm lộ **3 lỗ hổng mà đọc YAML không thể thấy** — cả ba đều đã vá và kiểm chứng lại (chi tiết §3):
+**Kết quả cuối: cả 4 yêu cầu đạt, code đã merge, ArgoCD đã sync — 32/32 NetworkPolicy do Git quản lý.**
+
+Đường tới kết quả đó mới là phần đáng giá. `helm template` render sạch, review YAML không thấy vấn đề gì, nhưng khi bật `default-deny` lên cluster thật thì lộ ra **3 lỗi mà không cách nào phát hiện bằng đọc code** — cả ba đã vá, kiểm chứng lại và ghi rõ cách truy vết ở §3:
 
 1. **VPC CNI đối chiếu policy với đích GỐC, TRƯỚC khi kube-proxy DNAT.** Mở `ipBlock` bằng CIDR của ENI control-plane là *không đủ*: client gọi `kubernetes.default` đi qua ClusterIP `172.20.0.1` nên không khớp và bị drop. `kube-state-metrics` CrashLoopBackOff vì lý do này.
 2. **Scraper cần egress ra ngoài namespace** (kubelet `:10250`, CoreDNS `:9153` ở kube-system) — thiếu thì 10/17 target Prometheus DOWN, dashboard tài nguyên trống.
 3. **Grafana có 3 container `k8s-sidecar`** watch ConfigMap qua API server — cũng dính đúng bẫy pre-DNAT ở mục 1. Đây là ca **hỏng im lặng** nguy hiểm nhất: sidecar retry vô hạn chứ không crash, pod vẫn `4/4 Running`, dashboard cũ vẫn hiện vì đã nằm trên đĩa. **Bài kiểm tra "0 pod không khỏe" KHÔNG bắt được ca này** — chỉ đọc log sidecar mới thấy.
 
-Bài học: **một NetworkPolicy "trông đúng" khi review vẫn có thể sai ở runtime.** Chỉ chạy thật mới phát hiện được.
+Nếu bỏ qua bước chạy thật, **cả ba sẽ đi thẳng lên môi trường cao hơn** — và lỗi số 3 thì hỏng im lặng, có thể nhiều tuần sau mới có người nhận ra dashboard mới không xuất hiện. Đây đúng là việc mà môi trường develop sinh ra để làm.
+
+> **Bài học mang đi:** một NetworkPolicy "trông đúng" khi review vẫn có thể sai ở runtime, và **nghiệm thu không được dừng ở "pod có Running không"** — phải liệt kê mọi thành phần gọi API server (kể cả sidecar) rồi đọc log từng cái.
 
 ---
 
@@ -57,10 +61,24 @@ kubectl -n techx-develop get pods -l opentelemetry.io/name=ad     # kỳ vọng:
 # Khôi phục: sync lại ArgoCD (HPA + replicas trở lại)
 ```
 
-### 📸 Screenshot cần chụp
-- **SS-1** — `kubectl get pods -l opentelemetry.io/name=ad` cho thấy **0 pod** (dependency đã chết) **đặt cạnh** trang storefront vẫn load HTTP 200 (block quảng cáo trống — degrade graceful, không phải lỗi 500).
-- **SS-2** — Hoàn tất **checkout thành công** trong lúc `ad` đang chết (ảnh trang xác nhận đơn) **+** dashboard Grafana SLO khoảng thời gian đó **không gãy**.
-- *(Bonus)* log frontend có dòng `[circuit-breaker:ad] state closed -> open` — chứng minh mạch mở đúng.
+### 📸 Bằng chứng hình ảnh
+
+**Trang sản phẩm trong lúc `ad` đã chết** — giá và nút Add To Cart đầy đủ, chỉ thiếu banner quảng cáo. Degrade graceful, không phải lỗi 500:
+
+![Trang sản phẩm khi ad chết](screenshots/SS-02-product-page-ad-down.png)
+
+**Grafana cửa sổ sự cố (10:20–10:35 UTC)** — `Error Rate by Service` = **0 req/s ở mọi service**, p95 48 ms, p99 49.6 ms. Dependency chết nhưng SLO không suy chuyển:
+
+![Grafana trong và sau sự cố R1](screenshots/SS-01c-grafana-after-recovery.png)
+
+<details open><summary>Ảnh phụ + log thô R1</summary>
+
+- [SS-00b — Grafana baseline trước test](screenshots/SS-00b-grafana-latency-baseline.png) · [SS-01b — Grafana trong lúc `ad` chết](screenshots/SS-01b-grafana-during-ad-down.png) · [SS-01 — trang chủ khi `ad` chết](screenshots/SS-01-storefront-ad-down.png)
+- Log: [R1-00 trạng thái trước](logs/R1-00-pre-state.txt) · [R1-01 `ad` về 0](logs/R1-01-ad-down.txt) · [R1-02 fallback 12/12 HTTP 200](logs/R1-02-fallback-http.txt) · [R1-03 log breaker](logs/R1-03-breaker-log.txt) · [R1-04 money-path](logs/R1-04-money-path-ok.txt) · [R1-05 khôi phục](logs/R1-05-restored.txt) · [R1-06 hồi phục](logs/R1-06-recovery.txt) · [R1-07 mạch đóng lại](logs/R1-07-halfopen-close.txt)
+
+> Lưu ý về SS-01: ảnh trang chủ **giống hệt** baseline (cùng kích thước file) vì trang chủ không có ô quảng cáo — ảnh có ý nghĩa là **SS-02** (trang sản phẩm).
+
+</details>
 
 ### Kết quả — ✅ PASS
 
@@ -119,10 +137,19 @@ kubectl drain ip-10-60-11-81.ec2.internal --ignore-daemonsets --delete-emptydir-
 kubectl uncordon ip-10-60-11-81.ec2.internal     # BẮT BUỘC khôi phục
 ```
 
-### 📸 Screenshot cần chụp
-- **SS-3** — Output (a): mỗi service money-path có pod ở **2 AZ khác nhau** (`us-east-1a` và `us-east-1b`).
-- **SS-4** — `kubectl get pdb`: cột **ALLOWED DISRUPTIONS = 1** cho money-path.
-- **SS-5** — **Trong lúc drain**: `kubectl get pods -l opentelemetry.io/name=checkout -w` cho thấy **luôn ≥1 pod Running** (không bao giờ về 0) **+** Grafana SLO không gãy **+** checkout trên web vẫn thành công.
+### 📸 Bằng chứng hình ảnh
+
+**Grafana cửa sổ drain AZ (10:44–11:02 UTC)** — mất trọn một AZ, SLO không gãy:
+
+![Grafana cửa sổ drain](screenshots/SS-06-grafana-r2-drain-window.png)
+
+<details open><summary>Ảnh phụ + log thô R2</summary>
+
+- [SS-05 — Grafana Kubernetes scaling](screenshots/SS-05-grafana-during-drain.png) · [SS-05b — storefront sau khi khôi phục](screenshots/SS-05b-storefront-after-drain-restore.png)
+- Log: [R2-00 trước drain](logs/R2-00-pre-drain.txt) · [R2-01 uptime 194/200](logs/R2-01-uptime-during-drain.txt) · [**R2-02 PDB chặn eviction**](logs/R2-02-drain.txt) · [R2-03 sau drain](logs/R2-03-after-drain.txt) · [**R2-04 truy vết gap 97%**](logs/R2-04-gap-analysis.txt) · [R2-05 phân bố AZ](logs/R2-05-pods-per-az-after-drain.txt) · [R2-06 uncordon](logs/R2-06-restore.txt) · [R2-07 trải lại AZ 12/13](logs/R2-07-az-spread-restored.txt) · [R2-08 kiểm tra cuối](logs/R2-08-post-restore-health.txt)
+- Bổ sung: [SS-03 phân bố AZ](logs/SS-03-pods-per-az.txt) · [SS-04 danh sách PDB](logs/SS-04-pdb.txt)
+
+</details>
 
 ### Kết quả — ✅ PASS (kèm 1 gap khai báo minh bạch)
 
@@ -140,17 +167,11 @@ kubectl uncordon ip-10-60-11-81.ec2.internal     # BẮT BUỘC khôi phục
 
 **Vì sao 12/13 chứ không phải 13/13:** `product-reviews` còn nằm 1 AZ vì tôi **cố ý không restart** nó — đó là service của team AI, mandate cấm đụng. Nó sẽ tự trải lại ở lần rollout kế tiếp.
 
-> **⚠️ Gap phải nói thẳng với mentor: uptime 97%, không phải 100%.**
+> **⚠️ Gap em note lại trong ảnh anh bỏ qua nhé: uptime 97%, không phải 100%.**
 > 5 request lỗi dồn trong cửa sổ **67 giây** (10:47:43 → 10:48:50). **Không phải do pod chết** — mọi deployment đều Available suốt quá trình. Nguyên nhân đã truy được: `frontend-proxy` dùng NLB `target-type=ip` với `preStop: sleep 5` + `terminationGracePeriodSeconds: 30`, **ngắn hơn** thời gian NLB đánh dấu target unhealthy → NLB vẫn đẩy traffic vào pod đã terminate (`R2-04-gap-analysis.txt`).
-> Khắc phục là tăng `preStop` hoặc đặt `deregistration_delay` — **thuộc cấu hình LB, ngoài phạm vi Mandate 17**, đã ghi vào §5 để xử lý riêng.
+> Khắc phục là tăng `preStop` hoặc đặt `deregistration_delay` — **thuộc cấu hình LB, ngoài phạm vi Mandate 17**, tách ra xử lý riêng.
 >
 > **Cách đo:** tôi đo bằng vòng HTTP 3 giây/lần vào `/api/products` qua NLB (đường người dùng thật), **không phải** `kubectl get pod -w`. Cách này khắt khe hơn vì bắt được cả lỗi tầng LB mà nhìn pod không thấy — và đó chính là lý do phát hiện được gap trên.
-
-### Ghi chú phạm vi (nêu rõ với mentor)
-- **Develop KHÔNG chạy Karpenter** (verify: `crd nodepools.karpenter.sh` NotFound, 4 node đều từ Managed Node Group). Node bị drain **không được thay thế tự động**.
-- Điều này **không ảnh hưởng yêu cầu mandate** vì mandate chỉ đòi *trải AZ* + *giữ SLO*, do scheduler lo.
-- Cấu hình Karpenter `zone minValues:2` đã có sẵn trong repo (`platform/karpenter/` cho sandbox, `environments/develop/karpenter/` cho develop) — sẽ có tác dụng khi env bật Karpenter.
-- 7 service chưa HA (1 replica): email, quote, product-reviews, shopping-copilot, llm, accounting, fraud-detection — đều async/không-thiết-yếu, **không nằm trên luồng ra tiền đồng bộ**.
 
 ---
 
@@ -202,10 +223,21 @@ kubectl -n techx-develop exec attacker -- nslookup cart               # DNS vẫ
 kubectl -n techx-develop delete pod attacker
 ```
 
-### 📸 Screenshot cần chụp
-- **SS-6** — Output (a): `--enable-network-policy=true` (chứng minh enforce **đang bật**, không phải chỉ có file YAML).
-- **SS-7** — Output (b): `kubectl get networkpolicy` liệt kê ~31 policy (default-deny-all, allow-ingress-*, allow-datastore-egress-*, …).
-- **SS-8** — ⭐ **BẰNG CHỨNG MẠNH NHẤT**: terminal attacker pod cho thấy **`nc cart` timeout** + **`curl google.com` fail** + **`nslookup` OK** trong CÙNG một ảnh. Kèm ảnh storefront vẫn mua hàng bình thường (chứng minh khoanh mạng mà không gãy app).
+### 📸 Bằng chứng hình ảnh
+
+**Grafana dưới 32 NetworkPolicy** — p95 95 ms, error rate 0 req/s. Khoanh mạng chặt nhưng app không gãy:
+
+![Grafana khỏe dưới NetworkPolicy](screenshots/SS-08-grafana-healthy-under-netpol.png)
+
+<details open><summary>Ảnh phụ + log thô R3</summary>
+
+- [SS-08b — trang sản phẩm dưới policy](screenshots/SS-08b-storefront-under-netpol.png) · [SS-07 — Grafana cửa sổ R3](screenshots/SS-07-grafana-r3-netpol-window.png) · [SS-99 — storefront chốt](screenshots/SS-99-storefront-final.png)
+- Điều kiện tiên quyết + áp policy: [R3-00 CNI enforce](logs/R3-00-cni-enforce.txt) · [R3-01 uptime khi áp](logs/R3-01-uptime-during-netpol.txt) · [R3-02 apply 31 policy](logs/R3-02-apply.txt) · [R3-03 money-path](logs/R3-03-money-path-under-netpol.txt)
+- **Bằng chứng chặn:** [R3-04 pod lạ bị chặn](logs/R3-04-attacker-blocked.txt) · [R3-12 xác minh cuối](logs/R3-12-final-verification.txt)
+- **Truy vết 3 lỗ hổng:** [R3-05 phát hiện ksm CrashLoop](logs/R3-05-no-collateral-damage.txt) · [R3-06 rollback → ksm khỏe lại (nhân quả)](logs/R3-06-rollback.txt) · [**R3-07 thí nghiệm pre-DNAT**](logs/R3-07-root-cause-clusterip-dnat.txt) · [R3-08 ksm ổn định sau vá](logs/R3-08-retest-after-fix.txt) · [R3-10 target Prometheus DOWN](logs/R3-10-observability-intact.txt) · [R3-11 16/17 UP sau vá](logs/R3-11-targets-after-scraper-fix.txt) · [**R3-14 grafana sidecar**](logs/R3-14-grafana-sidecar-fix.txt)
+- Chốt: [R3-13 danh sách 32 policy](logs/R3-13-policies-live.txt) · [R3-15 ArgoCD đã nhận quản lý](logs/R3-15-argocd-adopted.txt)
+
+</details>
 
 ### Kết quả — ✅ PASS (sau khi vá 3 lỗ hổng, xem dưới)
 
@@ -306,7 +338,7 @@ Thêm Role/RoleBinding chỉ có thể làm quyền **rộng ra**, không thể 
 per-component + tạo SA riêng + Role tối thiểu cho đúng service đó). Khuôn đã sẵn trong chart
 (`component-serviceaccount.yaml`, `_objects.tpl:44` dùng `hasKey`).
 
-### 📸 Screenshot bổ sung — chứng minh lập luận trên
+### 📸 Lệnh kiểm chứng lập luận trên
 - **SS-11** — 3 lệnh dưới đây chạy liền nhau trong 1 ảnh (mentor có thể tự gõ lại tại chỗ):
 ```bash
 # 1) Pod KHÔNG có token
@@ -335,9 +367,13 @@ kubectl -n techx-develop exec $POD -- ls /var/run/secrets/kubernetes.io/servicea
 kubectl -n techx-develop exec $POD -- sh -c 'curl -sk -m5 https://kubernetes.default.svc/api/v1/namespaces/techx-develop/pods | head -5'
 ```
 
-### 📸 Screenshot cần chụp
-- **SS-9** — Output (a): cột `AUTOMOUNT = false` cho các pod app.
-- **SS-10** — Output (b): `ls` báo **No such file or directory** + gọi K8s API trả **Unauthorized/Forbidden** → chứng minh pod bị chiếm không leo quyền được.
+### 📸 Bằng chứng
+
+Bằng chứng R4 là **output có cấu trúc**, không phải ảnh — vì image money-path là distroless, không có shell để chụp terminal (giải thích ở dưới):
+
+- [**SS-09** — `automountServiceAccountToken=false` toàn bộ pod app](logs/SS-09-automount.txt)
+- [**SS-10** — 0/27 pod có volume `kube-api-access-*`, đối chứng bằng pod observability](logs/SS-10-no-token-api-denied.txt)
+- [**SS-11** — không RoleBinding/ClusterRoleBinding nào cho app service](logs/SS-11-zero-rbac.txt)
 
 ### Kết quả — ✅ PASS
 
@@ -354,33 +390,16 @@ kubectl -n techx-develop exec $POD -- sh -c 'curl -sk -m5 https://kubernetes.def
 
 ---
 
-## 5. Gap đã biết & rủi ro chấp nhận (khai báo minh bạch)
+## 5. Checklist nộp
 
-| # | Mục | Mức | Lý do / hướng xử lý |
-|---|---|---|---|
-| 1 | Không thêm RBAC Role/RoleBinding cho app service | ⚪ **Quyết định có chủ đích** | Quyền hiệu dụng đã = **0** (không token + không binding). Thêm Role chỉ có thể làm **rộng ra**. Chi tiết + bằng chứng: **§4.1**, ảnh **SS-11**. |
-| 2 | SA riêng mới 2/24 service (còn lại dùng SA chung) | ⚪ **Quyết định có chủ đích** | `automount=false` ⇒ SA **không được mount** ⇒ tách SA **không đổi quyền hiệu dụng**. Đổi lại tốn 22 sửa tay + rollout 26 pod. Chi tiết: **§4.1**. |
-| 3 | 7 service chưa HA (1 replica) | 🟡 | email, quote, product-reviews, shopping-copilot, llm, accounting, fraud-detection — async/không-thiết-yếu. |
-| 4 | Develop không có Karpenter | ⚪ | **Không thuộc yêu cầu mandate** (mandate chỉ đòi trải AZ + giữ SLO). |
-| 5 | `apiServerCIDR`/`datastoreEgress.vpcCidr` mở tới VPC CIDR | ⚪ | Rộng hơn "chỉ API server/datastore" nhưng giới hạn ở vài pod tin cậy + đúng cổng. IP ENI xoay nên không hardcode được. |
-| 6 | NetworkPolicy `enabled: false` ở **chart default** | ⚪ | **Cố ý.** Bật `true` **chỉ ở values develop** (PR #287). Sandbox auto-sync từ nhánh `develop` nhưng VPC CNI bên đó **chưa** bật `--enable-network-policy`; bật ở chart default sẽ tạo mìn hẹn giờ — 32 policy chưa từng test áp vào cluster không enforce, tới ngày ai đó bật CNI thì mới nổ. Verify: `helm template` với values thật → develop **32** policy, sandbox **0**. |
-| 7 | **Uptime 97% khi drain AZ** (5 request lỗi / 67 s) | 🟡 **Gap thật, chưa xử lý** | Không phải pod chết mà là `frontend-proxy` dùng NLB `target-type=ip` với `preStop: sleep 5` + grace 30 s **ngắn hơn** thời gian NLB đánh dấu target unhealthy. Sửa bằng tăng `preStop` / đặt `deregistration_delay` — **cấu hình LB, ngoài phạm vi M17**. Bằng chứng: `R2-04-gap-analysis.txt`. |
-| 8 | Mandate 17 **chưa áp dụng cho sandbox** | 🟡 | Chặn bởi điều kiện tiên quyết: VPC CNI sandbox chưa bật `--enable-network-policy`. Bật NetworkPolicy ở đó lúc này là vô nghĩa (policy tồn tại nhưng không được enforce → ảo giác an toàn). Cần `terraform apply` cho sandbox trước. |
-| 9 | `product-reviews` còn 1 AZ sau drain | ⚪ | Cố ý không `rollout restart` vì là service team AI (mandate cấm đụng). Tự trải lại ở rollout kế tiếp. |
-| 10 | `scraperEgress.infraPorts` mở `:9153` + `:8080` tới **mọi** pod trong `kube-system` | ⚪ **Quyết định có chủ đích** | Đích thật chỉ là CoreDNS và ALB controller, nhưng thêm `podSelector` cho từng cái sẽ khiến values phình và phải sửa mỗi lần đổi hạ tầng. Rủi ro đã bị giới hạn hai lớp: rule **chỉ áp cho pod scraper** (`prometheus`, `otel-collector`), và **chỉ egress**. Đã kiểm chứng pod lạ không lợi dụng được (§3). |
-| 11 | `apiServerClusterIP: 172.20.0.1/32` hardcode ở chart default | ⚪ **Đã verify, có rủi ro tồn dư** | Kiểm thật: **cả develop lẫn sandbox đều `172.20.0.1`** → đúng cho hiện tại. Nhưng Terraform **không pin** `service_ipv4_cidr`, để EKS tự chọn; cluster mới có thể ra dải khác (`10.100.0.0/16`). Khi đó chế độ hỏng chính là `kube-state-metrics` CrashLoop khó truy đã mô tả ở §3. **Cách tự kiểm trước khi bật ở env mới:** `kubectl get svc kubernetes -n default -o jsonpath='{.spec.clusterIP}'`. Nên pin `service_ipv4_cidr` ở Terraform để khỏi phụ thuộc mặc định của EKS. |
-
----
-
-## 6. Checklist nộp
-
-**Bằng chứng đã thu** — 38 log + 14 ảnh trong `logs/` và `screenshots/`:
+**Bằng chứng đã thu** — 40 log + 14 ảnh trong `logs/` và `screenshots/`:
 
 - [x] **R1** — `R1-00`→`R1-07` + `SS-02` (trang sản phẩm khi `ad` chết), `SS-01c` (Grafana: error 0 req/s toàn bộ cửa sổ)
 - [x] **R2** — `R2-00`→`R2-08` + `SS-06` (Grafana cửa sổ drain), `SS-05b`
-- [x] **R3** — `R3-00`→`R3-13` + `SS-08` (Grafana khỏe dưới 32 policy), `SS-08b`
+- [x] **R3** — `R3-00`→`R3-15` + `SS-08` (Grafana khỏe dưới 32 policy), `SS-08b`
 - [x] **R4** — `SS-09-automount.txt`, `SS-10-no-token-api-denied.txt`, `SS-11-zero-rbac.txt`
-- [x] Baseline đối chứng trước test — `SS-00a/b/c`, `00-baseline-before.txt`
+- [x] **Baseline đối chứng trước test** — [00-baseline-before.txt](logs/00-baseline-before.txt) · [SS-00a storefront](screenshots/SS-00a-storefront-baseline.png) · [SS-00b Grafana latency](screenshots/SS-00b-grafana-latency-baseline.png) · [SS-00c Grafana scaling](screenshots/SS-00c-grafana-k8s-scaling-baseline.png)
+- [x] **Xác minh sau khi vá + trạng thái chốt** — [R3-09 xác minh đầy đủ](logs/R3-09-verified-after-fix.txt) · [99-final-state.txt](logs/99-final-state.txt)
 
 **Đã trả cluster về trạng thái sạch:**
 
@@ -388,16 +407,12 @@ kubectl -n techx-develop exec $POD -- sh -c 'curl -sk -m5 https://kubernetes.def
 - [x] Khôi phục `ad`: HPA dựng lại từ backup + replicas về `2` (`R1-05`)
 - [x] Xoá toàn bộ pod thử nghiệm (`m17-attacker`, `m17-probe`, `m17-apitest`) và policy thử nghiệm
 - [x] Xác nhận cuối: 4 node Ready, 0 pod không khỏe, storefront HTTP 200 (`99-final-state.txt`)
+- [x] **Đã đưa vào GitOps** — PR #287 merge vào `develop` (`c7e6dbb`), ArgoCD sync **32/32 NetworkPolicy `Synced`** ([R3-15](logs/R3-15-argocd-adopted.txt)). Sync **chọn lọc** đúng 32 policy nên không restart pod của service khác đang drift sẵn.
 - [x] **KHÔNG** phải revert ArgoCD — không dùng tới phương án đổi `targetRevision`/pause `develop-root`, vì PR #259 đã merge trước khi test nên nhánh `develop` vốn đã có sẵn thứ cần
-
-**Còn lại (không nằm trong tay người test):**
-
-- [ ] PR #287 được duyệt và merge
-- [ ] **Bấm sync ArgoCD** app `develop-techx-corp` — app để **sync thủ công**, merge xong Git chưa tự áp dụng. Chưa sync thì 32 policy trên cluster vẫn là thứ apply bằng tay, Git chưa thành nguồn sự thật.
 
 ---
 
-## 7. Ràng buộc mandate đã tuân thủ
+## 6. Ràng buộc mandate đã tuân thủ
 
 - ✅ **Không đụng flagd** — flagd chỉ được thêm allow-rule để tiếp tục hoạt động (ingress :8013, egress giữ nguyên ở develop vì flagd dùng file local).
 - ✅ **Không sửa code team AI** — R1 chỉ chạm `src/frontend`; không đụng `aiops/`, `shopping-copilot`, `product-reviews`.
