@@ -1,0 +1,77 @@
+MANDATE-18 PROMPT-4 STORAGE AUDIT
+Captured: 2026-07-22
+Mode: read-only AWS/Kubernetes queries; Terraform init/fmt/validate/plan only; no apply
+Scope: us-east-1 / ecommerce-dev-eks / techx-tf1
+
+EBS RUNTIME
+- Total attached volumes in audited cluster scope: 9
+- gp3: 9/9 (100%)
+- in-use: 9/9; available: 0
+- Root volumes: 2 x 50 GiB and 5 x 30 GiB
+- PVC volumes: Prometheus 20 GiB; OpenSearch 10 GiB
+- All seven attachment instances carry kubernetes.io/cluster/ecommerce-dev-eks=owned.
+
+ROOT FILESYSTEM USAGE (kubelet stats/summary instant sample)
+- i-056e97c3b17526a51 / 50 GiB EBS: capacity=53607378944, used=10662510592, available=42944868352 bytes
+- i-0457f4fb71a8de0f4 / 50 GiB EBS: capacity=53607378944, used=9990332416, available=43617046528 bytes
+- i-05521ab3dc556c159 / 30 GiB EBS: capacity=32132542464, used=10613129216, available=21519413248 bytes
+- i-05d21dd779747b3d7 / 30 GiB EBS: capacity=32132542464, used=10821672960, available=21310869504 bytes
+- i-03d637e0b937c9f25 / 30 GiB EBS: capacity=32132542464, used=7330451456, available=24802091008 bytes
+- i-09c0cbc83317e2b39 / 30 GiB EBS: capacity=32132542464, used=7198502912, available=24934039552 bytes
+- i-0d204991c940453bb / 30 GiB EBS: capacity=32132542464, used=7152734208, available=24979808256 bytes
+
+PVC USAGE (instant sample)
+- opensearch-opensearch-0: capacity=10464022528, used=8036384768, available=2410860544 bytes; used=76.80%; headroom=23.04%.
+- prometheus: capacity=20957446144, used=5425258496, available=15515410432 bytes; used=25.89%; headroom=74.03%.
+
+RIGHT-SIZE DECISION
+- OpenSearch: KEEP 10 GiB; do not shrink. First add retention/ISM because current headroom is only 23.04%.
+- Prometheus: conditional migration candidate 20 GiB -> 12 GiB. Current sample would leave about 57% usable headroom, but approval requires max used over the full 7-day retention window <= 8.4 GiB (>=30% target headroom).
+- 50 GiB managed-node roots: conditional future launch-template candidate 50 GiB -> 30 GiB. Current used data is 9.30-9.93 GiB, leaving about 20 GiB/66% headroom at a 30 GiB target. This must occur only through a reviewed rolling node replacement, never in-place EBS shrink.
+- 30 GiB roots: KEEP; current headroom is approximately 66-78% and no smaller-node launch template has been validated.
+- No size change was implemented because only instant samples exist and a complete Terraform plan is blocked by missing protected tfvars.
+
+SNAPSHOT/DLM RUNTIME
+- Self-owned EBS snapshots: []
+- DLM lifecycle policies: []
+- Interpretation: no retained snapshot currently leaks storage, but preventive snapshot lifecycle remains a runtime GAP if snapshot creation is introduced.
+- No DLM policy was created because doing so would start new snapshots/cost without an approved backup scope/tag.
+
+S3 RUNTIME
+- ecommerce-dev-cloudtrail-logs:
+  - Tags: Project=ecommerce, Environment=dev, Owner=CDO-09, ManagedBy=Terraform
+  - Versioning: Enabled
+  - Lifecycle rule archive-and-retain-audit-logs: Enabled
+  - Transition: GLACIER_IR after 90 days
+  - Current/noncurrent expiration: 2555 days
+- terraform-state-phase-3:
+  - Lifecycle: NoSuchLifecycleConfiguration
+  - Versioning response has no Status (not enabled at capture)
+  - Tags: NoSuchTagSet
+  - Interpretation: ownership/runtime control GAP. Do not attach lifecycle or expire state versions until backend owner confirms retention and versioning policy.
+
+CODE VS RUNTIME
+- EKS root gp3: code PASS; runtime PASS.
+- Karpenter root gp3/30 GiB: code PASS; runtime PASS for Karpenter-owned nodes.
+- Observability StorageClass gp3: code PASS; runtime PASS.
+- CloudTrail lifecycle/tiering: code PASS; runtime PASS.
+- Snapshot DLM: code GAP; runtime has zero snapshots and zero DLM policies.
+- Terraform state lifecycle/versioning: this runtime bucket is not managed by the audited Terraform root; runtime GAP.
+- Right-size: proposal exists; runtime/code change intentionally not made pending a full-window measurement and safe plan.
+
+TERRAFORM TESTS (terraform/environments/sandbox)
+- terraform init -reconfigure -input=false: PASS; backend cache only, no migration.
+- terraform fmt -check -recursive: PASS (exit 0).
+- terraform validate -no-color: PASS (exit 0).
+- Tooling-only change: removed stale hashicorp/archive entry from sandbox .terraform.lock.hcl; provider is absent from configuration and remote state.
+- terraform plan: BLOCKED (exit 1) before resource planning because 28 protected/environment tfvars are unavailable locally.
+- Missing variable names were recorded without values; no placeholder values were invented.
+- No plan file remained and no apply was run.
+
+PLAN SAFETY RESULT
+- Destroy/replace count cannot be asserted because a complete plan was not produced.
+- Therefore no infrastructure size/lifecycle change is eligible for apply.
+
+NO-MUTATION CONFIRMATION
+- No EBS/S3/DLM/AWS/Kubernetes resource was changed.
+- No Terraform apply was run.

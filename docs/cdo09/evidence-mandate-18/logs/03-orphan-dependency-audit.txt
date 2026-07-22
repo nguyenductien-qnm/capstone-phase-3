@@ -1,0 +1,114 @@
+MANDATE-18 PROMPT-3 ORPHAN DEPENDENCY AUDIT
+Captured: 2026-07-22T07:51:57Z
+Mode: READ-ONLY; NO DEREGISTRATION; NO DELETE; NO TAG/IAC/KUBERNETES CHANGE
+
+SCOPE VERIFICATION
+- AWS profile: phase3-cdo
+- Account matches Prompt 1: true (account ID redacted)
+- Caller is Phase3-CDO SSO assumed role: true
+- Region: us-east-1
+- EKS cluster: ecommerce-dev-eks, ACTIVE, Kubernetes 1.36
+- Environment/Project tags: dev / ecommerce
+- Kubernetes context matches cluster: true
+- Namespace: techx-tf1
+- Git: feat/mandate-18 @ 2376042
+
+AUDITED TARGET GROUPS ONLY
+
+1) 123123321
+ARN: arn:aws:elasticloadbalancing:us-east-1:<ACCOUNT_ID_REDACTED>:targetgroup/123123321/37ba213574e8eb88
+VPC: vpc-06d4c34ec03f55c6d (ecommerce-dev-vpc; Project=ecommerce; Environment=dev; Owner=CDO-09; ManagedBy=Terraform)
+Target group tags: []
+Protocol/port/type/IP/protocol-version: HTTP / 80 / instance / ipv4 / HTTP1
+LoadBalancerArns: []
+Registered targets: []
+Health check: HTTP traffic-port path=/ interval=30s timeout=5s healthy=5 unhealthy=2 matcher=200
+Attributes:
+- deregistration_delay.timeout_seconds=300
+- stickiness.enabled=false; stickiness.type=lb_cookie; cookie durations=86400
+- slow_start.duration_seconds=0
+- load_balancing.algorithm.type=round_robin
+- load_balancing.algorithm.anomaly_mitigation=off
+- load_balancing.cross_zone.enabled=use_load_balancer_configuration
+- unhealthy routing minimum count=1 / percentage=off
+- DNS failover minimum count=1 / percentage=off
+CloudTrail lookup window: 2026-04-23 through 2026-07-22
+CloudTrail result: CreateTargetGroup at 2026-07-15T14:44:39+07:00 by <OTHER_SSO_USER_REDACTED>; no other matching event returned.
+Exact tracked-repository name/ARN/hash references: 0
+Terraform state dev/terraform.tfstate serial 186 exact name/hash references: 0; target-group resource blocks: 0
+CloudFormation active stacks: 0; target-group matches: 0
+Kubernetes Service/Ingress/TargetGroupBinding exact references: 0
+Gateway/HTTPRoute API resources: not installed
+Classification: UNKNOWN/HOLD
+Reason: no runtime/IaC dependency found, but resource is recently created by another SSO user and has no owner tag. Conflicting ownership/activity signals prohibit DELETE_CANDIDATE.
+
+2) 89345789437843
+ARN: arn:aws:elasticloadbalancing:us-east-1:<ACCOUNT_ID_REDACTED>:targetgroup/89345789437843/4d3b6e02d57da2ab
+VPC: vpc-06d4c34ec03f55c6d (ecommerce-dev-vpc; Project=ecommerce; Environment=dev; Owner=CDO-09; ManagedBy=Terraform)
+Target group tags: []
+Protocol/port/type/IP: TCP / 80 / instance / ipv4
+LoadBalancerArns: []
+Registered targets: []
+Health check: HTTP traffic-port path=/ interval=30s timeout=6s healthy=5 unhealthy=2 matcher=200-399
+Attributes:
+- deregistration_delay.timeout_seconds=300
+- proxy_protocol_v2.enabled=false
+- stickiness.enabled=false; stickiness.type=source_ip
+- preserve_client_ip.enabled=true
+- load_balancing.cross_zone.enabled=use_load_balancer_configuration
+- target_health_state.unhealthy.connection_termination.enabled=true
+- target_health_state.unhealthy.draining_interval_seconds=0
+- deregistration_delay.connection_termination.enabled=false
+- unhealthy routing minimum count=1 / percentage=off
+- DNS failover minimum count=1 / percentage=off
+CloudTrail lookup window: 2026-04-23 through 2026-07-22
+CloudTrail result: CreateTargetGroup at 2026-07-15T14:47:08+07:00 by <OTHER_SSO_USER_REDACTED>; no other matching event returned.
+Exact tracked-repository name/ARN/hash references: 0
+Terraform state dev/terraform.tfstate serial 186 exact name/hash references: 0; target-group resource blocks: 0
+CloudFormation active stacks: 0; target-group matches: 0
+Kubernetes Service/Ingress/TargetGroupBinding exact references: 0
+Gateway/HTTPRoute API resources: not installed
+Classification: UNKNOWN/HOLD
+Reason: no runtime/IaC dependency found, but resource is recently created by another SSO user and has no owner tag. Conflicting ownership/activity signals prohibit DELETE_CANDIDATE.
+
+3) testt
+ARN: arn:aws:elasticloadbalancing:us-east-1:<ACCOUNT_ID_REDACTED>:targetgroup/testt/64259b99fc3ea8be
+VPC: vpc-0e75d763a56d0aa38 (default VPC; CIDR 172.31.0.0/16; no tags; outside ecommerce-dev project VPC)
+Target group tags: []
+Protocol/port/type/IP/protocol-version: HTTP / 80 / instance / ipv4 / HTTP1
+LoadBalancerArns: []
+Registered targets: []
+Health check: HTTP traffic-port path=/ interval=30s timeout=5s healthy=5 unhealthy=2 matcher=200
+Attributes: same captured HTTP defaults as 123123321, including deregistration delay 300s, stickiness disabled and round_robin.
+CloudTrail lookup window: 2026-04-23 through 2026-07-22
+CloudTrail result: CreateTargetGroup at 2026-07-15T10:09:59+07:00 by <OTHER_SSO_USER_REDACTED>; no other matching event returned.
+Exact tracked-repository name/ARN/hash/default-VPC references: 0
+Terraform state dev/terraform.tfstate serial 186 exact name/hash references: 0; target-group resource blocks: 0
+CloudFormation active stacks: 0; target-group matches: 0
+Kubernetes Service/Ingress/TargetGroupBinding exact references: 0
+Gateway/HTTPRoute API resources: not installed
+Classification: UNKNOWN/HOLD
+Reason: explicitly outside project VPC, recently created by another SSO user, no owner tag and no owner confirmation.
+
+LISTENER/RULE CROSS-CHECK
+- One active NLB/listener/rule exists for the environment.
+- Its only target group is k8s-techxtf1-frontend-da03cf6043 (excluded from audit/deletion scope).
+- None of the three audited target-group ARNs appears in any listener or rule action.
+
+KUBERNETES CONTROLLER CROSS-CHECK
+- aws-load-balancer-controller deployment: READY=2 in kube-system.
+- One TargetGroupBinding exists: techx-tf1/k8s-techxtf1-frontend-da03cf6043.
+- None of the three audited target groups appears in Service, Ingress or TargetGroupBinding JSON.
+
+FINAL CLASSIFICATION
+- KEEP: none
+- DELETE_CANDIDATE: none
+- UNKNOWN/HOLD: 123123321, 89345789437843, testt
+
+MISSING AUTHORITY/EVIDENCE
+- Explicit confirmation from the creator/owner of all three target groups.
+- Project/team ownership confirmation for testt/default VPC.
+
+SAFETY RESULT
+- No AWS or Kubernetes mutation was performed.
+- No after-cleanup evidence was created.
