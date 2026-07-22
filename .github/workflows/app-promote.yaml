@@ -30,6 +30,10 @@ env:
   AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
   ECR_REGISTRY: ${{ vars.ECR_REGISTRY || '804372444787.dkr.ecr.us-east-1.amazonaws.com' }}
   ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY || 'ecommerce-dev-techx-corp' }}
+  # Repo ECR chứa attestation promoted-develop — phải khớp ATTEST_REPOSITORY của
+  # app-attest.yaml (attestation KHÔNG nằm cạnh image: .att repo chính là SBOM
+  # của app-build, promoted-develop lưu repo riêng qua COSIGN_REPOSITORY).
+  ATTEST_REPOSITORY: ${{ vars.ECR_ATTEST_REPOSITORY || 'ecommerce-dev-techx-corp-attest' }}
   DEVELOP_TAGS_FILE: platform/gitops/environments/develop/values/values-image-tags.yaml
   PROD_TAGS_FILE: platform/gitops/environments/sandbox/values-image-tags.yaml
   # Phải khớp PREDICATE_TYPE của app-attest.yaml.
@@ -85,6 +89,7 @@ jobs:
           DISPATCH_SERVICES: ${{ github.event.inputs.services }}
           BUILD_IDENTITY: https://github.com/${{ github.repository }}/.github/workflows/app-build.yaml@refs/heads/develop
           ATTEST_IDENTITY: https://github.com/${{ github.repository }}/.github/workflows/app-attest.yaml@refs/heads/develop
+          ATTEST_REPO: ${{ env.ECR_REGISTRY }}/${{ env.ATTEST_REPOSITORY }}
         run: |
           set -euo pipefail
 
@@ -121,8 +126,9 @@ jobs:
             fi
 
             # verify-attestation lọc theo predicateType; jq check thêm nội dung
-            # predicate (đúng env develop + đúng tag) cho chắc.
-            if ! cosign verify-attestation \
+            # predicate (đúng env develop + đúng tag) cho chắc. COSIGN_REPOSITORY
+            # chỉ set cho lệnh này: chữ ký build (.sig) vẫn nằm ở repo image chính.
+            if ! COSIGN_REPOSITORY="$ATTEST_REPO" cosign verify-attestation \
                    --type "$PREDICATE_TYPE" \
                    --certificate-identity "$ATTEST_IDENTITY" \
                    --certificate-oidc-issuer "$OIDC_ISSUER" \

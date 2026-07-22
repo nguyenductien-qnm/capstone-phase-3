@@ -52,7 +52,7 @@ CVE-2026-57432  # perl-base — integer overflow
 # Trivy báo status=affected, Fixed Version TRỐNG -> Debian chưa release bản vá ở trixie/sid.
 # Upstream vá ở Storable 3.41; Debian nhúng Storable trong perl-base (Essential=yes) nên không
 # bump/gỡ riêng được. Cùng họ với CVE-2026-57432 ở trên. Review: 2026-08-20.
-CVE-2026-57433  # perl-base/Storable — integer overflow, Debian chưa có fix
+CVE-2026-57433  # perl-base/Storable — no fixed Debian trixie version; review 2026-08-20
 CVE-2026-8376   # perl-base — đã fixed ở sid, CHƯA xuống trixie (review sớm)
 CVE-2026-9538   # perl-base/Archive::Tar — fix_deferred
 CVE-2026-41992  # gzip — fix_deferred; vulnerable cả trixie/sid
