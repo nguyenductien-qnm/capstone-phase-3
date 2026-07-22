@@ -1,0 +1,14 @@
+### R1 - PROBE TRỰC TIẾP VÀO POD ĐANG MỞ MẠCH (frontend-982tj / 10.60.12.157) @ 2026-07-22T10:41:52Z
+req 1: [{"redirectUrl":"/product/2ZYFJ3GM2N","text":"Roof Binoculars for sale. 50% off."}]
+req 2: [{"redirectUrl":"/product/2ZYFJ3GM2N","text":"Roof Binoculars for sale. 50% off."}]
+req 3: [{"redirectUrl":"/product/2ZYFJ3GM2N","text":"Roof Binoculars for sale. 50% off."}]
+req 4: [{"redirectUrl":"/product/2ZYFJ3GM2N","text":"Roof Binoculars for sale. 50% off."}]
+req 5: [{"redirectUrl":"/product/2ZYFJ3GM2N","text":"Roof Binoculars for sale. 50% off."}]
+req 6: [{"redirectUrl":"/product/2ZYFJ3GM2N","text":"Roof Binoculars for sale. 50% off."}]
+req 7: [{"redirectUrl":"/product/2ZYFJ3GM2N","text":"Roof Binoculars for sale. 50% off."}]
+req 8: [{"redirectUrl":"/product/2ZYFJ3GM2N","text":"Roof Binoculars for sale. 50% off."}]
+req 9: [{"redirectUrl":"/product/2ZYFJ3GM2N","text":"Roof Binoculars for sale. 50% off."}]
+req 10: [{"redirectUrl":"/product/2ZYFJ3GM2N","text":"Roof Binoculars for sale. 50% off."}]
+--- breaker log của 982tj ---
+2026-07-22T10:39:31.107099566Z [circuit-breaker:ad] state open -> half-open (failures=10)
+2026-07-22T10:39:31.119699670Z [circuit-breaker:ad] state half-open -> closed (failures=0)

@@ -1,0 +1,27 @@
+### R2 - PHAN BO POD THEO AZ *SAU KHI DRAIN us-east-1a*
+(ky vong: tat ca don ve us-east-1b vi 1a da bi cordon - day la trang thai TAM THOI)
+  accounting             {'us-east-1b': 1}
+  ad                     {'us-east-1b': 2}
+  cart                   {'us-east-1b': 2}
+  checkout               {'us-east-1b': 2}
+  currency               {'us-east-1b': 2}
+  email                  {'us-east-1b': 2}
+  flagd                  {'us-east-1b': 1}
+  fraud-detection        {'us-east-1b': 1}
+  frontend               {'us-east-1b': 3}
+  frontend-proxy         {'us-east-1b': 2}
+  grafana                {'us-east-1b': 1}
+  image-provider         {'us-east-1b': 1}
+  jaeger                 {'us-east-1b': 1}
+  kube-state-metrics     {'us-east-1b': 1}
+  llm                    {'us-east-1b': 1}
+  opensearch             {'us-east-1b': 1}
+  payment                {'us-east-1b': 2}
+  product-catalog        {'us-east-1b': 2}
+  product-reviews        {'us-east-1b': 2}
+  prometheus             {'us-east-1b': 1}
+  quote                  {'us-east-1b': 2}
+  recommendation         {'us-east-1b': 2}
+  reloader               {'us-east-1b': 1}
+  shipping               {'us-east-1b': 2}
+  shopping-copilot       {'us-east-1b': 1}

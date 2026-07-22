@@ -1,0 +1,9 @@
+### R3 - GATE: VPC CNI CÓ ENFORCE NETWORKPOLICY KHÔNG @ 2026-07-22T11:13:20Z
+--- flag trên aws-node/nodeagent ---
+aws-node
+  args=
+  ENABLE_NETWORK_POLICY=
+aws-eks-nodeagent
+  args=["--enable-ipv6=false","--enable-network-policy=true","--enable-cloudwatch-logs=false","--enable-policy-event-logs=false","--log-file=/var/log/aws-routed-eni/network-policy-agent.log","--metrics-bind-addr=:8162","--health-probe-bind-addr=:8163","--conntrack-cache-cleanup-period=300","--conntrack-cache-table-size=524288","--log-level=debug"]
+  ENABLE_NETWORK_POLICY=
+--- addon config ---

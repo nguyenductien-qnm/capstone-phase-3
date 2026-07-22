@@ -1,0 +1,39 @@
+### R2 - SAU DRAIN @ 2026-07-22T10:54:23Z
+--- nodes ---
+NAME                           STATUS                     ROLES    AGE    VERSION               ZONE
+ip-10-60-11-81.ec2.internal    Ready,SchedulingDisabled   <none>   4d1h   v1.36.2-eks-8f14419   us-east-1a
+ip-10-60-12-102.ec2.internal   Ready                      <none>   43h    v1.36.2-eks-8f14419   us-east-1b
+ip-10-60-12-251.ec2.internal   Ready                      <none>   4d1h   v1.36.2-eks-8f14419   us-east-1b
+ip-10-60-12-28.ec2.internal    Ready                      <none>   4d1h   v1.36.2-eks-8f14419   us-east-1b
+
+--- còn pod app nào trên node đã drain? (kỳ vọng: chỉ DaemonSet) ---
+NAME                         READY   STATUS    RESTARTS   AGE    IP            NODE                          NOMINATED NODE   READINESS GATES
+otel-collector-agent-nfz6v   1/1     Running   0          3d7h   10.60.11.45   ip-10-60-11-81.ec2.internal   <none>           <none>
+
+--- trạng thái deployment ---
+NAME                                    READY   UP-TO-DATE   AVAILABLE   AGE
+accounting                              1/1     1            1           3d7h
+ad                                      2/2     2            2           3d7h
+cart                                    2/2     2            2           3d7h
+checkout                                2/2     2            2           3d7h
+currency                                2/2     2            2           3d7h
+develop-techx-corp-kube-state-metrics   1/1     1            1           3d7h
+email                                   2/2     2            2           3d7h
+flagd                                   1/1     1            1           3d7h
+fraud-detection                         1/1     1            1           3d7h
+frontend                                3/3     3            3           3d7h
+frontend-proxy                          2/2     2            2           3d7h
+grafana                                 1/1     1            1           3d7h
+image-provider                          1/1     1            1           3d7h
+jaeger                                  1/1     1            1           3d7h
+llm                                     1/1     1            1           3d7h
+locust-loadtest                         0/0     0            0           14h
+payment                                 2/2     2            2           3d7h
+product-catalog                         2/2     2            2           3d7h
+product-reviews                         2/2     2            2           3d7h
+prometheus                              1/1     1            1           3d7h
+quote                                   2/2     2            2           3d7h
+recommendation                          2/2     2            2           3d7h
+reloader-reloader                       1/1     1            1           3d3h
+shipping                                2/2     2            2           3d7h
+shopping-copilot                        1/1     1            1           3d7h
