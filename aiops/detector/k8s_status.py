@@ -10,29 +10,34 @@
 import logging
 import time
 
-from kubernetes import client as k8s_client
-from kubernetes import config as k8s_config
+try:
+    from kubernetes import client as k8s_client
+    from kubernetes import config as k8s_config
+except ImportError:
+    k8s_client = None
+    k8s_config = None
 
 log = logging.getLogger("aiops.detector.k8s_status")
 
 
 def load_k8s_client():
     """Nap kubeconfig: in-cluster khi chay tren pod that, ~/.kube/config khi dev/test tay."""
+    if k8s_config is None or k8s_client is None:
+        log.warning("Thu vien kubernetes chua duoc cai dat. Bo qua K8s status checking.")
+        return None
     try:
         k8s_config.load_incluster_config()
-    except k8s_config.ConfigException:
-        k8s_config.load_kube_config()
+    except Exception:
+        try:
+            k8s_config.load_kube_config()
+        except Exception:
+            return None
     return k8s_client.CoreV1Api()
 
 
 def find_oom_pods(core_v1, namespace, service_label_key, since_seconds=300):
-    """Tim pod trong `namespace` co container bi OOMKilled trong `since_seconds` gan nhat.
-
-    Doc THAT tu status.containerStatuses[].lastState.terminated (K8s tu ghi nhan,
-    khong phu thuoc app co log duoc hay khong truoc khi bi SIGKILL).
-
-    Return: list dict {pod_name, service_label, container_name, terminated_at}.
-    """
+    if not core_v1:
+        return []
     now = time.time()
     found = []
     pods = core_v1.list_namespaced_pod(namespace=namespace)
