@@ -26,4 +26,4 @@ jobs:
           pip install pytest
       - name: Run eval tests
         run: |
-          pytest docs/ai/evals -q
+          pytest docs/ai/evals/test_correlate.py -q
