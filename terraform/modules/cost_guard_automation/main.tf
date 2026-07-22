@@ -11,7 +11,7 @@ locals {
 
 # SNS Topics cho Budget Alarms
 resource "aws_sns_topic" "budget_alarms_80" {
-  name              = "${local.cost_guard_name}-budget-alarms-80"
+  name = "${local.cost_guard_name}-budget-alarms-80"
 
   tags = merge(
     local.common_tags,
@@ -22,7 +22,7 @@ resource "aws_sns_topic" "budget_alarms_80" {
 }
 
 resource "aws_sns_topic" "budget_alarms_95" {
-  name              = "${local.cost_guard_name}-budget-alarms-95"
+  name = "${local.cost_guard_name}-budget-alarms-95"
 
   tags = merge(
     local.common_tags,
@@ -325,18 +325,18 @@ resource "aws_budgets_budget" "custom_period" {
 
 
   notification {
-    comparison_operator     = "GREATER_THAN"
-    notification_type       = "FORECASTED"
-    threshold               = 80
-    threshold_type          = "PERCENTAGE"
+    comparison_operator       = "GREATER_THAN"
+    notification_type         = "FORECASTED"
+    threshold                 = 80
+    threshold_type            = "PERCENTAGE"
     subscriber_sns_topic_arns = [aws_sns_topic.budget_alarms_80.arn]
   }
 
   notification {
-    comparison_operator     = "GREATER_THAN"
-    notification_type       = "FORECASTED"
-    threshold               = 95
-    threshold_type          = "PERCENTAGE"
+    comparison_operator       = "GREATER_THAN"
+    notification_type         = "FORECASTED"
+    threshold                 = 95
+    threshold_type            = "PERCENTAGE"
     subscriber_sns_topic_arns = [aws_sns_topic.budget_alarms_95.arn]
   }
 
@@ -360,10 +360,10 @@ resource "aws_budgets_budget" "monthly_80_percent" {
   time_unit         = var.budget_time_unit
 
   notification {
-    comparison_operator     = "GREATER_THAN"
-    notification_type       = "FORECASTED"
-    threshold               = 80
-    threshold_type          = "PERCENTAGE"
+    comparison_operator       = "GREATER_THAN"
+    notification_type         = "FORECASTED"
+    threshold                 = 80
+    threshold_type            = "PERCENTAGE"
     subscriber_sns_topic_arns = [aws_sns_topic.budget_alarms_80.arn]
   }
 
@@ -386,10 +386,10 @@ resource "aws_budgets_budget" "monthly_95_percent" {
   time_unit         = var.budget_time_unit
 
   notification {
-    comparison_operator     = "GREATER_THAN"
-    notification_type       = "FORECASTED"
-    threshold               = 95
-    threshold_type          = "PERCENTAGE"
+    comparison_operator       = "GREATER_THAN"
+    notification_type         = "FORECASTED"
+    threshold                 = 95
+    threshold_type            = "PERCENTAGE"
     subscriber_sns_topic_arns = [aws_sns_topic.budget_alarms_95.arn]
   }
 
