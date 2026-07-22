@@ -251,7 +251,20 @@ python correlate.py --hours 24
 
 ---
 
-## 7. Known Limitations
+---
+
+## 8. Validation Status
+
+| What | Status | Notes |
+|---|---|---|
+| Correlation math (Pearson/Spearman at lag 0/30/60s) | ✅ Validated offline | 25 unit tests on synthetic data, 0 failures |
+| Co-occurrence logic (5-min bucket grouping) | ✅ Validated offline | Unit tests cover empty, single-rule, same/different bucket, pct calculation |
+| K3 fingerprint dedup (3 rules same service/window → 1 message) | ✅ Validated offline | `test_run_cycle_groups_bedrock_incident` passes |
+| PromQL metric names match live cluster | ✅ Confirmed (HTTP) | `http_server_request_duration_seconds_*` verified under Docker Compose chaos run 2026-07-12 |
+| gRPC metric name on EKS | ⚠️ Unconfirmed | `rpc_server_duration_milliseconds_count` verified under Docker Compose, not yet confirmed on EKS Prometheus. Run `kubectl exec -n otel-demo deploy/prometheus -- wget -qO- "http://localhost:9090/api/v1/label/__name__/values" \| grep rpc_server` to verify before first live run |
+| Infra exclusion list removes noise on EKS | ✅ Confirmed | Same exclusion used by live `latency-p95-high` rule since 2026-07-12 false-positive fix |
+| SLO thresholds appear as inflection points in real data | ⚠️ Not yet verified | Requires a live run during or after an SLO-breaching window. Synthetic data confirms the math; real data confirms the operational meaning |
+| `correlate.py` range query (`/api/v1/query_range`) returns data on EKS | ⚠️ Not yet executed | The instant query path (`/api/v1/query`) is used by `detector.py` and is known-working. The range path has the same API; blocked only by no live run yet |
 
 - `correlate.py` is run manually on SLO trigger — not integrated into the live detect loop yet (Diagnose stage, Week 3/4 task).
 - Single-point impulse leading-indicator detection is weak under Spearman (rank mass too small for n=300). Production data with sustained SLO-breaching windows works correctly, as validated by the synthetic smoke test with a multi-point incident injection.
