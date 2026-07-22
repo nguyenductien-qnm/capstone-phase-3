@@ -224,3 +224,12 @@ variable "access_entries" {
     error_message = "Namespace-scoped entries require at least one namespace; scope must be cluster or namespace."
   }
 }
+
+# CDO-219 (Mandate 17 — R3): bật enforce NetworkPolicy ở VPC CNI (aws-eks-nodeagent).
+# Mặc định false để KHÔNG ảnh hưởng các environment khác dùng chung module này (vd develop).
+# Chỉ set true ở environment sở hữu cluster cần khoanh mạng (sandbox = ecommerce-dev-eks).
+variable "enable_network_policy" {
+  description = "Enable AWS VPC CNI NetworkPolicy enforcement (aws-node ENABLE_NETWORK_POLICY)."
+  type        = bool
+  default     = false
+}

@@ -71,6 +71,9 @@ module "eks" {
   ops_node_disk_size_gib  = var.eks_ops_node_disk_size_gib
 
   access_entries = merge(var.eks_access_entries, local.github_terraform_access_entry)
+
+  # M17-R3: bật enforce NetworkPolicy CHỈ cho cluster này (ecommerce-dev-eks). develop giữ default false.
+  enable_network_policy = true
 }
 
 module "rds" {
