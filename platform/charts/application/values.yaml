@@ -741,11 +741,6 @@ components:
         value: flagd
       - name: FLAGD_PORT
         value: "8013"
-      - name: VALKEY_ADDR
-        valueFrom:
-          secretKeyRef:
-            name: valkey-secret
-            key: address
       - name: ENV_PLATFORM
         value: kubernetes
       - name: OTEL_COLLECTOR_HOST
