@@ -4,9 +4,9 @@ from alerter import Alerter, SEVERITY_COLOR
 
 
 def _make_discord_alerter():
-    # provider="auto" doan tu URL webhook (xem _resolve_provider) - dung URL discord.com that
-    # de test di dung nhanh, khong can set provider="discord" tay.
-    a = Alerter(provider="auto", cooldown_seconds=600)
+    # provider="auto" infers from webhook URL — use a real discord.com URL
+    # to hit the discord branch without setting provider="discord" manually.
+    a = Alerter(provider="auto", cooldown_seconds=0)  # cooldown=0 for test isolation
     a.webhook_critical = "https://discord.com/api/webhooks/123/abc"
     a.webhook_info = a.webhook_critical
     a.provider = "discord"
@@ -19,39 +19,47 @@ def test_discord_embed_has_color_and_fields(mock_post):
     a = _make_discord_alerter()
 
     fields = [
-        ("🎯 Dịch vụ", "cart", True),
-        ("📊 Giá trị đo / Ngưỡng SLO", "1.5000 / 1.0", True),
-        ("🔍 Phương pháp phát hiện", "Static (val=1.5000 > th=1.0)", False),
+        ("\U0001F3AF Dịch vụ", "cart", True),
+        ("\U0001F4CA Giá trị đo / Ngưỡng SLO", "1.5000 / 1.0", True),
+        ("\U0001F50D Phương pháp phát hiện", "Static (val=1.5000 > th=1.0)", False),
     ]
     sent = a.send("rule:cart", "critical", "latency-p95-high", "p95 latency > 1s", fields=fields)
-
     assert sent is True
+
+    # K3: send() buffers — flush() dispatches the grouped message
+    dispatched = a.flush()
+    assert dispatched == 1
+
     mock_post.assert_called_once()
     _, kwargs = mock_post.call_args
     payload = kwargs["json"]
     embed = payload["embeds"][0]
 
     assert embed["color"] == SEVERITY_COLOR["critical"]
-    assert embed["description"] == "p95 latency > 1s"
-    assert "latency-p95-high" in embed["title"]
-    assert embed["fields"] == [
-        {"name": "🎯 Dịch vụ", "value": "cart", "inline": True},
-        {"name": "📊 Giá trị đo / Ngưỡng SLO", "value": "1.5000 / 1.0", "inline": True},
-        {"name": "🔍 Phương pháp phát hiện", "value": "Static (val=1.5000 > th=1.0)", "inline": False},
-    ]
-    assert "content" not in payload  # khong con fallback text phang
+    # Grouped message: description contains the rule message, title contains service info
+    assert "p95 latency > 1s" in embed["description"]
+    assert "latency-p95-high" in embed["description"]
+    # Fields from the alert entry are merged into the grouped embed
+    assert any(f["name"] == "\U0001F3AF Dịch vụ" and f["value"] == "cart"
+               for f in embed.get("fields", []))
+    assert "content" not in payload  # no flat text fallback
 
 
 @patch("alerter.requests.post")
 def test_discord_embed_without_fields_still_sends(mock_post):
-    """log_clustering.py goi alerter.send() khong truyen fields - phai van chay duoc (backward-compat)."""
+    """log_clustering.py calls alerter.send() without fields — must work (backward-compat)."""
     mock_post.return_value = MagicMock(status_code=204, raise_for_status=lambda: None)
     a = _make_discord_alerter()
 
     sent = a.send("cluster:1", "warning", "new-log-template", "Phat hien template log moi")
-
     assert sent is True
+
+    # K3: must flush to dispatch
+    dispatched = a.flush()
+    assert dispatched == 1
+
     payload = mock_post.call_args.kwargs["json"]
     embed = payload["embeds"][0]
     assert embed["color"] == SEVERITY_COLOR["warning"]
-    assert "fields" not in embed
+    # No fields passed — embed should have no fields key (or empty)
+    assert not embed.get("fields")

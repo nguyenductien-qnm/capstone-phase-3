@@ -1,0 +1,14 @@
+# Shopping Copilot — AIO Team dependencies
+# Install: pip install -r requirements-copilot.txt
+
+streamlit>=1.35.0
+boto3>=1.34.0
+botocore>=1.34.0
+
+# gRPC integration (TF1-56) — connect to real microservices on EKS
+grpcio>=1.60.0
+grpcio-tools>=1.60.0
+
+# AIOps correlation analysis (TF1-70) — required by docs/ai/evals/test_correlate.py
+numpy>=1.26,<3
+scipy>=1.13,<2
