@@ -6,6 +6,7 @@ import { useProductReview } from '../../providers/ProductReview.provider';
 import { useAiAssistant } from '../../providers/ProductAIAssistant.provider';
 import React, { useState, useMemo } from 'react';
 import { CypressFields } from '../../utils/enums/CypressFields';
+import { TraceCitationPanel } from '../TraceCitationPanel';
 
 const clamp = (n: number, min = 0, max = 5) => Math.max(min, Math.min(max, n));
 
@@ -133,10 +134,20 @@ const ProductReviews = () => {
             )}
 
             {aiResponse && (
-                <S.AIMessage aria-live="polite" data-cy="AIAnswer">
-                    <strong>AI Response:</strong>{' '}
-                    {typeof aiResponse === 'string' ? aiResponse : aiResponse.text}
-                </S.AIMessage>
+                <div data-cy="AIAnswer">
+                    <S.AIMessage aria-live="polite">
+                        <strong>AI Response:</strong>{' '}
+                        {typeof aiResponse === 'string' ? aiResponse : aiResponse.text}
+                    </S.AIMessage>
+                    
+                    {typeof aiResponse !== 'string' && (aiResponse.traceId || (aiResponse.citations && aiResponse.citations.length > 0) || (aiResponse.traceSteps && aiResponse.traceSteps.length > 0)) && (
+                        <TraceCitationPanel 
+                            traceId={aiResponse.traceId} 
+                            citations={aiResponse.citations} 
+                            traceSteps={aiResponse.traceSteps} 
+                        />
+                    )}
+                </div>
             )}
         </S.AskAISection>
 

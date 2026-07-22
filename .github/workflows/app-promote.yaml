@@ -1,0 +1,190 @@
+name: App Promote (develop -> prod, PR by digest)
+
+# Bước D của deploy model build-once-promote (xem app-build.yaml + app-attest.yaml):
+# dispatch -> đọc tag đang chạy ở develop (values-image-tags.yaml develop) ->
+# resolve tag -> digest trên ECR -> cosign verify chữ ký build + verify-attestation
+# promoted-develop (app-attest.yaml đã đóng dấu) -> chép tag sang
+# environments/sandbox/values-image-tags.yaml -> mở PR (review bắt buộc) ->
+# merge -> ArgoCD prod sync. KHÔNG build lại image: prod chạy ĐÚNG digest đã
+# scan + ký + chạy thử ở develop.
+#
+# Fail-closed: thiếu chữ ký HOẶC thiếu attestation ở BẤT KỲ service nào được
+# chọn -> không mở PR (không promote nửa vời một đợt).
+
+on:
+  workflow_dispatch:
+    inputs:
+      services:
+        description: "Service cần promote (space-separated), rỗng = tất cả trong tags file develop"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  ECR_REGISTRY: ${{ vars.ECR_REGISTRY || '804372444787.dkr.ecr.us-east-1.amazonaws.com' }}
+  ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY || 'ecommerce-dev-techx-corp' }}
+  DEVELOP_TAGS_FILE: platform/gitops/environments/develop/values/values-image-tags.yaml
+  PROD_TAGS_FILE: platform/gitops/environments/sandbox/values-image-tags.yaml
+  # Phải khớp PREDICATE_TYPE của app-attest.yaml.
+  PREDICATE_TYPE: https://github.com/nguyenductien-qnm/capstone-phase-3/promoted-develop/v1
+  OIDC_ISSUER: https://token.actions.githubusercontent.com
+
+jobs:
+  promote:
+    name: Verify + mở PR promote
+    # Guard: chỉ dispatch từ develop — nguồn sự thật của tag promote là tags file
+    # develop trên nhánh develop.
+    if: github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    # Cần AWS đọc ECR (resolve digest) — cùng role/environment với app-build.
+    environment: sandbox
+    permissions:
+      contents: read
+      id-token: write # OIDC cho AWS (verify không cần ký, nhưng cần pull ECR)
+    steps:
+      # App token: mở PR bằng danh tính bot GitOps (giống job bump của app-build).
+      # App cần quyền contents:write + pull_requests:write.
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.GITOPS_APP_ID || secrets.GITOPS_APP_ID }}
+          private-key: ${{ secrets.GITOPS_APP_PRIVATE_KEY }}
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Install yq
+        uses: mikefarah/yq@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.TF_AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-promote-${{ github.actor }}-${{ github.run_id }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3.5.0
+
+      - name: Verify chữ ký + attestation, chép tag sang prod
+        id: verify
+        env:
+          DISPATCH_SERVICES: ${{ github.event.inputs.services }}
+          BUILD_IDENTITY: https://github.com/${{ github.repository }}/.github/workflows/app-build.yaml@refs/heads/develop
+          ATTEST_IDENTITY: https://github.com/${{ github.repository }}/.github/workflows/app-attest.yaml@refs/heads/develop
+        run: |
+          set -euo pipefail
+
+          if [ -n "${DISPATCH_SERVICES:-}" ]; then
+            read -ra SERVICES <<< "$DISPATCH_SERVICES"
+          else
+            mapfile -t SERVICES < <(yq -r '.components | keys | .[]' "$DEVELOP_TAGS_FILE")
+          fi
+
+          failed=0
+          : > /tmp/promote-table.md
+          for svc in "${SERVICES[@]}"; do
+            TAG=$(yq -r ".components.\"$svc\".imageOverride.tag // \"\"" "$DEVELOP_TAGS_FILE")
+            if [ -z "$TAG" ]; then
+              echo "::error::'$svc' không có tag trong $DEVELOP_TAGS_FILE."
+              failed=$((failed+1)); continue
+            fi
+
+            DIGEST=$(aws ecr describe-images \
+              --repository-name "$ECR_REPOSITORY" \
+              --image-ids imageTag="$TAG" \
+              --query 'imageDetails[0].imageDigest' --output text 2>/dev/null) || {
+              echo "::error::'$svc': tag $TAG không có trên ECR."
+              failed=$((failed+1)); continue
+            }
+            REF="${ECR_REGISTRY}/${ECR_REPOSITORY}@${DIGEST}"
+
+            if ! cosign verify \
+                   --certificate-identity "$BUILD_IDENTITY" \
+                   --certificate-oidc-issuer "$OIDC_ISSUER" \
+                   "$REF" >/dev/null 2>&1; then
+              echo "::error::'$svc': $DIGEST thiếu chữ ký hợp lệ từ app-build."
+              failed=$((failed+1)); continue
+            fi
+
+            # verify-attestation lọc theo predicateType; jq check thêm nội dung
+            # predicate (đúng env develop + đúng tag) cho chắc.
+            if ! cosign verify-attestation \
+                   --type "$PREDICATE_TYPE" \
+                   --certificate-identity "$ATTEST_IDENTITY" \
+                   --certificate-oidc-issuer "$OIDC_ISSUER" \
+                   "$REF" 2>/dev/null \
+                 | jq -es --arg tag "$TAG" \
+                     '[.[] | .payload | @base64d | fromjson | .predicate]
+                      | any(.environment == "develop" and .tag == $tag)' >/dev/null; then
+              echo "::error::'$svc': $DIGEST CHƯA có attestation promoted-develop (chạy app-attest trước)."
+              failed=$((failed+1)); continue
+            fi
+
+            echo "✅ $svc: $TAG ($DIGEST) đã verify chữ ký + attestation."
+            yq -i ".components.\"$svc\".imageOverride.tag = \"$TAG\"" "$PROD_TAGS_FILE"
+            echo "| $svc | \`$TAG\` | \`$DIGEST\` |" >> /tmp/promote-table.md
+          done
+
+          if [ "$failed" -gt 0 ]; then
+            echo "::error::$failed service không qua verify — KHÔNG mở PR promote."
+            exit 1
+          fi
+
+          if git diff --quiet -- "$PROD_TAGS_FILE"; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "ℹ️ Prod đã chạy đúng các tag này — không có gì để promote."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Mở PR promote
+        if: steps.verify.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          BRANCH="promote/prod-${SHORT_SHA}-$(date -u +%Y%m%d%H%M)"
+
+          git config user.name  "${APP_SLUG}[bot]"
+          git config user.email "${APP_SLUG}[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add "$PROD_TAGS_FILE"
+          git commit -m "promote(prod): nhận tag đã verify từ develop ${SHORT_SHA}"
+          git push origin "$BRANCH"
+
+          {
+            echo "Promote develop -> prod theo digest (build once). Mỗi service dưới đây đã:"
+            echo "- ✅ cosign verify chữ ký build (app-build.yaml, keyless OIDC)"
+            echo "- ✅ cosign verify-attestation \`promoted-develop\` (app-attest.yaml)"
+            echo ""
+            echo "| service | tag | digest |"
+            echo "|---|---|---|"
+            cat /tmp/promote-table.md
+            echo ""
+            echo "Nguồn: tags file develop @ ${SHORT_SHA} — verify run: ${RUN_URL}"
+            echo ""
+            echo "Merge -> ArgoCD prod (env sandbox) sync. KHÔNG build lại image."
+          } > /tmp/pr-body.md
+
+          gh pr create \
+            --base develop \
+            --head "$BRANCH" \
+            --title "promote(prod): develop -> prod @ ${SHORT_SHA}" \
+            --body-file /tmp/pr-body.md

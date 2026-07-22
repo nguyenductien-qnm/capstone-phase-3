@@ -44,6 +44,10 @@ jobs:
         run: |
           python docs/ai/evals/run_evals.py --threshold 0.70
 
+      - name: Run Mandate 06 Eval
+        run: |
+          python docs/ai/evals/eval_mandate06_v6.py --threshold 0.90
+
       - name: Run QA Evaluation (Grounded, No-Info, Injection)
         run: |
           python docs/ai/evals/run_qa_evals.py --threshold 0.80

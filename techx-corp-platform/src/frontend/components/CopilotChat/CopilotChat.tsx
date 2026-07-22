@@ -23,9 +23,11 @@ const loadingDots = keyframes`
   60%, 100% { content: "..."; }
 `;
 
+import { TraceCitationPanel } from '../TraceCitationPanel';
+
 const ChatWrapper = styled.div`
   position: fixed;
-  bottom: 30px;
+  bottom: 24px;
   right: 30px;
   z-index: 9999;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -242,6 +244,45 @@ const ActionButton = styled.button<{ primary?: boolean }>`
   }
 `;
 
+const SourcesPanel = styled.details`
+  margin-top: 6px;
+  max-width: 85%;
+  font-size: 12px;
+  color: #555;
+
+  summary {
+    cursor: pointer;
+    user-select: none;
+    font-weight: 600;
+  }
+`;
+
+const SourceItem = styled.div`
+  padding: 6px 0;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  line-height: 1.4;
+
+  &:first-of-type {
+    border-top: none;
+  }
+`;
+
+const TraceIdLabel = styled.button`
+  margin-top: 4px;
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 10px;
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  color: #aaa;
+  cursor: pointer;
+
+  &:hover {
+    color: #666;
+  }
+`;
+
 const InputContainer = styled.form`
   display: flex;
   padding: 16px 24px;
@@ -311,11 +352,20 @@ interface PendingConfirmation {
   expiresAtUnix: number;
 }
 
+interface Citation {
+  reviewId: string;
+  snippet: string;
+  score: string;
+}
+
 interface Message {
   id: string;
   text: string;
   isUser: boolean;
   pendingAction?: PendingConfirmation | null;
+  citations?: Citation[];
+  traceId?: string;
+  traceSteps?: any[];
 }
 
 export default function CopilotChat() {
@@ -362,11 +412,14 @@ export default function CopilotChat() {
 
       const data = await res.json();
       
-      setMessages(prev => [...prev, { 
-        id: Date.now().toString(), 
-        text: data.response || (data.pendingConfirmation ? '' : 'I am sorry, I could not process that request.'), 
+      setMessages(prev => [...prev, {
+        id: Date.now().toString(),
+        text: data.response || (data.pendingConfirmation ? '' : 'I am sorry, I could not process that request.'),
         isUser: false,
-        pendingAction: data.pendingConfirmation || null
+        pendingAction: data.pendingConfirmation || null,
+        citations: data.citations || [],
+        traceId: data.traceId || '',
+        traceSteps: data.traceSteps || []
       }]);
     } catch (err) {
       console.error(err);
@@ -428,6 +481,14 @@ export default function CopilotChat() {
                     </ActionButton>
                   </ButtonRow>
                 </ActionGateCard>
+              )}
+
+              {!msg.isUser && (msg.traceId || (msg.citations && msg.citations.length > 0) || (msg.traceSteps && msg.traceSteps.length > 0)) && (
+                <TraceCitationPanel 
+                  traceId={msg.traceId} 
+                  citations={msg.citations} 
+                  traceSteps={msg.traceSteps} 
+                />
               )}
             </MessageGroup>
           ))}

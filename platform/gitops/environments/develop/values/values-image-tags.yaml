@@ -1,49 +1,63 @@
-# Develop snapshot of image tags that currently exist in the shared ECR account.
-# This file is isolated from the Sandbox CI tag-bump path. Update it only after
-# verifying the new image tag exists in account 804372444787.
+# Develop image tags — CI (app-build job bump) ghi file này; đợt 5e03ae7 bump tay
+# một lần do dispatch build-all đầu tiên chạy khi bump job còn điều kiện push-only.
 components:
-  cart:
-    imageOverride:
-      # Sua tay 1 lan (incident 2026-07-16): tag tran "1.1-cart" bi ECR lifecycle
-      # policy xoa -> ImagePullBackOff. cart dang HOAN BUILD (build-exclusions) nen
-      # CI khong tu bump; image rebuild tu source, push tag sha. CI se ghi de khi bo hoan.
-      tag: "1.1-cart-ae89fa2"
-  checkout:
-    imageOverride:
-      tag: "1.0-checkout-9b5c297"
-  frontend-proxy:
-    imageOverride:
-      tag: "1.0-frontend-proxy-9b5c297"
-  product-catalog:
-    imageOverride:
-      tag: "1.0-product-catalog-9b5c297"
-  ad:
-    imageOverride:
-      tag: 1.0-ad-9b5c297
-  currency:
-    imageOverride:
-      tag: 1.0-currency-9b5c297
   accounting:
     imageOverride:
-      tag: 1.0-accounting-9b5c297
-  product-reviews:
+      tag: 1.0-accounting-f33f5bf
+  ad:
     imageOverride:
-      tag: 1.0-product-reviews-60e8c59
+      tag: 1.0-ad-f33f5bf
+  cart:
+    imageOverride:
+      tag: 1.0-cart-f33f5bf
+  checkout:
+    imageOverride:
+      tag: 1.0-checkout-f33f5bf
+  currency:
+    imageOverride:
+      tag: 1.0-currency-f33f5bf
+  fraud-detection:
+    imageOverride:
+      tag: 1.0-fraud-detection-f33f5bf
+  frontend:
+    imageOverride:
+      tag: 1.0-frontend-bdce702
+  frontend-proxy:
+    imageOverride:
+      tag: 1.0-frontend-proxy-f33f5bf
+  image-provider:
+    imageOverride:
+      tag: 1.0-image-provider-f33f5bf
   llm:
     imageOverride:
-      tag: 1.0-llm-9b5c297
+      tag: 1.0-llm-f33f5bf
   load-generator:
     imageOverride:
-      tag: 1.0-load-generator-9b5c297
+      tag: 1.0-load-generator-f33f5bf
+  ml-guard:
+    imageOverride:
+      tag: 1.0-ml-guard-bdce702
+  payment:
+    imageOverride:
+      tag: 1.0-payment-f33f5bf
+  product-catalog:
+    imageOverride:
+      tag: 1.0-product-catalog-f33f5bf
+  product-reviews:
+    imageOverride:
+      tag: 1.0-product-reviews-bdce702
   quote:
     imageOverride:
-      tag: 1.0-quote-9b5c297
+      tag: 1.0-quote-f33f5bf
   recommendation:
     imageOverride:
-      tag: 1.0-recommendation-9b5c297
+      tag: 1.0-recommendation-bdce702
   shipping:
     imageOverride:
-      tag: 1.0-shipping-9b5c297
+      tag: 1.0-shipping-f33f5bf
   shopping-copilot:
     imageOverride:
-      tag: 1.0-shopping-copilot-60e8c59
+      tag: 1.0-shopping-copilot-bdce702
+  email:
+    imageOverride:
+      tag: 1.0-email-f33f5bf

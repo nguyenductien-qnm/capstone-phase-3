@@ -61,20 +61,61 @@ resource "aws_security_group_rule" "db_ingress_proxy" {
   description              = "Allow connection from RDS Proxy to database"
 }
 
+# Custom Parameter Group để bật logical replication.
+# Bắt buộc cho Blue/Green deployment (RDS cần logical replication để đồng bộ Blue -> Green)
+# và cho các use-case CDC/logical replication khác.
+# rds.logical_replication là static parameter -> yêu cầu reboot để có hiệu lực.
+resource "aws_db_parameter_group" "this" {
+  count       = var.enable_logical_replication ? 1 : 0
+  name_prefix = "${var.project_name}-${var.environment}-postgres-pg-"
+  family      = "postgres${split(".", var.engine_version)[0]}"
+  description = "Custom parameter group cho PostgreSQL - bat logical replication"
+
+  parameter {
+    name         = "rds.logical_replication"
+    value        = "1"
+    apply_method = "pending-reboot"
+  }
+
+  dynamic "parameter" {
+    for_each = var.track_activity_query_size == null ? [] : [var.track_activity_query_size]
+
+    content {
+      name         = "track_activity_query_size"
+      value        = tostring(parameter.value)
+      apply_method = "pending-reboot"
+    }
+  }
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-postgres-pg"
+    Environment = var.environment
+    Project     = var.project_name
+  }
+
+  # Đổi engine major version sẽ đổi family -> tạo group mới trước khi xóa group cũ
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
 # Primary Database Instance
 resource "aws_db_instance" "this" {
-  identifier           = "${var.project_name}-${var.environment}-postgres"
-  engine               = "postgres"
-  engine_version       = var.engine_version
-  instance_class       = var.instance_class
-  allocated_storage    = var.allocated_storage
-  db_name              = var.db_name
-  username             = var.db_username
-  password             = random_password.db_password.result
-  db_subnet_group_name = aws_db_subnet_group.this.name
-  skip_final_snapshot  = true
-  multi_az             = var.multi_az
-  storage_encrypted    = true
+  identifier                  = "${var.project_name}-${var.environment}-postgres"
+  engine                      = "postgres"
+  engine_version              = var.engine_version
+  instance_class              = var.instance_class
+  allocated_storage           = var.allocated_storage
+  db_name                     = var.db_name
+  username                    = var.db_username
+  password                    = random_password.db_password.result
+  db_subnet_group_name        = aws_db_subnet_group.this.name
+  parameter_group_name        = var.enable_logical_replication ? aws_db_parameter_group.this[0].name : null
+  skip_final_snapshot         = true
+  multi_az                    = var.multi_az
+  storage_encrypted           = true
+  allow_major_version_upgrade = true
+
 
   # Phải bật backup retention để cho phép tạo Read Replica
   backup_retention_period = 7
@@ -101,6 +142,7 @@ resource "aws_db_instance" "replica" {
   instance_class       = var.replica_instance_class
   skip_final_snapshot  = true
   db_subnet_group_name = null # replica tự động thừa hưởng subnet group của primary
+  parameter_group_name = var.enable_logical_replication ? aws_db_parameter_group.this[0].name : null
   storage_encrypted    = true
 
   vpc_security_group_ids = [aws_security_group.db.id]
@@ -174,6 +216,35 @@ resource "aws_secretsmanager_secret_version" "db_credentials" {
     port                = 5432
     dbClusterIdentifier = aws_db_instance.this.identifier
   })
+}
+
+data "aws_region" "current" {}
+
+resource "aws_serverlessapplicationrepository_cloudformation_stack" "rds_rotation" {
+  count = (var.enable_rds_proxy && var.enable_rotation) ? 1 : 0
+
+  name           = "${var.project_name}-${var.environment}-rds-rot"
+  application_id = "arn:aws:serverlessrepo:us-east-1:297356227824:applications/SecretsManagerRDSPostgreSQLRotationSingleUser"
+
+  capabilities = ["CAPABILITY_IAM", "CAPABILITY_RESOURCE_POLICY"]
+
+  parameters = {
+    functionName        = "${var.project_name}-${var.environment}-rds-rotation"
+    vpcSubnetIds        = join(",", length(var.app_subnet_ids) > 0 ? var.app_subnet_ids : var.database_subnet_ids)
+    vpcSecurityGroupIds = var.eks_node_security_group_id
+    endpoint            = "https://secretsmanager.${data.aws_region.current.name}.amazonaws.com"
+  }
+}
+
+resource "aws_secretsmanager_secret_rotation" "db_credentials" {
+  count = (var.enable_rds_proxy && var.enable_rotation) ? 1 : 0
+
+  secret_id           = aws_secretsmanager_secret.db_credentials[0].id
+  rotation_lambda_arn = aws_serverlessapplicationrepository_cloudformation_stack.rds_rotation[0].outputs.RotationLambdaARN
+
+  rotation_rules {
+    automatically_after_days = var.rotation_rules_automatically_after_days
+  }
 }
 
 # IAM Role để RDS Proxy đọc Secret
@@ -265,8 +336,13 @@ resource "aws_db_proxy_target" "this" {
 # đồng bộ vào cluster. Tách khỏi db_credentials để tránh phụ thuộc vòng: aws_db_proxy
 # đã depends_on secret_version.db_credentials, nên không thể nhét proxy.endpoint vào
 # chính secret đó. Ứng dụng nên kết nối qua proxy_endpoint (pooling).
+# Secret này trước đây chỉ tạo khi enable_rds_proxy=true -> env tắt proxy (develop)
+# có RDS chạy nhưng KHÔNG có secret nào cho ESO -> app không lấy được endpoint.
+# Tạo LUÔN (count=1 giữ nguyên địa chỉ state [0], không destroy/create ở sandbox);
+# proxy_endpoint fallback về host khi không có proxy để chart không phải biết
+# env có proxy hay không (cùng triết lý với replica_endpoint bên dưới).
 resource "aws_secretsmanager_secret" "db_endpoint" {
-  count = var.enable_rds_proxy ? 1 : 0
+  count = 1
 
   name                    = "${var.project_name}-${var.environment}-rds-endpoint"
   recovery_window_in_days = 0
@@ -279,19 +355,17 @@ resource "aws_secretsmanager_secret" "db_endpoint" {
 }
 
 resource "aws_secretsmanager_secret_version" "db_endpoint" {
-  count = var.enable_rds_proxy ? 1 : 0
+  count = 1
 
   secret_id = aws_secretsmanager_secret.db_endpoint[0].id
   secret_string = jsonencode({
     host           = aws_db_instance.this.address
-    proxy_endpoint = aws_db_proxy.this[0].endpoint
+    proxy_endpoint = var.enable_rds_proxy ? aws_db_proxy.this[0].endpoint : aws_db_instance.this.address
     # Replica cho tác vụ chỉ đọc (catalog/reviews) — kết nối trực tiếp vì RDS Proxy
-    # (non-Aurora) chỉ target primary. Fallback về proxy khi env tắt replica để
-    # chart không phải biết env có replica hay không.
-    replica_endpoint = var.enable_read_replica ? aws_db_instance.replica[0].address : aws_db_proxy.this[0].endpoint
+    # (non-Aurora) chỉ target primary. Fallback khi env tắt replica để chart không
+    # phải biết env có replica hay không.
+    replica_endpoint = var.enable_read_replica ? aws_db_instance.replica[0].address : (var.enable_rds_proxy ? aws_db_proxy.this[0].endpoint : aws_db_instance.this.address)
     port             = 5432
-    username         = var.db_username
-    password         = random_password.db_password.result
     dbname           = var.db_name
   })
 }

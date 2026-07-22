@@ -27,14 +27,18 @@ from concurrent import futures
 
 import grpc
 from grpc_health.v1 import health, health_pb2, health_pb2_grpc
+from opentelemetry import trace
 
 import agent
 import tools
+from botocore.config import Config
 from bedrock_client import create_bedrock_runtime_client
 from guardrails import apply_guardrail_input
 import model_router
 import shopping_copilot_pb2 as pb
 import shopping_copilot_pb2_grpc as pb_grpc
+
+tracer = trace.get_tracer_provider().get_tracer("shopping-copilot")
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger("shopping-copilot")
@@ -88,8 +92,19 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
         session = self._sessions.setdefault(request.session_id or request.user_id, [])
         session_id = request.session_id or request.user_id
         
+        trace_steps = []
+        
         # MANDATE-06: Unified Input Guardrail
-        blocked, sanitized_question = apply_guardrail_input(self._bedrock, request.question)
+        start_in = time.time()
+        with tracer.start_as_current_span("guardrail_input") as input_span:
+            blocked, sanitized_question = apply_guardrail_input(self._bedrock, request.question)
+            input_span.set_attribute("guardrail.blocked", blocked)
+        lat_in = int((time.time() - start_in) * 1000)
+        trace_steps.append(pb.TraceStep(
+            step_name="Input Guardrail (PII/Prompt Guard)",
+            latency_ms=lat_in,
+            status="blocked" if blocked else "pass"
+        ))
         if blocked:
             logger.warning("[Guardrail] Blocked input for session=%s", session_id)
             sanitized_question = "[filtered]"
@@ -99,15 +114,33 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
         routed_model = model_router.get_routed_model("copilot", MAIN_MODEL)
         logger.info(f"Routed model for copilot: {routed_model}")
 
+        start_llm = time.time()
         result = agent.run_agent(self._bedrock, routed_model, session, request.user_id)
+        lat_llm = int((time.time() - start_llm) * 1000)
+        trace_steps.append(pb.TraceStep(
+            step_name="Model Gateway & Bedrock Nova",
+            latency_ms=lat_llm,
+            status="ok"
+        ))
+        
+        for ts in result.trace_steps:
+            trace_steps.append(pb.TraceStep(
+                step_name=ts.get("step_name", ""),
+                latency_ms=ts.get("latency_ms", 0),
+                status=ts.get("status", "")
+            ))
 
         session.append({"role": "assistant", "content": [{"text": result.text}]})
         # Bound the stored context so old turns don't crowd the window.
         if len(session) > MAX_SESSION_MESSAGES:
             del session[:-MAX_SESSION_MESSAGES]
 
-        resp = pb.ChatWithCopilotResponse(response=result.text, degraded=result.degraded)
+        resp = pb.ChatWithCopilotResponse(response=result.text, degraded=result.degraded,
+                                           trace_id=result.trace_id, trace_steps=trace_steps)
         resp.actions_taken.extend(_to_records(result.actions_taken))
+        for c in result.citations:
+            resp.citations.add(review_id=c.get("review_id", ""), snippet=c.get("snippet", ""),
+                                score=str(c.get("score", "")))
         if result.pending is not None:
             token, expires_at = self._pending.put(
                 request.user_id,
@@ -153,7 +186,9 @@ def _to_records(actions: list[agent.ToolCall]) -> list:
 
 
 def serve():
-    bedrock = create_bedrock_runtime_client(region_name=AWS_REGION)
+    main_timeout = float(os.environ.get('LLM_COPILOT_TIMEOUT', '4.9'))
+    primary_config = Config(connect_timeout=1.0, read_timeout=main_timeout, retries={'max_attempts': 0})
+    bedrock = create_bedrock_runtime_client(region_name=AWS_REGION, config=primary_config)
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=MAX_WORKERS))
     pb_grpc.add_ShoppingCopilotServiceServicer_to_server(
         ShoppingCopilotServicer(bedrock), server)

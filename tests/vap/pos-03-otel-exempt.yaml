@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: vaptest-pos-03-otel-exempt
+  labels: { vaptest: "true" }
+spec:
+  # Image otel-collector-contrib KHÔNG set securityContext -> nằm trong exempt list
+  # của run-as-non-root, deny-privilege-escalation, psp-capabilities -> phải PASS
+  # (regression guard: nếu ai sửa CEL mất exemption, DaemonSet otel-collector-agent
+  #  5 node sẽ bị chặn khi bật Deny -> sự cố observability)
+  # Lưu ý: vẫn phải có tag cố định + resources vì 2 luật đó KHÔNG exempt otel.
+  containers:
+  - name: otc-container
+    image: otel/opentelemetry-collector-contrib:0.151.0
+    resources:
+      requests: { cpu: "10m", memory: "32Mi" }
+      limits: { cpu: "100m", memory: "64Mi" }

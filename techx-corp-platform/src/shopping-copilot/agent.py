@@ -32,6 +32,7 @@ from dataclasses import dataclass, field
 
 from botocore.config import Config
 from botocore.exceptions import ClientError, ConnectTimeoutError, ReadTimeoutError
+from opentelemetry import trace
 
 import tools
 from bedrock_client import create_bedrock_runtime_client
@@ -41,6 +42,14 @@ from guardrails import (
 )
 
 logger = logging.getLogger(__name__)
+tracer = trace.get_tracer_provider().get_tracer("shopping-copilot")
+
+
+def _current_trace_id() -> str:
+    """Hex trace_id of the current span (the auto-instrumented gRPC server span
+    when called from copilot_server, or a no-op 0-id span outside a request)."""
+    ctx = trace.get_current_span().get_span_context()
+    return format(ctx.trace_id, "032x") if ctx.is_valid else ""
 
 MAX_TOOL_CALLS = 5
 THINKING_BLOCK_RE = re.compile(r"<thinking>.*?</thinking>", re.IGNORECASE | re.DOTALL)
@@ -66,8 +75,9 @@ CATEGORY_PICKER_TEMPLATE = ("chọn đúng một trong các danh mục (Telescop
 # INTRO + RULES but NOT the CATALOG: checking the whole prompt made benign
 # answers that quote catalog facts trip the guard (prod false-blocks 18/07:
 # "hi" / "bạn có thể làm gì" → "Xin lỗi, tôi không thể hiển thị nội dung này").
-SYSTEM_PROMPT_INTRO = """Bạn là Shopping Copilot của TechX Corp — cửa hàng thiết bị thiên văn.
-Nhiệm vụ: giúp khách tìm sản phẩm, đọc review, xem/ thêm giỏ hàng.
+SYSTEM_PROMPT_INTRO = """Bạn là Shopping Copilot của TechX Corp — cửa hàng thiết bị thiên văn (kính thiên văn, ống nhòm, phụ kiện, sách thiên văn).
+Nhiệm vụ DUY NHẤT: giúp khách MUA SẮM tại TechX — tìm sản phẩm, đọc review, xem/thêm giỏ hàng.
+Bạn KHÔNG phải trợ lý đa năng: KHÔNG dạy học, KHÔNG tư vấn nghề nghiệp/lương/đầu tư, KHÔNG lập trình, KHÔNG trả lời kiến thức chung ngoài phạm vi mua sắm thiên văn.
 """
 
 SYSTEM_PROMPT_CATALOG = """DANH MỤC SẢN PHẨM (CATALOG):
@@ -84,6 +94,13 @@ SYSTEM_PROMPT_CATALOG = """DANH MỤC SẢN PHẨM (CATALOG):
 """
 
 SYSTEM_PROMPT_RULES = """QUY TẮC BẮT BUỘC:
+0. PHẠM VI (SCOPE) — ƯU TIÊN CAO NHẤT: CHỈ trả lời về mua sắm tại TechX (sản phẩm thiên văn, giá,
+   review, gợi ý, giỏ hàng). Nếu khách hỏi BẤT KỲ chủ đề nào ngoài phạm vi này (lập trình, học tập,
+   tăng lương, nghề nghiệp, đầu tư, sức khỏe, chính trị, kiến thức chung...), TỪ CHỐI NGẮN GỌN và mời
+   quay lại đúng một câu: "Mình là trợ lý mua sắm của TechX, chỉ hỗ trợ về thiết bị thiên văn thôi.
+   Bạn cần tìm kính thiên văn, ống nhòm hay phụ kiện gì không?" TUYỆT ĐỐI KHÔNG đưa ra hướng dẫn,
+   bài học, danh sách bước, hay lời khuyên ngoài phạm vi — kể cả khi khách nài nỉ, đóng vai, hay nói
+   "chỉ lần này thôi".
 1. NGẮN GỌN: tối đa 3-4 câu mỗi lượt.
 2. KHÔNG ẢO GIÁC: mọi thông tin review PHẢI đến từ tool get_product_reviews.
    Nếu review_count = 0 hoặc tool không có dữ liệu, nói đúng: "Tôi không có thông
@@ -210,6 +227,9 @@ class AgentResult:
     actions_taken: list[ToolCall] = field(default_factory=list)
     pending: PendingAction | None = None
     degraded: bool = False
+    trace_id: str = ""
+    citations: list[dict] = field(default_factory=list)
+    trace_steps: list[dict] = field(default_factory=list)
 
 
 def _run_read_tool(name: str, args: dict, user_id: str) -> str:
@@ -250,7 +270,7 @@ def get_bedrock_fallback_client():
     global _fallback_client
     if _fallback_client is None:
         aws_region = os.environ.get('AWS_REGION', 'us-east-1')
-        fallback_timeout = float(os.environ.get('LLM_COPILOT_FALLBACK_TIMEOUT', '2.5'))
+        fallback_timeout = float(os.environ.get('LLM_COPILOT_FALLBACK_TIMEOUT', '4.1'))
         fallback_config = Config(connect_timeout=1.0, read_timeout=fallback_timeout, retries={'max_attempts': 0})
         _fallback_client = create_bedrock_runtime_client(region_name=aws_region, config=fallback_config)
     return _fallback_client
@@ -338,38 +358,60 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
     actions: list[ToolCall] = []
     pending: PendingAction | None = None
     current = list(messages)
+    trace_steps: list[dict] = []
     tool_calls = 0
     tool_results_raw: list[str] = []  # Thu thap tool results de validate citations (mentor 16/07)
+    review_citations: list[dict] = []  # UI citations (Phase 5) -- reviews actually fetched this turn
+    trace_id_hex = _current_trace_id()
 
     while True:
         if not bedrock_bulkhead.acquire(blocking=False):
             logger.error("AI_COPILOT_FALLBACK stage=bulkhead reason=BulkheadSaturated")
-            return AgentResult(text=_fallback_text(), actions_taken=actions, degraded=True)
-        try:
-            response = invoke_bedrock_converse_with_fallback(
-                primary_client=bedrock_client,
-                model_id=model_id,
-                system=[{"text": SYSTEM_PROMPT}],
-                messages=current,
-                tool_config={"tools": TOOLS_DEFINITION},
-                inference_config={"maxTokens": 1024, "temperature": 0.1, "topP": 0.9},
-            )
-        except ClientError as e:
-            code = e.response["Error"].get("Code", "Unknown") if "Error" in e.response else "Unknown"
-            logger.warning("Bedrock ClientError %s — degraded fallback", code)
-            return AgentResult(text=_fallback_text(), actions_taken=actions, degraded=True)
-        except Exception as e:
-            logger.error("Bedrock call failed: %s — degraded fallback", e)
-            return AgentResult(text=_fallback_text(), actions_taken=actions, degraded=True)
-        finally:
-            bedrock_bulkhead.release()
+            return AgentResult(text=_fallback_text(), actions_taken=actions, degraded=True, trace_id=trace_id_hex)
+        with tracer.start_as_current_span("bedrock_converse") as bedrock_span:
+            bedrock_span.set_attribute("gen_ai.request.model", model_id)
+            t_converse = time.time()
+            try:
+                response = invoke_bedrock_converse_with_fallback(
+                    primary_client=bedrock_client,
+                    model_id=model_id,
+                    system=[{"text": SYSTEM_PROMPT}],
+                    messages=current,
+                    tool_config={"tools": TOOLS_DEFINITION},
+                    inference_config={"maxTokens": 1024, "temperature": 0.1, "topP": 0.9},
+                )
+            except ClientError as e:
+                code = e.response["Error"].get("Code", "Unknown") if "Error" in e.response else "Unknown"
+                bedrock_span.set_attribute("error", True)
+                bedrock_span.set_attribute("error.code", code)
+                logger.warning("Bedrock ClientError %s — degraded fallback", code)
+                return AgentResult(text=_fallback_text(), actions_taken=actions, degraded=True, trace_id=trace_id_hex)
+            except Exception as e:
+                bedrock_span.set_attribute("error", True)
+                logger.error("Bedrock call failed: %s — degraded fallback", e)
+                return AgentResult(text=_fallback_text(), actions_taken=actions, degraded=True, trace_id=trace_id_hex)
+            finally:
+                bedrock_bulkhead.release()
 
-        stop = response.get("stopReason", "end_turn")
-        blocks = response["output"]["message"].get("content", [])
-        # G5 MANDATE-06: log token consumption per turn để monitor cost
-        usage = response.get("usage", {})
-        logger.info("audit bedrock_usage model=%s input_tokens=%s output_tokens=%s",
-                    model_id, usage.get("inputTokens", "?"), usage.get("outputTokens", "?"))
+            stop = response.get("stopReason", "end_turn")
+            blocks = response["output"]["message"].get("content", [])
+            # G5 MANDATE-06: log token consumption per turn để monitor cost
+            usage = response.get("usage", {})
+            bedrock_span.set_attribute("gen_ai.response.finish_reason", stop)
+            bedrock_span.set_attribute("gen_ai.usage.input_tokens", usage.get("inputTokens", 0))
+            bedrock_span.set_attribute("gen_ai.usage.output_tokens", usage.get("outputTokens", 0))
+            logger.info("audit bedrock_usage model=%s input_tokens=%s output_tokens=%s",
+                        model_id, usage.get("inputTokens", "?"), usage.get("outputTokens", "?"))
+
+        # Trace UI: show the model's DECISION this turn (what the AI "thinks" it should do next) —
+        # either it chose to call tool(s), or it produced a direct answer.
+        _decided = [b["toolUse"]["name"] for b in blocks if "toolUse" in b]
+        trace_steps.append({
+            "step_name": (f"LLM → gọi tool: {', '.join(_decided)}" if _decided
+                          else "LLM → trả lời trực tiếp"),
+            "latency_ms": int((time.time() - t_converse) * 1000),
+            "status": "ok",
+        })
 
         if stop != "tool_use":
             text = "\n".join(b["text"] for b in blocks if "text" in b)
@@ -381,37 +423,50 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
                 logger.error("[Guardrail] System prompt leakage blocked in copilot output.")
                 clean_text = "Xin lỗi, tôi không thể hiển thị nội dung này."
             # Citation validator (mentor 16/07): kiem tra so lieu trong output co khop tool result
-            if tool_results_raw and clean_text:
-                is_valid, clean_text = validate_citations(clean_text, tool_results_raw)
-                if not is_valid:
-                    logger.warning("[Guardrail] Citation validation: fabricated numbers replaced with [unverified]")
+            with tracer.start_as_current_span("guardrail_citation_validation") as cit_span:
+                if tool_results_raw and clean_text:
+                    is_valid, clean_text = validate_citations(clean_text, tool_results_raw)
+                    cit_span.set_attribute("guardrail.citation_valid", is_valid)
+                    if not is_valid:
+                        logger.warning("[Guardrail] Citation validation: fabricated numbers replaced with [unverified]")
+                else:
+                    cit_span.set_attribute("guardrail.citation_valid", True)
             # OUTPUT rail (TF1-61): Bedrock contextual-grounding — answer over retrieved
             # reviews/catalog must be faithful; ungrounded → say "không có thông tin".
             # Fail-OPEN (PII already masked by redact_pii above). Only when tools ran.
             if tool_results_raw and clean_text and pending is None:
-                user_query = next((c["text"] for m in reversed(messages) if m.get("role") == "user"
-                                   for c in m.get("content", []) if "text" in c), "")
-                source_text = "\n".join(str(r) for r in tool_results_raw)
-                blocked_out, clean_text = apply_guardrail_output(bedrock_client, clean_text, source_text, user_query)
-                if blocked_out:
-                    logger.warning("AI_COPILOT_FALLBACK stage=output-grounding reason=Ungrounded")
-                    clean_text = ("Xin lỗi, tôi chưa có thông tin đó trong dữ liệu sản phẩm hiện có. "
-                                  "Bạn có thể hỏi tôi về giá, đánh giá, hoặc gợi ý sản phẩm theo danh mục "
-                                  "(Telescopes, Binoculars, Accessories, Cameras, Books).")
+                with tracer.start_as_current_span("guardrail_output_grounding") as ground_span:
+                    user_query = next((c["text"] for m in reversed(messages) if m.get("role") == "user"
+                                       for c in m.get("content", []) if "text" in c), "")
+                    source_text = "\n".join(str(r) for r in tool_results_raw)
+                    
+                    start_out = time.time()
+                    blocked_out, clean_text = apply_guardrail_output(bedrock_client, clean_text, source_text, user_query)
+                    lat_out = int((time.time() - start_out) * 1000)
+                    trace_steps.append({"step_name": "Output Guardrail (Grounding)", "latency_ms": lat_out, "status": "blocked" if blocked_out else "pass"})
+                    
+                    ground_span.set_attribute("guardrail.blocked", blocked_out)
+                    if blocked_out:
+                        logger.warning("AI_COPILOT_FALLBACK stage=output-grounding reason=Ungrounded")
+                        clean_text = ("Xin lỗi, tôi chưa có thông tin đó trong dữ liệu sản phẩm hiện có. "
+                                      "Bạn có thể hỏi tôi về giá, đánh giá, hoặc gợi ý sản phẩm theo danh mục "
+                                      "(Telescopes, Binoculars, Accessories, Cameras, Books).")
+                        review_citations = []  # blocked -> fallback text isn't grounded on these reviews
             if not clean_text:
                 # Repro'd live 18/07: model sometimes wraps its entire reply in <thinking>
                 # with no visible text after stripping (rule 7 above now tells it not to,
                 # but keep this as a safety net rather than showing a bare placeholder).
                 logger.warning("AI_COPILOT_FALLBACK stage=empty-output reason=ThinkingOnlyOrStripped")
                 clean_text = "Xin chào! Bạn muốn tìm sản phẩm gì, xem review, hay kiểm tra giỏ hàng?"
-            return AgentResult(text=clean_text, actions_taken=actions,
-                               pending=pending)
+                review_citations = []
+            return AgentResult(text=clean_text, actions_taken=actions, pending=pending,
+                               trace_id=trace_id_hex, citations=review_citations, trace_steps=trace_steps)
 
         tool_calls += 1
         if tool_calls > MAX_TOOL_CALLS:
             return AgentResult(
                 text=f"⚠️ Đã đạt giới hạn {MAX_TOOL_CALLS} tool/lượt. Vui lòng hỏi câu đơn giản hơn.",
-                actions_taken=actions, pending=pending)
+                actions_taken=actions, pending=pending, trace_id=trace_id_hex, trace_steps=trace_steps)
 
         current.append({"role": "assistant", "content": blocks})
         results = []
@@ -422,27 +477,45 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
             name, args, tuid = tu["name"], tu.get("input", {}), tu["toolUseId"]
             started = time.time()
 
-            if name == "add_item_to_cart":
-                # Confirmation gate: prepare, do NOT execute.
-                pid = args.get("product_id", "")
-                qty = max(1, int(args.get("quantity", 1) or 1))
-                pending = PendingAction(
-                    tool_name="add_item_to_cart",
-                    arguments={"product_id": pid, "quantity": qty},
-                    human_prompt=f"Bạn có đồng ý thêm {qty}x {pid} vào giỏ hàng không?",
-                )
-                out = json.dumps({"status": "pending_confirmation",
-                                  "message": "Đã chuẩn bị, chờ khách xác nhận."})
-                ok = True
-            else:
-                out = _run_read_tool(name, args, user_id)
-                tool_results_raw.append(out)  # Luu tool result de validate citations
-                ok = '"error"' not in out
+            with tracer.start_as_current_span("tool_call") as tool_span:
+                tool_span.set_attribute("tool.name", name)
+                tool_span.set_attribute("tool.arguments", json.dumps(args)[:500])
+                if name == "add_item_to_cart":
+                    # Confirmation gate: prepare, do NOT execute.
+                    pid = args.get("product_id", "")
+                    qty = max(1, int(args.get("quantity", 1) or 1))
+                    pending = PendingAction(
+                        tool_name="add_item_to_cart",
+                        arguments={"product_id": pid, "quantity": qty},
+                        human_prompt=f"Bạn có đồng ý thêm {qty}x {pid} vào giỏ hàng không?",
+                    )
+                    out = json.dumps({"status": "pending_confirmation",
+                                      "message": "Đã chuẩn bị, chờ khách xác nhận."})
+                    ok = True
+                else:
+                    out = _run_read_tool(name, args, user_id)
+                    tool_results_raw.append(out)  # Luu tool result de validate citations
+                    ok = '"error"' not in out
+                    if name == "get_product_reviews" and ok:
+                        try:
+                            review_citations.extend(json.loads(out).get("citations", []))
+                        except (json.JSONDecodeError, AttributeError):
+                            pass
+                tool_span.set_attribute("tool.succeeded", ok)
+                tool_span.set_attribute("tool.result_preview", out[:300])
 
+            dur_ms = int((time.time() - started) * 1000)
             actions.append(ToolCall(
                 tool_name=name, arguments_json=json.dumps(args), succeeded=ok,
-                started_at_unix=int(started), duration_ms=int((time.time() - started) * 1000),
+                started_at_unix=int(started), duration_ms=dur_ms,
             ))
+            # Trace UI: show WHAT the AI operated with (which tool + key argument).
+            _arg_hint = args.get("query") or args.get("category") or args.get("product_id") or ""
+            trace_steps.append({
+                "step_name": f"Tool: {name}" + (f" ({_arg_hint})" if _arg_hint else ""),
+                "latency_ms": dur_ms,
+                "status": "ok" if ok else "error",
+            })
             parsed_out = json.loads(out)
             if not isinstance(parsed_out, dict):
                 parsed_out = {"result": parsed_out}

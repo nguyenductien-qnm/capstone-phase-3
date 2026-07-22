@@ -6,6 +6,7 @@ locals {
   trail_name        = "${var.project_name}-${var.environment}-audit-trail"
   exempt_principals = concat(var.audit_administrator_principals, var.break_glass_principals)
   kms_key_arn       = var.enable_kms_encryption ? aws_kms_key.audit[0].arn : null
+  m12_alert_name    = "${var.project_name}-${var.environment}-m12-audit-tamper"
 }
 
 resource "aws_s3_bucket" "cloudtrail_logs" {
@@ -185,13 +186,158 @@ resource "aws_cloudtrail" "main_trail" {
   cloud_watch_logs_group_arn    = var.enable_cloudwatch_logs ? "${aws_cloudwatch_log_group.cloudtrail[0].arn}:*" : null
   cloud_watch_logs_role_arn     = var.enable_cloudwatch_logs ? aws_iam_role.cloudtrail_cloudwatch[0].arn : null
 
-  event_selector {
-    include_management_events = true
-    read_write_type           = "All"
+  advanced_event_selector {
+    name = "ManagementEvents"
+
+    field_selector {
+      field  = "eventCategory"
+      equals = ["Management"]
+    }
+  }
+
+  dynamic "advanced_event_selector" {
+    for_each = length(var.cloudtrail_s3_data_event_bucket_arns) > 0 ? [1] : []
+
+    content {
+      name = "S3ReadDataEvents"
+
+      field_selector {
+        field  = "eventCategory"
+        equals = ["Data"]
+      }
+
+      field_selector {
+        field  = "resources.type"
+        equals = ["AWS::S3::Object"]
+      }
+
+      field_selector {
+        field       = "resources.ARN"
+        starts_with = var.cloudtrail_s3_data_event_bucket_arns
+      }
+
+      field_selector {
+        field  = "readOnly"
+        equals = ["true"]
+      }
+    }
   }
 
   depends_on = [aws_s3_bucket_policy.cloudtrail_bucket_policy, aws_iam_role_policy.cloudtrail_cloudwatch]
   lifecycle { prevent_destroy = true }
+}
+
+resource "aws_sns_topic" "mandate_12_audit_tamper" {
+  count = var.enable_mandate_12_alert ? 1 : 0
+
+  name = local.m12_alert_name
+
+  lifecycle {
+    precondition {
+      condition     = trimspace(var.mandate_12_alert_email) != ""
+      error_message = "mandate_12_alert_email must be set when enable_mandate_12_alert is true."
+    }
+  }
+}
+
+resource "aws_cloudwatch_event_rule" "mandate_12_audit_tamper" {
+  count = var.enable_mandate_12_alert ? 1 : 0
+
+  name        = local.m12_alert_name
+  description = "MANDATE-12 alert for CloudTrail and audit guardrail tamper attempts"
+
+  event_pattern = jsonencode({
+    "detail-type" = ["AWS API Call via CloudTrail"]
+    "$or" = [
+      {
+        detail = {
+          eventSource = ["cloudtrail.amazonaws.com"]
+          eventName = [
+            "StopLogging",
+            "DeleteTrail",
+            "UpdateTrail",
+            "PutEventSelectors",
+            "PutInsightSelectors",
+          ]
+        }
+      },
+      {
+        detail = {
+          eventSource = ["iam.amazonaws.com"]
+          eventName = [
+            "DetachRolePolicy",
+            "DeletePolicy",
+            "DeletePolicyVersion",
+            "CreatePolicyVersion",
+            "SetDefaultPolicyVersion",
+          ]
+          requestParameters = {
+            policyArn = [aws_iam_policy.audit_log_tamper_protection.arn]
+          }
+        }
+      },
+      {
+        detail = {
+          eventSource = ["sso.amazonaws.com"]
+          eventName   = ["DetachCustomerManagedPolicyReferenceFromPermissionSet"]
+          requestParameters = {
+            customerManagedPolicyReference = {
+              name = [aws_iam_policy.audit_log_tamper_protection.name]
+              path = ["/"]
+            }
+          }
+        }
+      },
+    ]
+  })
+}
+
+data "aws_iam_policy_document" "mandate_12_audit_tamper_sns" {
+  count = var.enable_mandate_12_alert ? 1 : 0
+
+  statement {
+    sid    = "AllowEventBridgePublishMandate12AuditTamper"
+    effect = "Allow"
+
+    principals {
+      type        = "Service"
+      identifiers = ["events.amazonaws.com"]
+    }
+
+    actions   = ["sns:Publish"]
+    resources = [aws_sns_topic.mandate_12_audit_tamper[0].arn]
+
+    condition {
+      test     = "ArnEquals"
+      variable = "aws:SourceArn"
+      values   = [aws_cloudwatch_event_rule.mandate_12_audit_tamper[0].arn]
+    }
+  }
+}
+
+resource "aws_sns_topic_policy" "mandate_12_audit_tamper" {
+  count = var.enable_mandate_12_alert ? 1 : 0
+
+  arn    = aws_sns_topic.mandate_12_audit_tamper[0].arn
+  policy = data.aws_iam_policy_document.mandate_12_audit_tamper_sns[0].json
+}
+
+resource "aws_sns_topic_subscription" "mandate_12_email" {
+  count = var.enable_mandate_12_alert ? 1 : 0
+
+  topic_arn = aws_sns_topic.mandate_12_audit_tamper[0].arn
+  protocol  = "email"
+  endpoint  = var.mandate_12_alert_email
+}
+
+resource "aws_cloudwatch_event_target" "mandate_12_audit_tamper_email" {
+  count = var.enable_mandate_12_alert ? 1 : 0
+
+  rule      = aws_cloudwatch_event_rule.mandate_12_audit_tamper[0].name
+  target_id = "m12-audit-tamper-email"
+  arn       = aws_sns_topic.mandate_12_audit_tamper[0].arn
+
+  depends_on = [aws_sns_topic_policy.mandate_12_audit_tamper]
 }
 
 data "aws_iam_policy_document" "audit_log_tamper_protection" {

@@ -71,6 +71,9 @@ module "eks" {
   ops_node_disk_size_gib  = var.eks_ops_node_disk_size_gib
 
   access_entries = merge(var.eks_access_entries, local.github_terraform_access_entry)
+
+  # M17-R3: bật enforce NetworkPolicy CHỈ cho cluster này (ecommerce-dev-eks). develop giữ default false.
+  enable_network_policy = true
 }
 
 module "rds" {
@@ -80,6 +83,7 @@ module "rds" {
   environment            = var.environment
   vpc_id                 = module.vpc.vpc_id
   database_subnet_ids    = values(module.vpc.private_data_subnet_ids)
+  app_subnet_ids         = values(module.vpc.private_app_subnet_ids)
   app_subnet_cidr_blocks = [for s in var.private_app_subnets : s.cidr_block]
 
   db_name                    = var.db_name
@@ -92,6 +96,10 @@ module "rds" {
   enable_rds_proxy           = var.enable_rds_proxy
   multi_az                   = var.rds_multi_az
   eks_node_security_group_id = module.eks.cluster_security_group_id
+
+  enable_rotation                         = var.rds_enable_rotation
+  rotation_rules_automatically_after_days = var.rds_rotation_rules_automatically_after_days
+  enable_logical_replication              = true
 }
 
 module "elasticache" {
@@ -191,17 +199,41 @@ module "cloudtrail" {
   project_name = var.project_name
   environment  = var.environment
 
-  enable_kms_encryption          = var.cloudtrail_enable_kms_encryption
-  enable_cloudwatch_logs         = var.cloudtrail_enable_cloudwatch_logs
-  cloudwatch_log_retention_days  = var.cloudtrail_cloudwatch_log_retention_days
-  s3_retention_days              = var.cloudtrail_s3_retention_days
-  s3_transition_days             = var.cloudtrail_s3_transition_days
-  s3_transition_storage_class    = var.cloudtrail_s3_transition_storage_class
-  enable_object_lock             = var.cloudtrail_enable_object_lock
-  object_lock_retention_days     = var.cloudtrail_object_lock_retention_days
-  audit_administrator_principals = var.audit_administrator_principals
-  break_glass_principals         = var.audit_break_glass_principals
-  operator_role_names            = var.audit_operator_role_names
+  enable_kms_encryption                = var.cloudtrail_enable_kms_encryption
+  enable_cloudwatch_logs               = var.cloudtrail_enable_cloudwatch_logs
+  cloudwatch_log_retention_days        = var.cloudtrail_cloudwatch_log_retention_days
+  s3_retention_days                    = var.cloudtrail_s3_retention_days
+  s3_transition_days                   = var.cloudtrail_s3_transition_days
+  s3_transition_storage_class          = var.cloudtrail_s3_transition_storage_class
+  enable_object_lock                   = var.cloudtrail_enable_object_lock
+  object_lock_retention_days           = var.cloudtrail_object_lock_retention_days
+  audit_administrator_principals       = var.audit_administrator_principals
+  break_glass_principals               = var.audit_break_glass_principals
+  operator_role_names                  = var.audit_operator_role_names
+  cloudtrail_s3_data_event_bucket_arns = var.cloudtrail_s3_data_event_bucket_arns
+  enable_mandate_12_alert              = var.enable_mandate_12_alert
+  mandate_12_alert_email               = var.mandate_12_alert_email
+}
+
+# MANDATE-11 audit detection is enabled by default because its resources already
+# exist in the sandbox remote state. It inherits this root's AWS provider and backend.
+module "audit_detection" {
+  count  = var.audit_detection_enabled ? 1 : 0
+  source = "../../audit-detection"
+
+  project_name = var.project_name
+  environment  = var.environment
+  # SNS subscription endpoints are Terraform resource keys and therefore cannot
+  # remain marked sensitive; GitHub still masks the source Environment secret.
+  pipeline_health_email_endpoints = toset([nonsensitive(var.audit_pipeline_health_email)])
+  slack_webhook_url               = var.audit_slack_webhook_url
+  slack_webhook_secret_version    = var.audit_slack_webhook_secret_version
+  slack_webhook_kms_key_arn       = var.audit_slack_webhook_kms_key_arn
+  break_glass_role_arns           = var.audit_detection_break_glass_role_arns
+
+  tags = {
+    Stack = "sandbox"
+  }
 }
 
 # IRSA role cho External Secrets Operator đọc endpoint/credential từ Secrets Manager
