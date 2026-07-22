@@ -13,17 +13,18 @@
 |---|---|---|
 | **R1** — Sống qua 1 dependency chết | ✅ **Pass** | `logs/R1-*` · SS-02, SS-01c |
 | **R2** — Chịu mất cả 1 AZ | ✅ **Pass** (có 1 gap khai báo ở §5) | `logs/R2-*` · SS-06 |
-| **R3** — Khoanh mạng (NetworkPolicy) | ✅ **Pass** sau khi vá 2 lỗ hổng | `logs/R3-*` · SS-08 |
+| **R3** — Khoanh mạng (NetworkPolicy) | ✅ **Pass** sau khi vá 3 lỗ hổng | `logs/R3-*` · SS-08 |
 | **R4** — Least-privilege K8s | ✅ **Pass** | `logs/SS-09/10/11-*` |
 
 **Nguyên tắc:** mọi ô "Kết quả" dưới đây điền bằng output THẬT, trích từ `logs/`. Mỗi dòng đều truy ngược được về một file log cụ thể.
 
 ### Điều đáng nói nhất của buổi test
 
-Bật `default-deny` trên cluster thật làm lộ **2 lỗ hổng mà đọc YAML không thể thấy** — cả hai đều đã vá và kiểm chứng lại (chi tiết §3):
+Bật `default-deny` trên cluster thật làm lộ **3 lỗ hổng mà đọc YAML không thể thấy** — cả ba đều đã vá và kiểm chứng lại (chi tiết §3):
 
 1. **VPC CNI đối chiếu policy với đích GỐC, TRƯỚC khi kube-proxy DNAT.** Mở `ipBlock` bằng CIDR của ENI control-plane là *không đủ*: client gọi `kubernetes.default` đi qua ClusterIP `172.20.0.1` nên không khớp và bị drop. `kube-state-metrics` CrashLoopBackOff vì lý do này.
 2. **Scraper cần egress ra ngoài namespace** (kubelet `:10250`, CoreDNS `:9153` ở kube-system) — thiếu thì 10/17 target Prometheus DOWN, dashboard tài nguyên trống.
+3. **Grafana có 3 container `k8s-sidecar`** watch ConfigMap qua API server — cũng dính đúng bẫy pre-DNAT ở mục 1. Đây là ca **hỏng im lặng** nguy hiểm nhất: sidecar retry vô hạn chứ không crash, pod vẫn `4/4 Running`, dashboard cũ vẫn hiện vì đã nằm trên đĩa. **Bài kiểm tra "0 pod không khỏe" KHÔNG bắt được ca này** — chỉ đọc log sidecar mới thấy.
 
 Bài học: **một NetworkPolicy "trông đúng" khi review vẫn có thể sai ở runtime.** Chỉ chạy thật mới phát hiện được.
 
@@ -206,7 +207,7 @@ kubectl -n techx-develop delete pod attacker
 - **SS-7** — Output (b): `kubectl get networkpolicy` liệt kê ~31 policy (default-deny-all, allow-ingress-*, allow-datastore-egress-*, …).
 - **SS-8** — ⭐ **BẰNG CHỨNG MẠNH NHẤT**: terminal attacker pod cho thấy **`nc cart` timeout** + **`curl google.com` fail** + **`nslookup` OK** trong CÙNG một ảnh. Kèm ảnh storefront vẫn mua hàng bình thường (chứng minh khoanh mạng mà không gãy app).
 
-### Kết quả — ✅ PASS (sau khi vá 2 lỗ hổng, xem dưới)
+### Kết quả — ✅ PASS (sau khi vá 3 lỗ hổng, xem dưới)
 
 | Hạng mục | Kết quả thật | Nguồn |
 |---|---|---|
@@ -224,7 +225,7 @@ kubectl -n techx-develop delete pod attacker
 
 > Target còn lại DOWN là `jaeger:8888` với `connection refused` — **endpoint chết sẵn từ trước, không do policy**. Dấu hiệu phân biệt: policy drop luôn biểu hiện **timeout** (`context deadline exceeded`), còn `connection refused` nghĩa là gói tin tới nơi nhưng không có ai lắng nghe.
 
-### 🔬 Hai lỗ hổng phát hiện khi chạy thật — và cách truy vết
+### 🔬 Ba lỗ hổng phát hiện khi chạy thật — và cách truy vết
 
 **Lỗ hổng 1 — `kube-state-metrics` CrashLoopBackOff.**
 Ngay sau khi apply, ksm vào CrashLoop: liveness `:8080/livez` bị `context deadline exceeded`.
@@ -242,6 +243,16 @@ Ngay sau khi apply, ksm vào CrashLoop: liveness `:8080/livez` bị `context dea
 **Lỗ hổng 2 — Prometheus mất metrics hạ tầng.**
 Sau khi vá lỗ hổng 1, ksm ổn định nhưng kiểm tra sâu thì **10/17 target DOWN**: kubelet `:10250` (6 target node + cadvisor) và CoreDNS `:9153`, ALB controller `:8080` ở namespace `kube-system` — đều nằm **ngoài** namespace nên podSelector không với tới (`R3-10`).
 *Vá:* policy mới `allow-scraper-egress-cluster`. Sau vá: **16/17 UP** (`R3-11`).
+
+**Lỗ hổng 3 — Grafana `k8s-sidecar` mất API server (phát hiện khi tự review lại).**
+`grafana` chạy **3 container `k8s-sidecar`** (dashboard / datasource / alert) watch ConfigMap qua API server, nhưng **không** có trong `apiServerEgress`. Chúng dính đúng bẫy pre-DNAT ở lỗ hổng 1:
+```
+ConnectTimeoutError(HTTPSConnection(host='172.20.0.1', port=443)...
+  /api/v1/namespaces/techx-develop/configmaps?labelSelector=grafana_dashboard&watch=True
+```
+*Vì sao suýt lọt:* đây là ca **hỏng im lặng**. `k8s-sidecar` retry vô hạn chứ không crash → pod vẫn `4/4 Running` → bài kiểm tra **"0 pod không khỏe" ở trên KHÔNG bắt được**. Dashboard cũ vẫn hiện bình thường vì đã nằm sẵn trên đĩa; chỉ dashboard/datasource **mới** là không bao giờ xuất hiện. Nếu không đọc log sidecar thì có thể nhiều tuần sau mới có người phát hiện.
+*Vá:* thêm `grafana` vào `apiServerEgress`. Sau vá: **0 lỗi timeout** trong 90 s theo dõi, sidecar trở lại `Loading incluster config...` bình thường (`R3-14-grafana-sidecar-fix.txt`).
+*Bài học rút ra cho lần sau:* nghiệm thu NetworkPolicy **không được** dừng ở "pod có Running không". Phải liệt kê **mọi** thành phần gọi API server — kể cả **sidecar** — rồi đọc log từng cái.
 
 **Kiểm chứng bản vá KHÔNG nới lỏng containment.** Cho pod lạ thử đúng 3 đường vừa mở:
 

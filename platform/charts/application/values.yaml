@@ -82,6 +82,12 @@ networkPolicy:
       # reloader watch ConfigMap/Secret qua API server để restart pod khi config đổi;
       # thiếu rule này thì default-deny cắt watch -> reloader im lặng ngừng hoạt động.
       - reloader
+      # grafana chạy 3 container k8s-sidecar (dashboard/datasource/alert) watch ConfigMap
+      # qua API server. Đây là ca hỏng IM LẶNG nguy hiểm nhất nhóm: sidecar retry vô hạn
+      # chứ không crash, pod vẫn 4/4 Running, dashboard cũ vẫn hiện vì đã nằm trên đĩa —
+      # chỉ dashboard/datasource MỚI là không bao giờ xuất hiện. Kiểm tra "pod có khỏe
+      # không" KHÔNG bắt được ca này; phải đọc log sidecar.
+      - grafana
     # Dải chứa ENI control-plane (API server IP xoay) — VPC CIDR cluster này.
     apiServerCIDR: 10.0.0.0/16
     # ClusterIP của Service `kubernetes` (đích TRƯỚC DNAT khi client gọi
