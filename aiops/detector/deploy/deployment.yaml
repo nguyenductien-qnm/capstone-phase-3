@@ -1,19 +1,21 @@
 # TF1-62 [AIOps-W2] - deploy detector chay lien tuc tren EKS (namespace techx-tf1).
 #
-# Truoc khi apply (1 lan duy nhat):
-#   kubectl -n techx-tf1 apply -f rbac.yaml
+# MANDATE-10 P2: file nay GIO DO ARGOCD QUAN (app `aiops`, xem
+# platform/gitops/applications/aiops.yaml) - selfHeal bat, nen KHONG kubectl apply
+# hay kubectl set image bang tay nua: sua tay se bi revert o chu ky sync ke tiep.
+# Doi gi thi sua file nay roi merge vao develop.
+#
+# Image cung KHONG con build tay: job `build-aiops` trong .github/workflows/app-build.yaml
+# build -> Trivy gate -> push by-digest -> Cosign ky digest -> SBOM attest, roi job `bump`
+# ghi tag moi (1.3-aiops-detector-<sha>) thang vao dong `image:` ben duoi. Dat trong
+# app-build.yaml de 2 image aiops mang cung subject identity Cosign nhu service chart -
+# do la dieu kien de ClusterPolicy Kyverno verify-image-signature chap nhan chung.
+#
+# Con lai lam TAY dung 1 lan (khong nam trong Git): secret webhook alert.
 #   kubectl -n techx-tf1 create secret generic aiops-alert \
 #     --from-literal=webhook=<slack-or-discord-webhook-url>
 #
-#   kubectl -n techx-tf1 apply -f deployment.yaml
-#
-# Build + push image (tu repo root, chay tren may co quyen ECR):
-#   aws ecr get-login-password --region us-east-1 | docker login --username AWS \
-#     --password-stdin 804372444787.dkr.ecr.us-east-1.amazonaws.com
-#   docker buildx build --platform linux/amd64 \
-#     -t 804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.3-aiops-detector \
-#     --push aiops/detector
-# LUU Y: tag PHAI co suffix -<git-sha> (khop convention app-build). Tag tran
+# LUU Y tag: PHAI co suffix -<git-sha> (khop convention app-build). Tag tran
 # kieu "1.2-aiops-detector" tung bi ECR lifecycle policy xoa -> ImagePullBackOff
 # (incident 2026-07-16).
 apiVersion: apps/v1
@@ -71,6 +73,13 @@ spec:
                   name: aiops-alert
                   key: webhook
                   optional: true
+          # Block style (khong phai flow `{ }`): job bump cua app-build ghi tag bang yq,
+          # ma yq viet lai flow-map thanh `{cpu: ...}` -> moi lan bump lai kem 2 dong
+          # diff rac. Block style la fixed point cua yq nen diff chi con dung dong image.
           resources:
-            requests: { cpu: "50m", memory: "64Mi" }
-            limits: { cpu: "200m", memory: "128Mi" }
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
