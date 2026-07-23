@@ -69,6 +69,8 @@ CONFIRMATION_GATE_TEMPLATE = "Tôi đã chuẩn bị thêm [SP] vào giỏ. Vui 
 NO_REVIEW_TEMPLATE = "Tôi không có thông tin đánh giá về sản phẩm này."
 CATEGORY_PICKER_TEMPLATE = ("chọn đúng một trong các danh mục (Telescopes, Binoculars, "
                             "Accessories, Cameras, Books) hoặc tên gần giống")
+DOMAIN_SCOPE_TEMPLATE = ("Mình là trợ lý mua sắm của TechX, chỉ hỗ trợ về thiết bị thiên văn thôi. "
+                         "Bạn cần tìm kính thiên văn, ống nhòm hay phụ kiện gì không?")
 
 # SYSTEM_PROMPT = INTRO (identity/mission) + CATALOG (customer-visible product
 # data, fine to echo) + RULES (operating instructions). The leak detector guards
@@ -270,7 +272,7 @@ def get_bedrock_fallback_client():
     global _fallback_client
     if _fallback_client is None:
         aws_region = os.environ.get('AWS_REGION', 'us-east-1')
-        fallback_timeout = float(os.environ.get('LLM_COPILOT_FALLBACK_TIMEOUT', '4.1'))
+        fallback_timeout = float(os.environ.get('LLM_COPILOT_FALLBACK_TIMEOUT', '2.7'))
         fallback_config = Config(connect_timeout=1.0, read_timeout=fallback_timeout, retries={'max_attempts': 0})
         _fallback_client = create_bedrock_runtime_client(region_name=aws_region, config=fallback_config)
     return _fallback_client
@@ -406,12 +408,18 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
         # Trace UI: show the model's DECISION this turn (what the AI "thinks" it should do next) —
         # either it chose to call tool(s), or it produced a direct answer.
         _decided = [b["toolUse"]["name"] for b in blocks if "toolUse" in b]
+        _raw_text = "\n".join(b["text"] for b in blocks if "text" in b).strip()
+        
+        detail_dict = {"decided_tools": _decided, "stop_reason": stop}
+        if _raw_text:
+            detail_dict["reasoning"] = _raw_text if len(_raw_text) <= 1500 else _raw_text[:1500] + "... [truncated]"
+
         trace_steps.append({
             "step_name": (f"LLM → gọi tool: {', '.join(_decided)}" if _decided
                           else "LLM → trả lời trực tiếp"),
             "latency_ms": int((time.time() - t_converse) * 1000),
             "status": "ok",
-            "detail": redact_pii(json.dumps({"decided_tools": _decided, "stop_reason": stop}))
+            "detail": redact_pii(json.dumps(detail_dict))
         })
 
         if stop != "tool_use":
@@ -420,7 +428,7 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
             clean_text = redact_pii(_clean_model_output(text)) if text else ""
             if leaks_system_prompt(clean_text, SYSTEM_PROMPT_GUARDED,
                                    allowlist=[CONFIRMATION_GATE_TEMPLATE, NO_REVIEW_TEMPLATE,
-                                              CATEGORY_PICKER_TEMPLATE]):
+                                              CATEGORY_PICKER_TEMPLATE, DOMAIN_SCOPE_TEMPLATE]):
                 logger.error("[Guardrail] System prompt leakage blocked in copilot output.")
                 clean_text = "Xin lỗi, tôi không thể hiển thị nội dung này."
             # Citation validator (mentor 16/07): kiem tra so lieu trong output co khop tool result

@@ -14,7 +14,7 @@ export const GrpcDeadlineMs = {
   catalog: 1_000,
   recommendation: 1_000,
   checkout: 2_000,
-  productReview: 2_000,
+  productReview: 5_000,
 } as const;
 
 type UnaryRpc<TRequest, TResponse> = (

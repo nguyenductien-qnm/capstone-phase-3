@@ -15,10 +15,11 @@ Chạy CI: python eval_guardrails.py
 Chạy full: python eval_guardrails.py --mode=llm-judge
 """
 
+import argparse
 import json
+import os
 import sys
 import guardrails
-import os
 from bedrock_client import create_bedrock_runtime_client
 
 # Windows: ensure stdout handles UTF-8 characters in Vietnamese test strings
@@ -36,7 +37,12 @@ SYSTEM_PROMPT = (
 
 
 def load_dataset(file_path=DATASET_FILE):
-    with open(file_path, "r", encoding="utf-8") as f:
+    target_path = file_path
+    if not os.path.isabs(target_path) and not os.path.exists(target_path):
+        alt_path = os.path.join(os.path.dirname(__file__), target_path)
+        if os.path.exists(alt_path):
+            target_path = alt_path
+    with open(target_path, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -228,19 +234,38 @@ def run_hallucination_eval(dataset, bedrock_client=None):
 
 
 if __name__ == "__main__":
-    mode = "deterministic"
-    try:
-        import boto3
-        boto3.client('sts', region_name=os.environ.get("AWS_REGION", "us-east-1")).get_caller_identity()
-        has_creds = True
-    except Exception:
-        has_creds = False
+    parser = argparse.ArgumentParser(
+        description="Evaluation script cho Guardrails (TF1-61, MANDATE-06)"
+    )
+    parser.add_argument(
+        "--mode",
+        choices=["deterministic", "llm-judge"],
+        default=None,
+        help="Chế độ eval: deterministic (CI-safe) hoặc llm-judge (cần AWS Bedrock)",
+    )
+    parser.add_argument(
+        "--cases",
+        "--cases-file",
+        "-c",
+        dest="cases",
+        default=DATASET_FILE,
+        help="Đường dẫn tới file JSON chứa bộ test case ngoài (mặc định: adversarial_dataset.json)",
+    )
+    args = parser.parse_args()
 
-    if "--mode=llm-judge" in sys.argv or has_creds:
-        mode = "llm-judge"
+    mode = args.mode
+    if mode is None:
+        try:
+            import boto3
+            boto3.client('sts', region_name=os.environ.get("AWS_REGION", "us-east-1")).get_caller_identity()
+            has_creds = True
+        except Exception:
+            has_creds = False
+        mode = "llm-judge" if has_creds else "deterministic"
 
-    dataset = load_dataset()
-    print(f"\nRunning guardrail eval in mode: [{mode.upper()}]")
+    dataset_path = args.cases
+    dataset = load_dataset(dataset_path)
+    print(f"\nRunning guardrail eval in mode: [{mode.upper()}] using cases file: [{dataset_path}]")
 
     p1, t1 = run_deterministic_eval(dataset)
 

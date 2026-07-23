@@ -93,7 +93,7 @@
 | Drain3 sim_th | **0.3 trội 0.4/0.5/0.6** cả 4 tiêu chí; depth vô cảm → code default 0.3 | drain3_param_grid.py (masking: `MASK=1`) |
 | Fallback ladder runtime | "Fallback routing triggered" ×5; "CB OPENED after 3 failures" | docker logs (compose) |
 | FP 15 phút tải thường | 2 FP config (latency rule match flagd — đã vá filter) + 2 TP sai nhãn (đã vá marker) | detector run |
-| Bedrock latency P50/P95 thật | Reviews Lite 1.571/3.969s; Reviews Micro 1.578/1.938s; Copilot Pro 4.086/5.688s; Copilot Lite 1.907/2.468s | measure_bedrock_latency.py (`us-east-1`; `us-east-1` blocked by OperationNotAllowed for current SSO role) |
+| Bedrock latency P50/P95 thật | Reviews Lite 1.741/2.542s; Reviews Micro 1.715/2.253s; Copilot Pro 3.069/6.861s; Copilot Lite 2.350/2.663s | `bedrock_latency_results_current.md` (`us-east-1`); direct Nova Pro/Lite/Micro access re-verified with CDO SSO on 22/07 |
 | Unit Test: Model Gateway | Pass 100% tỷ lệ routing theo flagd | `test_model_router.py` |
 | Unit Test: Shopping Copilot | Pass 100% các Guardrails (Prompt Injection, PII, Hallucination, Action Gate) | `test_copilot.py` |
 | Unit Test: Recommendations | Pass 100% vector cosine search trên Mock pgvector | `test_recommendation.py` |

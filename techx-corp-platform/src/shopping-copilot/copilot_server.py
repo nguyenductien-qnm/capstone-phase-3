@@ -109,7 +109,10 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
         ))
         if blocked:
             logger.warning("[Guardrail] Blocked input for session=%s", session_id)
-            sanitized_question = "[filtered]"
+            return pb.ChatWithCopilotResponse(
+                response="Xin lỗi, tôi không thể xử lý yêu cầu này do vi phạm quy định an toàn.",
+                degraded=False,
+            )
 
         session.append({"role": "user", "content": [{"text": sanitized_question}]})
 
@@ -190,7 +193,7 @@ def _to_records(actions: list[agent.ToolCall]) -> list:
 
 
 def serve():
-    main_timeout = float(os.environ.get('LLM_COPILOT_TIMEOUT', '4.9'))
+    main_timeout = float(os.environ.get('LLM_COPILOT_TIMEOUT', '6.9'))
     primary_config = Config(connect_timeout=1.0, read_timeout=main_timeout, retries={'max_attempts': 0})
     bedrock = create_bedrock_runtime_client(region_name=AWS_REGION, config=primary_config)
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=MAX_WORKERS))
