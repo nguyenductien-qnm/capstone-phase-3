@@ -1,5 +1,5 @@
 # 📋 EVIDENCE PACK — TF1-96
-**Mã Task:** `TF1-96` | **Assignee:** Lê Kim Dũng (`03 lê kim dũng`)
+**Mã Task:** `TF1-96` | **Assignees / Thực hiện:** Lê Kim Dũng (`03 lê kim dũng`), Nguyễn Công Thịnh (`nguyencongthinh.dev`)
 **Sub-team:** AIE / Task Force 1 | **Branch:** `feat/TF1-96-multi-window-burn-rate`
 
 ---
@@ -46,8 +46,8 @@ Verify các câu query PromQL Error Budget Burn Rate theo chuẩn **Google SRE W
 ## 4. Audit Trail
 | Trường | Giá trị |
 |---|---|
-| Initial Author | Lê Kim Dũng (`03 lê kim dũng`) |
-| Revision 1 Modifier | Nguyễn Công Thịnh (`nguyencongthinh.dev`) — 23/07/2026 |
+| Implementers / Co-authors | Lê Kim Dũng (`03 lê kim dũng`), Nguyễn Công Thịnh (`nguyencongthinh.dev`) |
+| Revision 1 Live Verifier | Nguyễn Công Thịnh (`nguyencongthinh.dev`) — 23/07/2026 |
 | Independent Reviewer | Nguyễn Hữu Định (AI Lead) |
 | Reviewer / Approver | Vinh Bui (Ops Lead) |
 | Task ID | `TF1-96` |
