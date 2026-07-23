@@ -38,3 +38,15 @@ output "db_username" {
   description = "Username quản trị database"
   value       = var.db_username
 }
+
+output "rds_security_group_id" {
+  description = "Security Group ID cho RDS PostgreSQL"
+  value       = aws_security_group.db.id
+}
+
+output "db_name" {
+  description = "Tên database PostgreSQL"
+  value       = var.db_name
+}
+
+
