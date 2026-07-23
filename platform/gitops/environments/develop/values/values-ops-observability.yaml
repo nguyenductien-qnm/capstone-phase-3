@@ -5,6 +5,9 @@ observabilityStorage:
   enabled: true
 
 opentelemetry-collector:
+  image:
+    tag: "0.153.0"
+    digest: "sha256:93aad750175cbf1a973ae1c5886c3371f4d800f61be25cdd26870b8441ffe9fa"
   tolerations:
     - key: dedicated
       operator: Equal
@@ -18,6 +21,13 @@ opentelemetry-collector:
       cpu: 250m
       memory: 256Mi
   config:
+    connectors:
+      spanmetrics:
+        series_expiration: 30m
+        aggregation_cardinality_limit: 50000
+        resource_metrics_key_attributes:
+          - service.name
+          - service.namespace
     service:
       pipelines:
         # Keep all real backends and spanmetrics; remove only the stdout-copy
