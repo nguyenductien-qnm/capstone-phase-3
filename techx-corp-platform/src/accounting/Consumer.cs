@@ -36,7 +36,8 @@ internal class DBContext : DbContext
 
 internal class Consumer : IDisposable
 {
-    private const string TopicName = "orders";
+    private static readonly string TopicName = Environment.GetEnvironmentVariable("KAFKA_TOPIC") ?? "domain.fulfillment.events";
+    private static readonly string GroupId = Environment.GetEnvironmentVariable("KAFKA_GROUP_ID") ?? "accounting";
 
     private ILogger _logger;
     private IConsumer<string, byte[]> _consumer;
@@ -56,7 +57,7 @@ internal class Consumer : IDisposable
 
        if (_logger.IsEnabled(LogLevel.Information))
        {
-           _logger.LogInformation("Connecting to Kafka: {servers}", servers);
+           _logger.LogInformation("Accounting Consumer connecting to Kafka: {servers}, topic: {topic}, group: {group}", servers, TopicName, GroupId);
        }
 
         _dbContext = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING") == null ? null : new DBContext();
@@ -228,7 +229,7 @@ internal class Consumer : IDisposable
     {
         var conf = new ConsumerConfig
         {
-            GroupId = $"accounting",
+            GroupId = GroupId,
             BootstrapServers = servers,
             // https://github.com/confluentinc/confluent-kafka-dotnet/tree/07de95ed647af80a0db39ce6a8891a630423b952#basic-consumer-example
             AutoOffsetReset = AutoOffsetReset.Earliest,

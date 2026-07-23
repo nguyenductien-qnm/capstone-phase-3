@@ -4,18 +4,21 @@
 use rdkafka::config::ClientConfig;
 use rdkafka::consumer::{Consumer, StreamConsumer};
 use rdkafka::message::Message;
+use rdkafka::producer::{FutureProducer, FutureRecord};
+use std::time::Duration;
 use tracing::{error, info};
 
 pub fn start_kafka_consumer() {
     let kafka_addr = match std::env::var("KAFKA_ADDR") {
         Ok(val) if !val.is_empty() => val,
         _ => {
-            info!("KAFKA_ADDR is not set, skipping Shipping Kafka consumer initialization.");
+            info!("KAFKA_ADDR is not set, skipping Shipping Kafka consumer/producer initialization.");
             return;
         }
     };
 
     let topic = std::env::var("KAFKA_TOPIC").unwrap_or_else(|_| "domain.checkout.orders".to_string());
+    let fulfillment_topic = std::env::var("KAFKA_FULFILLMENT_TOPIC").unwrap_or_else(|_| "domain.fulfillment.events".to_string());
     let group_id = std::env::var("KAFKA_GROUP_ID").unwrap_or_else(|_| "shipping".to_string());
     let kafka_user = std::env::var("KAFKA_USER").unwrap_or_default();
     let kafka_password = std::env::var("KAFKA_PASSWORD").unwrap_or_default();
@@ -43,14 +46,22 @@ pub fn start_kafka_consumer() {
         }
     };
 
+    let producer: FutureProducer = match config.create() {
+        Ok(p) => p,
+        Err(err) => {
+            error!("Failed to create Shipping Kafka producer: {:?}", err);
+            return;
+        }
+    };
+
     if let Err(err) = consumer.subscribe(&[&topic]) {
         error!("Failed to subscribe to topic '{}': {:?}", topic, err);
         return;
     }
 
     info!(
-        "Shipping Kafka consumer started. Subscribed to topic '{}' with group ID '{}'",
-        topic, group_id
+        "Shipping Kafka consumer started. Subscribed to topic '{}' with group ID '{}', publishing to '{}'",
+        topic, group_id, fulfillment_topic
     );
 
     tokio::spawn(async move {
@@ -70,6 +81,24 @@ pub fn start_kafka_consumer() {
                         m.offset(),
                         payload.len()
                     );
+
+                    // Publish fulfillment event to domain.fulfillment.events
+                    let key = m.key().map(|k| String::from_utf8_lossy(k).to_string()).unwrap_or_default();
+                    let record_payload = format!(
+                        "{{\"eventType\":\"SHIPPING_COMPLETED\",\"source\":\"shipping\",\"key\":\"{}\"}}",
+                        key
+                    );
+                    let record = FutureRecord::to(&fulfillment_topic)
+                        .payload(&record_payload)
+                        .key(&key);
+                    match producer.send(record, Duration::from_secs(5)).await {
+                        Ok((partition, offset)) => {
+                            info!("Shipping service published fulfillment event to topic '{}' (partition {}, offset {})", fulfillment_topic, partition, offset);
+                        }
+                        Err((err, _)) => {
+                            error!("Failed to publish fulfillment event to topic '{}': {:?}", fulfillment_topic, err);
+                        }
+                    }
                 }
                 Err(err) => {
                     error!("Kafka consumer error: {:?}", err);

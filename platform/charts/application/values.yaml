@@ -213,6 +213,10 @@ components:
             key: accounting-db-conn
       - name: OTEL_DOTNET_AUTO_TRACES_ENTITYFRAMEWORKCORE_INSTRUMENTATION_ENABLED
         value: "false"
+      - name: KAFKA_TOPIC
+        value: "domain.fulfillment.events"
+      - name: KAFKA_GROUP_ID
+        value: "accounting"
     resources:
       requests:
         cpu: 100m         # P0 right-size: OOMKilled 36 lần, .NET cần RAM cao (PR#49, restore sau PR#106)
@@ -595,7 +599,7 @@ components:
             name: msk-secret
             key: password
       - name: KAFKA_TOPIC
-        value: "domain.checkout.orders"
+        value: "domain.fulfillment.events"
       - name: KAFKA_GROUP_ID
         value: "email"
     resources:
