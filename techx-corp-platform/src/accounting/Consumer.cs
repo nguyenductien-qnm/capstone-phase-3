@@ -94,25 +94,122 @@ internal class Consumer : IDisposable
         }
     }
 
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, OrderFulfillmentJoinState> _pendingJoins = new();
+
     private void ProcessMessage(Message<string, byte[]> message)
     {
         try
         {
-            var order = OrderResult.Parser.ParseFrom(message.Value);
-            Log.OrderReceivedMessage(_logger, order);
+            string orderId = message.Key ?? string.Empty;
+            string payloadStr = System.Text.Encoding.UTF8.GetString(message.Value ?? Array.Empty<byte>());
 
-            if (_dbContext == null)
+            string source = "";
+            string eventType = "";
+            OrderResult? parsedOrder = null;
+
+            try
             {
+                using var doc = System.Text.Json.JsonDocument.Parse(payloadStr);
+                var root = doc.RootElement;
+
+                if (root.TryGetProperty("source", out var srcProp))
+                    source = srcProp.GetString() ?? "";
+                if (root.TryGetProperty("eventType", out var etProp))
+                    eventType = etProp.GetString() ?? "";
+
+                if (string.IsNullOrEmpty(orderId))
+                {
+                    if (root.TryGetProperty("orderId", out var idProp))
+                        orderId = idProp.GetString() ?? "";
+                    else if (root.TryGetProperty("key", out var keyProp))
+                        orderId = keyProp.GetString() ?? "";
+                }
+
+                if (root.TryGetProperty("details", out var detProp))
+                {
+                    var detailsStr = detProp.GetString();
+                    if (!string.IsNullOrEmpty(detailsStr))
+                    {
+                        try
+                        {
+                            parsedOrder = OrderResult.Parser.ParseFrom(System.Text.Encoding.UTF8.GetBytes(detailsStr));
+                        }
+                        catch { }
+                    }
+                }
+            }
+            catch
+            {
+                try
+                {
+                    parsedOrder = OrderResult.Parser.ParseFrom(message.Value);
+                    if (parsedOrder != null && !string.IsNullOrEmpty(parsedOrder.OrderId))
+                    {
+                        orderId = parsedOrder.OrderId;
+                    }
+                }
+                catch { }
+            }
+
+            if (string.IsNullOrEmpty(orderId))
+            {
+                _logger.LogWarning("Accounting consumed message on {Topic} without a valid orderId key", TopicName);
                 return;
             }
 
-            PersistOrder(order);
+            var joinState = _pendingJoins.GetOrAdd(orderId, id => new OrderFulfillmentJoinState { OrderId = id });
+
+            bool isPayment = source.Equals("payment", StringComparison.OrdinalIgnoreCase) 
+                          || eventType.Contains("PAYMENT", StringComparison.OrdinalIgnoreCase);
+            bool isShipping = source.Equals("shipping", StringComparison.OrdinalIgnoreCase) 
+                           || eventType.Contains("SHIPPING", StringComparison.OrdinalIgnoreCase);
+
+            if (isPayment)
+            {
+                joinState.HasPaymentEvent = true;
+            }
+            if (isShipping)
+            {
+                joinState.HasShippingEvent = true;
+            }
+            if (parsedOrder != null)
+            {
+                joinState.ParsedOrder = parsedOrder;
+            }
+
+            _logger.LogInformation("Accounting received fulfillment event for order {OrderId}. Payment: {Payment}, Shipping: {Shipping}",
+                orderId, joinState.HasPaymentEvent, joinState.HasShippingEvent);
+
+            // Kafka Streams Join condition: both Payment and Shipping events must be received for orderId
+            if (joinState.HasPaymentEvent && joinState.HasShippingEvent)
+            {
+                _logger.LogInformation("Accounting Stream Join completed successfully for order {OrderId}. Both payment and shipping fulfillment events received.", orderId);
+                _pendingJoins.TryRemove(orderId, out _);
+
+                if (joinState.ParsedOrder != null)
+                {
+                    Log.OrderReceivedMessage(_logger, joinState.ParsedOrder);
+
+                    if (_dbContext != null)
+                    {
+                        PersistOrder(joinState.ParsedOrder);
+                    }
+                }
+            }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Order parsing failed:");
+            _logger.LogError(ex, "Failed to process message in Accounting consumer:");
         }
     }
+
+internal class OrderFulfillmentJoinState
+{
+    public string OrderId { get; set; } = string.Empty;
+    public bool HasPaymentEvent { get; set; }
+    public bool HasShippingEvent { get; set; }
+    public OrderResult? ParsedOrder { get; set; }
+}
 
     /// <summary>
     /// CDO-TBD1: write path with EF retry strategy; if the context is poisoned

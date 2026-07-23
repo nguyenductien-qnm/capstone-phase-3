@@ -40,7 +40,7 @@ resource "postgresql_grant" "debezium_table_select" {
 }
 
 # 5. Create the Publication for Debezium to hook into
-# which means, Debezium will find this publication to register to receive changes
+# which means, Debezium will use this publication to register to receive changes
 resource "postgresql_publication" "dbz_publication" {
   name   = "dbz_publication"
   tables = ["checkout.outbox"]

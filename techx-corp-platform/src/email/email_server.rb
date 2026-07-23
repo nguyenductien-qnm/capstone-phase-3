@@ -99,3 +99,88 @@ def send_email(data)
   # check out the OpenTelemetry Ruby docs at: 
   # https://opentelemetry.io/docs/instrumentation/ruby/manual/#creating-new-spans 
 end
+
+# Kafka Fulfillment Stream Joiner for Email Consumer Group
+def start_kafka_consumer
+  kafka_addr = ENV["KAFKA_ADDR"]
+  return if kafka_addr.nil? || kafka_addr.empty?
+
+  topic = ENV.fetch("KAFKA_TOPIC", "domain.fulfillment.events")
+  group_id = ENV.fetch("KAFKA_GROUP_ID", "email")
+  kafka_user = ENV["KAFKA_USER"]
+  kafka_password = ENV["KAFKA_PASSWORD"]
+
+  brokers = kafka_addr.split(",").map(&:strip).reject(&:empty?)
+
+  Thread.new do
+    begin
+      require "kafka"
+
+      kafka_opts = {
+        seed_brokers: brokers,
+        client_id: "email-service",
+        connect_timeout: 10
+      }
+
+      if kafka_user && !kafka_user.empty? && kafka_password && !kafka_password.empty?
+        kafka_opts[:ssl] = true
+        kafka_opts[:sasl_scram_username] = kafka_user
+        kafka_opts[:sasl_scram_password] = kafka_password
+        kafka_opts[:sasl_scram_mechanism] = "sha512"
+      end
+
+      kafka = Kafka.new(**kafka_opts)
+      consumer = kafka.consumer(group_id: group_id)
+      consumer.subscribe(topic, default_offset: :earliest)
+
+      puts "Email Kafka consumer started. Subscribed to topic '#{topic}' under group '#{group_id}'."
+
+      pending_joins = {}
+      mutex = Mutex.new
+
+      consumer.each_message do |message|
+        order_id = message.key
+        payload_str = message.value || ""
+
+        if order_id.nil? || order_id.empty?
+          begin
+            json_data = JSON.parse(payload_str)
+            order_id = json_data["orderId"] || json_data["key"]
+          rescue StandardError
+            order_id = nil
+          end
+        end
+
+        next if order_id.nil? || order_id.empty?
+
+        is_payment = payload_str.include?("payment") || payload_str.include?("PAYMENT")
+        is_shipping = payload_str.include?("shipping") || payload_str.include?("SHIPPING")
+
+        mutex.synchronize do
+          state = pending_joins[order_id] ||= { payment: false, shipping: false }
+          state[:payment] = true if is_payment
+          state[:shipping] = true if is_shipping
+
+          puts "Email consumer received fulfillment event for order #{order_id}. Payment: #{state[:payment]}, Shipping: #{state[:shipping]}"
+
+          # Kafka Stream Join Condition: both payment and shipping completed for order_id
+          if state[:payment] && state[:shipping]
+            puts "Email Stream Join completed successfully for order #{order_id}. Both payment and shipping operations processed."
+            $logger.on_emit(
+              timestamp: Time.now,
+              severity_text: 'INFO',
+              body: "Email Stream Join completed for order #{order_id}",
+              attributes: { 'app.order.id' => order_id },
+            )
+            $confirmation_counter.add(1) if $confirmation_counter
+            pending_joins.delete(order_id)
+          end
+        end
+      end
+    rescue StandardError => e
+      puts "Email Kafka consumer error or ruby-kafka not available: #{e.message}"
+    end
+  end
+end
+
+start_kafka_consumer
