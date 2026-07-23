@@ -123,3 +123,13 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+  # K8s 1.36 (cụm này) thêm field status.terminatingReplicas vào Deployment mà schema
+  # ArgoCD đang dùng chưa khai báo -> structured-merge diff ném ComparisonError
+  # "field not declared in schema", app kẹt Unknown dù pod chạy bình thường. Bỏ qua
+  # field status này là đủ: nó do controller ghi, không phải thứ Git quản.
+  # Cùng cách đã áp cho external-secrets (xem applications/external-secrets.yaml).
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /status/terminatingReplicas
