@@ -531,7 +531,8 @@ def get_ai_assistant_response(request_product_id, question, context=None):
         trace_steps.append(demo_pb2.TraceStep(
             step_name="Input Guardrail (PII/Prompt Guard)",
             latency_ms=lat_in,
-            status="blocked" if blocked_in else "pass"
+            status="blocked" if blocked_in else "pass",
+            detail=redact_pii(json.dumps({"question": question, "blocked": blocked_in}))
         ))
         if blocked_in:
             logger.warning(f"[Guardrail INPUT] blocked direct question for product_id={request_product_id}")
@@ -717,6 +718,7 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                         step_name=f"Tool: {tool_name}" + (f" ({tool_input.get('product_id')})" if tool_input.get('product_id') else ""),
                         latency_ms=int((time.time() - t_tool) * 1000),
                         status="ok" if '"error"' not in function_response else "error",
+                        detail=redact_pii(json.dumps({"args": tool_input, "succeeded": '"error"' not in function_response}))
                     ))
                     parsed_res = json.loads(function_response)
                     if not isinstance(parsed_res, dict):
@@ -816,7 +818,8 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                 trace_steps.append(demo_pb2.TraceStep(
                     step_name="Output Guardrail (Grounding)",
                     latency_ms=lat_out,
-                    status="blocked" if blocked_out else "pass"
+                    status="blocked" if blocked_out else "pass",
+                    detail=redact_pii(json.dumps({"blocked": blocked_out}))
                 ))
                 if blocked_out:
                     logger.warning(f"AI_SUMMARY_FALLBACK stage=output-grounding reason=Ungrounded product_id={request_product_id}")
@@ -834,7 +837,8 @@ def get_ai_assistant_response(request_product_id, question, context=None):
             trace_steps.append(demo_pb2.TraceStep(
                 step_name="Model Gateway & Bedrock Nova",
                 latency_ms=lat_llm,
-                status="ok"
+                status="ok",
+                detail=redact_pii(json.dumps({"routed_model": os.environ.get('LLM_REVIEWS_MAIN_MODEL', 'amazon.nova-micro-v1:0')}))
             ))
             ai_assistant_response.trace_steps.extend(trace_steps)
 

@@ -62,6 +62,17 @@ const StepName = styled.span`
   color: #495057;
 `;
 
+const StepDetail = styled.div`
+  font-size: 11px;
+  color: #6c757d;
+  margin-top: 4px;
+  background: #e9ecef;
+  padding: 4px;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  word-break: break-all;
+`;
+
 const StepMetrics = styled.span`
   display: flex;
   gap: 12px;
@@ -94,6 +105,7 @@ export interface TraceStep {
   stepName?: string;
   latencyMs?: number;
   status?: string;
+  detail?: string;
   // in protobuf, snake_case becomes camelCase
   step_name?: string;
   latency_ms?: number;
@@ -159,7 +171,10 @@ export const TraceCitationPanel: React.FC<TraceCitationPanelProps> = ({
                 
                 return (
                   <StepItem key={idx}>
-                    <StepName>{name}</StepName>
+                    <div style={{ flex: 1, paddingRight: '12px' }}>
+                      <StepName>{name}</StepName>
+                      {step.detail && <StepDetail>{step.detail}</StepDetail>}
+                    </div>
                     <StepMetrics>
                       <StepLatency>{latency}ms</StepLatency>
                       <StepStatus $status={status}>[{status.toUpperCase()}]</StepStatus>

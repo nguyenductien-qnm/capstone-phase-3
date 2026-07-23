@@ -150,6 +150,7 @@ message TraceStep {
     string step_name = 1;
     int64 latency_ms = 2;
     string status = 3;
+    string detail = 4;
 }
 
 message AskProductAIAssistantResponse {

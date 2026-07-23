@@ -24,6 +24,9 @@ type checkoutDependencyFake struct {
 func (f *checkoutDependencyFake) AddItem(context.Context, *pb.AddItemRequest, ...grpc.CallOption) (*pb.Empty, error) {
 	return &pb.Empty{}, nil
 }
+func (f *checkoutDependencyFake) AddItemAndGetCart(context.Context, *pb.AddItemRequest, ...grpc.CallOption) (*pb.Cart, error) {
+	return &pb.Cart{Items: []*pb.CartItem{{ProductId: "product-1", Quantity: 1}}}, nil
+}
 func (f *checkoutDependencyFake) GetCart(context.Context, *pb.GetCartRequest, ...grpc.CallOption) (*pb.Cart, error) {
 	return &pb.Cart{Items: []*pb.CartItem{{ProductId: "product-1", Quantity: 1}}}, nil
 }
