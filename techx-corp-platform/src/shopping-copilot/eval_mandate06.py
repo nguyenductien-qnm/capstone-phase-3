@@ -315,7 +315,7 @@ def main():
     else:
         addr = f"{args.host}:{args.port}"
         print(f"Connecting to Shopping Copilot at {addr}...")
-        channel = grpc.insecure_channel(addr)
+        channel = grpc.secure_channel(addr, grpc.ssl_channel_credentials())
         stub = pb_grpc.ShoppingCopilotServiceStub(channel)
 
     inj_pass, inj_total = run_injection_tests(stub)
