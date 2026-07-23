@@ -52,6 +52,9 @@ func (f *checkoutDependencyFake) Charge(context.Context, *pb.ChargeRequest, ...g
 	f.chargeCalls++
 	return &pb.ChargeResponse{TransactionId: "transaction-1"}, nil
 }
+func (f *checkoutDependencyFake) Validate(context.Context, *pb.ValidatePaymentRequest, ...grpc.CallOption) (*pb.ValidatePaymentResponse, error) {
+	return &pb.ValidatePaymentResponse{Valid: true}, nil
+}
 
 type failingOrderEventPublisher struct {
 	publishCalls int
@@ -82,6 +85,9 @@ func TestPlaceOrderChargesOnceWhenKafkaIsUnavailable(t *testing.T) {
 			_, _ = fmt.Fprint(response, `{"cost_usd":{"currency_code":"USD","units":1,"nanos":0}}`)
 		case "/ship-order":
 			_, _ = fmt.Fprint(response, `{"tracking_id":"tracking-1"}`)
+		case "/validate-address":
+			response.WriteHeader(http.StatusOK)
+			_, _ = fmt.Fprint(response, `{"valid":true}`)
 		default:
 			http.NotFound(response, request)
 		}
