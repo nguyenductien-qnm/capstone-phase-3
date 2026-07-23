@@ -1,3 +1,27 @@
+# M17-R3: bật NetworkPolicy cho sandbox. Đã kiểm chứng đầy đủ trên develop 22/07/2026
+# (32 policy, money-path xanh, 4 lỗ hổng runtime đã vá trong chart) — bằng chứng ở
+# docs/cdo09/evidence-mandate-17.
+#
+# KHÁC develop: sandbox KHÔNG cần override CIDR. VPC sandbox 10.0.0.0/16 và ClusterIP
+# API server 172.20.0.1 TRÙNG ĐÚNG default chart (apiServerCIDR/nodeCIDR/vpcCidr =
+# 10.0.0.0/16, apiServerClusterIP = 172.20.0.1/32). Nhãn egress-internet cho
+# product-reviews/shopping-copilot (Bedrock) và flagd (sync URL) đã có sẵn ở
+# values-aio-llm.yaml + values-flagd-sync.yaml.
+#
+# ĐIỀU KIỆN TIÊN QUYẾT: VPC CNI sandbox phải chạy --enable-network-policy=true
+# (terraform/environments/sandbox/main.tf: enable_network_policy = true — commit 7d059aa).
+# Xác nhận đã `terraform apply` TRƯỚC khi merge. Thiếu enforce thì policy tồn tại nhưng
+# vô tác dụng = an toàn giả.
+#
+# LƯU Ý VẬN HÀNH: sandbox auto-sync (prune + selfHeal) — merge là áp NGAY, không có cổng
+# sync tay như develop. Bật ở giờ thấp tải, canh ksm + grafana sidecar + ảnh storefront.
+#
+# R2 (topologySpread + PDB + HA) và R4 (automountServiceAccountToken: false) là CHART
+# DEFAULT nên sandbox đã tự áp qua auto-sync. R1 (circuit breaker) trong image frontend
+# — promote qua App Promote theo digest.
+networkPolicy:
+  enabled: true
+
 # Mandate-19: port sizing + HPA đã đo trên develop sang PROD (techx-tf1).
 # Bằng chứng AFTER: docs/mandate-19/loadtest/EVIDENCE.md E7/E8 + ADR throughput-ceiling.
 # Develop đo trên node t3.large cùng cỡ prod (parity dựng ở PR #237) nên số mang sang được.
