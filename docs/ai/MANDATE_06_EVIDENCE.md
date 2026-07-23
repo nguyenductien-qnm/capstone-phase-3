@@ -60,6 +60,7 @@ Executed directly against the `frontend-proxy` via API (matching UI behavior).
 
 ## 4. ADR & Documentation
 * **ADR-014 + Addendum**: Documented trade-offs for moving Bedrock Guardrails to `us-east-1` as layer-3 defense alongside `ml-guard` (T1) and deterministic filtering (T0). See `docs/ai/05_adrs.md`.
+* **ADR-015**: Documented migration to Guardrails AI and gRPC for `ml-guard` v2, achieving composability and removing the HTTP concurrency bottleneck. See `docs/ai/05_adrs.md`.
 
 ## 5. Visual Evidence & Tests
 * **Images**: UI screenshots and testing evidence are stored in `docs/ai/evals/images/`

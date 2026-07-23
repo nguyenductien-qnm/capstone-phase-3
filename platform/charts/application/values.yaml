@@ -1103,17 +1103,17 @@ components:
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
     startupProbe:
-      httpGet: { path: /healthz, port: 8090 }
+      exec: { command: ["grpc_health_probe", "-addr=127.0.0.1:8090"] }
       periodSeconds: 5
       failureThreshold: 24
     readinessProbe:
-      httpGet: { path: /healthz, port: 8090 }
+      exec: { command: ["grpc_health_probe", "-addr=127.0.0.1:8090"] }
       periodSeconds: 5
       timeoutSeconds: 2
       failureThreshold: 3
       successThreshold: 1
     livenessProbe:
-      httpGet: { path: /healthz, port: 8090 }
+      exec: { command: ["grpc_health_probe", "-addr=127.0.0.1:8090"] }
       periodSeconds: 10
       timeoutSeconds: 2
       failureThreshold: 6
@@ -1122,7 +1122,7 @@ components:
         value: "8090"
     resources:
       requests:
-        cpu: 1000m
+        cpu: 400m
         memory: 1536Mi
       limits:
         cpu: 2000m
@@ -1329,7 +1329,7 @@ components:
             name: valkey-secret
             key: auth_token
       - name: ML_GUARD_URL
-        value: http://ml-guard:8090
+        value: ml-guard:8090
       - name: LLM_LOCAL_ML_GUARD
         value: "true"
       - name: LLM_JUDGE_MODEL
@@ -1504,7 +1504,7 @@ components:
       - name: OTEL_EXPORTER_OTLP_ENDPOINT
         value: http://$(OTEL_COLLECTOR_NAME):4317
       - name: ML_GUARD_URL
-        value: http://ml-guard:8090
+        value: ml-guard:8090
       - name: LLM_LOCAL_ML_GUARD
         value: "true"
       - name: LLM_JUDGE_MODEL
