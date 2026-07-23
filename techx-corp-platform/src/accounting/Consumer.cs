@@ -177,13 +177,22 @@ internal class Consumer : IDisposable
                 joinState.ParsedOrder = parsedOrder;
             }
 
-            _logger.LogInformation("Accounting received fulfillment event for order {OrderId}. Payment: {Payment}, Shipping: {Shipping}",
-                orderId, joinState.HasPaymentEvent, joinState.HasShippingEvent);
+            // A logging level check 
+            // is a conditional check that verifies whether the logger is configured to 
+            // process logs at a specific log level before performing any work for that log statement
+            if (_logger.IsEnabled(LogLevel.Information))
+            {
+                _logger.LogInformation("Accounting received fulfillment event for order {OrderId}. Payment: {Payment}, Shipping: {Shipping}",
+                    orderId, joinState.HasPaymentEvent, joinState.HasShippingEvent);
+            }
 
             // Kafka Streams Join condition: both Payment and Shipping events must be received for orderId
             if (joinState.HasPaymentEvent && joinState.HasShippingEvent)
             {
-                _logger.LogInformation("Accounting Stream Join completed successfully for order {OrderId}. Both payment and shipping fulfillment events received.", orderId);
+                if (_logger.IsEnabled(LogLevel.Information))
+                {
+                    _logger.LogInformation("Accounting Stream Join completed successfully for order {OrderId}. Both payment and shipping fulfillment events received.", orderId);
+                }
                 _pendingJoins.TryRemove(orderId, out _);
 
                 if (joinState.ParsedOrder != null)
