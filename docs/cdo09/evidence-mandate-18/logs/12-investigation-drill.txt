@@ -1,0 +1,44 @@
+MANDATE-18 Prompt 7 - metric/dashboard -> trace -> log drill
+Capture date: 2026-07-22 UTC
+Account/caller: [REDACTED]
+Mutation performed: none
+
+1. Metric/dashboard
+-------------------
+- SLO dashboard metric family: traces_span_metrics_calls_total.
+- Checkout success query returned 100% over 5m.
+- Combined frontend|cart|checkout request rate returned
+  5.5083396701652925 calls/s.
+- Prometheus query_exemplars returned an empty data array for both
+  frontend-proxy and the full traces_span_metrics histogram over 1h.
+- Therefore a direct dashboard exemplar click to a trace ID is NOT verified.
+
+2. Jaeger trace
+---------------
+- Investigation narrowed from the checkout SLO/service and matching UTC time.
+- Trace ID: 8116e5b4dfe5706856449f1a31e6f299
+- Trace timestamp: 2026-07-22T08:28:58Z.
+- Jaeger lookup: found, 51 spans.
+- Services: frontend-proxy, frontend, checkout, cart, currency, payment,
+  shipping, quote, product-catalog, email, flagd.
+- Frontend-proxy POST span: 8e0253e118ab500f, 72674 us, HTTP 200.
+- Checkout PlaceOrder span: c8c461ff55af34b2, 48505 us.
+
+3. OpenSearch logs
+------------------
+- Query: traceId=8116e5b4dfe5706856449f1a31e6f299.
+- Result: 18 matching log records.
+- Same checkout span c8c461ff55af34b2 contained, in order:
+  - [PlaceOrder]
+  - payment went through
+  - order placed
+- Other matching services included frontend-proxy, cart, currency, payment,
+  shipping, quote, product-catalog, and email.
+- Network address, user/order identifiers, and request payload were omitted
+  from this evidence.
+
+Classification
+--------------
+- Jaeger trace -> service/log correlation: PASS.
+- Direct metric exemplar -> trace ID: BLOCKED (no exemplar data).
+- End-to-end drill: PARTIAL, not PASS.

@@ -28,6 +28,13 @@ output "private_mq_subnet_ids" {
   value       = { for k, v in aws_subnet.private_mq : k => v.id }
 }
 
+output "private_egress_route_table_ids" {
+  description = "Private app/MQ route tables used for controlled egress and gateway endpoints"
+  value = var.enable_nat_gateway ? [
+    for route_table in values(aws_route_table.private) : route_table.id
+  ] : [aws_route_table.private_isolated.id]
+}
+
 output "nat_gateway_ips" {
   description = "Map public IP của các NAT Gateways"
   value       = { for k, v in aws_eip.nat : k => v.public_ip }
