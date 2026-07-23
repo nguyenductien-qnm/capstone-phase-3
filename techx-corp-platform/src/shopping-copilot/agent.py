@@ -69,7 +69,7 @@ CONFIRMATION_GATE_TEMPLATE = "Tôi đã chuẩn bị thêm [SP] vào giỏ. Vui 
 NO_REVIEW_TEMPLATE = "Tôi không có thông tin đánh giá về sản phẩm này."
 CATEGORY_PICKER_TEMPLATE = ("chọn đúng một trong các danh mục (Telescopes, Binoculars, "
                             "Accessories, Cameras, Books) hoặc tên gần giống")
-DOMAIN_SCOPE_TEMPLATE = ("Mình là trợ lý mua sắm của TechX, chỉ hỗ trợ về thiết bị thiên văn thôi. "
+DOMAIN_SCOPE_TEMPLATE = ("Xin lỗi, mình là trợ lý mua sắm của TechX, chỉ hỗ trợ về thiết bị thiên văn thôi. "
                          "Bạn cần tìm kính thiên văn, ống nhòm hay phụ kiện gì không?")
 
 # SYSTEM_PROMPT = INTRO (identity/mission) + CATALOG (customer-visible product
@@ -99,7 +99,7 @@ SYSTEM_PROMPT_RULES = """QUY TẮC BẮT BUỘC:
 0. PHẠM VI (SCOPE) — ƯU TIÊN CAO NHẤT: CHỈ trả lời về mua sắm tại TechX (sản phẩm thiên văn, giá,
    review, gợi ý, giỏ hàng). Nếu khách hỏi BẤT KỲ chủ đề nào hoàn toàn ngoài lề (lập trình, học tập,
    tăng lương, nghề nghiệp, đầu tư, chính trị, kiến thức chung...), TỪ CHỐI NGẮN GỌN và mời
-   quay lại đúng một câu: "Mình là trợ lý mua sắm của TechX, chỉ hỗ trợ về thiết bị thiên văn thôi.
+   quay lại đúng một câu: "Xin lỗi, mình là trợ lý mua sắm của TechX, chỉ hỗ trợ về thiết bị thiên văn thôi.
    Bạn cần tìm kính thiên văn, ống nhòm hay phụ kiện gì không?" 
    LƯU Ý QUAN TRỌNG: Các câu hỏi chung chung về "sản phẩm", "pin", "giao hàng", "bảo hành", "chống nước" ĐỀU HỢP LỆ, TUYỆT ĐỐI KHÔNG TỪ CHỐI. Hãy trả lời bình thường.
    TUYỆT ĐỐI KHÔNG đưa ra hướng dẫn hay lời khuyên ngoài lề.
