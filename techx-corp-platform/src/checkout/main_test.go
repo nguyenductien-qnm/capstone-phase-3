@@ -26,9 +26,7 @@ func TestSendToPostProcessor_RoutingKey(t *testing.T) {
 	testOrderID := "test-order-uuid-12345"
 	producer.ExpectInputAndSucceed()
 
-	cs := &checkout{
-		KafkaProducerClient: producer,
-	}
+	publisher := newKafkaOrderEventPublisher(producer, kafkaPublishTimeout())
 
 	orderResult := &pb.OrderResult{
 		OrderId: testOrderID,
@@ -36,7 +34,7 @@ func TestSendToPostProcessor_RoutingKey(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		cs.sendToPostProcessor(context.Background(), orderResult)
+		_ = publisher.Publish(context.Background(), orderResult)
 		close(done)
 	}()
 
