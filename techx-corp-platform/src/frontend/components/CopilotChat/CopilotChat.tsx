@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import styled, { keyframes, css } from 'styled-components';
 import SessionGateway from '../../gateways/Session.gateway';
+import { useQueryClient } from '@tanstack/react-query';
 
 const fadeIn = keyframes`
   from { opacity: 0; transform: translateY(20px) scale(0.95); }
@@ -378,6 +379,7 @@ export default function CopilotChat() {
   const [sessionId, setSessionId] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   
+  const queryClient = useQueryClient();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -413,6 +415,8 @@ export default function CopilotChat() {
 
       const data = await res.json();
       
+      queryClient.invalidateQueries({ queryKey: ['cart'] });
+
       setMessages(prev => [...prev, {
         id: Date.now().toString(),
         text: data.response || (data.pendingConfirmation ? '' : 'I am sorry, I could not process that request.'),
