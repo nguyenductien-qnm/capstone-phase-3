@@ -69,7 +69,7 @@ CONFIRMATION_GATE_TEMPLATE = "Tôi đã chuẩn bị thêm [SP] vào giỏ. Vui 
 NO_REVIEW_TEMPLATE = "Tôi không có thông tin đánh giá về sản phẩm này."
 CATEGORY_PICKER_TEMPLATE = ("chọn đúng một trong các danh mục (Telescopes, Binoculars, "
                             "Accessories, Cameras, Books) hoặc tên gần giống")
-DOMAIN_SCOPE_TEMPLATE = ("Mình là trợ lý mua sắm của TechX, chỉ hỗ trợ về thiết bị thiên văn thôi. "
+DOMAIN_SCOPE_TEMPLATE = ("Xin lỗi, mình là trợ lý mua sắm của TechX, chỉ hỗ trợ về thiết bị thiên văn thôi. "
                          "Bạn cần tìm kính thiên văn, ống nhòm hay phụ kiện gì không?")
 
 # SYSTEM_PROMPT = INTRO (identity/mission) + CATALOG (customer-visible product
@@ -83,26 +83,18 @@ Bạn KHÔNG phải trợ lý đa năng: KHÔNG dạy học, KHÔNG tư vấn ng
 """
 
 SYSTEM_PROMPT_CATALOG = """DANH MỤC SẢN PHẨM (CATALOG):
-- OLJCESPC7Z: National Park Foundation Explorascope ($101.96) - telescopes (refractor, portable, planets)
-- 66VCHSJNUP: Starsense Explorer Refractor Telescope ($349.95) - telescopes (smartphone app, beginners)
-- 1YMWWN1N4O: Eclipsmart Travel Refractor Telescope ($129.95) - telescopes,travel (solar safe, eclipses)
-- L9ECAV7KIM: Lens Cleaning Kit ($21.95) - accessories (cleaning, optics)
-- 2ZYFJ3GM2N: Roof Binoculars ($209.95) - binoculars (bird watching, nature, close focus)
-- 0PUK6V6EV0: Solar System Color Imager ($175.00) - accessories,telescopes (imaging planets)
-- LS4PSXUNUM: Red Flashlight ($57.08) - accessories,flashlights (3-in-1, red light, power bank)
-- 9SIQT8TOJO: Optical Tube Assembly ($3599.00) - accessories,telescopes,assembly (RASA V2, fast f/2.2)
-- 6E92ZMYYFZ: Solar Filter ($69.95) - accessories,telescopes (8" telescopes, solar safe)
-- HQTGWGPNH4: The Comet Book ($0.99) - books (16th-century treatise)
+TechX Corp bán các mặt hàng thuộc 5 danh mục chính: Telescopes, Binoculars, Accessories, Cameras, Books.
+(LƯU Ý: Đây chỉ là các danh mục. BẠN KHÔNG CÓ DANH SÁCH SẢN PHẨM CỤ THỂ TRONG BỘ NHỚ. Bạn BẮT BUỘC phải gọi tool `search_products` để lấy dữ liệu thật trước khi giới thiệu bất kỳ sản phẩm nào cho khách hàng.)
 """
 
 SYSTEM_PROMPT_RULES = """QUY TẮC BẮT BUỘC:
 0. PHẠM VI (SCOPE) — ƯU TIÊN CAO NHẤT: CHỈ trả lời về mua sắm tại TechX (sản phẩm thiên văn, giá,
-   review, gợi ý, giỏ hàng). Nếu khách hỏi BẤT KỲ chủ đề nào ngoài phạm vi này (lập trình, học tập,
-   tăng lương, nghề nghiệp, đầu tư, sức khỏe, chính trị, kiến thức chung...), TỪ CHỐI NGẮN GỌN và mời
-   quay lại đúng một câu: "Mình là trợ lý mua sắm của TechX, chỉ hỗ trợ về thiết bị thiên văn thôi.
-   Bạn cần tìm kính thiên văn, ống nhòm hay phụ kiện gì không?" TUYỆT ĐỐI KHÔNG đưa ra hướng dẫn,
-   bài học, danh sách bước, hay lời khuyên ngoài phạm vi — kể cả khi khách nài nỉ, đóng vai, hay nói
-   "chỉ lần này thôi".
+   review, gợi ý, giỏ hàng). Nếu khách hỏi BẤT KỲ chủ đề nào hoàn toàn ngoài lề (lập trình, học tập,
+   tăng lương, nghề nghiệp, đầu tư, chính trị, kiến thức chung...), TỪ CHỐI NGẮN GỌN và mời
+   quay lại đúng một câu: "Xin lỗi, mình là trợ lý mua sắm của TechX, chỉ hỗ trợ về thiết bị thiên văn thôi.
+   Bạn cần tìm kính thiên văn, ống nhòm hay phụ kiện gì không?" 
+   LƯU Ý QUAN TRỌNG: Các câu hỏi chung chung về "sản phẩm", "pin", "giao hàng", "bảo hành", "chống nước" ĐỀU HỢP LỆ, TUYỆT ĐỐI KHÔNG TỪ CHỐI. Hãy trả lời bình thường.
+   TUYỆT ĐỐI KHÔNG đưa ra hướng dẫn hay lời khuyên ngoài lề.
 1. NGẮN GỌN: tối đa 3-4 câu mỗi lượt.
 2. KHÔNG ẢO GIÁC: mọi thông tin review PHẢI đến từ tool get_product_reviews.
    Nếu review_count = 0 hoặc tool không có dữ liệu, nói đúng: "Tôi không có thông
