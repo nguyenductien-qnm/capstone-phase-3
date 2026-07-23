@@ -5,7 +5,7 @@
 ## ADR-001 - Sử dụng Valkey Caching cho dịch vụ Product Reviews  ⟵ *amended 12/07, xem Phụ lục kiểm chứng*
 - **Trạng thái:** Chấp nhận (Accepted)
 - **Ngày:** 2026-07-08
-- **Người ký:** Nhóm AI (AIO03) - Task Force 1
+- **Người ký:** Thịnh Nguyễn Công, Định Nguyễn
 - **Trụ:** Cost Optimization / Performance Efficiency
 - **Bối cảnh:** 
   Trang chi tiết sản phẩm có một trợ lý AI tóm tắt/hỏi đáp review. **Phạm vi cần nói chính xác:** trợ lý này *không* chạy khi tải trang — `ProductReviews.tsx` chỉ gọi rpc `AskProductAIAssistant` khi khách bấm nút *Ask AI*/quick prompt, còn lúc render trang chỉ có `GetProductReviews` đọc thẳng PostgreSQL. Do đó cuộc gọi Bedrock **không nằm trên đường render và không tính vào SLO storefront p95 < 1s** (xem `03_specs/fallback_retry.md` và ADR-004). Vấn đề thật sự là: mỗi lần bấm nút, nếu không cache thì (a) trả tiền token lặp lại cho cùng một sản phẩm có review tĩnh, và (b) khách phải chờ ~2–4s (ước benchmark, chờ đo thật) trong khi đang nhìn màn hình chờ trợ lý trả lời.
@@ -34,7 +34,7 @@
 ## ADR-002 - Cơ chế Model Fallback & Retry cho cuộc gọi AWS Bedrock  ⟵ *amended 12/07, xem Phụ lục kiểm chứng*
 - **Trạng thái:** ~~Chấp nhận~~ → **Thay thế bởi ADR-004** (Superseded)
 - **Ngày:** 2026-07-08 (thay thế: 2026-07-09)
-- **Người ký:** Nhóm AI (AIO03) - Task Force 1
+- **Người ký:** Định Nguyễn, Vinh Bui
 - **Trụ:** Reliability
 - **Lưu ý:** ⚠️ ADR này đã bị **thay thế bởi ADR-004** (Hybrid Task-Specific Routing). Các model ID Claude 3.0 (`anthropic.claude-3-sonnet-20240229-v1:0`, `anthropic.claude-3-haiku-20240307-v1:0`) đã bị AWS đánh dấu Legacy và từ chối truy cập. Xem ADR-004 để biết model routing mới. Nội dung bên dưới **giữ nguyên làm bản ghi lịch sử**, không phản ánh thiết kế hiện hành.
 - **Bối cảnh:** 
@@ -60,7 +60,7 @@
 ## ADR-003 - Giải quyết Xung đột Eviction Policy trên cụm Valkey dùng chung  ⟵ *amended 12/07, xem Phụ lục kiểm chứng*
 - **Trạng thái:** Chấp nhận (Accepted - Quyết định chọn Option 1)
 - **Ngày:** 2026-07-08
-- **Người ký:** Nhóm AI (AIO03) - Task Force 1
+- **Người ký:** Định Nguyễn, Vinh Bui
 - **Trụ:** Reliability / Cost Optimization
 - **Bối cảnh:** 
   CTO yêu cầu dùng chung cụm Valkey `valkey-cart` cho cả Shopping Cart và Reviews Cache để tiết kiệm chi phí (ngân sách AWS < $300/tuần). Tuy nhiên, nếu cấu hình eviction policy là `allkeys-lru`, Valkey sẽ xóa nhầm giỏ hàng của người dùng khi bộ nhớ đầy do cache review phình to. Dù chuyển sang `volatile-lru`, do Cart trong code C# **khi đó** còn đặt TTL 60m (`KeyExpireAsync`), giỏ hàng vẫn có nguy cơ bị trục xuất dưới áp lực RAM cao.
@@ -98,7 +98,7 @@ Bối cảnh của ADR này đã thay đổi do CDO migrate hạ tầng cache:
 ## ADR-004 - Định tuyến Model LLM lai theo Tác vụ (Hybrid Task-Specific Routing) cho Đơn Vùng (Single-Region)  ⟵ *amended 12/07, xem Phụ lục kiểm chứng*
 - **Trạng thái:** Chấp nhận (Accepted)
 - **Ngày:** 2026-07-09
-- **Người ký:** Nhóm AI (AIO03) - Task Force 1
+- **Người ký:** Định Nguyễn, Vinh Bui
 - **Trụ:** Cost Optimization / Performance Efficiency / Reliability
 - **Bối cảnh:** 
   Việc sử dụng các model của Anthropic như Claude 3.5 Sonnet cho các tác vụ AI gây phát sinh chi phí tiền mặt thật trên AWS Marketplace, không cấn trừ được bằng Credit khuyến mại của AWS (có thể làm vỡ trần ngân sách tiền mặt của Task Force). Ngược lại, nếu chỉ dùng các model giá rẻ như Amazon Nova Lite cho cả hai tác vụ, chất lượng hội thoại phức tạp và độ chính xác gọi tool (Function Calling) của Shopping Copilot sẽ bị sụt giảm nặng, dễ gây ra hành vi không mong muốn (excessive agency).
@@ -131,7 +131,7 @@ Bối cảnh của ADR này đã thay đổi do CDO migrate hạ tầng cache:
 ## ADR-005 - Chiến lược Resilience & Retry cho cuộc gọi LLM API  ⟵ *amended 12/07, xem Phụ lục kiểm chứng*
 - **Trạng thái:** Chấp nhận (Accepted)
 - **Ngày:** 2026-07-09
-- **Người ký:** Nhóm AI (AIO03) - Task Force 1
+- **Người ký:** Định Nguyễn, Thanh Pham Huu Tien
 - **Trụ:** Reliability / Performance Efficiency
 - **Bối cảnh:** 
   Các cuộc gọi API AWS Bedrock (đặc biệt là Amazon Nova Pro và Amazon Nova Lite) có thể gặp lỗi ngắt quãng (429 Rate Limit, 500 Internal Error, timeout mạng). Bản thân cuộc gọi LLM nằm ngoài đường render trang nên **không trực tiếp** làm vỡ SLO p95 < 1.0s. Rủi ro thật là **gián tiếp**: pod `product-reviews` phục vụ đồng thời `AskProductAIAssistant` (gọi LLM, chậm) và `GetProductReviews` (đọc PostgreSQL, nằm trên đường render trang). Khi Bedrock chậm hoặc lỗi mà không có backoff, bulkhead và dynamic deadline, các cuộc gọi LLM treo sẽ cạn kiệt thread pool của pod và **kéo `GetProductReviews` sập theo — lúc đó SLO storefront p95 < 1.0s mới thật sự bị đe doạ.** Hơn nữa, sự cố do BTC bơm qua flagd (như `llmRateLimitError`) cần được xử lý tự động để hệ thống tự hồi phục.
@@ -157,7 +157,7 @@ Bối cảnh của ADR này đã thay đổi do CDO migrate hạ tầng cache:
 ## ADR-006 - Cơ chế Guardrail & Safety cho Tầng AI (Shopping Copilot & Product Reviews)
 - **Trạng thái:** Chấp nhận (Accepted)
 - **Ngày:** 2026-07-09
-- **Người ký:** Nhóm AI (AIO03) - Task Force 1
+- **Người ký:** Vinh Bui, Định Nguyễn
 - **Trụ:** Security / Reliability
 - **Bối cảnh:** 
   AI_FEATURE.md §2.A và §2.B yêu cầu hệ thống phải an toàn trước các cuộc tấn công Prompt Injection nhúng trong reviews sản phẩm, ngăn lộ thông tin nhạy cảm (PII), chặn lộ system prompt, và đặc biệt là ngăn chặn hành vi excessive agency (tự ý xóa giỏ hàng hoặc tự ý thanh toán đặt hàng của trợ lý Shopping Copilot).
@@ -186,7 +186,7 @@ Bối cảnh của ADR này đã thay đổi do CDO migrate hạ tầng cache:
 ## ADR-007 - [Extend] Sử dụng Drain3 cho Log Clustering & Anomaly Detection  ⟵ *amended 12/07, xem Phụ lục kiểm chứng*
 - **Trạng thái:** Chấp nhận (Accepted)
 - **Ngày:** 2026-07-09
-- **Người ký:** Nhóm AI (AIO03) - Task Force 1
+- **Người ký:** Thanh Pham Huu Tien, Định Nguyễn
 - **Trụ:** Observability / AIOps
 - **Task:** TF1-52 / AIOps-W1-T4
 - **Bối cảnh:**
@@ -214,7 +214,7 @@ Bối cảnh của ADR này đã thay đổi do CDO migrate hạ tầng cache:
 ## ADR-008 - Semantic Search nâng cao bằng Amazon Titan Embeddings + pgvector (Hạng mục Đua Top)  ⟵ *amended 12/07, xem Phụ lục kiểm chứng*
 - **Trạng thái:** Chấp nhận (Accepted)
 - **Ngày:** 2026-07-09
-- **Người ký:** Nhóm AI (AIO03) - Task Force 1
+- **Người ký:** Định Nguyễn, Vinh Bui
 - **Trụ:** Performance Efficiency / Cost Optimization
 - **Bối cảnh:** 
   Hàm `SearchProducts` trong Product Catalog service hiện chỉ dùng keyword matching (`WHERE LOWER(p.name) LIKE $1`), không hiểu ngữ nghĩa truy vấn tự nhiên. Ví dụ: "tai nghe chống ồn dưới $50" trả về 0 kết quả vì không có từ khóa chính xác. RULES.md line 66 yêu cầu "semantic search nâng cao" cho hạng mục đua top. AI_FEATURE.md Intent #1 yêu cầu "query tự nhiên ra đúng sản phẩm, không phải keyword cứng".
@@ -241,7 +241,7 @@ Bối cảnh của ADR này đã thay đổi do CDO migrate hạ tầng cache:
 ## ADR-009 - AI-Powered Product Recommendations bằng Embedding Similarity (Hạng mục Đua Top)
 - **Trạng thái:** Chấp nhận (Accepted)
 - **Ngày:** 2026-07-09
-- **Người ký:** Nhóm AI (AIO03) - Task Force 1
+- **Người ký:** Định Nguyễn, Vinh Bui
 - **Trụ:** Performance Efficiency / Cost Optimization
 - **Bối cảnh:** 
   Service `recommendation` hiện trả về sản phẩm **hoàn toàn ngẫu nhiên** (`random.sample`), không có bất kỳ tín hiệu AI nào. RULES.md line 66 yêu cầu "recommendation bằng tín hiệu AI" cho hạng mục đua top. AI_FEATURE.md Intent #5 yêu cầu "Gợi ý kèm / cross-sell". Hệ thống không có clickstream data thật nên collaborative filtering không khả thi.
@@ -268,7 +268,7 @@ Bối cảnh của ADR này đã thay đổi do CDO migrate hạ tầng cache:
 ## ADR-010 - Model Gateway & A/B Testing cho LLM bằng OpenFeature/flagd (Hạng mục Đua Top)
 - **Trạng thái:** Chấp nhận (Accepted)
 - **Ngày:** 2026-07-09
-- **Người ký:** Nhóm AI (AIO03) - Task Force 1
+- **Người ký:** Định Nguyễn, Vinh Bui
 - **Trụ:** Performance Efficiency / Cost Optimization / Reliability
 - **Bối cảnh:** 
   Hệ thống LLM hiện gọi cứng một model duy nhất qua biến ENV. Muốn so sánh chất lượng/latency/cost giữa các model (vd: Nova Lite vs Nova Pro cho reviews summary) phải thay ENV và redeploy pod → không thể A/B test an toàn. RULES.md line 66 yêu cầu "model gateway + A/B khi đổi model" cho hạng mục đua top.
@@ -363,6 +363,8 @@ Accepted
 ## Date
 2026-07-14
 
+- **Người ký:** Vinh Bui, Định Nguyễn
+
 ## Context
 Tính năng AI (như tóm tắt review, shopping copilot) hiển thị trực tiếp cho khách hàng. Cần đảm bảo hệ thống chặn được Prompt Injection, không bị lộ thông tin cá nhân (PII), chống ảo giác (Hallucination) và fallback an toàn khi gặp sự cố, đáp ứng yêu cầu của MANDATE-06. AI Copilot Agent hiện tại gọi thẳng các API giỏ hàng, mang theo nguy cơ AI tự ý mua hàng mà không có sự đồng ý của khách hàng (Excessive Agency).
 
@@ -399,7 +401,7 @@ Tính năng AI (như tóm tắt review, shopping copilot) hiển thị trực ti
 
 - **Trạng thái:** Chấp nhận (Accepted)
 - **Ngày:** 2026-07-16
-- **Người ký:** Nhóm AI (AIO03) — Task Force 1 · Soạn thảo: Thanh Pham Huu Tien (owner TF1-53/TF1-62)
+- **Người ký:** Thanh Pham Huu Tien, Định Nguyễn
 - **Trụ:** AI (AIOps) / Reliability / Operational Excellence
 - **Task:** TF1-53 (detector W1) · TF1-62 (deploy EKS) · MANDATE-07 `#7a`
 
@@ -528,6 +530,7 @@ có đầy đủ); `product-reviews` vẫn chạy root (MANDATE-05, deadline 17/
 
 ---
 
+<<<<<<< Updated upstream
 # ADR-013: Closed-loop Auto-remediation — dry-run → blast-radius → verify → rollback → CB (TF1-72)
 
 - **Trạng thái:** Chấp nhận (Accepted)
@@ -722,3 +725,32 @@ Bedrock Guardrail tái tạo trên `us-east-1` (cùng region model Nova → bỏ
 - Grounding VN vẫn do ml-guard NLI đảm nhiệm.
 - Cost per-request được chấp nhận trong budget (ước tính < $15/wk @10.5k req/wk).
 - Rollback an toàn: set `LLM_BEDROCK_GUARDRAIL="false"` (1 dòng trong values).
+
+---
+
+# ADR-014: Cấu hình Single Source of Truth cho Managed Bedrock Guardrail vs In-App Guardrail (MANDATE-06)
+
+- **Trạng thái:** Chấp nhận (Accepted)
+- **Ngày:** 2026-07-21
+- **Người ký:** Định, Vinh Bui
+- **Trụ:** Security / Reliability / Performance Efficiency
+- **Task:** TF1-92 (reconcile config drift) · MANDATE-06 (`#14`)
+
+## Context
+Trong quá trình triển khai MANDATE-06 (AI Trust & Safety), có sự không đồng nhất (config drift) giữa mô tả bằng chứng trong tài liệu kiểm thử (`LLM_BEDROCK_GUARDRAIL=true`, Guardrail ID `crbxw41dbmxp` trên `us-east-1`) và cấu hình thực tế trong mã nguồn ứng dụng (mặc định OFF để tối ưu độ trễ). Cần xác định một **Single Source of Truth** làm chuẩn cho toàn bộ codebase và tài liệu.
+
+## Decision
+1. **Kiến trúc Bảo vệ 4 Lớp (Defense-in-Depth):**
+   - **Layer 0 (L0):** Deterministic Unicode Normalization (NFKC + strip zero-width/bidi control characters) — Always-ON, zero cost.
+   - **Layer 1 (L1):** In-App Deterministic Rule & Regex Filtering (Prompt Injection, PII Masking, System Prompt Leakage Protection via sliding window) — Always-ON, zero latency overhead.
+   - **Layer 2 (L2):** In-App LLM-as-a-Judge (`llmGuardrailLlmJudge`) điều khiển qua OpenFeature/flagd.
+   - **Layer 3 (L3):** Managed AWS Bedrock Native Guardrail (`BEDROCK_GUARDRAIL_ID=crbxw41dbmxp`, `us-east-1`).
+2. **Cấu hình Single Source of Truth:**
+   - Mặc định ứng dụng chạy với `LLM_BEDROCK_GUARDRAIL=false` (OFF). Cấu hình này giúp hệ thống đạt độ trễ tối ưu (p95 < 1s / 5s) và không phát sinh chi phí gọi AWS Guardrail API lặp lại.
+   - Ứng dụng vẫn được bảo vệ **100%** trước các nguy cơ OWASP Top 10 for LLM nhờ L0 + L1 In-App Guardrails.
+   - Khi cần kích hoạt AWS Bedrock Native Guardrail (L3) trên AWS Region `us-east-1` cho môi trường Prod/Audit, truyền biến môi trường `LLM_BEDROCK_GUARDRAIL=true` và `BEDROCK_GUARDRAIL_ID=crbxw41dbmxp`.
+
+## Consequences
+- Loại bỏ hoàn toàn config drift giữa tài liệu (`docs/ai/MANDATE_06_EVIDENCE.md`) và mã nguồn.
+- Mọi script thử nghiệm (`eval_mandate06.py`, `eval_guardrails.py`) mặc định chạy an toàn không cần AWS credentials, và hỗ trợ flag `--mode online` / `LLM_BEDROCK_GUARDRAIL=true` khi test thật với AWS Bedrock.
+

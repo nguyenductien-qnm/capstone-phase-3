@@ -4,6 +4,10 @@ import grpc
 
 import shopping_copilot_pb2 as shopping__copilot__pb2
 
+GRPC_GENERATED_VERSION = '1.71.0'
+GRPC_VERSION = grpc.__version__
+_version_not_supported = False
+
 
 class ShoppingCopilotServiceStub(object):
     """Dịch vụ Shopping Copilot Agent

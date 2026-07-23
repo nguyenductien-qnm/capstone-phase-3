@@ -37,7 +37,7 @@ def call_bedrock_agent(case: dict) -> str:
     
     try:
         import boto3
-        client = boto3.client("bedrock-runtime", region_name="us-east-1")
+        client = boto3.client("bedrock-runtime", region_name="us-east-2")
         
         response = client.converse(
             modelId="amazon.nova-lite-v1:0",

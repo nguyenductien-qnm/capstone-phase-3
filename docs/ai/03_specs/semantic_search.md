@@ -5,7 +5,7 @@
 > **Trạng thái:** Mockup / False Claim (Thực tế product-catalog vẫn đang dùng keyword search)
 > **Trụ:** Performance Efficiency / Cost Optimization
 > **Ngày:** 2026-07-09  
-> **Tác giả:** Nhóm AI (AIO03) - TF1  
+> **Tác giả:** Định Nguyễn, Vinh Bui  
 > **ADR liên quan:** ADR-008  
 
 ---

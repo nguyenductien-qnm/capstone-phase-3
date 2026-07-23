@@ -3,7 +3,7 @@
 > **Trạng thái:** Implemented  
 > **Trụ:** Performance Efficiency / Cost Optimization / Reliability  
 > **Ngày:** 2026-07-09  
-> **Tác giả:** Nhóm AI (AIO03) - TF1  
+> **Tác giả:** Định Nguyễn, Vinh Bui  
 > **ADR liên quan:** ADR-010  
 
 ---

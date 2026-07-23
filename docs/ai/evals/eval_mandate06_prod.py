@@ -12,6 +12,11 @@ BASE_URL = "https://ecommerce.nguyenductien.cloud/api"
 JAEGER_BASE_URL = os.environ.get("JAEGER_BASE_URL", "https://jaeger-tf1.tail101540.ts.net")
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="Eval MANDATE-06 Prod E2E")
+    parser.add_argument("--threshold", type=float, default=0.0, help="Minimum pass rate threshold (0.0 to 1.0)")
+    args = parser.parse_args()
+
     timestamp = time.strftime("%Y%m%d_%H%M%S")
     evidence_dir = Path(__file__).parent / "evidence" / timestamp
     evidence_dir.mkdir(parents=True, exist_ok=True)
@@ -119,6 +124,11 @@ def main():
     out = Path(__file__).parent / "eval_mandate06_prod_report.md"
     out.write_text("\n".join(report), encoding="utf-8")
     print(f"Report written to {out}")
+
+    pass_rate = (total - fails) / total if total > 0 else 0.0
+    if pass_rate < args.threshold:
+        print(f"\nFAIL: pass rate {pass_rate:.2f} is below threshold {args.threshold}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

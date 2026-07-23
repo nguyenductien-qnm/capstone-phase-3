@@ -71,7 +71,7 @@ def call_bedrock_summarize(reviews_text: str) -> str:
     prompt = f"Tóm tắt các đánh giá sản phẩm sau trong 20-50 từ:\n\n{reviews_text}"
     try:
         import boto3
-        client = boto3.client("bedrock-runtime", region_name="us-east-1")
+        client = boto3.client("bedrock-runtime", region_name="us-east-2")
         
         response = client.converse(
             modelId="amazon.nova-lite-v1:0",

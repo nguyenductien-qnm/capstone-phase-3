@@ -1,8 +1,8 @@
-# Tầng AI - bạn đang vận hành & xây gì
+*-# Tầng AI - bạn đang vận hành & xây gì
 
 Tài liệu onboarding cho nhóm AIO (hướng AIE). Đọc để hiểu bề mặt AI của sản phẩm và cái bạn phải dựng.
 
-## 1. Bề mặt AI hiện có
+## 1. Bề mặt AI hiện có/
 
 | Thành phần | Vai trò | Ngôn ngữ | Phụ thuộc |
 |---|---|---|---|

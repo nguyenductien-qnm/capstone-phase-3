@@ -3,7 +3,7 @@
 > **Trạng thái:** Implemented (Code đã được merge và tài liệu hóa)
 > **Trụ:** Performance Efficiency / Cost Optimization  
 > **Ngày:** 2026-07-09  
-> **Tác giả:** Nhóm AI (AIO03) - TF1  
+> **Tác giả:** Định Nguyễn, Vinh Bui  
 > **ADR liên quan:** ADR-009  
 > **Cập nhật:** Tính năng đã được deploy thành công dùng `pgvector` và tính trung bình embedding cho `list_recommendations`.
 
