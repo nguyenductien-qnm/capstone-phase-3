@@ -104,3 +104,28 @@ def test_eval_keeps_snake_case_compatibility_and_has_citation_probe():
                       if case[0] == "citation_0" and case[1] == "CITATION"]
     assert len(citation_cases) == 1
     assert eval_mandate06_prod.EVAL_PRODUCT_ID in citation_cases[0][2]
+
+
+def test_fetch_trace_falls_back_to_origin_api_endpoint(monkeypatch):
+    ui_404 = Mock(status_code=404)
+    ui_404.json.side_effect = ValueError("HTML 404 page")
+    origin_200 = Mock(status_code=200)
+    origin_200.json.return_value = {
+        "data": [{"spans": [{"operationName": "shopping_copilot.chat", "tags": []}]}]
+    }
+    get = Mock(side_effect=[ui_404, origin_200])
+    monkeypatch.setattr(jaeger_client.requests, "get", get)
+    monkeypatch.setattr(jaeger_client.time, "sleep", lambda _: None)
+
+    result = jaeger_client.fetch_trace(
+        TRACE_ID,
+        "http://127.0.0.1:16686",
+        wait_timeout=1,
+    )
+
+    assert result == origin_200.json.return_value
+    assert get.call_count == 2
+    assert get.call_args_list[0].args[0] == f"http://127.0.0.1:16686/jaeger/ui/api/traces/{TRACE_ID}"
+    assert get.call_args_list[1].args[0] == f"http://127.0.0.1:16686/api/traces/{TRACE_ID}"
+
+

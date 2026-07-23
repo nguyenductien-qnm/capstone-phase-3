@@ -19,6 +19,8 @@ os.environ["LLM_INJECTION_JUDGE"] = "false"
 import copilot_server as srv
 import agent
 import tools
+import guardrails
+guardrails.INJECTION_JUDGE = False
 from opentelemetry.sdk.trace import TracerProvider
 
 

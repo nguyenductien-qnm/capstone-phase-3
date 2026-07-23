@@ -47,34 +47,54 @@ def fetch_trace(
     if not ui_base or not _TRACE_ID_RE.fullmatch(normalized_trace_id):
         return None
 
-    url = f"{ui_base}/api/traces/{quote(normalized_trace_id, safe='')}"
+    encoded_id = quote(normalized_trace_id, safe='')
+    parsed = urlsplit(ui_base)
+    origin = f"{parsed.scheme}://{parsed.netloc}"
+
+    candidate_urls = [f"{ui_base}/api/traces/{encoded_id}"]
+    if parsed.path and parsed.path != "/":
+        origin_url = f"{origin}/api/traces/{encoded_id}"
+        if origin_url not in candidate_urls:
+            candidate_urls.append(origin_url)
+    if parsed.path.startswith("/jaeger"):
+        jaeger_api_url = f"{origin}/jaeger/api/traces/{encoded_id}"
+        if jaeger_api_url not in candidate_urls:
+            candidate_urls.append(jaeger_api_url)
+
     deadline = time.monotonic() + max(0.0, wait_timeout)
     latest_payload = None
 
     while True:
-        try:
-            response = requests.get(url, timeout=request_timeout)
-        except requests.RequestException:
-            return None
-
-        if response.status_code == 200:
+        for url in candidate_urls:
             try:
-                payload = response.json()
-            except ValueError:
-                return None
-            if isinstance(payload, dict) and payload.get("data"):
-                latest_payload = payload
-                operation_names = {
-                    span.get("operationName", "")
-                    for trace_data in payload["data"]
-                    if isinstance(trace_data, dict)
-                    for span in trace_data.get("spans", [])
-                    if isinstance(span, dict)
-                }
-                if required_operation is None or required_operation in operation_names:
-                    return payload
-        elif response.status_code != 404:
-            return None
+                response = requests.get(url, timeout=request_timeout)
+            except requests.RequestException:
+                continue
+
+            if response.status_code == 200:
+                try:
+                    payload = response.json()
+                except ValueError:
+                    continue
+                if isinstance(payload, dict) and payload.get("data"):
+                    latest_payload = payload
+                    operation_names = {
+                        span.get("operationName", "")
+                        for trace_data in payload["data"]
+                        if isinstance(trace_data, dict)
+                        for span in trace_data.get("spans", [])
+                        if isinstance(span, dict)
+                    }
+                    if required_operation is None or required_operation in operation_names:
+                        return payload
+            elif response.status_code == 404:
+                try:
+                    _ = response.json()
+                    break
+                except ValueError:
+                    continue
+            else:
+                continue
 
         if time.monotonic() >= deadline:
             return latest_payload

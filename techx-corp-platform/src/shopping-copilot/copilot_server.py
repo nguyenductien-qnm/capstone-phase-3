@@ -114,11 +114,11 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
             blocked, sanitized_question = apply_guardrail_input(self._bedrock, request.question)
             input_span.set_attribute("guardrail.blocked", blocked)
         lat_in = int((time.time() - start_in) * 1000)
-        trace_steps.append(demo_pb2.TraceStep(
-            step_name="Input Guardrail (PII/Prompt Guard)",
-            latency_ms=lat_in,
-            status="blocked" if blocked else "pass"
-        ))
+        trace_steps.append({
+            "step_name": "Input Guardrail (PII/Prompt Guard)",
+            "latency_ms": lat_in,
+            "status": "blocked" if blocked else "pass"
+        })
         if blocked:
             logger.warning("[Guardrail] Blocked input for session=%s", session_id)
             sanitized_question = "[filtered]"
@@ -131,18 +131,18 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
         start_llm = time.time()
         result = agent.run_agent(self._bedrock, routed_model, session, request.user_id)
         lat_llm = int((time.time() - start_llm) * 1000)
-        trace_steps.append(demo_pb2.TraceStep(
-            step_name="Model Gateway & Bedrock Nova",
-            latency_ms=lat_llm,
-            status="ok"
-        ))
+        trace_steps.append({
+            "step_name": "Model Gateway & Bedrock Nova",
+            "latency_ms": lat_llm,
+            "status": "ok"
+        })
         
         for ts in result.trace_steps:
-            trace_steps.append(demo_pb2.TraceStep(
-                step_name=ts.get("step_name", ""),
-                latency_ms=ts.get("latency_ms", 0),
-                status=ts.get("status", "")
-            ))
+            trace_steps.append({
+                "step_name": ts.get("step_name", ""),
+                "latency_ms": ts.get("latency_ms", 0),
+                "status": ts.get("status", "")
+            })
 
         session.append({"role": "assistant", "content": [{"text": result.text}]})
         # Bound the stored context so old turns don't crowd the window.
@@ -150,11 +150,25 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
             del session[:-MAX_SESSION_MESSAGES]
 
         resp = pb.ChatWithCopilotResponse(response=result.text, degraded=result.degraded,
-                                           trace_id=result.trace_id, trace_steps=trace_steps)
+                                           trace_id=result.trace_id)
+        for ts in trace_steps:
+            if isinstance(ts, dict):
+                resp.trace_steps.add(
+                    step_name=ts.get("step_name", ""),
+                    latency_ms=ts.get("latency_ms", 0),
+                    status=ts.get("status", "")
+                )
+            elif hasattr(ts, "step_name"):
+                resp.trace_steps.add(
+                    step_name=getattr(ts, "step_name", ""),
+                    latency_ms=getattr(ts, "latency_ms", 0),
+                    status=getattr(ts, "status", "")
+                )
         resp.actions_taken.extend(_to_records(result.actions_taken))
         for c in result.citations:
-            resp.citations.add(review_id=c.get("review_id", ""), snippet=c.get("snippet", ""),
-                                score=str(c.get("score", "")))
+            resp.citations.add(review_id=c.get("review_id", "") or c.get("reviewId", ""),
+                               snippet=c.get("snippet", ""),
+                               score=str(c.get("score", "")))
         if result.pending is not None:
             token, expires_at = self._pending.put(
                 request.user_id,
