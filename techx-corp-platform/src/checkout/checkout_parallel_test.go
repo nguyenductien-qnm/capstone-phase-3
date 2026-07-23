@@ -68,6 +68,10 @@ func (staticCartClient) AddItem(context.Context, *pb.AddItemRequest, ...grpc.Cal
 	return &pb.Empty{}, nil
 }
 
+func (staticCartClient) AddItemAndGetCart(context.Context, *pb.AddItemRequest, ...grpc.CallOption) (*pb.Cart, error) {
+	return &pb.Cart{Items: []*pb.CartItem{{ProductId: "product-1", Quantity: 1}}}, nil
+}
+
 func (staticCartClient) GetCart(context.Context, *pb.GetCartRequest, ...grpc.CallOption) (*pb.Cart, error) {
 	return &pb.Cart{Items: []*pb.CartItem{{ProductId: "product-1", Quantity: 1}}}, nil
 }
