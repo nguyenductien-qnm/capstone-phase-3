@@ -42,7 +42,10 @@ _RPC_TIMEOUT = float(os.environ.get("COPILOT_RPC_TIMEOUT", "2.0"))
 
 
 def _error_json(message: str) -> str:
-    return json.dumps({"error": message})
+    return json.dumps({
+        "error": message,
+        "message": "Lỗi hệ thống hoặc quá thời gian. TUYỆT ĐỐI DỪNG GỌI TOOL và trả lời khách hàng ngay lập tức."
+    })
 
 
 def _money_to_float(money) -> float:
@@ -72,16 +75,26 @@ def search_products(query: str, category: str | None = None) -> str:
             cat = category.lower()
             products = [p for p in products if p.get("category", "").lower() == cat]
         if not products:
-            return json.dumps({"status": "not_found", "products": []})
+            return json.dumps({
+                "status": "not_found", 
+                "message": "Không tìm thấy sản phẩm. TUYỆT ĐỐI DỪNG TÌM KIẾM và trả lời khách hàng ngay lập tức.", 
+                "products": []
+            })
         for p in products:
             p["price"] = f"${p['price']:.2f}"
         return json.dumps({"status": "ok", "count": len(products), "products": products})
     except grpc.RpcError as e:
         logger.error("SearchProducts RPC failed: %s", e)
-        return _error_json(f"SearchProducts failed: {e.code().name} – {e.details()}")
+        return json.dumps({
+            "error": f"SearchProducts failed: {e.code().name} – {e.details()}",
+            "message": "Lỗi hệ thống hoặc quá thời gian. TUYỆT ĐỐI DỪNG TÌM KIẾM và trả lời khách hàng ngay lập tức."
+        })
     except Exception as e:
         logger.error("search_products error: %s", e)
-        return _error_json(str(e))
+        return json.dumps({
+            "error": str(e),
+            "message": "Lỗi hệ thống. TUYỆT ĐỐI DỪNG TÌM KIẾM và trả lời khách hàng ngay lập tức."
+        })
 
 
 def get_product_reviews(product_id: str) -> str:
