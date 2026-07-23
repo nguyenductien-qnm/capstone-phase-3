@@ -24,10 +24,12 @@ COPY /src/shipping/ /app/
 
 # Build - cross-compile for ARM64 or native build
 RUN if [ "${TARGETPLATFORM}" = "linux/arm64" ] && [ "${BUILDPLATFORM}" != "linux/arm64" ] ; then \
-        env CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
+        env PKG_CONFIG_ALLOW_CROSS=1 \
+            CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
             CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
             CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++ \
         cargo build -r --target aarch64-unknown-linux-gnu && \
+        mkdir -p /app/target/release && \
         cp /app/target/aarch64-unknown-linux-gnu/release/shipping /app/target/release/shipping; \
     else \
         cargo build -r; \
