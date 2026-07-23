@@ -18,6 +18,9 @@ class MockCartServiceStub : public CartService::StubInterface {
   MOCK_METHOD3(AddItem, ::grpc::Status(::grpc::ClientContext* context, const ::oteldemo::AddItemRequest& request, ::oteldemo::Empty* response));
   MOCK_METHOD3(AsyncAddItemRaw, ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::Empty>*(::grpc::ClientContext* context, const ::oteldemo::AddItemRequest& request, ::grpc::CompletionQueue* cq));
   MOCK_METHOD3(PrepareAsyncAddItemRaw, ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::Empty>*(::grpc::ClientContext* context, const ::oteldemo::AddItemRequest& request, ::grpc::CompletionQueue* cq));
+  MOCK_METHOD3(AddItemAndGetCart, ::grpc::Status(::grpc::ClientContext* context, const ::oteldemo::AddItemRequest& request, ::oteldemo::Cart* response));
+  MOCK_METHOD3(AsyncAddItemAndGetCartRaw, ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::Cart>*(::grpc::ClientContext* context, const ::oteldemo::AddItemRequest& request, ::grpc::CompletionQueue* cq));
+  MOCK_METHOD3(PrepareAsyncAddItemAndGetCartRaw, ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::Cart>*(::grpc::ClientContext* context, const ::oteldemo::AddItemRequest& request, ::grpc::CompletionQueue* cq));
   MOCK_METHOD3(GetCart, ::grpc::Status(::grpc::ClientContext* context, const ::oteldemo::GetCartRequest& request, ::oteldemo::Cart* response));
   MOCK_METHOD3(AsyncGetCartRaw, ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::Cart>*(::grpc::ClientContext* context, const ::oteldemo::GetCartRequest& request, ::grpc::CompletionQueue* cq));
   MOCK_METHOD3(PrepareAsyncGetCartRaw, ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::Cart>*(::grpc::ClientContext* context, const ::oteldemo::GetCartRequest& request, ::grpc::CompletionQueue* cq));
