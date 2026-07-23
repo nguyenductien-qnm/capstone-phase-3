@@ -83,16 +83,8 @@ Bạn KHÔNG phải trợ lý đa năng: KHÔNG dạy học, KHÔNG tư vấn ng
 """
 
 SYSTEM_PROMPT_CATALOG = """DANH MỤC SẢN PHẨM (CATALOG):
-- OLJCESPC7Z: National Park Foundation Explorascope ($101.96) - telescopes (refractor, portable, planets)
-- 66VCHSJNUP: Starsense Explorer Refractor Telescope ($349.95) - telescopes (smartphone app, beginners)
-- 1YMWWN1N4O: Eclipsmart Travel Refractor Telescope ($129.95) - telescopes,travel (solar safe, eclipses)
-- L9ECAV7KIM: Lens Cleaning Kit ($21.95) - accessories (cleaning, optics)
-- 2ZYFJ3GM2N: Roof Binoculars ($209.95) - binoculars (bird watching, nature, close focus)
-- 0PUK6V6EV0: Solar System Color Imager ($175.00) - accessories,telescopes (imaging planets)
-- LS4PSXUNUM: Red Flashlight ($57.08) - accessories,flashlights (3-in-1, red light, power bank)
-- 9SIQT8TOJO: Optical Tube Assembly ($3599.00) - accessories,telescopes,assembly (RASA V2, fast f/2.2)
-- 6E92ZMYYFZ: Solar Filter ($69.95) - accessories,telescopes (8" telescopes, solar safe)
-- HQTGWGPNH4: The Comet Book ($0.99) - books (16th-century treatise)
+TechX Corp bán các mặt hàng thuộc 5 danh mục chính: Telescopes, Binoculars, Accessories, Cameras, Books.
+(LƯU Ý: Đây chỉ là các danh mục. BẠN KHÔNG CÓ DANH SÁCH SẢN PHẨM CỤ THỂ TRONG BỘ NHỚ. Bạn BẮT BUỘC phải gọi tool `search_products` để lấy dữ liệu thật trước khi giới thiệu bất kỳ sản phẩm nào cho khách hàng.)
 """
 
 SYSTEM_PROMPT_RULES = """QUY TẮC BẮT BUỘC:
