@@ -8,7 +8,7 @@ import requests
 import mandate06_cases as cases
 import jaeger_client
 
-BASE_URL = "https://ecommerce.nguyenductien.cloud/api"
+BASE_URL = os.environ.get("BASE_URL", "https://ecommerce.nguyenductien.cloud/api")
 JAEGER_BASE_URL = os.environ.get("JAEGER_BASE_URL", "https://jaeger-tf1.tail101540.ts.net")
 
 def main():

@@ -11,7 +11,7 @@ def print_result(scenario, response):
     print(f"{'='*60}")
     if response.status_code == 200:
         data = response.json()
-        print("STATUS: 200 OK")
+        print(f"LATENCY: {response.elapsed.total_seconds()}s\nSTATUS: 200 OK")
         print("RESPONSE:")
         if "answer" in data:
             print(data["answer"])
