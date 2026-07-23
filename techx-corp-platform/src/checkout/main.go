@@ -379,6 +379,7 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 	}
 	// If any of these validations fail, the service immediately throws an error back to the frontend, stopping the entire process 
 
+	
 	orderID, err := uuid.NewUUID()
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to generate order uuid")
@@ -485,9 +486,9 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 			} else {
 				_, err = tx.Exec(ctx, `
 					INSERT INTO checkout.outbox 
-					(aggregate_type, aggregate_id, event_type, order_id) 
-					VALUES ($1, $2, $3, $4)`,
-					"Order", orderID.String(), "ORDER_PLACED", orderID.String(),
+					(aggregate_id, event_type, order_id) 
+					VALUES ($1, $2, $3)`,
+					orderID.String(), "ORDER_PLACED", orderID.String(),
 				)
 				if err != nil {
 					tx.Rollback(ctx)
@@ -528,6 +529,8 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		slog.Float64("app.order.amount", totalPriceFloat),
 		slog.Int("app.order.items.count", len(prep.orderItems)),
 	)
+
+	go cs.sendToPostProcessor(context.WithoutCancel(ctx), orderResult)
 
 	resp := &pb.PlaceOrderResponse{Order: orderResult}
 	return resp, nil
@@ -817,6 +820,11 @@ func (cs *checkout) shipOrder(ctx context.Context, address *pb.Address, items []
 }
 
 func (cs *checkout) sendToPostProcessor(ctx context.Context, result *pb.OrderResult) {
+	if cs.KafkaProducerClient == nil {
+		logger.Warn("KafkaProducerClient is nil, skipping message publish")
+		return
+	}
+
 	message, err := proto.Marshal(result)
 	if err != nil {
 		logger.Error(fmt.Sprintf("Failed to marshal message to protobuf: %+v", err))
@@ -825,7 +833,13 @@ func (cs *checkout) sendToPostProcessor(ctx context.Context, result *pb.OrderRes
 
 	msg := sarama.ProducerMessage{
 		Topic: kafka.Topic,
+		Key:   sarama.StringEncoder(result.OrderId),
 		Value: sarama.ByteEncoder(message),
+
+		// Send messages having routing_key
+		Headers: []sarama.RecordHeader{
+			{Key: []byte("routing_key"), Value: []byte(result.OrderId)},
+		},
 	}
 
 	// Inject tracing info into message
