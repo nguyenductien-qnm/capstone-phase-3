@@ -119,7 +119,7 @@ resource "aws_mskconnect_custom_plugin" "debezium" {
 }
 
 
-# 5. Debezium MSK Connector Definition 
+# 5. Debezium Connector on AWS MSK Connect
 resource "aws_mskconnect_connector" "debezium_postgres" {
   name                 = "${var.project_name}-${var.environment}-debezium-postgres"
   kafkaconnect_version = "2.7.1"
@@ -131,6 +131,9 @@ resource "aws_mskconnect_connector" "debezium_postgres" {
     }
   }
 
+  // AWS MSK Connect runs the Debezium PostgreSQL connector
+  // Debezium connects via the native PostgreSQL pgoutput logical decoding plugin
+  // listens for change events on dbz_publication
   connector_configuration = {
     "connector.class"                = "io.debezium.connector.postgresql.PostgresConnector"
     "tasks.max"                      = "1"

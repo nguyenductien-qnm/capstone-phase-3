@@ -84,10 +84,12 @@ pub fn start_kafka_consumer() {
 
                     // Publish fulfillment event to domain.fulfillment.events
                     let key = m.key().map(|k| String::from_utf8_lossy(k).to_string()).unwrap_or_default();
-                    let record_payload = format!(
-                        "{{\"eventType\":\"SHIPPING_COMPLETED\",\"source\":\"shipping\",\"key\":\"{}\"}}",
-                        key
-                    );
+                    let record_payload = serde_json::json!({
+                        "eventType": "SHIPPING_COMPLETED",
+                        "source": "shipping",
+                        "key": key,
+                        "details": payload
+                    }).to_string();
                     let record = FutureRecord::to(&fulfillment_topic)
                         .payload(&record_payload)
                         .key(&key);

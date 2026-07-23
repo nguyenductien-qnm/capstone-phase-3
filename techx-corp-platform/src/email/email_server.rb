@@ -100,6 +100,44 @@ def send_email(data)
   # https://opentelemetry.io/docs/instrumentation/ruby/manual/#creating-new-spans 
 end
 
+def to_ostruct(object)
+  case object
+  when Hash
+    OpenStruct.new(object.transform_values { |v| to_ostruct(v) })
+  when Array
+    object.map { |v| to_ostruct(v) }
+  else
+    object
+  end
+end
+
+def build_email_data(order_id, state)
+  email = state[:email] || "customer@example.com"
+  order = state[:order]
+
+  unless order
+    order = OpenStruct.new(
+      order_id: order_id,
+      shipping_tracking_id: state[:shipping_tracking_id] || "TRACK-#{order_id[0..7]}",
+      shipping_cost: OpenStruct.new(
+        units: 0,
+        nanos: 0,
+        currency_code: "USD"
+      ),
+      shipping_address: OpenStruct.new(
+        street_address_1: "1600 Amphitheatre Parkway",
+        street_address_2: "",
+        city: "Mountain View",
+        country: "USA",
+        zip_code: "94043"
+      ),
+      items: []
+    )
+  end
+
+  OpenStruct.new(email: email, order: order)
+end
+
 # Kafka Fulfillment Stream Joiner for Email Consumer Group
 def start_kafka_consumer
   kafka_addr = ENV["KAFKA_ADDR"]
@@ -142,13 +180,15 @@ def start_kafka_consumer
         order_id = message.key
         payload_str = message.value || ""
 
+        json_data = {}
+        begin
+          json_data = JSON.parse(payload_str)
+        rescue StandardError
+          json_data = {}
+        end
+
         if order_id.nil? || order_id.empty?
-          begin
-            json_data = JSON.parse(payload_str)
-            order_id = json_data["orderId"] || json_data["key"]
-          rescue StandardError
-            order_id = nil
-          end
+          order_id = json_data["orderId"] || json_data["key"] || json_data["order_id"]
         end
 
         next if order_id.nil? || order_id.empty?
@@ -156,10 +196,27 @@ def start_kafka_consumer
         is_payment = payload_str.include?("payment") || payload_str.include?("PAYMENT")
         is_shipping = payload_str.include?("shipping") || payload_str.include?("SHIPPING")
 
+        details_data = {}
+        if json_data["details"].is_a?(String)
+          begin
+            details_data = JSON.parse(json_data["details"])
+          rescue StandardError
+            details_data = {}
+          end
+        elsif json_data["details"].is_a?(Hash)
+          details_data = json_data["details"]
+        end
+
         mutex.synchronize do
           state = pending_joins[order_id] ||= { payment: false, shipping: false }
           state[:payment] = true if is_payment
           state[:shipping] = true if is_shipping
+
+          extracted_email = json_data["email"] || details_data["email"]
+          state[:email] = extracted_email if extracted_email
+
+          extracted_order = details_data["order"] || json_data["order"]
+          state[:order] = to_ostruct(extracted_order) if extracted_order
 
           puts "Email consumer received fulfillment event for order #{order_id}. Payment: #{state[:payment]}, Shipping: #{state[:shipping]}"
 
@@ -173,6 +230,11 @@ def start_kafka_consumer
               attributes: { 'app.order.id' => order_id },
             )
             $confirmation_counter.add(1) if $confirmation_counter
+
+            # Send order confirmation email to user after completing the Stream Join
+            data = build_email_data(order_id, state)
+            send_email(data)
+
             pending_joins.delete(order_id)
           end
         end
