@@ -10,7 +10,9 @@ Soạn thảo đặc tả kỹ thuật giám sát hai tín hiệu vàng (Golden 
 - **Latency (p95):** SLO cam kết < 1s.
 - **Error Rate (HTTP 5xx):** Tỷ lệ lỗi backend.
 
-Sử dụng EWMA (alpha = 0.2, threshold = 3σ) để lọc nhiễu và chuyển đổi time-series metrics thô thành tín hiệu bất thường thật sự.
+Sau B1, detector đang dùng **hybrid static threshold + rolling SMA 3σ**. Kế hoạch
+EWMA ban đầu (alpha = 0.2, threshold = 3σ) vẫn được giữ lại làm phương án đối
+chứng; chưa phải thuật toán đang chạy.
 
 ---
 
@@ -18,14 +20,57 @@ Sử dụng EWMA (alpha = 0.2, threshold = 3σ) để lọc nhiễu và chuyển
 
 | Signal | Metric | SLO / Alert Threshold | Detection Method |
 |---|---|---|---|
-| **Latency** | `http_request_duration_seconds` (p95) | SLO: < 1s · Alert: EWMA deviation > 3σ | EWMA + Prometheus rule |
-| **Error Rate** | `http_requests_total{status=~"5.."}` / tổng requests | Alert: > 1% trong 5 phút | Prometheus rule + EWMA |
+| **Latency** | `http_request_duration_seconds` (p95) | SLO: < 1s | Static SLO threshold OR rolling SMA 3σ |
+| **Error Rate** | `http_requests_total{status=~"5.."}` / tổng requests | SLO threshold theo từng rule | Static SLO threshold OR rolling SMA 3σ |
 
 ---
 
-## 3. Detection Configuration (EWMA)
+## 3. Trạng thái triển khai sau B1 — rolling SMA 3σ
 
-### 3.1 p95 Latency — EWMA Detection
+`aiops/detector/detector.py::eval_metric_rule` hiện triển khai hai lớp cho mỗi
+metric rule:
+
+1. **Static:** so sánh giá trị hiện tại với `threshold` trong `rules.yaml`.
+2. **Dynamic:** so sánh giá trị hiện tại với trung bình cộng và độ lệch chuẩn
+   của lịch sử gần nhất. Alert được phát khi **static OR dynamic** fire.
+
+| Thuộc tính | Runtime hiện tại |
+|---|---|
+| Baseline | Trung bình cộng đơn giản (SMA) theo từng `rule_id × service` |
+| Warm-up | Tối thiểu 5 mẫu lịch sử trước khi bật dynamic detection |
+| Cửa sổ | Tối đa 30 mẫu; tăng dần khi warm-up, sau đó rolling FIFO |
+| Ngưỡng | `mean + 3σ` với rule `gt`; `mean - 3σ` với rule `lt` |
+| Độ lệch chuẩn | Population standard deviation trên cửa sổ lịch sử |
+| Chống nhiễu rất nhỏ | Độ lệch tuyệt đối phải lớn hơn `0.001` |
+| Thứ tự cập nhật | So sánh mẫu hiện tại trước, rồi mới thêm mẫu đó vào history |
+| State | In-memory; baseline được học lại khi process restart |
+
+Với poll interval 30 giây, cửa sổ đủ 30 mẫu tương đương khoảng 15 phút. Runtime
+không có phép tính lũy thừa theo thời gian và không có tham số `alpha`, vì vậy
+không được gọi là EWMA. `evaluate_detector.py` mô phỏng cùng họ thuật toán SMA
+3σ và cửa sổ 30 mẫu, nhưng đang dùng guard `0.01` thay vì `0.001`; cần đồng bộ
+guard trước khi dùng script để so sánh định lượng với runtime.
+
+### 3.1 Quyết định tạm thời và tiêu chí chọn SMA hay EWMA
+
+Hiện tại giữ **SMA 3σ** vì đây là thuật toán đã được triển khai, test và đủ đơn
+giản cho baseline univariate hiện tại. **EWMA không bị loại bỏ**: alpha = 0.2
+vẫn là ứng viên từ kế hoạch gốc ở Section 4.
+
+Khi có tối thiểu 24–48 giờ metric Prometheus thật và các khoảng sự cố/chaos có
+nhãn, replay cùng một dataset qua SMA và EWMA. So sánh precision, recall, false
+positive rate, MTTD và độ ổn định khi traffic thay đổi; sau đó mới quyết định
+thuật toán dynamic nào được dùng. Lớp static bám SLO vẫn được giữ trong cả hai
+phương án.
+
+---
+
+## 4. Kế hoạch gốc — Detection Configuration (EWMA, giữ lại để đối chứng)
+
+Phần này giữ nguyên thiết kế EWMA ban đầu và code mẫu để phục vụ backtest trong
+tương lai. Đây là **candidate design**, không mô tả runtime hiện tại.
+
+### 4.1 p95 Latency — EWMA Detection
 
 Theo dõi `http_request_duration_seconds` (p95) qua thuật toán EWMA để phát hiện **gradual degradation**.
 
@@ -65,7 +110,7 @@ def detect_latency_anomaly(series: pd.Series, alpha: float = 0.2, threshold: flo
     return (np.abs(series - ewma_mean) / ewma_std) > threshold
 ```
 
-### 3.2 HTTP 5xx Error Rate — EWMA Detection
+### 4.2 HTTP 5xx Error Rate — EWMA Detection
 
 Theo dõi tỷ lệ lỗi HTTP 5xx qua EWMA để phát hiện **gradual increase** trong error rate.
 
@@ -101,7 +146,7 @@ def detect_error_rate_anomaly(series: pd.Series, alpha: float = 0.2, threshold: 
     return (np.abs(series - ewma_mean) / ewma_std) > threshold
 ```
 
-### 3.3 Complementary Prometheus Rules — Bắt Sudden Spikes
+### 4.3 Complementary Prometheus Rules — Bắt Sudden Spikes
 
 EWMA chậm (cần 12–15 data points) → cần rule Prometheus để bắt sudden spike:
 
@@ -149,17 +194,22 @@ groups:
 
 ---
 
-## 4. Safety Considerations for Detection
+## 5. Safety Considerations for Detection
 
-### 4.1 Preventing False Positives
+### 5.1 Preventing False Positives
 
-Vì bất kỳ anomaly detection nào cũng kích hoạt remediation tự động, chi phí của false positive cao. Chiến lược:
+Detection là tín hiệu đầu vào cho alert/remediation, nên false positive vẫn có
+chi phí cao. Trạng thái và chiến lược hiện tại:
 
-- **Dual detection:** EWMA (sensitive to trends) + Prometheus rule (fast spike catch). Chỉ trigger remediation khi cả hai đồng ý hoặc escalate to on-call.
-- **Threshold tuning:** α = 0.2, threshold = 3σ được chọn để minimize false alarm từ giờ cao điểm traffic spikes.
+- **Hybrid hiện tại:** static SLO threshold OR rolling SMA 3σ. Detector phát
+  alert khi một trong hai lớp fire; nó không yêu cầu hai lớp cùng đồng ý.
+- **EWMA tương lai:** chỉ thay lớp dynamic SMA nếu backtest trên cùng dataset
+  chứng minh trade-off tốt hơn; không thay lớp static bám SLO.
+- **Threshold tuning:** 3σ và cửa sổ 30 mẫu là cấu hình hiện tại; alpha = 0.2
+  chỉ thuộc candidate EWMA, chưa phải tham số runtime.
 - **Verification buffer:** Remediation engine chỉ confirm recovery khi p95 < 800ms (buffer 200ms so với SLO 1s) — tránh flip-flopping ở edge.
 
-### 4.2 Blast-radius Awareness
+### 5.2 Blast-radius Awareness
 
 Detection spec phải biết rằng:
 - Mỗi anomaly alert có thể trigger max 1 pod restart/namespace/giờ (an control layer constraint).
@@ -168,19 +218,17 @@ Detection spec phải biết rằng:
 
 ---
 
-## 5. Tóm tắt Detection Strategy
+## 6. Tóm tắt Detection Strategy
 
-| Metric | Detection Method | Tham số | Tác dụng |
+| Trạng thái | Detection Method | Tham số | Vai trò |
 |---|---|---|---|
-| **p95 Latency** | EWMA | α=0.2, threshold=3σ, interval=15s | Bắt gradual degradation (trend shift) |
-| **p95 Latency** | Prometheus rule | threshold > 1s, for=2m | Bắt sudden spike |
-| **Error Rate** | EWMA | α=0.2, threshold=3σ, interval=15s | Bắt gradual increase trong error rate |
-| **Error Rate** | Prometheus rule | threshold > 1%, for=5m | Bắt sudden spike / threshold breach |
+| **Đang chạy** | Static threshold | Theo `rules.yaml` và SLO | Bắt vi phạm ngưỡng tuyệt đối |
+| **Đang chạy** | Rolling SMA 3σ | warm-up=5, window=30, threshold=3σ | Bắt lệch baseline theo từng rule × service |
+| **Ứng viên** | EWMA | α=0.2, threshold=3σ, interval=15s trong kế hoạch gốc | Đối chứng khả năng bắt gradual degradation |
 
-**Lý do dual detection:**
-- EWMA: nhạy với trend, bắt được degradation dần dần.
-- Prometheus rule: phản ứng nhanh, bắt spike đột ngột.
-- Cùng nhau: coverage đầy đủ cho cả 2 loại anomaly, đồng thời giảm false alarm bằng cách yêu cầu confirmation.
+**Quyết định hiện tại:** dùng static OR SMA 3σ. Khi đủ dữ liệu thật, so sánh SMA
+với EWMA trên cùng tập dữ liệu và chọn một phương pháp cho lớp dynamic dựa trên
+FP/recall/MTTD; không chọn trước theo claim trong tài liệu.
 
 
 ---
