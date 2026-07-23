@@ -5,8 +5,14 @@
 # không" (deny-floating-image-tag), policy này kiểm "image này do CI của mình dựng ra
 # hay ai đó push tay". Đúng lỗ hổng mà 2 image aiops từng lọt qua trước MANDATE-10.
 #
-# GIAI ĐOẠN HIỆN TẠI: Audit (chỉ ghi PolicyReport, KHÔNG chặn) + failurePolicy Ignore.
-# Flip sang Enforce/Fail ở bước 2.5 sau khi soi report đủ lâu — xem cuối file.
+# GIAI ĐOẠN HIỆN TẠI: Enforce + failurePolicy Fail (flip 23/07 sau soak Audit).
+#
+# RÀNG BUỘC CỦA KYVERNO: `mutateDigest: true` CHỈ hợp lệ với Enforce. Webhook
+# validate-policy từ chối thẳng tổ hợp Audit + mutateDigest:
+#   "mutateDigest must be set to false for 'Audit' failure action"
+# Lý do: ở Audit, policy không được phép sửa resource — mutate là hành vi của Enforce.
+# Nên khi rollback về Audit PHẢI hạ mutateDigest xuống false CÙNG LÚC, nếu không
+# ArgoCD sync fail và policy kẹt ở bản cũ (đã vấp 23/07).
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
@@ -64,8 +70,21 @@ spec:
         # opensearch, flagd, reloader, curl) KHÔNG khớp prefix này nên nằm ngoài scope
         # — chúng không mang chữ ký của mình và không thể có. Gặp false positive thì
         # THU HẸP imageReferences, tuyệt đối không nới attestor.
+        #
+        # BA pattern, KHÔNG phải một — vì mutateDigest tự đổi dạng image của chính nó:
+        #   :tag              -> pod mới từ Deployment trong Git
+        #   :tag@sha256:...   -> pod ĐÃ qua mutateDigest (Kyverno giữ cả tag lẫn digest)
+        #   @sha256:...       -> manifest khai thẳng digest, không tag
+        # Phát hiện 23/07: chỉ khai ":*" thì pod đã mutate rơi RA NGOÀI scope — 16
+        # container dạng tag@digest không có PolicyReport nào, trong khi 20 container
+        # còn dạng tag thuần thì có. Nghĩa là pod restart sau lần mutate đầu sẽ KHÔNG
+        # được verify lại: gate thủng đúng chỗ nó tưởng đang canh.
+        # KHÔNG dùng một pattern gộp kiểu "ecommerce-dev-techx-corp*" — nó khớp luôn
+        # repo ecommerce-dev-techx-corp-attest (trùng tiền tố), nới scope ngoài ý muốn.
         - imageReferences:
             - "804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:*"
+            - "804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp@*"
+            - "804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:*@*"
           # true: image khớp pattern mà thiếu chữ ký hợp lệ -> fail (Audit thì ghi
           # report, Enforce thì chặn). false sẽ bỏ qua im lặng — vô nghĩa với gate này.
           required: true
@@ -97,8 +116,11 @@ spec:
 # VẬN HÀNH
 # ---------------------------------------------------------------------------
 # ROLLBACK khi policy chặn oan (theo thứ tự leo thang):
-#   1. Nhẹ nhất — hạ về Audit: sửa 2 dòng ở spec (Enforce->Audit, Fail->Ignore) rồi
-#      merge. Policy vẫn ghi report, hết chặn.
+#   1. Nhẹ nhất — hạ về Audit: sửa BA dòng (Enforce->Audit, Fail->Ignore, và
+#      mutateDigest true->false) rồi merge. Policy vẫn ghi report, hết chặn.
+#      ĐỦ BA, không phải hai: Kyverno từ chối tổ hợp Audit + mutateDigest:true
+#      ("mutateDigest must be set to false for 'Audit' failure action") -> quên dòng
+#      thứ ba thì ArgoCD sync fail và policy kẹt nguyên bản Enforce đang chặn.
 #   2. Gấp — gỡ hẳn policy: `kubectl delete clusterpolicy verify-image-signature`.
 #      Thoát ngay, không cần gỡ Kyverno (đây là lý do policy tách Application riêng).
 #      PHẢI revert cả Git, nếu không selfHeal dựng lại sau ~3 phút.
