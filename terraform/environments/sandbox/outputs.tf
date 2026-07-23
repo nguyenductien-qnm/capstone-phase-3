@@ -174,6 +174,11 @@ output "external_secrets_irsa_role_arn" {
   value       = module.external_secrets_irsa.role_arn
 }
 
+output "kyverno_irsa_role_arn" {
+  description = "ARN IAM role cho Kyverno (annotate SA kyverno-admission-controller + kyverno-reports-controller trong ns kyverno)"
+  value       = module.kyverno_irsa.role_arn
+}
+
 output "external_dns_irsa_role_arn" {
   description = "ARN IAM role cho external-dns (annotate SA external-dns/external-dns)"
   value       = var.enable_cloudfront ? module.external_dns_irsa[0].role_arn : null

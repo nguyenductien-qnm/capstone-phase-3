@@ -263,6 +263,27 @@ module "external_secrets_irsa" {
   ]
 }
 
+# MANDATE-10 P2 — IRSA cho Kyverno verifyImages đọc ECR verify chữ ký Cosign.
+# Bắt buộc chứ không phải tuỳ chọn: node prod đặt IMDSv2 hop limit = 1 nên pod
+# không mượn được node role qua IMDS (xem comment đầu module).
+module "kyverno_irsa" {
+  source = "../../modules/kyverno-irsa"
+
+  project_name      = var.project_name
+  environment       = var.environment
+  oidc_provider_arn = module.eks.oidc_provider_arn
+  oidc_issuer_url   = module.eks.oidc_issuer_url
+
+  # CHỈ repo image chính, tra theo KEY tường minh chứ không duyệt cả map: chữ ký
+  # .sig nằm cùng repo với image nên chỉ cần repo này. Repo attest
+  # (ecommerce-dev-techx-corp-attest, chứa attestation promoted-develop) KHÔNG cấp —
+  # policy admission không verify attestation, gate promote đã enforce nó ở CI.
+  # Duyệt cả map sẽ tự nới quyền cho mọi repo thêm vào ecr_repositories sau này.
+  ecr_repository_arns = [
+    module.ecr.repository_arns["techx-corp"],
+  ]
+}
+
 module "cost_guard_automation" {
   count = var.enable_cost_guard_automation ? 1 : 0
 
