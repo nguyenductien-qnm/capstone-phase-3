@@ -7,9 +7,13 @@ name: App Attest (đóng dấu promoted-develop theo digest)
 # app-promote.yaml sẽ verify-attestation này trước khi mở PR bump tag prod
 # -> prod CHỈ nhận digest đã build+scan+ký (app-build) VÀ đã chạy thử ở develop.
 #
-# ECR IMMUTABLE: cosign lưu attestation ở tag sha256-<digest>.att — tag immutable
-# nên chỉ attest được 1 LẦN/digest (push .att lần 2 bị ECR chặn). Digest đã có
-# .att -> skip, không fail: chạy lại workflow sau khi bump vài service là bình thường.
+# CHỖ LƯU ATTESTATION: cosign lưu attestation ở tag sha256-<digest>.att, nhưng tag
+# đó trong repo image chính ĐÃ bị SBOM (spdxjson) của app-build chiếm ngay lúc build
+# — repo IMMUTABLE nên không append thêm layer promoted-develop vào cùng .att được.
+# Vì vậy attestation promoted-develop ghi sang repo attest RIÊNG (mutable) qua
+# COSIGN_REPOSITORY; app-promote.yaml verify cũng phải trỏ COSIGN_REPOSITORY này.
+# Skip theo PREDICATE TYPE (verify-attestation), KHÔNG check tag .att tồn tại:
+# 1 tag .att có thể chứa attestation loại khác -> check tồn tại sẽ skip nhầm.
 
 on:
   workflow_dispatch:
@@ -31,6 +35,9 @@ env:
   AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
   ECR_REGISTRY: ${{ vars.ECR_REGISTRY || '804372444787.dkr.ecr.us-east-1.amazonaws.com' }}
   ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY || 'ecommerce-dev-techx-corp' }}
+  # Repo ECR MUTABLE chứa attestation promoted-develop (tách khỏi repo image vì
+  # .att repo chính đã bị SBOM app-build chiếm + IMMUTABLE không cho ghi đè).
+  ATTEST_REPOSITORY: ${{ vars.ECR_ATTEST_REPOSITORY || 'ecommerce-dev-techx-corp-attest' }}
   TAGS_FILE: platform/gitops/environments/develop/values/values-image-tags.yaml
   # predicateType của attestation — app-promote.yaml phải verify ĐÚNG URI này.
   PREDICATE_TYPE: https://github.com/nguyenductien-qnm/capstone-phase-3/promoted-develop/v1
@@ -75,6 +82,9 @@ jobs:
           # Danh tính đã ký image ở app-build — verify chữ ký build TRƯỚC khi đóng
           # dấu promote: không attest image lạ/không rõ nguồn gốc lỡ có trên ECR.
           BUILD_IDENTITY: https://github.com/${{ github.repository }}/.github/workflows/app-build.yaml@refs/heads/develop
+          # Danh tính chính workflow này — dùng cho check skip (verify-attestation).
+          ATTEST_IDENTITY: https://github.com/${{ github.repository }}/.github/workflows/app-attest.yaml@refs/heads/develop
+          ATTEST_REPO: ${{ env.ECR_REGISTRY }}/${{ env.ATTEST_REPOSITORY }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
@@ -106,11 +116,15 @@ jobs:
             }
             REF="${ECR_REGISTRY}/${ECR_REPOSITORY}@${DIGEST}"
 
-            # Immutable: digest đã có .att -> đã attest lần trước -> skip.
-            ATT_TAG="${DIGEST/:/-}.att"
-            if aws ecr describe-images --repository-name "$ECR_REPOSITORY" \
-                 --image-ids imageTag="$ATT_TAG" >/dev/null 2>&1; then
-              echo "⏭️  $svc: $DIGEST đã có attestation, skip."
+            # Skip theo predicate type trong ATTEST_REPO — digest đã có promoted-develop
+            # hợp lệ (đúng identity + issuer) thì không attest lại. KHÔNG check tag .att
+            # tồn tại: .att repo chính là SBOM của app-build, không phải dấu promote.
+            if COSIGN_REPOSITORY="$ATTEST_REPO" cosign verify-attestation \
+                 --type "$PREDICATE_TYPE" \
+                 --certificate-identity "$ATTEST_IDENTITY" \
+                 --certificate-oidc-issuer "$OIDC_ISSUER" \
+                 "$REF" >/dev/null 2>&1; then
+              echo "⏭️  $svc: $DIGEST đã có attestation promoted-develop, skip."
               echo "| $svc | $TAG | \`$DIGEST\` | ⏭️ đã có, skip |" >> "$GITHUB_STEP_SUMMARY"
               skipped=$((skipped+1)); continue
             fi
@@ -135,7 +149,7 @@ jobs:
             "attestedBy": "$RUN_URL"
           }
           EOF
-            cosign attest --yes \
+            COSIGN_REPOSITORY="$ATTEST_REPO" cosign attest --yes \
               --type "$PREDICATE_TYPE" \
               --predicate /tmp/predicate.json \
               --rekor-url https://rekor.sigstore.dev \

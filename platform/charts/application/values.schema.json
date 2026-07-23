@@ -61,6 +61,101 @@
     },
     "externalSecrets": {
       "type": "object"
+    },
+    "networkPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "allowDNS": {
+          "type": "boolean"
+        },
+        "allowIntraNamespaceEgress": {
+          "type": "boolean"
+        },
+        "flagdPort": {
+          "type": "integer"
+        },
+        "publicIngress": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "observability": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "scrapers": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "sinks": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "apiServerEgress": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "apiServerCIDR": {
+              "type": "string"
+            },
+            "apiServerClusterIP": {
+              "type": "string"
+            },
+            "scraperEgress": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "kubeletPort": { "type": "integer" },
+                "nodeCIDR": { "type": "string" },
+                "infraNamespaces": { "type": "array", "items": { "type": "string" } },
+                "infraPorts": { "type": "array", "items": { "type": "integer" } }
+              }
+            }
+          }
+        },
+        "serviceIngress": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "datastoreEgress": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "vpcCidr": { "type": "string" },
+            "stores": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "name": { "type": "string" },
+                  "ports": { "type": "array", "items": { "type": "integer" } },
+                  "consumers": { "type": "array", "items": { "type": "string" } }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "reloader": {
+      "type": "object"
     }
   },
   "required": [
@@ -255,6 +350,15 @@
         "topologySpread": {
           "type": "boolean"
         },
+        "topologySpreadZoneMaxSkew": {
+          "type": "integer"
+        },
+        "topologySpreadZoneWhenUnsatisfiable": {
+          "type": "string"
+        },
+        "automountServiceAccountToken": {
+          "type": "boolean"
+        },
         "podDisruptionBudget": {
           "type": "object"
         },
@@ -265,6 +369,9 @@
           "$ref": "#/definitions/SchedulingRules"
         },
         "podLabels": {
+          "type": "object"
+        },
+        "annotations": {
           "type": "object"
         },
         "podAnnotations": {
@@ -371,6 +478,9 @@
         },
         "podSecurityContext": {
           "type": "object"
+        },
+        "automountServiceAccountToken": {
+          "type": "boolean"
         },
         "hpa": {
           "type": "object"

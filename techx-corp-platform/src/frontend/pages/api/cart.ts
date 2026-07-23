@@ -3,10 +3,11 @@
 
 import type { NextApiHandler } from 'next';
 import CartGateway from '../../gateways/rpc/Cart.gateway';
-import { AddItemRequest, Empty } from '../../protos/demo';
+import { AddItemRequest, Empty, Product } from '../../protos/demo';
 import ProductCatalogService from '../../services/ProductCatalog.service';
 import { IProductCart, IProductCartItem } from '../../types/Cart';
 import InstrumentationMiddleware from '../../utils/telemetry/InstrumentationMiddleware';
+import { isTransientGrpcError } from '../../gateways/rpc/GrpcDeadline';
 
 type TResponse = IProductCart | Empty;
 
@@ -14,19 +15,25 @@ const handler: NextApiHandler<TResponse> = async ({ method, body, query }, res) 
   switch (method) {
     case 'GET': {
       const { sessionId = '', currencyCode = '' } = query;
-      const { userId, items } = await CartGateway.getCart(sessionId as string);
+      const cartPromise = CartGateway.getCart(sessionId as string);
+      const productsPromise = ProductCatalogService.listProducts(currencyCode as string).catch(error => {
+        if (isTransientGrpcError(error)) {
+          return [];
+        }
 
-      const productList: IProductCartItem[] = await Promise.all(
-        items.map(async ({ productId, quantity }) => {
-          const product = await ProductCatalogService.getProduct(productId, currencyCode as string);
+        throw error;
+      });
+      const [{ userId, items }, allProducts] = await Promise.all([cartPromise, productsPromise]);
 
-          return {
-            productId,
-            quantity,
-            product,
-          };
-        })
-      );
+      const productList: IProductCartItem[] = items.map(({ productId, quantity }) => {
+        const product = allProducts.find((p: Product) => p.id === productId) || ({} as Product);
+
+        return {
+          productId,
+          quantity,
+          product,
+        };
+      });
 
       return res.status(200).json({ userId, items: productList });
     }
@@ -34,9 +41,7 @@ const handler: NextApiHandler<TResponse> = async ({ method, body, query }, res) 
     case 'POST': {
       const { userId, item } = body as AddItemRequest;
 
-      await CartGateway.addItem(userId, item!);
-      const cart = await CartGateway.getCart(userId);
-
+      const cart = await CartGateway.addItemAndGetCart(userId, item!);
       return res.status(200).json(cart);
     }
 

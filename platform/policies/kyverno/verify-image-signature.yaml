@@ -1,0 +1,100 @@
+# MANDATE-10 P2 — chặn ở admission mọi image techx-corp KHÔNG mang chữ ký Cosign
+# của workflow app-build.
+#
+# Trả lời câu hỏi mà VAP runtime-hardening không trả lời được: VAP kiểm "tag có trôi
+# không" (deny-floating-image-tag), policy này kiểm "image này do CI của mình dựng ra
+# hay ai đó push tay". Đúng lỗ hổng mà 2 image aiops từng lọt qua trước MANDATE-10.
+#
+# GIAI ĐOẠN HIỆN TẠI: Audit (chỉ ghi PolicyReport, KHÔNG chặn) + failurePolicy Ignore.
+# Flip sang Enforce/Fail ở bước 2.5 sau khi soi report đủ lâu — xem cuối file.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: verify-image-signature
+  annotations:
+    policies.kyverno.io/title: Verify image signature (Cosign keyless)
+    policies.kyverno.io/category: Supply Chain Security
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Mọi image từ repo ecommerce-dev-techx-corp phải mang chữ ký Cosign keyless do
+      workflow app-build.yaml@refs/heads/develop tạo. Image push tay không có chữ ký
+      hợp lệ sẽ bị chặn (giai đoạn Enforce) hoặc ghi nhận vào PolicyReport (Audit).
+
+    # BẪY mutateDigest × autogen × ArgoCD selfHeal:
+    # Kyverno mặc định autogen rule tương ứng cho Deployment/StatefulSet/DaemonSet từ
+    # policy match Pod. Nếu autogen mutate image ngay trên DEPLOYMENT thì ArgoCD thấy
+    # live (@sha256:...) khác Git (:tag) -> OutOfSync -> selfHeal revert -> Kyverno
+    # mutate lại: vòng lặp drift vô tận (đúng kiểu selfHeal đã cắn khi patch tay).
+    # "none" giới hạn mutate ở tầng POD — Pod do ReplicaSet đẻ, ArgoCD không quản nên
+    # không có gì để drift, còn Deployment trong Git giữ nguyên tag đọc được.
+    pod-policies.kyverno.io/autogen-controllers: "none"
+spec:
+  # Audit: chỉ ghi PolicyReport, KHÔNG chặn pod. Bước 2.5 đổi thành Enforce.
+  validationFailureAction: Audit
+  background: true
+  # Ignore: cụm từng chật, pod webhook bị evict/Pending mà failurePolicy=Fail thì MỌI
+  # pod mới trong techx-tf1 bị chặn oan. Chuyển Fail CÙNG LÚC flip Enforce, và chỉ khi
+  # PDB minAvailable=1 của admission controller đã có (đã bật trong Application).
+  failurePolicy: Ignore
+  webhookTimeoutSeconds: 30
+  rules:
+    - name: verify-techx-corp-images
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              # CHỈ namespace app. Không đụng kyverno/argocd/observability/kube-system:
+              # policy tự chặn chính admission controller của mình là kịch bản chết cụm.
+              namespaces:
+                - techx-tf1
+      verifyImages:
+        # Chỉ image của repo mình. 10 loại image upstream đang chạy trong techx-tf1
+        # (busybox, otel-collector, k8s-sidecar, grafana, jaeger, prometheus,
+        # opensearch, flagd, reloader, curl) KHÔNG khớp prefix này nên nằm ngoài scope
+        # — chúng không mang chữ ký của mình và không thể có. Gặp false positive thì
+        # THU HẸP imageReferences, tuyệt đối không nới attestor.
+        - imageReferences:
+            - "804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:*"
+          # true: image khớp pattern mà thiếu chữ ký hợp lệ -> fail (Audit thì ghi
+          # report, Enforce thì chặn). false sẽ bỏ qua im lặng — vô nghĩa với gate này.
+          required: true
+          # Thay tag bằng @sha256 tại admission. Tag là con trỏ có thể trỏ chỗ khác sau
+          # khi verify; digest thì không. VAP deny-floating-image-tag chấp nhận dạng
+          # @sha256 (đã kiểm: điều kiện chỉ đòi có ':' hoặc '@' và không thuộc blocklist).
+          mutateDigest: true
+          verifyDigest: true
+          attestors:
+            - count: 1
+              entries:
+                # Keyless: danh tính là workflow GitHub, không phải khoá dài hạn.
+                # Chuỗi phải khớp NGUYÊN VĂN --certificate-identity mà app-attest và
+                # app-promote đang verify (BUILD_IDENTITY), nếu không thì CI bảo hợp lệ
+                # mà admission bảo không — lệch nguồn sự thật.
+                - keyless:
+                    issuer: "https://token.actions.githubusercontent.com"
+                    subject: "https://github.com/nguyenductien-qnm/capstone-phase-3/.github/workflows/app-build.yaml@refs/heads/develop"
+                    rekor:
+                      url: "https://rekor.sigstore.dev"
+          # CHỈ verify chữ ký, KHÔNG verify attestation ở đây. Attestation
+          # promoted-develop nằm ở repo TÁCH RIÊNG (ecommerce-dev-techx-corp-attest,
+          # vì ECR immutable không cho ghi .att thứ hai lên repo chính) nên muốn kéo
+          # vào admission phải cấu hình COSIGN_REPOSITORY — vừa phức tạp vừa thừa:
+          # gate promote đã enforce nó ở CI rồi. Admission chỉ cần trả lời đúng một
+          # câu: "image này có phải app-build ký không".
+
+# ---------------------------------------------------------------------------
+# BƯỚC 2.5 — flip sang Enforce (làm qua Git, KHÔNG kubectl patch: selfHeal revert)
+# ---------------------------------------------------------------------------
+#   validationFailureAction: Audit  -> Enforce
+#   failurePolicy:           Ignore -> Fail
+#
+# Điều kiện trước khi flip:
+#   1. PolicyReport soi đủ lâu (lý tưởng qua 1 lần rollout thật), chỉ còn đúng những
+#      pod mình CHỦ ĐỘNG biết là chưa ký.
+#   2. 2 image aiops đã đi qua app-build (build-scan-ký) — xem job build-aiops.
+#   3. PDB admission controller minAvailable=1 đã Healthy.
+#
+# Rollback nếu policy sai: `kubectl delete clusterpolicy verify-image-signature`
+# thoát ngay, không cần gỡ cả Kyverno. (Nhớ revert cả Git, nếu không selfHeal dựng lại.)

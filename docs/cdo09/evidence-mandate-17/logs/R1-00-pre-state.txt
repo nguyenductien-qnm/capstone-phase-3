@@ -1,0 +1,17 @@
+### R1 - PRE-STATE (before killing ad) @ 2026-07-22T10:22:49Z
+--- deployment ad ---
+NAME   READY   UP-TO-DATE   AVAILABLE   AGE    CONTAINERS   IMAGES                                                                                 SELECTOR
+ad     4/4     4            4           3d6h   ad           804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.0-ad-f33f5bf   opentelemetry.io/name=ad
+--- hpa ad ---
+NAME   REFERENCE       TARGETS         MINPODS   MAXPODS   REPLICAS   AGE
+ad     Deployment/ad   cpu: 136%/70%   2         4         4          30m
+--- pods ad ---
+NAME                  READY   STATUS    RESTARTS   AGE   IP             NODE                           NOMINATED NODE   READINESS GATES
+ad-6674445b84-ddlq8   1/1     Running   0          29m   10.60.12.90    ip-10-60-12-102.ec2.internal   <none>           <none>
+ad-6674445b84-hkdzm   1/1     Running   0          30m   10.60.11.138   ip-10-60-11-81.ec2.internal    <none>           <none>
+ad-6674445b84-vkspw   1/1     Running   0          63s   10.60.12.159   ip-10-60-12-251.ec2.internal   <none>           <none>
+ad-6674445b84-znlll   1/1     Running   0          33s   10.60.11.85    ip-10-60-11-81.ec2.internal    <none>           <none>
+--- frontend pods ---
+NAME                        READY   STATUS    RESTARTS   AGE   IP             NODE                           NOMINATED NODE   READINESS GATES
+frontend-5c8c6f6865-5lzk4   1/1     Running   0          14m   10.60.11.58    ip-10-60-11-81.ec2.internal    <none>           <none>
+frontend-5c8c6f6865-982tj   1/1     Running   0          13m   10.60.12.157   ip-10-60-12-102.ec2.internal   <none>           <none>

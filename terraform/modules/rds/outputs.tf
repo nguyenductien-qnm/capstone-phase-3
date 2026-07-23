@@ -50,3 +50,8 @@ output "db_name" {
 }
 
 
+output "instance_id" {
+  description = "ID/Identifier của RDS instance"
+  value       = aws_db_instance.this.identifier
+}
+

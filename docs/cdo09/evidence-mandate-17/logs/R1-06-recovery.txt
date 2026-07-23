@@ -1,0 +1,18 @@
+### R1 - TỰ HỒI PHỤC (half-open -> closed) @ 2026-07-22T10:27:00Z
+--- gọi lại /api/data, kỳ vọng ads KHÔNG rỗng ---
+req 1  -> HTTP 200 0.657938s  ads=[]
+req 2  -> HTTP 200 0.553532s  ads=[]
+req 3  -> HTTP 200 0.560831s  ads=[]
+req 4  -> HTTP 200 0.563602s  ads=[]
+req 5  -> HTTP 200 0.585435s  ads=[]
+req 6  -> HTTP 200 0.579326s  ads=[]
+req 7  -> HTTP 200 0.651679s  ads=[]
+req 8  -> HTTP 200 0.556554s  ads=[]
+--- log breaker (toàn bộ vòng đời) ---
+===== pod/frontend-5c8c6f6865-5lzk4 =====
+===== pod/frontend-5c8c6f6865-982tj =====
+[circuit-breaker:ad] state closed -> open (failures=5)
+[circuit-breaker:ad] state open -> half-open (failures=5)
+[circuit-breaker:ad] state half-open -> open (failures=6)
+[circuit-breaker:ad] state open -> half-open (failures=6)
+[circuit-breaker:ad] state half-open -> open (failures=7)

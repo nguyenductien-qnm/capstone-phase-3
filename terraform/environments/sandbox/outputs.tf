@@ -174,6 +174,11 @@ output "external_secrets_irsa_role_arn" {
   value       = module.external_secrets_irsa.role_arn
 }
 
+output "kyverno_irsa_role_arn" {
+  description = "ARN IAM role cho Kyverno (annotate SA kyverno-admission-controller + kyverno-reports-controller trong ns kyverno)"
+  value       = module.kyverno_irsa.role_arn
+}
+
 output "external_dns_irsa_role_arn" {
   description = "ARN IAM role cho external-dns (annotate SA external-dns/external-dns)"
   value       = var.enable_cloudfront ? module.external_dns_irsa[0].role_arn : null
@@ -253,3 +258,46 @@ output "mandate_12_alert_topic_arn" {
   description = "Mandate-12 SNS topic ARN for audit tamper email alerts"
   value       = module.cloudtrail.mandate_12_alert_topic_arn
 }
+
+# ============ Cost Guard Automation Outputs ============
+
+output "cost_guard_sns_topic_80_arn" {
+  description = "ARN của SNS topic cho Budget Alarms 80%"
+  value       = try(module.cost_guard_automation[0].sns_topic_80_arn, null)
+}
+
+output "cost_guard_sns_topic_95_arn" {
+  description = "ARN của SNS topic cho Budget Alarms 95%"
+  value       = try(module.cost_guard_automation[0].sns_topic_95_arn, null)
+}
+
+output "cost_guard_lambda_function_name" {
+  description = "Tên Lambda function cho Cost Guard"
+  value       = try(module.cost_guard_automation[0].lambda_function_name, null)
+}
+
+output "cost_guard_lambda_function_arn" {
+  description = "ARN của Lambda function"
+  value       = try(module.cost_guard_automation[0].lambda_function_arn, null)
+}
+
+output "cost_guard_custom_budget_names" {
+  description = "Danh sách tên các custom budget period"
+  value       = try(module.cost_guard_automation[0].custom_budget_names, [])
+}
+
+output "cost_guard_monthly_budget_80" {
+  description = "Tên Budget alarm 80% (fallback monthly)"
+  value       = try(module.cost_guard_automation[0].monthly_budget_80_name, null)
+}
+
+output "cost_guard_monthly_budget_95" {
+  description = "Tên Budget alarm 95% (fallback monthly)"
+  value       = try(module.cost_guard_automation[0].monthly_budget_95_name, null)
+}
+
+output "cost_guard_log_group_name" {
+  description = "CloudWatch Log Group name cho Cost Guard Lambda"
+  value       = try(module.cost_guard_automation[0].cloudwatch_log_group_name, null)
+}
+

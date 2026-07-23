@@ -70,6 +70,9 @@ module "eks" {
   ops_node_disk_size_gib  = var.eks_ops_node_disk_size_gib
 
   access_entries = merge(var.eks_access_entries, local.github_terraform_access_entry)
+
+  # M17-R3: bật enforce NetworkPolicy cho cluster develop (ecommerce-develop-dev-eks).
+  enable_network_policy = true
 }
 
 module "rds" {
@@ -79,6 +82,7 @@ module "rds" {
   environment            = var.environment
   vpc_id                 = module.vpc.vpc_id
   database_subnet_ids    = values(module.vpc.private_data_subnet_ids)
+  app_subnet_ids         = values(module.vpc.private_app_subnet_ids)
   app_subnet_cidr_blocks = [for s in var.private_app_subnets : s.cidr_block]
 
   db_name                    = var.db_name
@@ -91,8 +95,11 @@ module "rds" {
   enable_rds_proxy           = var.enable_rds_proxy
   multi_az                   = var.rds_multi_az
   eks_node_security_group_id = module.eks.cluster_security_group_id
-  enable_logical_replication = true
-  track_activity_query_size  = var.rds_track_activity_query_size
+
+  enable_rotation                         = var.rds_enable_rotation
+  rotation_rules_automatically_after_days = var.rds_rotation_rules_automatically_after_days
+  enable_logical_replication              = true
+  track_activity_query_size               = var.rds_track_activity_query_size
 }
 
 module "elasticache" {
@@ -165,6 +172,33 @@ module "msk" {
   mq_subnet_ids         = values(module.vpc.private_mq_subnet_ids)
   eks_security_group_id = module.eks.cluster_security_group_id
   kafka_version         = var.kafka_version
+}
+
+module "cost_guard_automation" {
+  count = var.enable_cost_guard_automation ? 1 : 0
+
+  source = "../../modules/cost_guard_automation"
+
+  project_name   = var.project_name
+  environment    = var.environment
+  account_id     = data.aws_caller_identity.current.account_id
+  budget_limit   = var.budget_limit
+  budget_periods = var.budget_periods
+
+  alert_emails = {
+    threshold_80 = var.budget_alert_email_80
+    threshold_95 = var.budget_alert_email_95
+  }
+
+  eks_cluster_name = module.eks.cluster_name
+  eks_cluster_arn  = module.eks.cluster_arn
+
+  rds_instance_identifiers = [module.rds.instance_id]
+  elasticache_cluster_ids  = [module.elasticache.cluster_id]
+
+  lambda_timeout                = var.lambda_timeout
+  lambda_memory                 = var.lambda_memory
+  cloudwatch_log_retention_days = var.cloudwatch_log_retention_days
 }
 
 module "cloudtrail" {

@@ -184,6 +184,9 @@ extern ProductDefaultTypeInternal _Product_default_instance_;
 class ProductReview;
 struct ProductReviewDefaultTypeInternal;
 extern ProductReviewDefaultTypeInternal _ProductReview_default_instance_;
+class ProductReviewCitation;
+struct ProductReviewCitationDefaultTypeInternal;
+extern ProductReviewCitationDefaultTypeInternal _ProductReviewCitation_default_instance_;
 class SearchProductsRequest;
 struct SearchProductsRequestDefaultTypeInternal;
 extern SearchProductsRequestDefaultTypeInternal _SearchProductsRequest_default_instance_;
@@ -199,6 +202,9 @@ extern ShipOrderRequestDefaultTypeInternal _ShipOrderRequest_default_instance_;
 class ShipOrderResponse;
 struct ShipOrderResponseDefaultTypeInternal;
 extern ShipOrderResponseDefaultTypeInternal _ShipOrderResponse_default_instance_;
+class TraceStep;
+struct TraceStepDefaultTypeInternal;
+extern TraceStepDefaultTypeInternal _TraceStep_default_instance_;
 class UpdateFlagRequest;
 struct UpdateFlagRequestDefaultTypeInternal;
 extern UpdateFlagRequestDefaultTypeInternal _UpdateFlagRequest_default_instance_;
@@ -3549,6 +3555,418 @@ class AskProductAIAssistantRequest final :
   friend struct ::TableStruct_demo_2eproto;
 };// -------------------------------------------------------------------
 
+class ProductReviewCitation final :
+    public ::google::protobuf::Message /* @@protoc_insertion_point(class_definition:oteldemo.ProductReviewCitation) */ {
+ public:
+  inline ProductReviewCitation() : ProductReviewCitation(nullptr) {}
+  ~ProductReviewCitation() override;
+  template<typename = void>
+  explicit PROTOBUF_CONSTEXPR ProductReviewCitation(::google::protobuf::internal::ConstantInitialized);
+
+  ProductReviewCitation(const ProductReviewCitation& from);
+  ProductReviewCitation(ProductReviewCitation&& from) noexcept
+    : ProductReviewCitation() {
+    *this = ::std::move(from);
+  }
+
+  inline ProductReviewCitation& operator=(const ProductReviewCitation& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline ProductReviewCitation& operator=(ProductReviewCitation&& from) noexcept {
+    if (this == &from) return *this;
+    if (GetOwningArena() == from.GetOwningArena()
+  #ifdef PROTOBUF_FORCE_COPY_IN_MOVE
+        && GetOwningArena() != nullptr
+  #endif  // !PROTOBUF_FORCE_COPY_IN_MOVE
+    ) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const {
+    return _internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance);
+  }
+  inline ::google::protobuf::UnknownFieldSet* mutable_unknown_fields() {
+    return _internal_metadata_.mutable_unknown_fields<::google::protobuf::UnknownFieldSet>();
+  }
+
+  static const ::google::protobuf::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::google::protobuf::Descriptor* GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  static const ::google::protobuf::Reflection* GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  static const ProductReviewCitation& default_instance() {
+    return *internal_default_instance();
+  }
+  static inline const ProductReviewCitation* internal_default_instance() {
+    return reinterpret_cast<const ProductReviewCitation*>(
+               &_ProductReviewCitation_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    19;
+
+  friend void swap(ProductReviewCitation& a, ProductReviewCitation& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(ProductReviewCitation* other) {
+    if (other == this) return;
+  #ifdef PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() != nullptr &&
+        GetOwningArena() == other->GetOwningArena()) {
+   #else  // PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() == other->GetOwningArena()) {
+  #endif  // !PROTOBUF_FORCE_COPY_IN_SWAP
+      InternalSwap(other);
+    } else {
+      ::google::protobuf::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(ProductReviewCitation* other) {
+    if (other == this) return;
+    ABSL_DCHECK(GetOwningArena() == other->GetOwningArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  ProductReviewCitation* New(::google::protobuf::Arena* arena = nullptr) const final {
+    return CreateMaybeMessage<ProductReviewCitation>(arena);
+  }
+  using ::google::protobuf::Message::CopyFrom;
+  void CopyFrom(const ProductReviewCitation& from);
+  using ::google::protobuf::Message::MergeFrom;
+  void MergeFrom( const ProductReviewCitation& from) {
+    ProductReviewCitation::MergeImpl(*this, from);
+  }
+  private:
+  static void MergeImpl(::google::protobuf::Message& to_msg, const ::google::protobuf::Message& from_msg);
+  public:
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  ::size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::google::protobuf::internal::ParseContext* ctx) final;
+  ::uint8_t* _InternalSerialize(
+      ::uint8_t* target, ::google::protobuf::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _impl_._cached_size_.Get(); }
+
+  private:
+  void SharedCtor(::google::protobuf::Arena* arena);
+  void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(ProductReviewCitation* other);
+
+  private:
+  friend class ::google::protobuf::internal::AnyMetadata;
+  static ::absl::string_view FullMessageName() {
+    return "oteldemo.ProductReviewCitation";
+  }
+  protected:
+  explicit ProductReviewCitation(::google::protobuf::Arena* arena);
+  public:
+
+  static const ClassData _class_data_;
+  const ::google::protobuf::Message::ClassData*GetClassData() const final;
+
+  ::google::protobuf::Metadata GetMetadata() const final;
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kReviewIdFieldNumber = 1,
+    kSnippetFieldNumber = 2,
+    kScoreFieldNumber = 3,
+  };
+  // string review_id = 1;
+  void clear_review_id() ;
+  const std::string& review_id() const;
+  template <typename Arg_ = const std::string&, typename... Args_>
+  void set_review_id(Arg_&& arg, Args_... args);
+  std::string* mutable_review_id();
+  PROTOBUF_NODISCARD std::string* release_review_id();
+  void set_allocated_review_id(std::string* ptr);
+
+  private:
+  const std::string& _internal_review_id() const;
+  inline PROTOBUF_ALWAYS_INLINE void _internal_set_review_id(
+      const std::string& value);
+  std::string* _internal_mutable_review_id();
+
+  public:
+  // string snippet = 2;
+  void clear_snippet() ;
+  const std::string& snippet() const;
+  template <typename Arg_ = const std::string&, typename... Args_>
+  void set_snippet(Arg_&& arg, Args_... args);
+  std::string* mutable_snippet();
+  PROTOBUF_NODISCARD std::string* release_snippet();
+  void set_allocated_snippet(std::string* ptr);
+
+  private:
+  const std::string& _internal_snippet() const;
+  inline PROTOBUF_ALWAYS_INLINE void _internal_set_snippet(
+      const std::string& value);
+  std::string* _internal_mutable_snippet();
+
+  public:
+  // string score = 3;
+  void clear_score() ;
+  const std::string& score() const;
+  template <typename Arg_ = const std::string&, typename... Args_>
+  void set_score(Arg_&& arg, Args_... args);
+  std::string* mutable_score();
+  PROTOBUF_NODISCARD std::string* release_score();
+  void set_allocated_score(std::string* ptr);
+
+  private:
+  const std::string& _internal_score() const;
+  inline PROTOBUF_ALWAYS_INLINE void _internal_set_score(
+      const std::string& value);
+  std::string* _internal_mutable_score();
+
+  public:
+  // @@protoc_insertion_point(class_scope:oteldemo.ProductReviewCitation)
+ private:
+  class _Internal;
+
+  friend class ::google::protobuf::internal::TcParser;
+  static const ::google::protobuf::internal::TcParseTable<2, 3, 0, 60, 2> _table_;
+  template <typename T> friend class ::google::protobuf::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  struct Impl_ {
+    ::google::protobuf::internal::ArenaStringPtr review_id_;
+    ::google::protobuf::internal::ArenaStringPtr snippet_;
+    ::google::protobuf::internal::ArenaStringPtr score_;
+    mutable ::google::protobuf::internal::CachedSize _cached_size_;
+    PROTOBUF_TSAN_DECLARE_MEMBER
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_demo_2eproto;
+};// -------------------------------------------------------------------
+
+class TraceStep final :
+    public ::google::protobuf::Message /* @@protoc_insertion_point(class_definition:oteldemo.TraceStep) */ {
+ public:
+  inline TraceStep() : TraceStep(nullptr) {}
+  ~TraceStep() override;
+  template<typename = void>
+  explicit PROTOBUF_CONSTEXPR TraceStep(::google::protobuf::internal::ConstantInitialized);
+
+  TraceStep(const TraceStep& from);
+  TraceStep(TraceStep&& from) noexcept
+    : TraceStep() {
+    *this = ::std::move(from);
+  }
+
+  inline TraceStep& operator=(const TraceStep& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline TraceStep& operator=(TraceStep&& from) noexcept {
+    if (this == &from) return *this;
+    if (GetOwningArena() == from.GetOwningArena()
+  #ifdef PROTOBUF_FORCE_COPY_IN_MOVE
+        && GetOwningArena() != nullptr
+  #endif  // !PROTOBUF_FORCE_COPY_IN_MOVE
+    ) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const {
+    return _internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance);
+  }
+  inline ::google::protobuf::UnknownFieldSet* mutable_unknown_fields() {
+    return _internal_metadata_.mutable_unknown_fields<::google::protobuf::UnknownFieldSet>();
+  }
+
+  static const ::google::protobuf::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::google::protobuf::Descriptor* GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  static const ::google::protobuf::Reflection* GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  static const TraceStep& default_instance() {
+    return *internal_default_instance();
+  }
+  static inline const TraceStep* internal_default_instance() {
+    return reinterpret_cast<const TraceStep*>(
+               &_TraceStep_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    20;
+
+  friend void swap(TraceStep& a, TraceStep& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(TraceStep* other) {
+    if (other == this) return;
+  #ifdef PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() != nullptr &&
+        GetOwningArena() == other->GetOwningArena()) {
+   #else  // PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() == other->GetOwningArena()) {
+  #endif  // !PROTOBUF_FORCE_COPY_IN_SWAP
+      InternalSwap(other);
+    } else {
+      ::google::protobuf::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(TraceStep* other) {
+    if (other == this) return;
+    ABSL_DCHECK(GetOwningArena() == other->GetOwningArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  TraceStep* New(::google::protobuf::Arena* arena = nullptr) const final {
+    return CreateMaybeMessage<TraceStep>(arena);
+  }
+  using ::google::protobuf::Message::CopyFrom;
+  void CopyFrom(const TraceStep& from);
+  using ::google::protobuf::Message::MergeFrom;
+  void MergeFrom( const TraceStep& from) {
+    TraceStep::MergeImpl(*this, from);
+  }
+  private:
+  static void MergeImpl(::google::protobuf::Message& to_msg, const ::google::protobuf::Message& from_msg);
+  public:
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  ::size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::google::protobuf::internal::ParseContext* ctx) final;
+  ::uint8_t* _InternalSerialize(
+      ::uint8_t* target, ::google::protobuf::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _impl_._cached_size_.Get(); }
+
+  private:
+  void SharedCtor(::google::protobuf::Arena* arena);
+  void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(TraceStep* other);
+
+  private:
+  friend class ::google::protobuf::internal::AnyMetadata;
+  static ::absl::string_view FullMessageName() {
+    return "oteldemo.TraceStep";
+  }
+  protected:
+  explicit TraceStep(::google::protobuf::Arena* arena);
+  public:
+
+  static const ClassData _class_data_;
+  const ::google::protobuf::Message::ClassData*GetClassData() const final;
+
+  ::google::protobuf::Metadata GetMetadata() const final;
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kStepNameFieldNumber = 1,
+    kStatusFieldNumber = 3,
+    kDetailFieldNumber = 4,
+    kLatencyMsFieldNumber = 2,
+  };
+  // string step_name = 1;
+  void clear_step_name() ;
+  const std::string& step_name() const;
+  template <typename Arg_ = const std::string&, typename... Args_>
+  void set_step_name(Arg_&& arg, Args_... args);
+  std::string* mutable_step_name();
+  PROTOBUF_NODISCARD std::string* release_step_name();
+  void set_allocated_step_name(std::string* ptr);
+
+  private:
+  const std::string& _internal_step_name() const;
+  inline PROTOBUF_ALWAYS_INLINE void _internal_set_step_name(
+      const std::string& value);
+  std::string* _internal_mutable_step_name();
+
+  public:
+  // string status = 3;
+  void clear_status() ;
+  const std::string& status() const;
+  template <typename Arg_ = const std::string&, typename... Args_>
+  void set_status(Arg_&& arg, Args_... args);
+  std::string* mutable_status();
+  PROTOBUF_NODISCARD std::string* release_status();
+  void set_allocated_status(std::string* ptr);
+
+  private:
+  const std::string& _internal_status() const;
+  inline PROTOBUF_ALWAYS_INLINE void _internal_set_status(
+      const std::string& value);
+  std::string* _internal_mutable_status();
+
+  public:
+  // string detail = 4;
+  void clear_detail() ;
+  const std::string& detail() const;
+  template <typename Arg_ = const std::string&, typename... Args_>
+  void set_detail(Arg_&& arg, Args_... args);
+  std::string* mutable_detail();
+  PROTOBUF_NODISCARD std::string* release_detail();
+  void set_allocated_detail(std::string* ptr);
+
+  private:
+  const std::string& _internal_detail() const;
+  inline PROTOBUF_ALWAYS_INLINE void _internal_set_detail(
+      const std::string& value);
+  std::string* _internal_mutable_detail();
+
+  public:
+  // int64 latency_ms = 2;
+  void clear_latency_ms() ;
+  ::int64_t latency_ms() const;
+  void set_latency_ms(::int64_t value);
+
+  private:
+  ::int64_t _internal_latency_ms() const;
+  void _internal_set_latency_ms(::int64_t value);
+
+  public:
+  // @@protoc_insertion_point(class_scope:oteldemo.TraceStep)
+ private:
+  class _Internal;
+
+  friend class ::google::protobuf::internal::TcParser;
+  static const ::google::protobuf::internal::TcParseTable<2, 4, 0, 48, 2> _table_;
+  template <typename T> friend class ::google::protobuf::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  struct Impl_ {
+    ::google::protobuf::internal::ArenaStringPtr step_name_;
+    ::google::protobuf::internal::ArenaStringPtr status_;
+    ::google::protobuf::internal::ArenaStringPtr detail_;
+    ::int64_t latency_ms_;
+    mutable ::google::protobuf::internal::CachedSize _cached_size_;
+    PROTOBUF_TSAN_DECLARE_MEMBER
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_demo_2eproto;
+};// -------------------------------------------------------------------
+
 class AskProductAIAssistantResponse final :
     public ::google::protobuf::Message /* @@protoc_insertion_point(class_definition:oteldemo.AskProductAIAssistantResponse) */ {
  public:
@@ -3605,7 +4023,7 @@ class AskProductAIAssistantResponse final :
                &_AskProductAIAssistantResponse_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    19;
+    21;
 
   friend void swap(AskProductAIAssistantResponse& a, AskProductAIAssistantResponse& b) {
     a.Swap(&b);
@@ -3677,8 +4095,47 @@ class AskProductAIAssistantResponse final :
   // accessors -------------------------------------------------------
 
   enum : int {
+    kCitationsFieldNumber = 3,
+    kTraceStepsFieldNumber = 4,
     kResponseFieldNumber = 1,
+    kTraceIdFieldNumber = 2,
   };
+  // repeated .oteldemo.ProductReviewCitation citations = 3;
+  int citations_size() const;
+  private:
+  int _internal_citations_size() const;
+
+  public:
+  void clear_citations() ;
+  ::oteldemo::ProductReviewCitation* mutable_citations(int index);
+  ::google::protobuf::RepeatedPtrField< ::oteldemo::ProductReviewCitation >*
+      mutable_citations();
+  private:
+  const ::google::protobuf::RepeatedPtrField<::oteldemo::ProductReviewCitation>& _internal_citations() const;
+  ::google::protobuf::RepeatedPtrField<::oteldemo::ProductReviewCitation>* _internal_mutable_citations();
+  public:
+  const ::oteldemo::ProductReviewCitation& citations(int index) const;
+  ::oteldemo::ProductReviewCitation* add_citations();
+  const ::google::protobuf::RepeatedPtrField< ::oteldemo::ProductReviewCitation >&
+      citations() const;
+  // repeated .oteldemo.TraceStep trace_steps = 4;
+  int trace_steps_size() const;
+  private:
+  int _internal_trace_steps_size() const;
+
+  public:
+  void clear_trace_steps() ;
+  ::oteldemo::TraceStep* mutable_trace_steps(int index);
+  ::google::protobuf::RepeatedPtrField< ::oteldemo::TraceStep >*
+      mutable_trace_steps();
+  private:
+  const ::google::protobuf::RepeatedPtrField<::oteldemo::TraceStep>& _internal_trace_steps() const;
+  ::google::protobuf::RepeatedPtrField<::oteldemo::TraceStep>* _internal_mutable_trace_steps();
+  public:
+  const ::oteldemo::TraceStep& trace_steps(int index) const;
+  ::oteldemo::TraceStep* add_trace_steps();
+  const ::google::protobuf::RepeatedPtrField< ::oteldemo::TraceStep >&
+      trace_steps() const;
   // string response = 1;
   void clear_response() ;
   const std::string& response() const;
@@ -3695,17 +4152,36 @@ class AskProductAIAssistantResponse final :
   std::string* _internal_mutable_response();
 
   public:
+  // string trace_id = 2;
+  void clear_trace_id() ;
+  const std::string& trace_id() const;
+  template <typename Arg_ = const std::string&, typename... Args_>
+  void set_trace_id(Arg_&& arg, Args_... args);
+  std::string* mutable_trace_id();
+  PROTOBUF_NODISCARD std::string* release_trace_id();
+  void set_allocated_trace_id(std::string* ptr);
+
+  private:
+  const std::string& _internal_trace_id() const;
+  inline PROTOBUF_ALWAYS_INLINE void _internal_set_trace_id(
+      const std::string& value);
+  std::string* _internal_mutable_trace_id();
+
+  public:
   // @@protoc_insertion_point(class_scope:oteldemo.AskProductAIAssistantResponse)
  private:
   class _Internal;
 
   friend class ::google::protobuf::internal::TcParser;
-  static const ::google::protobuf::internal::TcParseTable<0, 1, 0, 55, 2> _table_;
+  static const ::google::protobuf::internal::TcParseTable<2, 4, 2, 63, 2> _table_;
   template <typename T> friend class ::google::protobuf::Arena::InternalHelper;
   typedef void InternalArenaConstructable_;
   typedef void DestructorSkippable_;
   struct Impl_ {
+    ::google::protobuf::RepeatedPtrField< ::oteldemo::ProductReviewCitation > citations_;
+    ::google::protobuf::RepeatedPtrField< ::oteldemo::TraceStep > trace_steps_;
     ::google::protobuf::internal::ArenaStringPtr response_;
+    ::google::protobuf::internal::ArenaStringPtr trace_id_;
     mutable ::google::protobuf::internal::CachedSize _cached_size_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
@@ -3769,7 +4245,7 @@ class GetQuoteRequest final :
                &_GetQuoteRequest_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    20;
+    22;
 
   friend void swap(GetQuoteRequest& a, GetQuoteRequest& b) {
     a.Swap(&b);
@@ -3953,7 +4429,7 @@ class GetQuoteResponse final :
                &_GetQuoteResponse_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    21;
+    23;
 
   friend void swap(GetQuoteResponse& a, GetQuoteResponse& b) {
     a.Swap(&b);
@@ -4117,7 +4593,7 @@ class ShipOrderRequest final :
                &_ShipOrderRequest_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    22;
+    24;
 
   friend void swap(ShipOrderRequest& a, ShipOrderRequest& b) {
     a.Swap(&b);
@@ -4301,7 +4777,7 @@ class ShipOrderResponse final :
                &_ShipOrderResponse_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    23;
+    25;
 
   friend void swap(ShipOrderResponse& a, ShipOrderResponse& b) {
     a.Swap(&b);
@@ -4465,7 +4941,7 @@ class Address final :
                &_Address_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    24;
+    26;
 
   friend void swap(Address& a, Address& b) {
     a.Swap(&b);
@@ -4701,7 +5177,7 @@ class Money final :
                &_Money_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    25;
+    27;
 
   friend void swap(Money& a, Money& b) {
     a.Swap(&b);
@@ -4889,7 +5365,7 @@ class GetSupportedCurrenciesResponse final :
                &_GetSupportedCurrenciesResponse_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    26;
+    28;
 
   friend void swap(GetSupportedCurrenciesResponse& a, GetSupportedCurrenciesResponse& b) {
     a.Swap(&b);
@@ -5065,7 +5541,7 @@ class CurrencyConversionRequest final :
                &_CurrencyConversionRequest_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    27;
+    29;
 
   friend void swap(CurrencyConversionRequest& a, CurrencyConversionRequest& b) {
     a.Swap(&b);
@@ -5247,7 +5723,7 @@ class CreditCardInfo final :
                &_CreditCardInfo_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    28;
+    30;
 
   friend void swap(CreditCardInfo& a, CreditCardInfo& b) {
     a.Swap(&b);
@@ -5447,7 +5923,7 @@ class ChargeRequest final :
                &_ChargeRequest_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    29;
+    31;
 
   friend void swap(ChargeRequest& a, ChargeRequest& b) {
     a.Swap(&b);
@@ -5628,7 +6104,7 @@ class ChargeResponse final :
                &_ChargeResponse_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    30;
+    32;
 
   friend void swap(ChargeResponse& a, ChargeResponse& b) {
     a.Swap(&b);
@@ -5792,7 +6268,7 @@ class OrderItem final :
                &_OrderItem_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    31;
+    33;
 
   friend void swap(OrderItem& a, OrderItem& b) {
     a.Swap(&b);
@@ -5973,7 +6449,7 @@ class OrderResult final :
                &_OrderResult_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    32;
+    34;
 
   friend void swap(OrderResult& a, OrderResult& b) {
     a.Swap(&b);
@@ -6210,7 +6686,7 @@ class SendOrderConfirmationRequest final :
                &_SendOrderConfirmationRequest_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    33;
+    35;
 
   friend void swap(SendOrderConfirmationRequest& a, SendOrderConfirmationRequest& b) {
     a.Swap(&b);
@@ -6392,7 +6868,7 @@ class PlaceOrderRequest final :
                &_PlaceOrderRequest_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    34;
+    36;
 
   friend void swap(PlaceOrderRequest& a, PlaceOrderRequest& b) {
     a.Swap(&b);
@@ -6627,7 +7103,7 @@ class PlaceOrderResponse final :
                &_PlaceOrderResponse_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    35;
+    37;
 
   friend void swap(PlaceOrderResponse& a, PlaceOrderResponse& b) {
     a.Swap(&b);
@@ -6791,7 +7267,7 @@ class AdRequest final :
                &_AdRequest_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    36;
+    38;
 
   friend void swap(AdRequest& a, AdRequest& b) {
     a.Swap(&b);
@@ -6967,7 +7443,7 @@ class AdResponse final :
                &_AdResponse_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    37;
+    39;
 
   friend void swap(AdResponse& a, AdResponse& b) {
     a.Swap(&b);
@@ -7133,7 +7609,7 @@ class Ad final :
                &_Ad_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    38;
+    40;
 
   friend void swap(Ad& a, Ad& b) {
     a.Swap(&b);
@@ -7315,7 +7791,7 @@ class Flag final :
                &_Flag_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    39;
+    41;
 
   friend void swap(Flag& a, Flag& b) {
     a.Swap(&b);
@@ -7509,7 +7985,7 @@ class GetFlagRequest final :
                &_GetFlagRequest_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    40;
+    42;
 
   friend void swap(GetFlagRequest& a, GetFlagRequest& b) {
     a.Swap(&b);
@@ -7673,7 +8149,7 @@ class GetFlagResponse final :
                &_GetFlagResponse_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    41;
+    43;
 
   friend void swap(GetFlagResponse& a, GetFlagResponse& b) {
     a.Swap(&b);
@@ -7837,7 +8313,7 @@ class CreateFlagRequest final :
                &_CreateFlagRequest_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    42;
+    44;
 
   friend void swap(CreateFlagRequest& a, CreateFlagRequest& b) {
     a.Swap(&b);
@@ -8031,7 +8507,7 @@ class CreateFlagResponse final :
                &_CreateFlagResponse_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    43;
+    45;
 
   friend void swap(CreateFlagResponse& a, CreateFlagResponse& b) {
     a.Swap(&b);
@@ -8195,7 +8671,7 @@ class UpdateFlagRequest final :
                &_UpdateFlagRequest_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    44;
+    46;
 
   friend void swap(UpdateFlagRequest& a, UpdateFlagRequest& b) {
     a.Swap(&b);
@@ -8370,7 +8846,7 @@ class UpdateFlagResponse final :
                &_UpdateFlagResponse_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    45;
+    47;
 
   friend void swap(UpdateFlagResponse& a, UpdateFlagResponse& b) {
     a.Swap(&b);
@@ -8495,7 +8971,7 @@ class ListFlagsRequest final :
                &_ListFlagsRequest_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    46;
+    48;
 
   friend void swap(ListFlagsRequest& a, ListFlagsRequest& b) {
     a.Swap(&b);
@@ -8621,7 +9097,7 @@ class ListFlagsResponse final :
                &_ListFlagsResponse_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    47;
+    49;
 
   friend void swap(ListFlagsResponse& a, ListFlagsResponse& b) {
     a.Swap(&b);
@@ -8787,7 +9263,7 @@ class DeleteFlagRequest final :
                &_DeleteFlagRequest_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    48;
+    50;
 
   friend void swap(DeleteFlagRequest& a, DeleteFlagRequest& b) {
     a.Swap(&b);
@@ -8950,7 +9426,7 @@ class DeleteFlagResponse final :
                &_DeleteFlagResponse_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    49;
+    51;
 
   friend void swap(DeleteFlagResponse& a, DeleteFlagResponse& b) {
     a.Swap(&b);
@@ -10816,6 +11292,342 @@ inline void AskProductAIAssistantRequest::set_allocated_question(std::string* va
 
 // -------------------------------------------------------------------
 
+// ProductReviewCitation
+
+// string review_id = 1;
+inline void ProductReviewCitation::clear_review_id() {
+  _impl_.review_id_.ClearToEmpty();
+}
+inline const std::string& ProductReviewCitation::review_id() const {
+  // @@protoc_insertion_point(field_get:oteldemo.ProductReviewCitation.review_id)
+  return _internal_review_id();
+}
+template <typename Arg_, typename... Args_>
+inline PROTOBUF_ALWAYS_INLINE void ProductReviewCitation::set_review_id(Arg_&& arg,
+                                                     Args_... args) {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  ;
+  _impl_.review_id_.Set(static_cast<Arg_&&>(arg), args..., GetArenaForAllocation());
+  // @@protoc_insertion_point(field_set:oteldemo.ProductReviewCitation.review_id)
+}
+inline std::string* ProductReviewCitation::mutable_review_id() {
+  std::string* _s = _internal_mutable_review_id();
+  // @@protoc_insertion_point(field_mutable:oteldemo.ProductReviewCitation.review_id)
+  return _s;
+}
+inline const std::string& ProductReviewCitation::_internal_review_id() const {
+  PROTOBUF_TSAN_READ(&_impl_._tsan_detect_race);
+  return _impl_.review_id_.Get();
+}
+inline void ProductReviewCitation::_internal_set_review_id(const std::string& value) {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  ;
+  _impl_.review_id_.Set(value, GetArenaForAllocation());
+}
+inline std::string* ProductReviewCitation::_internal_mutable_review_id() {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  ;
+  return _impl_.review_id_.Mutable( GetArenaForAllocation());
+}
+inline std::string* ProductReviewCitation::release_review_id() {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  // @@protoc_insertion_point(field_release:oteldemo.ProductReviewCitation.review_id)
+  return _impl_.review_id_.Release();
+}
+inline void ProductReviewCitation::set_allocated_review_id(std::string* value) {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  _impl_.review_id_.SetAllocated(value, GetArenaForAllocation());
+  #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+        if (_impl_.review_id_.IsDefault()) {
+          _impl_.review_id_.Set("", GetArenaForAllocation());
+        }
+  #endif  // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+  // @@protoc_insertion_point(field_set_allocated:oteldemo.ProductReviewCitation.review_id)
+}
+
+// string snippet = 2;
+inline void ProductReviewCitation::clear_snippet() {
+  _impl_.snippet_.ClearToEmpty();
+}
+inline const std::string& ProductReviewCitation::snippet() const {
+  // @@protoc_insertion_point(field_get:oteldemo.ProductReviewCitation.snippet)
+  return _internal_snippet();
+}
+template <typename Arg_, typename... Args_>
+inline PROTOBUF_ALWAYS_INLINE void ProductReviewCitation::set_snippet(Arg_&& arg,
+                                                     Args_... args) {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  ;
+  _impl_.snippet_.Set(static_cast<Arg_&&>(arg), args..., GetArenaForAllocation());
+  // @@protoc_insertion_point(field_set:oteldemo.ProductReviewCitation.snippet)
+}
+inline std::string* ProductReviewCitation::mutable_snippet() {
+  std::string* _s = _internal_mutable_snippet();
+  // @@protoc_insertion_point(field_mutable:oteldemo.ProductReviewCitation.snippet)
+  return _s;
+}
+inline const std::string& ProductReviewCitation::_internal_snippet() const {
+  PROTOBUF_TSAN_READ(&_impl_._tsan_detect_race);
+  return _impl_.snippet_.Get();
+}
+inline void ProductReviewCitation::_internal_set_snippet(const std::string& value) {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  ;
+  _impl_.snippet_.Set(value, GetArenaForAllocation());
+}
+inline std::string* ProductReviewCitation::_internal_mutable_snippet() {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  ;
+  return _impl_.snippet_.Mutable( GetArenaForAllocation());
+}
+inline std::string* ProductReviewCitation::release_snippet() {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  // @@protoc_insertion_point(field_release:oteldemo.ProductReviewCitation.snippet)
+  return _impl_.snippet_.Release();
+}
+inline void ProductReviewCitation::set_allocated_snippet(std::string* value) {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  _impl_.snippet_.SetAllocated(value, GetArenaForAllocation());
+  #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+        if (_impl_.snippet_.IsDefault()) {
+          _impl_.snippet_.Set("", GetArenaForAllocation());
+        }
+  #endif  // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+  // @@protoc_insertion_point(field_set_allocated:oteldemo.ProductReviewCitation.snippet)
+}
+
+// string score = 3;
+inline void ProductReviewCitation::clear_score() {
+  _impl_.score_.ClearToEmpty();
+}
+inline const std::string& ProductReviewCitation::score() const {
+  // @@protoc_insertion_point(field_get:oteldemo.ProductReviewCitation.score)
+  return _internal_score();
+}
+template <typename Arg_, typename... Args_>
+inline PROTOBUF_ALWAYS_INLINE void ProductReviewCitation::set_score(Arg_&& arg,
+                                                     Args_... args) {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  ;
+  _impl_.score_.Set(static_cast<Arg_&&>(arg), args..., GetArenaForAllocation());
+  // @@protoc_insertion_point(field_set:oteldemo.ProductReviewCitation.score)
+}
+inline std::string* ProductReviewCitation::mutable_score() {
+  std::string* _s = _internal_mutable_score();
+  // @@protoc_insertion_point(field_mutable:oteldemo.ProductReviewCitation.score)
+  return _s;
+}
+inline const std::string& ProductReviewCitation::_internal_score() const {
+  PROTOBUF_TSAN_READ(&_impl_._tsan_detect_race);
+  return _impl_.score_.Get();
+}
+inline void ProductReviewCitation::_internal_set_score(const std::string& value) {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  ;
+  _impl_.score_.Set(value, GetArenaForAllocation());
+}
+inline std::string* ProductReviewCitation::_internal_mutable_score() {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  ;
+  return _impl_.score_.Mutable( GetArenaForAllocation());
+}
+inline std::string* ProductReviewCitation::release_score() {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  // @@protoc_insertion_point(field_release:oteldemo.ProductReviewCitation.score)
+  return _impl_.score_.Release();
+}
+inline void ProductReviewCitation::set_allocated_score(std::string* value) {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  _impl_.score_.SetAllocated(value, GetArenaForAllocation());
+  #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+        if (_impl_.score_.IsDefault()) {
+          _impl_.score_.Set("", GetArenaForAllocation());
+        }
+  #endif  // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+  // @@protoc_insertion_point(field_set_allocated:oteldemo.ProductReviewCitation.score)
+}
+
+// -------------------------------------------------------------------
+
+// TraceStep
+
+// string step_name = 1;
+inline void TraceStep::clear_step_name() {
+  _impl_.step_name_.ClearToEmpty();
+}
+inline const std::string& TraceStep::step_name() const {
+  // @@protoc_insertion_point(field_get:oteldemo.TraceStep.step_name)
+  return _internal_step_name();
+}
+template <typename Arg_, typename... Args_>
+inline PROTOBUF_ALWAYS_INLINE void TraceStep::set_step_name(Arg_&& arg,
+                                                     Args_... args) {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  ;
+  _impl_.step_name_.Set(static_cast<Arg_&&>(arg), args..., GetArenaForAllocation());
+  // @@protoc_insertion_point(field_set:oteldemo.TraceStep.step_name)
+}
+inline std::string* TraceStep::mutable_step_name() {
+  std::string* _s = _internal_mutable_step_name();
+  // @@protoc_insertion_point(field_mutable:oteldemo.TraceStep.step_name)
+  return _s;
+}
+inline const std::string& TraceStep::_internal_step_name() const {
+  PROTOBUF_TSAN_READ(&_impl_._tsan_detect_race);
+  return _impl_.step_name_.Get();
+}
+inline void TraceStep::_internal_set_step_name(const std::string& value) {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  ;
+  _impl_.step_name_.Set(value, GetArenaForAllocation());
+}
+inline std::string* TraceStep::_internal_mutable_step_name() {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  ;
+  return _impl_.step_name_.Mutable( GetArenaForAllocation());
+}
+inline std::string* TraceStep::release_step_name() {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  // @@protoc_insertion_point(field_release:oteldemo.TraceStep.step_name)
+  return _impl_.step_name_.Release();
+}
+inline void TraceStep::set_allocated_step_name(std::string* value) {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  _impl_.step_name_.SetAllocated(value, GetArenaForAllocation());
+  #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+        if (_impl_.step_name_.IsDefault()) {
+          _impl_.step_name_.Set("", GetArenaForAllocation());
+        }
+  #endif  // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+  // @@protoc_insertion_point(field_set_allocated:oteldemo.TraceStep.step_name)
+}
+
+// int64 latency_ms = 2;
+inline void TraceStep::clear_latency_ms() {
+  _impl_.latency_ms_ = ::int64_t{0};
+}
+inline ::int64_t TraceStep::latency_ms() const {
+  // @@protoc_insertion_point(field_get:oteldemo.TraceStep.latency_ms)
+  return _internal_latency_ms();
+}
+inline void TraceStep::set_latency_ms(::int64_t value) {
+  _internal_set_latency_ms(value);
+  // @@protoc_insertion_point(field_set:oteldemo.TraceStep.latency_ms)
+}
+inline ::int64_t TraceStep::_internal_latency_ms() const {
+  PROTOBUF_TSAN_READ(&_impl_._tsan_detect_race);
+  return _impl_.latency_ms_;
+}
+inline void TraceStep::_internal_set_latency_ms(::int64_t value) {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  ;
+  _impl_.latency_ms_ = value;
+}
+
+// string status = 3;
+inline void TraceStep::clear_status() {
+  _impl_.status_.ClearToEmpty();
+}
+inline const std::string& TraceStep::status() const {
+  // @@protoc_insertion_point(field_get:oteldemo.TraceStep.status)
+  return _internal_status();
+}
+template <typename Arg_, typename... Args_>
+inline PROTOBUF_ALWAYS_INLINE void TraceStep::set_status(Arg_&& arg,
+                                                     Args_... args) {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  ;
+  _impl_.status_.Set(static_cast<Arg_&&>(arg), args..., GetArenaForAllocation());
+  // @@protoc_insertion_point(field_set:oteldemo.TraceStep.status)
+}
+inline std::string* TraceStep::mutable_status() {
+  std::string* _s = _internal_mutable_status();
+  // @@protoc_insertion_point(field_mutable:oteldemo.TraceStep.status)
+  return _s;
+}
+inline const std::string& TraceStep::_internal_status() const {
+  PROTOBUF_TSAN_READ(&_impl_._tsan_detect_race);
+  return _impl_.status_.Get();
+}
+inline void TraceStep::_internal_set_status(const std::string& value) {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  ;
+  _impl_.status_.Set(value, GetArenaForAllocation());
+}
+inline std::string* TraceStep::_internal_mutable_status() {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  ;
+  return _impl_.status_.Mutable( GetArenaForAllocation());
+}
+inline std::string* TraceStep::release_status() {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  // @@protoc_insertion_point(field_release:oteldemo.TraceStep.status)
+  return _impl_.status_.Release();
+}
+inline void TraceStep::set_allocated_status(std::string* value) {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  _impl_.status_.SetAllocated(value, GetArenaForAllocation());
+  #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+        if (_impl_.status_.IsDefault()) {
+          _impl_.status_.Set("", GetArenaForAllocation());
+        }
+  #endif  // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+  // @@protoc_insertion_point(field_set_allocated:oteldemo.TraceStep.status)
+}
+
+// string detail = 4;
+inline void TraceStep::clear_detail() {
+  _impl_.detail_.ClearToEmpty();
+}
+inline const std::string& TraceStep::detail() const {
+  // @@protoc_insertion_point(field_get:oteldemo.TraceStep.detail)
+  return _internal_detail();
+}
+template <typename Arg_, typename... Args_>
+inline PROTOBUF_ALWAYS_INLINE void TraceStep::set_detail(Arg_&& arg,
+                                                     Args_... args) {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  ;
+  _impl_.detail_.Set(static_cast<Arg_&&>(arg), args..., GetArenaForAllocation());
+  // @@protoc_insertion_point(field_set:oteldemo.TraceStep.detail)
+}
+inline std::string* TraceStep::mutable_detail() {
+  std::string* _s = _internal_mutable_detail();
+  // @@protoc_insertion_point(field_mutable:oteldemo.TraceStep.detail)
+  return _s;
+}
+inline const std::string& TraceStep::_internal_detail() const {
+  PROTOBUF_TSAN_READ(&_impl_._tsan_detect_race);
+  return _impl_.detail_.Get();
+}
+inline void TraceStep::_internal_set_detail(const std::string& value) {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  ;
+  _impl_.detail_.Set(value, GetArenaForAllocation());
+}
+inline std::string* TraceStep::_internal_mutable_detail() {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  ;
+  return _impl_.detail_.Mutable( GetArenaForAllocation());
+}
+inline std::string* TraceStep::release_detail() {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  // @@protoc_insertion_point(field_release:oteldemo.TraceStep.detail)
+  return _impl_.detail_.Release();
+}
+inline void TraceStep::set_allocated_detail(std::string* value) {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  _impl_.detail_.SetAllocated(value, GetArenaForAllocation());
+  #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+        if (_impl_.detail_.IsDefault()) {
+          _impl_.detail_.Set("", GetArenaForAllocation());
+        }
+  #endif  // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+  // @@protoc_insertion_point(field_set_allocated:oteldemo.TraceStep.detail)
+}
+
+// -------------------------------------------------------------------
+
 // AskProductAIAssistantResponse
 
 // string response = 1;
@@ -10867,6 +11679,149 @@ inline void AskProductAIAssistantResponse::set_allocated_response(std::string* v
         }
   #endif  // PROTOBUF_FORCE_COPY_DEFAULT_STRING
   // @@protoc_insertion_point(field_set_allocated:oteldemo.AskProductAIAssistantResponse.response)
+}
+
+// string trace_id = 2;
+inline void AskProductAIAssistantResponse::clear_trace_id() {
+  _impl_.trace_id_.ClearToEmpty();
+}
+inline const std::string& AskProductAIAssistantResponse::trace_id() const {
+  // @@protoc_insertion_point(field_get:oteldemo.AskProductAIAssistantResponse.trace_id)
+  return _internal_trace_id();
+}
+template <typename Arg_, typename... Args_>
+inline PROTOBUF_ALWAYS_INLINE void AskProductAIAssistantResponse::set_trace_id(Arg_&& arg,
+                                                     Args_... args) {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  ;
+  _impl_.trace_id_.Set(static_cast<Arg_&&>(arg), args..., GetArenaForAllocation());
+  // @@protoc_insertion_point(field_set:oteldemo.AskProductAIAssistantResponse.trace_id)
+}
+inline std::string* AskProductAIAssistantResponse::mutable_trace_id() {
+  std::string* _s = _internal_mutable_trace_id();
+  // @@protoc_insertion_point(field_mutable:oteldemo.AskProductAIAssistantResponse.trace_id)
+  return _s;
+}
+inline const std::string& AskProductAIAssistantResponse::_internal_trace_id() const {
+  PROTOBUF_TSAN_READ(&_impl_._tsan_detect_race);
+  return _impl_.trace_id_.Get();
+}
+inline void AskProductAIAssistantResponse::_internal_set_trace_id(const std::string& value) {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  ;
+  _impl_.trace_id_.Set(value, GetArenaForAllocation());
+}
+inline std::string* AskProductAIAssistantResponse::_internal_mutable_trace_id() {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  ;
+  return _impl_.trace_id_.Mutable( GetArenaForAllocation());
+}
+inline std::string* AskProductAIAssistantResponse::release_trace_id() {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  // @@protoc_insertion_point(field_release:oteldemo.AskProductAIAssistantResponse.trace_id)
+  return _impl_.trace_id_.Release();
+}
+inline void AskProductAIAssistantResponse::set_allocated_trace_id(std::string* value) {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  _impl_.trace_id_.SetAllocated(value, GetArenaForAllocation());
+  #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+        if (_impl_.trace_id_.IsDefault()) {
+          _impl_.trace_id_.Set("", GetArenaForAllocation());
+        }
+  #endif  // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+  // @@protoc_insertion_point(field_set_allocated:oteldemo.AskProductAIAssistantResponse.trace_id)
+}
+
+// repeated .oteldemo.ProductReviewCitation citations = 3;
+inline int AskProductAIAssistantResponse::_internal_citations_size() const {
+  return _internal_citations().size();
+}
+inline int AskProductAIAssistantResponse::citations_size() const {
+  return _internal_citations_size();
+}
+inline void AskProductAIAssistantResponse::clear_citations() {
+  _internal_mutable_citations()->Clear();
+}
+inline ::oteldemo::ProductReviewCitation* AskProductAIAssistantResponse::mutable_citations(int index) {
+  // @@protoc_insertion_point(field_mutable:oteldemo.AskProductAIAssistantResponse.citations)
+  return _internal_mutable_citations()->Mutable(index);
+}
+inline ::google::protobuf::RepeatedPtrField< ::oteldemo::ProductReviewCitation >*
+AskProductAIAssistantResponse::mutable_citations() {
+  // @@protoc_insertion_point(field_mutable_list:oteldemo.AskProductAIAssistantResponse.citations)
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  return _internal_mutable_citations();
+}
+inline const ::oteldemo::ProductReviewCitation& AskProductAIAssistantResponse::citations(int index) const {
+  // @@protoc_insertion_point(field_get:oteldemo.AskProductAIAssistantResponse.citations)
+    return _internal_citations().Get(index);
+}
+inline ::oteldemo::ProductReviewCitation* AskProductAIAssistantResponse::add_citations() {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  ::oteldemo::ProductReviewCitation* _add = _internal_mutable_citations()->Add();
+  // @@protoc_insertion_point(field_add:oteldemo.AskProductAIAssistantResponse.citations)
+  return _add;
+}
+inline const ::google::protobuf::RepeatedPtrField< ::oteldemo::ProductReviewCitation >&
+AskProductAIAssistantResponse::citations() const {
+  // @@protoc_insertion_point(field_list:oteldemo.AskProductAIAssistantResponse.citations)
+  return _internal_citations();
+}
+inline const ::google::protobuf::RepeatedPtrField<::oteldemo::ProductReviewCitation>&
+AskProductAIAssistantResponse::_internal_citations() const {
+  PROTOBUF_TSAN_READ(&_impl_._tsan_detect_race);
+  return _impl_.citations_;
+}
+inline ::google::protobuf::RepeatedPtrField<::oteldemo::ProductReviewCitation>*
+AskProductAIAssistantResponse::_internal_mutable_citations() {
+  PROTOBUF_TSAN_READ(&_impl_._tsan_detect_race);
+  return &_impl_.citations_;
+}
+
+// repeated .oteldemo.TraceStep trace_steps = 4;
+inline int AskProductAIAssistantResponse::_internal_trace_steps_size() const {
+  return _internal_trace_steps().size();
+}
+inline int AskProductAIAssistantResponse::trace_steps_size() const {
+  return _internal_trace_steps_size();
+}
+inline void AskProductAIAssistantResponse::clear_trace_steps() {
+  _internal_mutable_trace_steps()->Clear();
+}
+inline ::oteldemo::TraceStep* AskProductAIAssistantResponse::mutable_trace_steps(int index) {
+  // @@protoc_insertion_point(field_mutable:oteldemo.AskProductAIAssistantResponse.trace_steps)
+  return _internal_mutable_trace_steps()->Mutable(index);
+}
+inline ::google::protobuf::RepeatedPtrField< ::oteldemo::TraceStep >*
+AskProductAIAssistantResponse::mutable_trace_steps() {
+  // @@protoc_insertion_point(field_mutable_list:oteldemo.AskProductAIAssistantResponse.trace_steps)
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  return _internal_mutable_trace_steps();
+}
+inline const ::oteldemo::TraceStep& AskProductAIAssistantResponse::trace_steps(int index) const {
+  // @@protoc_insertion_point(field_get:oteldemo.AskProductAIAssistantResponse.trace_steps)
+    return _internal_trace_steps().Get(index);
+}
+inline ::oteldemo::TraceStep* AskProductAIAssistantResponse::add_trace_steps() {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  ::oteldemo::TraceStep* _add = _internal_mutable_trace_steps()->Add();
+  // @@protoc_insertion_point(field_add:oteldemo.AskProductAIAssistantResponse.trace_steps)
+  return _add;
+}
+inline const ::google::protobuf::RepeatedPtrField< ::oteldemo::TraceStep >&
+AskProductAIAssistantResponse::trace_steps() const {
+  // @@protoc_insertion_point(field_list:oteldemo.AskProductAIAssistantResponse.trace_steps)
+  return _internal_trace_steps();
+}
+inline const ::google::protobuf::RepeatedPtrField<::oteldemo::TraceStep>&
+AskProductAIAssistantResponse::_internal_trace_steps() const {
+  PROTOBUF_TSAN_READ(&_impl_._tsan_detect_race);
+  return _impl_.trace_steps_;
+}
+inline ::google::protobuf::RepeatedPtrField<::oteldemo::TraceStep>*
+AskProductAIAssistantResponse::_internal_mutable_trace_steps() {
+  PROTOBUF_TSAN_READ(&_impl_._tsan_detect_race);
+  return &_impl_.trace_steps_;
 }
 
 // -------------------------------------------------------------------

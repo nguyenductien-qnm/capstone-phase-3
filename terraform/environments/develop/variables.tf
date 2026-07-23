@@ -234,6 +234,7 @@ variable "replica_instance_class" {
 variable "enable_rds_proxy" {
   type        = bool
   description = "Bật/Tắt tạo RDS Proxy cho PostgreSQL"
+  default     = true
 }
 
 variable "rds_track_activity_query_size" {
@@ -377,6 +378,18 @@ variable "audit_operator_role_names" {
   description = "IAM role names to attach the tamper-deny policy; leave empty for Identity Center manual attachment"
 }
 
+variable "rds_enable_rotation" {
+  type        = bool
+  description = "Bật/Tắt xoay vòng secret tự động cho RDS"
+  default     = true
+}
+
+variable "rds_rotation_rules_automatically_after_days" {
+  type        = number
+  description = "Số ngày tự động xoay vòng secret RDS"
+  default     = 30
+}
+
 variable "cloudtrail_s3_data_event_bucket_arns" {
   type        = list(string)
   default     = []
@@ -394,4 +407,59 @@ variable "mandate_12_alert_email" {
   default     = ""
   description = "Email receiver for Mandate-12 CloudTrail tamper alerts"
   sensitive   = true
+}
+
+# ============ Cost Guard Automation Variables ============
+
+variable "enable_cost_guard_automation" {
+  type        = bool
+  description = "Bật/Tắt Cost Guard Automation module"
+  default     = false
+}
+
+variable "budget_limit" {
+  type        = number
+  description = "Giới hạn chi phí hàng tháng (USD)"
+  default     = 1000
+}
+
+variable "budget_alert_email_80" {
+  type        = string
+  description = "Email nhận cảnh báo ở 80% budget threshold"
+  default     = ""
+}
+
+variable "budget_alert_email_95" {
+  type        = string
+  description = "Email nhận cảnh báo CRITICAL ở 95% budget threshold"
+  default     = ""
+}
+
+variable "budget_periods" {
+  type = list(object({
+    name       = string
+    start_date = string
+    end_date   = string
+    amount     = number
+  }))
+  description = "Danh sách các khoản budget định kỳ tùy chỉnh theo khoảng thời gian"
+  default     = []
+}
+
+variable "lambda_timeout" {
+  type        = number
+  description = "Lambda execution timeout (seconds)"
+  default     = 300
+}
+
+variable "lambda_memory" {
+  type        = number
+  description = "Lambda memory allocation (MB)"
+  default     = 512
+}
+
+variable "cloudwatch_log_retention_days" {
+  type        = number
+  description = "CloudWatch Logs retention (days) cho Cost Guard Lambda"
+  default     = 14
 }

@@ -71,6 +71,9 @@ module "eks" {
   ops_node_disk_size_gib  = var.eks_ops_node_disk_size_gib
 
   access_entries = merge(var.eks_access_entries, local.github_terraform_access_entry)
+
+  # M17-R3: bật enforce NetworkPolicy CHỈ cho cluster này (ecommerce-dev-eks). develop giữ default false.
+  enable_network_policy = true
 }
 
 module "rds" {
@@ -80,6 +83,7 @@ module "rds" {
   environment            = var.environment
   vpc_id                 = module.vpc.vpc_id
   database_subnet_ids    = values(module.vpc.private_data_subnet_ids)
+  app_subnet_ids         = values(module.vpc.private_app_subnet_ids)
   app_subnet_cidr_blocks = [for s in var.private_app_subnets : s.cidr_block]
 
   db_name                    = var.db_name
@@ -92,7 +96,10 @@ module "rds" {
   enable_rds_proxy           = var.enable_rds_proxy
   multi_az                   = var.rds_multi_az
   eks_node_security_group_id = module.eks.cluster_security_group_id
-  enable_logical_replication = true
+
+  enable_rotation                         = var.rds_enable_rotation
+  rotation_rules_automatically_after_days = var.rds_rotation_rules_automatically_after_days
+  enable_logical_replication              = true
 }
 
 module "elasticache" {
@@ -255,3 +262,52 @@ module "external_secrets_irsa" {
     module.msk.kms_key_arn,
   ]
 }
+
+# MANDATE-10 P2 — IRSA cho Kyverno verifyImages đọc ECR verify chữ ký Cosign.
+# Bắt buộc chứ không phải tuỳ chọn: node prod đặt IMDSv2 hop limit = 1 nên pod
+# không mượn được node role qua IMDS (xem comment đầu module).
+module "kyverno_irsa" {
+  source = "../../modules/kyverno-irsa"
+
+  project_name      = var.project_name
+  environment       = var.environment
+  oidc_provider_arn = module.eks.oidc_provider_arn
+  oidc_issuer_url   = module.eks.oidc_issuer_url
+
+  # CHỈ repo image chính, tra theo KEY tường minh chứ không duyệt cả map: chữ ký
+  # .sig nằm cùng repo với image nên chỉ cần repo này. Repo attest
+  # (ecommerce-dev-techx-corp-attest, chứa attestation promoted-develop) KHÔNG cấp —
+  # policy admission không verify attestation, gate promote đã enforce nó ở CI.
+  # Duyệt cả map sẽ tự nới quyền cho mọi repo thêm vào ecr_repositories sau này.
+  ecr_repository_arns = [
+    module.ecr.repository_arns["techx-corp"],
+  ]
+}
+
+module "cost_guard_automation" {
+  count = var.enable_cost_guard_automation ? 1 : 0
+
+  source = "../../modules/cost_guard_automation"
+
+  project_name   = var.project_name
+  environment    = var.environment
+  account_id     = data.aws_caller_identity.current.account_id
+  budget_limit   = var.budget_limit
+  budget_periods = var.budget_periods
+
+  alert_emails = {
+    threshold_80 = var.budget_alert_email_80
+    threshold_95 = var.budget_alert_email_95
+  }
+
+  eks_cluster_name = module.eks.cluster_name
+  eks_cluster_arn  = module.eks.cluster_arn
+
+  rds_instance_identifiers = [module.rds.instance_id]
+  elasticache_cluster_ids  = [module.elasticache.cluster_id]
+
+  lambda_timeout                = var.lambda_timeout
+  lambda_memory                 = var.lambda_memory
+  cloudwatch_log_retention_days = var.cloudwatch_log_retention_days
+}
+

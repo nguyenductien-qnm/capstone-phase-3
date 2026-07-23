@@ -1,0 +1,31 @@
+# SS-09 - R4: automountServiceAccountToken tren cac Deployment
+Thoi diem: 2026-07-22 10:11:13 UTC
+
+KY VONG: false (pod KHONG duoc mount token ServiceAccount)
+
+DEPLOY                                  AUTOMOUNT   SA
+accounting                              false       develop-techx-corp
+ad                                      false       develop-techx-corp
+cart                                    false       develop-techx-corp
+checkout                                false       develop-techx-corp
+currency                                false       develop-techx-corp
+develop-techx-corp-kube-state-metrics   true        develop-techx-corp-kube-state-metrics
+email                                   false       develop-techx-corp
+flagd                                   false       develop-techx-corp
+fraud-detection                         false       develop-techx-corp
+frontend                                false       develop-techx-corp
+frontend-proxy                          false       develop-techx-corp
+grafana                                 true        grafana
+image-provider                          false       develop-techx-corp
+jaeger                                  <none>      jaeger
+llm                                     false       develop-techx-corp
+locust-loadtest                         <none>      <none>
+payment                                 false       develop-techx-corp
+product-catalog                         false       develop-techx-corp
+product-reviews                         false       product-reviews
+prometheus                              <none>      prometheus
+quote                                   false       develop-techx-corp
+recommendation                          false       develop-techx-corp
+reloader-reloader                       <none>      reloader-reloader
+shipping                                false       develop-techx-corp
+shopping-copilot                        false       shopping-copilot

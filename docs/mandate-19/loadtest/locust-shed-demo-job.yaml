@@ -1,0 +1,77 @@
+# Mandate-19 YC4 — demo shed 2.5 phút, lấy con số 429 qua ĐƯỜNG THẬT (ClusterIP).
+# Bucket local_ratelimit là PER-POD (rl_browse=80/s, 2 pod proxy → cần >160 rps
+# tức thời trên /api/products mới cạn bucket qua ClusterIP — xem
+# shed-verification-clusterip-vs-podip.md). FastHttpUser + constant_throughput
+# giữ ~750 rps browse ổn định; luồng cart chạy song song làm ĐỐI CHỨNG (không limit).
+# Locust mặc định tính 429 là failure → failures.csv/log chính là bằng chứng shed.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: locust-shed-demo
+  namespace: techx-develop
+data:
+  locustfile.py: |
+    import uuid
+    from locust import task, constant_throughput
+    from locust.contrib.fasthttp import FastHttpUser
+
+    class BrowseFlood(FastHttpUser):
+        # KHÔNG giới hạn tốc độ: 429 trả về tức thì nên offered load vượt xa bucket
+        # (80/s x 2 pod = 160/s lọt) -> shed kích bền vững. constant_throughput sẽ
+        # bị nghẽn bởi latency của các request 200 (đã thử: chỉ đạt ~107 rps, không cạn bucket).
+        weight = 29
+        @task
+        def browse(self):
+            self.client.get("/api/products", name="browse /api/products")
+
+    class CheckoutPathControl(FastHttpUser):
+        # đối chứng: route checkout-path KHÔNG có ratelimit → kỳ vọng 0 fail
+        weight = 1
+        wait_time = constant_throughput(2)
+        @task
+        def cart(self):
+            self.client.get(f"/api/cart?sessionId={uuid.uuid4()}", name="cart /api/cart")
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: locust-shed-demo
+  namespace: techx-develop
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 7200
+  template:
+    metadata:
+      labels: { app: locust-shed-demo }
+    spec:
+      restartPolicy: Never
+      nodeSelector: { workload-tier: observability }
+      tolerations:
+        - { key: dedicated, operator: Equal, value: observability, effect: NoSchedule }
+      securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: locust
+          image: 804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.0-load-generator-5369fc8
+          command: ["sh","-c"]
+          args:
+            - >
+              locust -f /mnt/locust/locustfile.py --host http://frontend-proxy:80
+              --headless -u 900 -r 150 --run-time 180s
+              --csv /data/shed --csv-full-history;
+              echo "LOCUST_DONE exit=$?";
+              sleep 3600
+          env:
+            - { name: LOCUST_BROWSER_TRAFFIC_ENABLED, value: "false" }
+            - { name: PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION, value: python }
+          securityContext: { allowPrivilegeEscalation: false, runAsNonRoot: true, capabilities: { drop: ["ALL"] } }
+          resources:
+            requests: { cpu: "500m", memory: "512Mi" }
+            limits: { cpu: "1", memory: "1Gi" }
+          volumeMounts:
+            - { name: lf, mountPath: /mnt/locust }
+            - { name: data, mountPath: /data }
+      volumes:
+        - name: lf
+          configMap: { name: locust-shed-demo }
+        - name: data
+          emptyDir: {}

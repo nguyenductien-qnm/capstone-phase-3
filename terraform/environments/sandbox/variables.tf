@@ -215,6 +215,7 @@ variable "replica_instance_class" {
 variable "enable_rds_proxy" {
   type        = bool
   description = "Bật/Tắt tạo RDS Proxy cho PostgreSQL"
+  default     = true
 }
 
 variable "valkey_node_type" {
@@ -435,3 +436,72 @@ variable "audit_detection_break_glass_role_arns" {
     error_message = "Every audit detection break-glass value must be an IAM role ARN."
   }
 }
+
+variable "rds_enable_rotation" {
+  type        = bool
+  description = "Bật/Tắt xoay vòng secret tự động cho RDS"
+  default     = true
+}
+
+variable "rds_rotation_rules_automatically_after_days" {
+  type        = number
+  description = "Số ngày tự động xoay vòng secret RDS"
+  default     = 30
+}
+
+# ============ Cost Guard Automation Variables ============
+
+variable "enable_cost_guard_automation" {
+  type        = bool
+  description = "Bật/Tắt Cost Guard Automation module"
+  default     = false
+}
+
+variable "budget_limit" {
+  type        = number
+  description = "Giới hạn chi phí hàng tháng (USD)"
+  default     = 900
+}
+
+variable "budget_alert_email_80" {
+  type        = string
+  description = "Email nhận cảnh báo ở 80% budget threshold"
+  default     = ""
+}
+
+variable "budget_alert_email_95" {
+  type        = string
+  description = "Email nhận cảnh báo CRITICAL ở 95% budget threshold"
+  default     = ""
+}
+
+variable "budget_periods" {
+  type = list(object({
+    name       = string
+    start_date = string
+    end_date   = string
+    amount     = number
+  }))
+  description = "Danh sách các khoảng budget định kỳ tùy chỉnh theo khoảng thời gian"
+  default     = []
+}
+
+variable "lambda_timeout" {
+  type        = number
+  description = "Lambda execution timeout (seconds)"
+  default     = 300
+}
+
+variable "lambda_memory" {
+  type        = number
+  description = "Lambda memory allocation (MB)"
+  default     = 512
+}
+
+variable "cloudwatch_log_retention_days" {
+  type        = number
+  description = "CloudWatch Logs retention (days) cho Cost Guard Lambda"
+  default     = 14
+}
+
+

@@ -69,12 +69,60 @@ static_resources:
                         # calls / judge round-trips routinely exceed the 15s catch-all default).
                         - match: { prefix: "/api/copilot" }
                           route: { cluster: frontend, timeout: 30s }
+                        # ── Mandate-19 YC4 load-shedding (tầng A: ưu tiên flow) ──
+                        # CHECKOUT + CART: tách LÊN TRÊN catch-all, KHÔNG rate-limit →
+                        # ưu tiên tuyệt đối. Khi quá tải, các route này vẫn qua.
+                        - match: { prefix: "/api/checkout" }
+                          route: { cluster: frontend }
+                        - match: { prefix: "/api/cart" }
+                          route: { cluster: frontend }
+                        # BROWSE/CATALOG: shed sớm khi vượt trần (token bucket 80 rps,
+                        # số tune trên dev từ Phase 3: ~20rps/pod × 6 max, chừa cho checkout).
+                        - match: { prefix: "/api/products" }
+                          route: { cluster: frontend }
+                          typed_per_filter_config:
+                            envoy.filters.http.local_ratelimit:
+                              "@type": type.googleapis.com/envoy.extensions.filters.http.local_ratelimit.v3.LocalRateLimit
+                              stat_prefix: rl_browse
+                              token_bucket:
+                                max_tokens: 80
+                                tokens_per_fill: 80
+                                fill_interval: 1s
+                              filter_enabled:  { default_value: { numerator: 100, denominator: HUNDRED } }
+                              filter_enforced: { default_value: { numerator: 100, denominator: HUNDRED } }
+                              response_headers_to_add:
+                                - append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                                  header: { key: x-local-rate-limit, value: "browse-shed" }
+                        # HOMEPAGE / catch-all: chặn flood homepage (demo YC4 = cờ flagd
+                        # loadGeneratorFloodHomepage bơm GET / ). Bucket 100 rps.
                         - match: { prefix: "/" }  # Default/catch-all route - keep last since prefix:"/" matches everything
                           route: { cluster: frontend }
+                          typed_per_filter_config:
+                            envoy.filters.http.local_ratelimit:
+                              "@type": type.googleapis.com/envoy.extensions.filters.http.local_ratelimit.v3.LocalRateLimit
+                              stat_prefix: rl_home
+                              token_bucket:
+                                max_tokens: 100
+                                tokens_per_fill: 100
+                                fill_interval: 1s
+                              filter_enabled:  { default_value: { numerator: 100, denominator: HUNDRED } }
+                              filter_enforced: { default_value: { numerator: 100, denominator: HUNDRED } }
+                              response_headers_to_add:
+                                - append_action: OVERWRITE_IF_EXISTS_OR_ADD
+                                  header: { key: x-local-rate-limit, value: "home-shed" }
                 http_filters:
                   - name: envoy.filters.http.grpc_web
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.grpc_web.v3.GrpcWeb
+                  - name: envoy.filters.http.cache
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.cache.v3.CacheConfig
+                      typed_config:
+                        "@type": type.googleapis.com/envoy.extensions.http.cache.file_system_http_cache.v3.FileSystemHttpCacheConfig
+                        manager_config:
+                          thread_pool:
+                            thread_count: 1
+                        cache_path: "/tmp/envoy_cache"
                   - name: envoy.filters.http.fault
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.fault.v3.HTTPFault
@@ -83,6 +131,24 @@ static_resources:
                         header_delay: {}
                         percentage:
                           numerator: 100
+                  # Mandate-19 YC4: local_ratelimit filter (per-route mode). Listener-level
+                  # bucket để trống (max_tokens 0) → không giới hạn tổng ở đây; token bucket
+                  # thật đặt per-route (rl_browse, rl_home) ở route_config trên. Phải đứng
+                  # NGAY TRƯỚC router để chặn trước khi request tới cluster frontend.
+                  - name: envoy.filters.http.local_ratelimit
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.local_ratelimit.v3.LocalRateLimit
+                      stat_prefix: http_local_rate_limiter
+                      # Listener-level bucket đặt rất cao (~không giới hạn tổng) — Envoy
+                      # yêu cầu max_tokens>0. Token bucket THẬT áp per-route (rl_browse/rl_home).
+                      token_bucket:
+                        max_tokens: 100000
+                        tokens_per_fill: 100000
+                        fill_interval: 1s
+                      # filter_enabled=0 ở listener → mặc định KHÔNG shed; chỉ route nào có
+                      # typed_per_filter_config (browse/home) mới bật enforced.
+                      filter_enabled:  { default_value: { numerator: 0, denominator: HUNDRED } }
+                      filter_enforced: { default_value: { numerator: 0, denominator: HUNDRED } }
                   - name: envoy.filters.http.router
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router

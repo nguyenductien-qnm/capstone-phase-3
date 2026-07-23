@@ -22,6 +22,9 @@ option go_package = "genproto/oteldemo";
 
 service CartService {
     rpc AddItem(AddItemRequest) returns (Empty) {}
+    // Atomic client workflow: update the cart and return its post-update snapshot.
+    // AddItem remains for backwards compatibility with existing clients.
+    rpc AddItemAndGetCart(AddItemRequest) returns (Cart) {}
     rpc GetCart(GetCartRequest) returns (Cart) {}
     rpc EmptyCart(EmptyCartRequest) returns (Empty) {}
 }
@@ -143,10 +146,18 @@ message ProductReviewCitation {
     string score = 3;
 }
 
+message TraceStep {
+    string step_name = 1;
+    int64 latency_ms = 2;
+    string status = 3;
+    string detail = 4;
+}
+
 message AskProductAIAssistantResponse {
     string response = 1;
     string trace_id = 2;
     repeated ProductReviewCitation citations = 3;
+    repeated TraceStep trace_steps = 4;
 }
 
 

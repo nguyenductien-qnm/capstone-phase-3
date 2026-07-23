@@ -21,6 +21,11 @@ class CartServiceStub(object):
                 request_serializer=demo__pb2.AddItemRequest.SerializeToString,
                 response_deserializer=demo__pb2.Empty.FromString,
                 )
+        self.AddItemAndGetCart = channel.unary_unary(
+                '/oteldemo.CartService/AddItemAndGetCart',
+                request_serializer=demo__pb2.AddItemRequest.SerializeToString,
+                response_deserializer=demo__pb2.Cart.FromString,
+                )
         self.GetCart = channel.unary_unary(
                 '/oteldemo.CartService/GetCart',
                 request_serializer=demo__pb2.GetCartRequest.SerializeToString,
@@ -44,6 +49,14 @@ class CartServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def AddItemAndGetCart(self, request, context):
+        """Atomic client workflow: update the cart and return its post-update snapshot.
+        AddItem remains for backwards compatibility with existing clients.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def GetCart(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -63,6 +76,11 @@ def add_CartServiceServicer_to_server(servicer, server):
                     servicer.AddItem,
                     request_deserializer=demo__pb2.AddItemRequest.FromString,
                     response_serializer=demo__pb2.Empty.SerializeToString,
+            ),
+            'AddItemAndGetCart': grpc.unary_unary_rpc_method_handler(
+                    servicer.AddItemAndGetCart,
+                    request_deserializer=demo__pb2.AddItemRequest.FromString,
+                    response_serializer=demo__pb2.Cart.SerializeToString,
             ),
             'GetCart': grpc.unary_unary_rpc_method_handler(
                     servicer.GetCart,
@@ -100,6 +118,23 @@ class CartService(object):
         return grpc.experimental.unary_unary(request, target, '/oteldemo.CartService/AddItem',
             demo__pb2.AddItemRequest.SerializeToString,
             demo__pb2.Empty.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def AddItemAndGetCart(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/oteldemo.CartService/AddItemAndGetCart',
+            demo__pb2.AddItemRequest.SerializeToString,
+            demo__pb2.Cart.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 

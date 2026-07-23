@@ -1,0 +1,64 @@
+# SS-03 - R2: Pod money-path trai theo Availability Zone
+Thoi diem: 2026-07-22 10:10:38 UTC
+Cluster: ecommerce-develop-dev-eks (acct 458580846647) | Namespace: techx-develop
+
+YEU CAU MANDATE R2: 'workload trai du nhieu AZ de luong ra tien van giu SLO khi mat tron mot AZ'
+KY VONG: moi service co pod o >=2 AZ khac nhau
+
+GHI CHU: lan kiem dau tien frontend/cart/payment deu nam 1 AZ (us-east-1b) vi zone constraint la
+'ScheduleAnyway' (soft, chi uu tien). Da chay 'kubectl rollout restart' -> scheduler trai lai dung.
+
+== frontend ==
+   frontend-5c8c6f6865-5lzk4  ->  ip-10-60-11-81.ec2.internal  [us-east-1a]
+   frontend-5c8c6f6865-982tj  ->  ip-10-60-12-102.ec2.internal  [us-east-1b]
+   => 2 pod / 2 AZ ['us-east-1a', 'us-east-1b']  PASS
+
+== frontend-proxy ==
+   frontend-proxy-dd4c75cf7-n5bks  ->  ip-10-60-11-81.ec2.internal  [us-east-1a]
+   frontend-proxy-dd4c75cf7-sc9pv  ->  ip-10-60-12-102.ec2.internal  [us-east-1b]
+   => 2 pod / 2 AZ ['us-east-1a', 'us-east-1b']  PASS
+
+== cart ==
+   cart-56666cdfd-2hzqc  ->  ip-10-60-12-251.ec2.internal  [us-east-1b]
+   cart-56666cdfd-jp8q9  ->  ip-10-60-12-102.ec2.internal  [us-east-1b]
+   cart-56666cdfd-xzrhs  ->  ip-10-60-11-81.ec2.internal  [us-east-1a]
+   => 3 pod / 2 AZ ['us-east-1a', 'us-east-1b']  PASS
+
+== checkout ==
+   checkout-bd88cc78b-9lsxc  ->  ip-10-60-12-102.ec2.internal  [us-east-1b]
+   checkout-bd88cc78b-cntxw  ->  ip-10-60-11-81.ec2.internal  [us-east-1a]
+   => 2 pod / 2 AZ ['us-east-1a', 'us-east-1b']  PASS
+
+== product-catalog ==
+   product-catalog-dd8756f5-h2mzz  ->  ip-10-60-12-102.ec2.internal  [us-east-1b]
+   product-catalog-dd8756f5-nj788  ->  ip-10-60-11-81.ec2.internal  [us-east-1a]
+   => 2 pod / 2 AZ ['us-east-1a', 'us-east-1b']  PASS
+
+== currency ==
+   currency-5bcc987d58-c2hfv  ->  ip-10-60-12-102.ec2.internal  [us-east-1b]
+   currency-5bcc987d58-g4q5t  ->  ip-10-60-11-81.ec2.internal  [us-east-1a]
+   => 2 pod / 2 AZ ['us-east-1a', 'us-east-1b']  PASS
+
+== payment ==
+   payment-6b4446cdfb-6h4pj  ->  ip-10-60-11-81.ec2.internal  [us-east-1a]
+   payment-6b4446cdfb-7rmpm  ->  ip-10-60-12-251.ec2.internal  [us-east-1b]
+   payment-6b4446cdfb-bnjbv  ->  ip-10-60-11-81.ec2.internal  [us-east-1a]
+   payment-6b4446cdfb-rdzt7  ->  ip-10-60-12-102.ec2.internal  [us-east-1b]
+   => 4 pod / 2 AZ ['us-east-1a', 'us-east-1b']  PASS
+
+== shipping ==
+   shipping-65cdfb486d-kv52z  ->  ip-10-60-11-81.ec2.internal  [us-east-1a]
+   shipping-65cdfb486d-qbfbr  ->  ip-10-60-12-102.ec2.internal  [us-east-1b]
+   => 2 pod / 2 AZ ['us-east-1a', 'us-east-1b']  PASS
+
+== ad ==
+   ad-6674445b84-ddlq8  ->  ip-10-60-12-102.ec2.internal  [us-east-1b]
+   ad-6674445b84-hkdzm  ->  ip-10-60-11-81.ec2.internal  [us-east-1a]
+   => 2 pod / 2 AZ ['us-east-1a', 'us-east-1b']  PASS
+
+== recommendation ==
+   recommendation-8b6b866bf-7llt5  ->  ip-10-60-12-102.ec2.internal  [us-east-1b]
+   recommendation-8b6b866bf-7wv6c  ->  ip-10-60-11-81.ec2.internal  [us-east-1a]
+   => 2 pod / 2 AZ ['us-east-1a', 'us-east-1b']  PASS
+
+KET QUA: 10/10 service trai >=2 AZ

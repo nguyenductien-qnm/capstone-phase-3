@@ -12,6 +12,7 @@
     {{- $config := set . "serviceAccount" $serviceAccount }}
     {{- $config := set . "observability" $.Values.observability }}
     {{- $config := set . "defaultValues" $.Values.default }}
+    {{- $config := set . "reloader" $.Values.reloader }}
 
     {{- if $config.enabled -}}
         {{- include "techx-corp.deployment" $config -}}

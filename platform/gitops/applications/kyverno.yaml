@@ -1,0 +1,135 @@
+# MANDATE-10 P2 — Kyverno làm admission controller verify chữ ký Cosign trên image.
+#
+# Vai trò trong chuỗi supply-chain: app-build ký digest (keyless, Fulcio/Rekor) ->
+# ClusterPolicy verify-image-signature (platform/policies/kyverno/) chặn ở admission
+# mọi image không mang chữ ký của đúng workflow đó. Bổ sung cho VAP runtime-hardening:
+# VAP trả lời "tag có trôi không", Kyverno trả lời "image này do CI của mình dựng ra
+# hay ai đó push tay".
+#
+# IRSA BẮT BUỘC: 7 node prod đặt IMDSv2 required + hop limit = 1 -> pod KHÔNG mượn
+# được node role qua IMDS, dù node role có AmazonEC2ContainerRegistryReadOnly. Không
+# annotate role ARN = verifyImages fail toàn bộ với lỗi ECR auth. Role tạo bởi module
+# terraform kyverno-irsa (tên cố định theo pattern <project>-<env>-kyverno), trust
+# policy khoá đúng 2 SA dưới đây — đổi tên SA/namespace phải sửa cả Terraform.
+#
+# Ghi chú capacity (INFRA-OPTIMIZE P1, 23/07): NodePool default trần cpu=8 và đã
+# provision đủ 7 node. Sau khi hạ ml-guard 1000m->400m/pod (PR #303) node cao nhất
+# mới dùng 70% CPU request, 3 node dưới 31% -> thừa chỗ cho 2 replica admission +
+# background + reports. Cài lên cụm chật là tự bắn chân: webhook Pending mà
+# failurePolicy=Fail thì chặn luôn pod mới của chính mình.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kyverno
+  namespace: argocd
+  annotations:
+    # Trước workload (techx-corp không đặt wave nên mặc định 0), sau runtime-hardening
+    # (-3). Kyverno phải sẵn sàng trước khi pod app được admit, nếu không policy
+    # không kịp gác vòng sync đầu.
+    argocd.argoproj.io/sync-wave: "-2"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://kyverno.github.io/kyverno/
+    chart: kyverno
+    targetRevision: 3.8.2 # Kyverno v1.18.2 — bản stable mới nhất tra 23/07/2026
+    helm:
+      values: |
+        # --- admission controller: đường đi của mọi request tạo pod ---
+        admissionController:
+          # Default chart là 3 (khuyến nghị HA cho cụm lớn). Cụm này 7 node, 2 replica
+          # đủ chịu 1 node mất mà vẫn còn quorum phục vụ; 3 chỉ tốn chỗ.
+          replicas: 2
+          rbac:
+            serviceAccount:
+              annotations:
+                # Đường values ĐÚNG là admissionController.rbac.serviceAccount.annotations
+                # (không phải serviceAccount.annotations ở gốc — path đó chart bỏ qua
+                # im lặng, IRSA sẽ không được annotate mà không báo lỗi gì).
+                eks.amazonaws.com/role-arn: arn:aws:iam::804372444787:role/ecommerce-dev-kyverno
+          container:
+            # Default chart: 100m/128Mi req, 384Mi limit. Nâng riêng MEMORY vì
+            # verifyImages keyless giữ TUF root + cache Rekor/Fulcio trong RAM, còn
+            # CPU request giữ 100m (verify là I/O-bound: round-trip Rekor, không phải
+            # tính toán).
+            #
+            # limits.cpu BẮT BUỘC phải khai dù chart cố ý bỏ trống: VAP require-resources
+            # (platform/policies/runtime-hardening) đòi đủ 4 field req/limit × cpu/mem,
+            # thiếu là deny thẳng ở admission — chính nó đã chặn lần sync đầu 23/07.
+            # Để 1000m (10× request) cho thoáng: admission nằm trên đường đi của MỌI
+            # request tạo pod, throttle ở đây là kéo chậm cả cụm.
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                cpu: 1000m
+                memory: 512Mi
+          # PDB cho admission controller: drain/rollout không được giết cả 2 replica
+          # cùng lúc, nếu không có khoảng thời gian không webhook nào sống. Bắt buộc
+          # phải có TRƯỚC khi flip failurePolicy=Fail ở bước 2.5.
+          podDisruptionBudget:
+            enabled: true
+            minAvailable: 1
+
+        # --- background controller ---
+        # KHÔNG annotate IRSA: controller này chỉ xử generate/mutate nền, không bao giờ
+        # đọc ECR verify chữ ký. Trust policy của role (module terraform kyverno-irsa)
+        # cũng chỉ khai 2 SA admission + reports — annotate thêm sẽ gắn một ARN mà SA này
+        # không assume được, đẻ ra lỗi AssumeRoleWithWebIdentity định kỳ trong log mà
+        # không đổi được hành vi gì.
+        # Nhưng resources thì PHẢI khai: default chart thiếu limits.cpu -> VAP
+        # require-resources deny. Giữ nguyên con số default cho 3 field còn lại.
+        backgroundController:
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 128Mi
+
+        # --- reports controller: sinh PolicyReport, thứ cần soi ở giai đoạn Audit ---
+        reportsController:
+          rbac:
+            serviceAccount:
+              annotations:
+                eks.amazonaws.com/role-arn: arn:aws:iam::804372444787:role/ecommerce-dev-kyverno
+          # Nâng memory vì reports-controller cũng verify chữ ký khi background-scan
+          # sinh PolicyReport — cùng lý do với admission controller. limits.cpu khai
+          # tường minh vì VAP require-resources (xem admissionController ở trên).
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+        # --- cleanup controller: TẮT ---
+        # Chỉ phục vụ CleanupPolicy (tự xoá resource theo lịch) — không dùng ở mandate
+        # này. Tắt để bớt 1 deployment + 1 webhook khỏi cụm đang chật.
+        cleanupController:
+          enabled: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kyverno
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+  # K8s 1.36 (cụm này) thêm field status.terminatingReplicas vào Deployment mà schema
+  # ArgoCD đang dùng chưa khai báo -> structured-merge diff ném ComparisonError
+  # "field not declared in schema", app kẹt Unknown dù pod chạy bình thường. Bỏ qua
+  # field status này là đủ: nó do controller ghi, không phải thứ Git quản.
+  # Cùng cách đã áp cho external-secrets (xem applications/external-secrets.yaml).
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /status/terminatingReplicas

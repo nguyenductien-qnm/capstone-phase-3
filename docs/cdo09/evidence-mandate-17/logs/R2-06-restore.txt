@@ -1,0 +1,14 @@
+### R2 - UNCORDON + KHÔI PHỤC PHÂN BỐ AZ @ 2026-07-22T10:56:43Z
+node/ip-10-60-11-81.ec2.internal uncordoned
+  restarted frontend
+  restarted frontend-proxy
+  restarted cart
+  restarted checkout
+  restarted payment
+  restarted currency
+  restarted shipping
+  restarted product-catalog
+  restarted ad
+  restarted recommendation
+  restarted quote
+  restarted email

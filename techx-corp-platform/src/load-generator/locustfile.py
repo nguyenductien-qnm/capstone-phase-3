@@ -116,6 +116,8 @@ class WebsiteUser(HttpUser):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.tracer = trace.get_tracer(__name__)
+        # Keep one cart/session identity for this virtual user.
+        self.user_id = str(uuid.uuid1())
 
     @task(1)
     def index(self):
@@ -172,12 +174,12 @@ class WebsiteUser(HttpUser):
     def view_cart(self):
         with self.tracer.start_as_current_span("user_view_cart", context=Context()):
             logging.info("User viewing cart")
-            self.client.get("/api/cart")
+            self.client.get("/api/cart", params={"sessionId": self.user_id})
 
     @task(2)
     def add_to_cart(self, user=""):
         if user == "":
-            user = str(uuid.uuid1())
+            user = self.user_id
         product = random.choice(products)
         quantity = random.choice([1, 2, 3, 4, 5, 10])
         with self.tracer.start_as_current_span("user_add_to_cart", context=Context(), attributes={"user.id": user, "product.id": product, "quantity": quantity}):

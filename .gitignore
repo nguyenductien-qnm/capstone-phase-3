@@ -56,3 +56,9 @@ _baseline-phase3/
 
 # CDO-83 evidence output (runtime snapshots)
 docs/templates/cdo/evidence/
+
+# Local agents configuration
+.agents/
+
+# Jira Agent package (contains .env with API tokens)
+Jira_Agent_Week2_Package/

@@ -19,6 +19,9 @@ import (
 	"syscall"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/singleflight"
+
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/log/global"
 	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
@@ -36,7 +39,6 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/contrib/instrumentation/runtime"
 	"go.opentelemetry.io/otel"
-	otelcodes "go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
@@ -47,17 +49,15 @@ import (
 	sdkresource "go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
+	pb "github.com/open-telemetry/techx-corp/src/checkout/genproto/oteldemo"
+	"github.com/open-telemetry/techx-corp/src/checkout/kafka"
+	"github.com/open-telemetry/techx-corp/src/checkout/money"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/proto"
-
-	pb "github.com/open-telemetry/techx-corp/src/checkout/genproto/oteldemo"
-	"github.com/open-telemetry/techx-corp/src/checkout/kafka"
-	"github.com/open-telemetry/techx-corp/src/checkout/money"
 )
 
 //go:generate go install google.golang.org/protobuf/cmd/protoc-gen-go
@@ -68,6 +68,11 @@ var logger *slog.Logger
 var tracer trace.Tracer
 var resource *sdkresource.Resource
 var initResourcesOnce sync.Once
+
+const (
+	checkoutDependencyTimeout = 750 * time.Millisecond
+	maxOrderItemConcurrency  = 4
+)
 
 func initResource() *sdkresource.Resource {
 	initResourcesOnce.Do(func() {
@@ -143,7 +148,7 @@ type checkout struct {
 	paymentSvcAddr        string
 	kafkaBrokerSvcAddr    string
 	pb.UnimplementedCheckoutServiceServer
-	KafkaProducerClient     sarama.AsyncProducer
+	orderEventPublisher     OrderEventPublisher
 	shippingSvcClient       pb.ShippingServiceClient
 	productCatalogSvcClient pb.ProductCatalogServiceClient
 	cartSvcClient           pb.CartServiceClient
@@ -152,6 +157,8 @@ type checkout struct {
 	paymentSvcClient        pb.PaymentServiceClient
 	
 	dbPool                  *pgxpool.Pool
+	productCatalogGroup     singleflight.Group
+	currencyGroup           singleflight.Group
 }
 
 func main() {
@@ -254,10 +261,16 @@ func main() {
 
 	if svc.kafkaBrokerSvcAddr != "" {
 		brokers := strings.Split(svc.kafkaBrokerSvcAddr, ",")
-		svc.KafkaProducerClient, err = kafka.CreateKafkaProducer(brokers, logger)
-		if err != nil {
-			logger.Error(err.Error())
+		producer, producerErr := kafka.CreateKafkaProducer(brokers, logger)
+		svc.orderEventPublisher = newKafkaOrderEventPublisher(producer, kafkaPublishTimeout())
+		if producerErr != nil {
+			logger.Error(producerErr.Error())
 		}
+		defer func() {
+			if closeErr := svc.orderEventPublisher.Close(); closeErr != nil {
+				logger.Error(fmt.Sprintf("failed to close Kafka publisher: %v", closeErr))
+			}
+		}()
 	}
 
 	logger.Info(fmt.Sprintf("service config: %+v", svc))
@@ -272,55 +285,13 @@ func main() {
 	)
 	pb.RegisterCheckoutServiceServer(srv, svc)
 
-	healthcheck := health.NewServer()
+	healthcheck := newCheckoutHealthServer()
 	healthpb.RegisterHealthServer(srv, healthcheck)
-
-	// CDO-80 (Option C): tách liveness khỏi readiness để dependency (Kafka) giật
-	// không gây restart pod (cascade-restart). Liveness chỉ phản ánh "process còn sống".
-	healthcheck.SetServingStatus("liveness", healthpb.HealthCheckResponse_SERVING)
-	// Giữ tương thích ngược cho probe không truyền service name.
-	healthcheck.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
-
-	// Readiness ĐỘNG: kiểm tra kết nối TCP tới broker Kafka định kỳ (giống initContainer
-	// wait-for-kafka). Kafka mất → NOT_SERVING (pod bị kéo khỏi Endpoints) nhưng KHÔNG
-	// restart; Kafka hồi → SERVING trở lại. sarama.AsyncProducer không có API ping nên
-	// dùng net.DialTimeout thay vì phụ thuộc internals của producer.
-	go func() {
-		ticker := time.NewTicker(10 * time.Second)
-		defer ticker.Stop()
-		updateReadiness := func() {
-			if svc.kafkaBrokerSvcAddr == "" { // không cấu hình Kafka → coi như sẵn sàng
-				healthcheck.SetServingStatus("readiness", healthpb.HealthCheckResponse_SERVING)
-				return
-			}
-			reachable := false
-			for _, broker := range strings.Split(svc.kafkaBrokerSvcAddr, ",") {
-				conn, err := net.DialTimeout("tcp", broker, 2*time.Second)
-				if err == nil {
-					conn.Close()
-					reachable = true
-					break
-				}
-			}
-			if reachable {
-				healthcheck.SetServingStatus("readiness", healthpb.HealthCheckResponse_SERVING)
-			} else {
-				healthcheck.SetServingStatus("readiness", healthpb.HealthCheckResponse_NOT_SERVING)
-			}
-		}
-		updateReadiness()
-		for range ticker.C {
-			updateReadiness()
-		}
-	}()
-
-	logger.Info(fmt.Sprintf("starting to listen on tcp: %q", lis.Addr().String()))
-	err = srv.Serve(lis)
-	logger.Error(err.Error())
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGKILL)
 	defer cancel()
 
+	logger.Info(fmt.Sprintf("starting to listen on tcp: %q", lis.Addr().String()))
 	go func() {
 		if err := srv.Serve(lis); err != nil {
 			logger.Error(err.Error())
@@ -331,6 +302,17 @@ func main() {
 
 	srv.GracefulStop()
 	logger.Info("Checkout gRPC server stopped")
+}
+
+func newCheckoutHealthServer() *health.Server {
+	healthcheck := health.NewServer()
+	// Kafka post-processing is degraded independently through publisher metrics
+	// and logs. It must not remove the revenue path from service endpoints.
+	healthcheck.SetServingStatus("liveness", healthpb.HealthCheckResponse_SERVING)
+	healthcheck.SetServingStatus("readiness", healthpb.HealthCheckResponse_SERVING)
+	// Keep compatibility with probes that omit the service name.
+	healthcheck.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
+	return healthcheck
 }
 
 func mustMapEnv(target *string, envKey string) {
@@ -399,7 +381,7 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 	total := &pb.Money{CurrencyCode: req.UserCurrency, Units: 0, Nanos: 0}
 	total = money.Must(money.Sum(total, prep.shippingCostLocalized))
 	for _, it := range prep.orderItems {
-		multPrice := money.MultiplySlow(it.Cost, uint32(it.GetItem().GetQuantity()))
+		multPrice := money.Multiply(it.Cost, uint32(it.GetItem().GetQuantity()))
 		total = money.Must(money.Sum(total, multPrice))
 	}
 
@@ -572,17 +554,36 @@ func (cs *checkout) prepareOrderItemsAndShippingQuoteFromCart(ctx context.Contex
 	if err != nil {
 		return out, fmt.Errorf("cart failure: %+v", err)
 	}
-	orderItems, err := cs.prepOrderItems(ctx, cartItems, userCurrency)
-	if err != nil {
-		return out, fmt.Errorf("failed to prepare order: %+v", err)
-	}
-	shippingUSD, err := cs.quoteShipping(ctx, address, cartItems)
-	if err != nil {
-		return out, fmt.Errorf("shipping quote failure: %+v", err)
-	}
-	shippingPrice, err := cs.convertCurrency(ctx, shippingUSD, userCurrency)
-	if err != nil {
-		return out, fmt.Errorf("failed to convert shipping cost to currency: %+v", err)
+
+	group, groupCtx := errgroup.WithContext(ctx)
+	var orderItems []*pb.OrderItem
+	var shippingPrice *pb.Money
+
+	group.Go(func() error {
+		var prepErr error
+		orderItems, prepErr = cs.prepOrderItems(groupCtx, cartItems, userCurrency)
+		if prepErr != nil {
+			return fmt.Errorf("failed to prepare order: %+v", prepErr)
+		}
+		return nil
+	})
+
+	group.Go(func() error {
+		shippingUSD, quoteErr := cs.quoteShipping(groupCtx, address, cartItems)
+		if quoteErr != nil {
+			return fmt.Errorf("shipping quote failure: %+v", quoteErr)
+		}
+
+		var conversionErr error
+		shippingPrice, conversionErr = cs.convertCurrency(groupCtx, shippingUSD, userCurrency)
+		if conversionErr != nil {
+			return fmt.Errorf("failed to convert shipping cost to currency: %+v", conversionErr)
+		}
+		return nil
+	})
+
+	if err := group.Wait(); err != nil {
+		return out, err
 	}
 
 	out.shippingCostLocalized = shippingPrice
@@ -616,6 +617,9 @@ func mustCreateClient(svcAddr string) *grpc.ClientConn {
 }
 
 func (cs *checkout) quoteShipping(ctx context.Context, address *pb.Address, items []*pb.CartItem) (*pb.Money, error) {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
 	quotePayload, err := json.Marshal(map[string]interface{}{
 		"address": address,
 		"items":   items,
@@ -653,7 +657,9 @@ func (cs *checkout) quoteShipping(ctx context.Context, address *pb.Address, item
 }
 
 func (cs *checkout) getUserCart(ctx context.Context, userID string) ([]*pb.CartItem, error) {
-	cart, err := cs.cartSvcClient.GetCart(ctx, &pb.GetCartRequest{UserId: userID})
+	rpcCtx, cancel := context.WithTimeout(ctx, checkoutDependencyTimeout)
+	defer cancel()
+	cart, err := cs.cartSvcClient.GetCart(rpcCtx, &pb.GetCartRequest{UserId: userID})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user cart during checkout: %+v", err)
 	}
@@ -661,7 +667,9 @@ func (cs *checkout) getUserCart(ctx context.Context, userID string) ([]*pb.CartI
 }
 
 func (cs *checkout) emptyUserCart(ctx context.Context, userID string) error {
-	if _, err := cs.cartSvcClient.EmptyCart(ctx, &pb.EmptyCartRequest{UserId: userID}); err != nil {
+	rpcCtx, cancel := context.WithTimeout(ctx, checkoutDependencyTimeout)
+	defer cancel()
+	if _, err := cs.cartSvcClient.EmptyCart(rpcCtx, &pb.EmptyCartRequest{UserId: userID}); err != nil {
 		return fmt.Errorf("failed to empty user cart during checkout: %+v", err)
 	}
 	return nil
@@ -669,31 +677,51 @@ func (cs *checkout) emptyUserCart(ctx context.Context, userID string) error {
 
 func (cs *checkout) prepOrderItems(ctx context.Context, items []*pb.CartItem, userCurrency string) ([]*pb.OrderItem, error) {
 	out := make([]*pb.OrderItem, len(items))
+	group, groupCtx := errgroup.WithContext(ctx)
+	group.SetLimit(maxOrderItemConcurrency)
 
 	for i, item := range items {
-		product, err := cs.productCatalogSvcClient.GetProduct(ctx, &pb.GetProductRequest{Id: item.GetProductId()})
-		if err != nil {
-			return nil, fmt.Errorf("failed to get product #%q", item.GetProductId())
-		}
-		price, err := cs.convertCurrency(ctx, product.GetPriceUsd(), userCurrency)
-		if err != nil {
-			return nil, fmt.Errorf("failed to convert price of %q to %s", item.GetProductId(), userCurrency)
-		}
-		out[i] = &pb.OrderItem{
-			Item: item,
-			Cost: price}
+		itemIndex, cartItem := i, item
+		group.Go(func() error {
+			v, err, _ := cs.productCatalogGroup.Do(cartItem.GetProductId(), func() (interface{}, error) {
+				rpcCtx, cancel := context.WithTimeout(groupCtx, checkoutDependencyTimeout)
+				defer cancel()
+				return cs.productCatalogSvcClient.GetProduct(rpcCtx, &pb.GetProductRequest{Id: cartItem.GetProductId()})
+			})
+			if err != nil {
+				return fmt.Errorf("failed to get product #%q: %w", cartItem.GetProductId(), err)
+			}
+			product := v.(*pb.Product)
+			price, err := cs.convertCurrency(groupCtx, product.GetPriceUsd(), userCurrency)
+			if err != nil {
+				return fmt.Errorf("failed to convert price of %q to %s: %w", cartItem.GetProductId(), userCurrency, err)
+			}
+			out[itemIndex] = &pb.OrderItem{
+				Item: cartItem,
+				Cost: price,
+			}
+			return nil
+		})
+	}
+	if err := group.Wait(); err != nil {
+		return nil, err
 	}
 	return out, nil
 }
 
 func (cs *checkout) convertCurrency(ctx context.Context, from *pb.Money, toCurrency string) (*pb.Money, error) {
-	result, err := cs.currencySvcClient.Convert(ctx, &pb.CurrencyConversionRequest{
-		From:   from,
-		ToCode: toCurrency})
+	key := fmt.Sprintf("%s:%d:%d:%s", from.GetCurrencyCode(), from.GetUnits(), from.GetNanos(), toCurrency)
+	v, err, _ := cs.currencyGroup.Do(key, func() (interface{}, error) {
+		rpcCtx, cancel := context.WithTimeout(ctx, checkoutDependencyTimeout)
+		defer cancel()
+		return cs.currencySvcClient.Convert(rpcCtx, &pb.CurrencyConversionRequest{
+			From:   from,
+			ToCode: toCurrency})
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert currency: %+v", err)
 	}
-	return result, err
+	return v.(*pb.Money), nil
 }
 
 func (cs *checkout) chargeCard(ctx context.Context, amount *pb.Money, paymentInfo *pb.CreditCardInfo) (string, error) {
@@ -704,7 +732,9 @@ func (cs *checkout) chargeCard(ctx context.Context, amount *pb.Money, paymentInf
 		paymentService = pb.NewPaymentServiceClient(c)
 	}
 
-	paymentResp, err := paymentService.Charge(ctx, &pb.ChargeRequest{
+	rpcCtx, cancel := context.WithTimeout(ctx, checkoutDependencyTimeout)
+	defer cancel()
+	paymentResp, err := paymentService.Charge(rpcCtx, &pb.ChargeRequest{
 		Amount:     amount,
 		CreditCard: paymentInfo})
 	if err != nil {
@@ -771,6 +801,9 @@ func (cs *checkout) validateAddress(ctx context.Context, address *pb.Address) er
 }
 
 func (cs *checkout) sendOrderConfirmation(ctx context.Context, email string, order *pb.OrderResult) error {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
 	emailPayload, err := json.Marshal(map[string]interface{}{
 		"email": email,
 		"order": order,
@@ -793,6 +826,9 @@ func (cs *checkout) sendOrderConfirmation(ctx context.Context, email string, ord
 }
 
 func (cs *checkout) shipOrder(ctx context.Context, address *pb.Address, items []*pb.CartItem) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
 	shipPayload, err := json.Marshal(map[string]interface{}{
 		"address": address,
 		"items":   items,
@@ -895,19 +931,31 @@ func (cs *checkout) sendToPostProcessor(ctx context.Context, result *pb.OrderRes
 
 	ffValue := cs.getIntFeatureFlag(ctx, "kafkaQueueProblems")
 	if ffValue > 0 {
-		logger.Info("Warning: FeatureFlag 'kafkaQueueProblems' is activated, overloading queue now.")
-		for i := 0; i < ffValue; i++ {
-			go func(i int) {
-				cs.KafkaProducerClient.Input() <- &msg
-				_ = <-cs.KafkaProducerClient.Successes()
-			}(i)
-		}
-		logger.Info(fmt.Sprintf("Done with #%d messages for overload simulation.", ffValue))
+		cs.publishKafkaQueueProblems(ctx, result, ffValue)
 	}
+
+	return publishErr
+}
+
+func (cs *checkout) publishKafkaQueueProblems(ctx context.Context, result *pb.OrderResult, ffValue int) {
+	logger.Info("Warning: FeatureFlag 'kafkaQueueProblems' is activated, overloading queue now.")
+	for i := 0; i < ffValue; i++ {
+		go func(i int) {
+			incidentCtx := context.WithoutCancel(ctx)
+			if err := cs.orderEventPublisher.PublishIncident(incidentCtx, result); err != nil {
+				logger.Error(fmt.Sprintf("kafkaQueueProblems publish %d failed: %v", i, err))
+			}
+		}(i)
+	}
+	logger.Info(fmt.Sprintf("Done with #%d messages for overload simulation.", ffValue))
 }
 
 func createProducerSpan(ctx context.Context, msg *sarama.ProducerMessage) trace.Span {
-	spanContext, span := tracer.Start(
+	spanTracer := tracer
+	if spanTracer == nil {
+		spanTracer = otel.Tracer("checkout")
+	}
+	spanContext, span := spanTracer.Start(
 		ctx,
 		fmt.Sprintf("%s publish", msg.Topic),
 		trace.WithSpanKind(trace.SpanKindProducer),

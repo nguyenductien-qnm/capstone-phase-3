@@ -23,6 +23,7 @@ namespace oteldemo {
 
 static const char* CartService_method_names[] = {
   "/oteldemo.CartService/AddItem",
+  "/oteldemo.CartService/AddItemAndGetCart",
   "/oteldemo.CartService/GetCart",
   "/oteldemo.CartService/EmptyCart",
 };
@@ -35,8 +36,9 @@ std::unique_ptr< CartService::Stub> CartService::NewStub(const std::shared_ptr< 
 
 CartService::Stub::Stub(const std::shared_ptr< ::grpc::ChannelInterface>& channel, const ::grpc::StubOptions& options)
   : channel_(channel), rpcmethod_AddItem_(CartService_method_names[0], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_GetCart_(CartService_method_names[1], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_EmptyCart_(CartService_method_names[2], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_AddItemAndGetCart_(CartService_method_names[1], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_GetCart_(CartService_method_names[2], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_EmptyCart_(CartService_method_names[3], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
   {}
 
 ::grpc::Status CartService::Stub::AddItem(::grpc::ClientContext* context, const ::oteldemo::AddItemRequest& request, ::oteldemo::Empty* response) {
@@ -58,6 +60,29 @@ void CartService::Stub::async::AddItem(::grpc::ClientContext* context, const ::o
 ::grpc::ClientAsyncResponseReader< ::oteldemo::Empty>* CartService::Stub::AsyncAddItemRaw(::grpc::ClientContext* context, const ::oteldemo::AddItemRequest& request, ::grpc::CompletionQueue* cq) {
   auto* result =
     this->PrepareAsyncAddItemRaw(context, request, cq);
+  result->StartCall();
+  return result;
+}
+
+::grpc::Status CartService::Stub::AddItemAndGetCart(::grpc::ClientContext* context, const ::oteldemo::AddItemRequest& request, ::oteldemo::Cart* response) {
+  return ::grpc::internal::BlockingUnaryCall< ::oteldemo::AddItemRequest, ::oteldemo::Cart, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), rpcmethod_AddItemAndGetCart_, context, request, response);
+}
+
+void CartService::Stub::async::AddItemAndGetCart(::grpc::ClientContext* context, const ::oteldemo::AddItemRequest* request, ::oteldemo::Cart* response, std::function<void(::grpc::Status)> f) {
+  ::grpc::internal::CallbackUnaryCall< ::oteldemo::AddItemRequest, ::oteldemo::Cart, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(stub_->channel_.get(), stub_->rpcmethod_AddItemAndGetCart_, context, request, response, std::move(f));
+}
+
+void CartService::Stub::async::AddItemAndGetCart(::grpc::ClientContext* context, const ::oteldemo::AddItemRequest* request, ::oteldemo::Cart* response, ::grpc::ClientUnaryReactor* reactor) {
+  ::grpc::internal::ClientCallbackUnaryFactory::Create< ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(stub_->channel_.get(), stub_->rpcmethod_AddItemAndGetCart_, context, request, response, reactor);
+}
+
+::grpc::ClientAsyncResponseReader< ::oteldemo::Cart>* CartService::Stub::PrepareAsyncAddItemAndGetCartRaw(::grpc::ClientContext* context, const ::oteldemo::AddItemRequest& request, ::grpc::CompletionQueue* cq) {
+  return ::grpc::internal::ClientAsyncResponseReaderHelper::Create< ::oteldemo::Cart, ::oteldemo::AddItemRequest, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), cq, rpcmethod_AddItemAndGetCart_, context, request);
+}
+
+::grpc::ClientAsyncResponseReader< ::oteldemo::Cart>* CartService::Stub::AsyncAddItemAndGetCartRaw(::grpc::ClientContext* context, const ::oteldemo::AddItemRequest& request, ::grpc::CompletionQueue* cq) {
+  auto* result =
+    this->PrepareAsyncAddItemAndGetCartRaw(context, request, cq);
   result->StartCall();
   return result;
 }
@@ -122,6 +147,16 @@ CartService::Service::Service() {
   AddMethod(new ::grpc::internal::RpcServiceMethod(
       CartService_method_names[1],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
+      new ::grpc::internal::RpcMethodHandler< CartService::Service, ::oteldemo::AddItemRequest, ::oteldemo::Cart, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
+          [](CartService::Service* service,
+             ::grpc::ServerContext* ctx,
+             const ::oteldemo::AddItemRequest* req,
+             ::oteldemo::Cart* resp) {
+               return service->AddItemAndGetCart(ctx, req, resp);
+             }, this)));
+  AddMethod(new ::grpc::internal::RpcServiceMethod(
+      CartService_method_names[2],
+      ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< CartService::Service, ::oteldemo::GetCartRequest, ::oteldemo::Cart, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](CartService::Service* service,
              ::grpc::ServerContext* ctx,
@@ -130,7 +165,7 @@ CartService::Service::Service() {
                return service->GetCart(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      CartService_method_names[2],
+      CartService_method_names[3],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< CartService::Service, ::oteldemo::EmptyCartRequest, ::oteldemo::Empty, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](CartService::Service* service,
@@ -145,6 +180,13 @@ CartService::Service::~Service() {
 }
 
 ::grpc::Status CartService::Service::AddItem(::grpc::ServerContext* context, const ::oteldemo::AddItemRequest* request, ::oteldemo::Empty* response) {
+  (void) context;
+  (void) request;
+  (void) response;
+  return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+}
+
+::grpc::Status CartService::Service::AddItemAndGetCart(::grpc::ServerContext* context, const ::oteldemo::AddItemRequest* request, ::oteldemo::Cart* response) {
   (void) context;
   (void) request;
   (void) response;
