@@ -38,7 +38,7 @@ CART_SERVICE_ADDR = os.environ.get(
 )
 
 # Per-RPC deadline. Spec §6: 2s for microservice calls, increased to 5s to prevent timeouts.
-_RPC_TIMEOUT = float(os.environ.get("COPILOT_RPC_TIMEOUT", "5.0"))
+_RPC_TIMEOUT = float(os.environ.get("COPILOT_RPC_TIMEOUT", "25.0"))
 
 
 def _error_json(message: str) -> str:
