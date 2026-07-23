@@ -695,13 +695,12 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                         # --- INPUT rail L1: always-on regex sanitize (PII + obvious injection, per-field) ---
                         function_response = sanitize_json_for_llm(function_response)
                         logger.info(f"[Guardrail L1] review sanitized for product_id={tool_input.get('product_id')}")
-                        # NOTE (23/07): L2 apply_guardrail_input REMOVED here. Reviews come from
-                        # our own DB — they are NOT untrusted user input. L1 regex sanitize already
-                        # masks PII + strips obvious injection patterns. The L2 call was invoking
-                        # Bedrock Nova judge (~3-5s) + ml-guard protect (~2s), totalling ~8-14s
-                        # which consumed the entire 10s gRPC deadline, causing 100% DeadlineTooClose
-                        # failures on production (every AI summary fell back to MOCK_SUMMARY_VI).
-                        # User input is still guarded by apply_guardrail_input in the copilot flow.
+                        # --- INPUT rail L2 (TF1-61): Bedrock prompt-attack on untrusted review text.
+                        # Fail-CLOSED while enabled → block on error. Off → L1 regex already applied. ---
+                        blocked_rev, _ = apply_guardrail_input(get_bedrock_primary_client(), function_response)
+                        if blocked_rev:
+                            logger.warning(f"[Guardrail INPUT] Bedrock blocked review for product_id={tool_input.get('product_id')}.")
+                            function_response = json.dumps({"error": "Content blocked by security guardrail."})
                         # -----------------------------------------------------------------------
                         logger.info(f"Function response for fetch_product_reviews: '{function_response}'")
                     elif tool_name == "fetch_product_info":

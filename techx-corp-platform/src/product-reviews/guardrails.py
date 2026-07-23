@@ -348,8 +348,10 @@ def sanitize_text(text):
         return text
     text = _INVISIBLE_CHARS_RE.sub("", text)
     text = redact_pii(text)
-    if LOCAL_ML_GUARD:
-        text, _ = _apply_protect(text, anonymize_only=True)
+    # NOTE: _apply_protect(anonymize_only=True) was removed here because
+    # calling a remote HTTP API per-field inside a JSON tree causes severe latency
+    # (10+ seconds for 5 reviews). PII is already handled by redact_pii regex.
+    # The whole JSON string still goes through apply_guardrail_input's phase-2.
     if _OBVIOUS_INJECTION.search(text):
         text = _OBVIOUS_INJECTION.sub('[filtered]', text)
     return text[:MAX_FIELD_CHARS]
