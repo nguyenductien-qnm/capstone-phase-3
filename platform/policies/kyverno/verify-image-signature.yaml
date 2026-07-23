@@ -30,13 +30,22 @@ metadata:
     # không có gì để drift, còn Deployment trong Git giữ nguyên tag đọc được.
     pod-policies.kyverno.io/autogen-controllers: "none"
 spec:
-  # Audit: chỉ ghi PolicyReport, KHÔNG chặn pod. Bước 2.5 đổi thành Enforce.
-  validationFailureAction: Audit
+  # ENFORCE (flip 23/07 sau soak Audit ~2h): image khớp imageReferences mà thiếu chữ ký
+  # hợp lệ bị CHẶN ở admission. Điều kiện flip đã đủ:
+  #   - 29 PolicyReport, PASS=29 FAIL=0; 80 lần "verification succeeded", 0 failed.
+  #   - 2 image aiops đã qua app-build (build-scan-ký) — không còn pod nào thiếu chữ ký.
+  #   - PDB admission controller minAvailable=1 Healthy.
+  validationFailureAction: Enforce
   background: true
-  # Ignore: cụm từng chật, pod webhook bị evict/Pending mà failurePolicy=Fail thì MỌI
-  # pod mới trong techx-tf1 bị chặn oan. Chuyển Fail CÙNG LÚC flip Enforce, và chỉ khi
-  # PDB minAvailable=1 của admission controller đã có (đã bật trong Application).
-  failurePolicy: Ignore
+  # Fail: webhook không trả lời được thì TỪ CHỐI request thay vì cho qua. Đi cùng
+  # Enforce mới có nghĩa — Enforce mà Ignore thì webhook chết là policy vô hiệu im lặng,
+  # đúng kiểu gate mù. An toàn nhờ 2 thứ: PDB minAvailable=1 (drain/rollout không giết
+  # cả 2 replica) và cụm đã hết chật sau khi hạ ml-guard (node cao nhất 70% CPU request).
+  failurePolicy: Fail
+  # 30s: verify keyless lần ĐẦU của mỗi digest phải tải TUF root + gọi Rekor/Fulcio qua
+  # NAT. Đo thật 23/07: lần đầu ~70s (cold TUF), các lần sau 2.6-4.8s so với 2.4s của
+  # image ngoài policy -> chi phí verify khi đã ấm chỉ ~0.2-2.4s. Giữ 30s vì sau lần đầu
+  # cache đã ấm; pod bị timeout sẽ retry và lần 2 qua ngay.
   webhookTimeoutSeconds: 30
   rules:
     - name: verify-techx-corp-images
@@ -85,16 +94,22 @@ spec:
           # câu: "image này có phải app-build ký không".
 
 # ---------------------------------------------------------------------------
-# BƯỚC 2.5 — flip sang Enforce (làm qua Git, KHÔNG kubectl patch: selfHeal revert)
+# VẬN HÀNH
 # ---------------------------------------------------------------------------
-#   validationFailureAction: Audit  -> Enforce
-#   failurePolicy:           Ignore -> Fail
+# ROLLBACK khi policy chặn oan (theo thứ tự leo thang):
+#   1. Nhẹ nhất — hạ về Audit: sửa 2 dòng ở spec (Enforce->Audit, Fail->Ignore) rồi
+#      merge. Policy vẫn ghi report, hết chặn.
+#   2. Gấp — gỡ hẳn policy: `kubectl delete clusterpolicy verify-image-signature`.
+#      Thoát ngay, không cần gỡ Kyverno (đây là lý do policy tách Application riêng).
+#      PHẢI revert cả Git, nếu không selfHeal dựng lại sau ~3 phút.
+# KHÔNG `kubectl patch` để đổi Audit/Enforce: ArgoCD selfHeal revert về Git.
 #
-# Điều kiện trước khi flip:
-#   1. PolicyReport soi đủ lâu (lý tưởng qua 1 lần rollout thật), chỉ còn đúng những
-#      pod mình CHỦ ĐỘNG biết là chưa ký.
-#   2. 2 image aiops đã đi qua app-build (build-scan-ký) — xem job build-aiops.
-#   3. PDB admission controller minAvailable=1 đã Healthy.
+# THÊM IMAGE MỚI vào cụm: image phải do app-build.yaml ký (subject ở attestor trên).
+# Image push tay sẽ bị CHẶN — đó là mục đích. Cần ngoại lệ thật thì thu hẹp
+# imageReferences hoặc thêm PolicyException có thời hạn, TUYỆT ĐỐI không nới attestor.
 #
-# Rollback nếu policy sai: `kubectl delete clusterpolicy verify-image-signature`
-# thoát ngay, không cần gỡ cả Kyverno. (Nhớ revert cả Git, nếu không selfHeal dựng lại.)
+# SỐ ĐO THAM CHIẾU (23/07, lúc flip): admission latency với image qua policy 2.6-4.8s
+# so với 2.4s của image ngoài policy; riêng lần verify ĐẦU của một digest ~70s vì phải
+# tải TUF root. Kyverno hiện KHÔNG cache được token ECR (readOnlyRootFilesystem chặn
+# ghi /.ecr — log "Could not save cache"), nên mỗi verify tốn thêm 1 round-trip ECR.
+# Muốn giảm: mount emptyDir vào /.ecr trong values chart.
