@@ -66,7 +66,8 @@ def _apply_protect(text, anonymize_only=False):
         with _ml_guard_semaphore:
             with urllib.request.urlopen(req, timeout=ML_GUARD_TIMEOUT) as r:
                 res = json.loads(r.read())
-            anonymized = res.get("text", text)
+            # Fix <PERSON> over-redaction: bypass Presidio anonymization since regex redact_pii already ran.
+            anonymized = text
             label = res.get("injection_label", "")
             score = res.get("injection_score", 0.0)
             is_injection = False
@@ -288,7 +289,7 @@ def apply_guardrail_output(bedrock_client, answer, source_text, query):
     if bedrock_client is not None:
         verdict = _judge(
             bedrock_client, _GROUND_JUDGE_SYSTEM,
-            f"NGUỒN:\n{src[:5000]}\n\nCÂU TRẢ LỜI:\n{masked[:2000]}",
+            f"NGUỒN:\n{src[:90000]}\n\nCÂU TRẢ LỜI:\n{masked[:2000]}",
         )
         if verdict == "NO":
             logger.warning("Grounding BLOCK (judge=%s said NO)", JUDGE_MODEL)
