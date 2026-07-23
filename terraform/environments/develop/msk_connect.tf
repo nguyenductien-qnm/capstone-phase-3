@@ -152,6 +152,10 @@ resource "aws_mskconnect_connector" "debezium_postgres" {
     "key.converter"                  = "org.apache.kafka.connect.storage.StringConverter"
     "value.converter"                = "org.apache.kafka.connect.json.JsonConverter"
     "value.converter.schemas.enable" = "false"
+    "transforms"                     = "reroute"
+    "transforms.reroute.type"        = "org.apache.kafka.connect.transforms.RegexRouter"
+    "transforms.reroute.regex"       = ".*"
+    "transforms.reroute.replacement" = "domain.checkout.orders"
   }
 
   kafka_cluster {

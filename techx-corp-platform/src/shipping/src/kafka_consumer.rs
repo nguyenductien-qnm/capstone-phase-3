@@ -27,7 +27,7 @@ pub fn start_kafka_consumer() {
     config
         .set("bootstrap.servers", &kafka_addr)
         .set("group.id", &group_id)
-        .set("enable.auto.commit", "true")
+        .set("enable.auto.commit", "false")
         .set("auto.offset.reset", "earliest");
 
     if !kafka_user.is_empty() && !kafka_password.is_empty() {

@@ -126,7 +126,7 @@ networkPolicy:
         consumers: [accounting, checkout, fraud-detection]
       - name: rds              # Postgres (DB_CONNECTION_STRING)
         ports: [5432]
-        consumers: [accounting, product-catalog, product-reviews]
+        consumers: [accounting, checkout, product-catalog, product-reviews]
   # per-service INGRESS: mỗi đích chỉ nhận từ đúng caller (đồ thị phụ thuộc đã xác minh từ *_ADDR).
   # flagd xử lý riêng ở trên; DB/queue (valkey-cart, kafka) và service lá cũng liệt kê.
   serviceIngress:
