@@ -12,10 +12,10 @@ components:
       tag: 1.0-cart-a0a954f
   checkout:
     imageOverride:
-      tag: 1.0-checkout-a0a954f
+      tag: 1.0-checkout-eb2d19e
   currency:
     imageOverride:
-      tag: 1.0-currency-a0a954f
+      tag: 1.0-currency-eb2d19e
   fraud-detection:
     imageOverride:
       tag: 1.0-fraud-detection-a0a954f
@@ -42,22 +42,22 @@ components:
       tag: 1.0-payment-a0a954f
   product-catalog:
     imageOverride:
-      tag: 1.0-product-catalog-a0a954f
+      tag: 1.0-product-catalog-eb2d19e
   product-reviews:
     imageOverride:
-      tag: 1.0-product-reviews-a0a954f
+      tag: 1.0-product-reviews-eb2d19e
   quote:
     imageOverride:
       tag: 1.0-quote-a0a954f
   recommendation:
     imageOverride:
-      tag: 1.0-recommendation-a0a954f
+      tag: 1.0-recommendation-eb2d19e
   shipping:
     imageOverride:
       tag: 1.0-shipping-a0a954f
   shopping-copilot:
     imageOverride:
-      tag: 1.0-shopping-copilot-a0a954f
+      tag: 1.0-shopping-copilot-eb2d19e
   email:
     imageOverride:
       tag: 1.0-email-a0a954f
