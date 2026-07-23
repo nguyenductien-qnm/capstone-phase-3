@@ -5,8 +5,9 @@ No command in this document was run during Prompt 6.
 ## Mandatory preflight
 
 1. Confirm account (redacted in evidence), `us-east-1`, cluster
-   `ecommerce-dev-eks`, namespace `techx-tf1`, and Argo app `techx-corp`.
-2. Confirm the rendered diff changes only the sandbox OTel exporter lists and
+   `ecommerce-develop-dev-eks`, namespace `techx-develop`, and Argo app
+   `develop-techx-corp`.
+2. Confirm the rendered diff changes only the develop OTel exporter lists and
    one OpenSearch ISM ConfigMap/PostSync Job.
 3. Obtain owner approval for 3-day operational-log retention.
 4. Create and verify an OpenSearch data backup/EBS snapshot if old operational
@@ -27,7 +28,7 @@ Verify no pipeline references `debug`, accepted/rejected counters are healthy,
 Jaeger search works, OpenSearch receives a fresh document, and every SLO query
 returns the same semantic series as before.
 
-Rollback: revert only the sandbox exporter override and let Argo sync. This
+Rollback: revert only the develop exporter override and let Argo sync. This
 restores console copies and does not require backend data recovery.
 
 ## Increment 2: ISM retention

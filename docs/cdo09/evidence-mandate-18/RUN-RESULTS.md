@@ -122,7 +122,7 @@ Không xóa NAT, không targeted apply, không AWS/Kubernetes mutation.
 | 3 | Active series and top cardinality labels | PASS | 230879 active series and top-15 label names/families |
 | 4 | Current retention | PASS | Prometheus, OpenSearch ISM, and six AWS log groups audited |
 | 5 | Inspect topology and choose sampling safely | PASS | 7-agent DaemonSet, Local Service; no unsafe sampling added |
-| 6 | Minimal retention/debug/noise implementation | PASS code / PENDING runtime | Sandbox-only exporter overrides plus 3d otel-logs ISM policy |
+| 6 | Minimal retention/debug/noise implementation | PASS code / PENDING runtime | Develop-only exporter overrides plus 3d otel-logs ISM policy |
 | 7 | Preserve errors, audit/security, SLO dashboard/alerts | PASS code / PENDING runtime | No sampling; spanmetrics/Jaeger/OpenSearch retained; AWS log groups excluded |
 | 8 | Helm lint, render, and manifest validation | PASS | Helm lint 0 failures; full render and kubectl client dry-run pass |
 | 9 | Rollback and screenshot/evidence checklist | PASS | ADR and two-stage rollout runbook created |

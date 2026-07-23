@@ -20,8 +20,23 @@ opentelemetry-collector:
   config:
     service:
       pipelines:
+        # Keep all real backends and spanmetrics; remove only the stdout-copy
+        # debug exporter in the Mandate-18 develop runtime scope.
+        traces:
+          exporters: [otlp/jaeger, spanmetrics]
+        metrics:
+          exporters: [otlphttp/prometheus]
         logs:
-          exporters: [opensearch, debug]
+          exporters: [opensearch]
+
+telemetryRetention:
+  # 3d keeps the measured peak three-day footprint below the 10Gi PVC while
+  # retaining recent operational logs. Audit/security telemetry is stored in
+  # separate AWS log groups and is outside this index pattern. Keep this safety
+  # gate off until the log owner approves 3d and a recoverable backup exists;
+  # the Argo application auto-syncs and deletion cannot be undone from Git.
+  enabled: false
+  minIndexAge: 3d
 
 jaeger:
   jaeger:

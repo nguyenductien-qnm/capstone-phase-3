@@ -14,7 +14,7 @@ $env:AWS_DEFAULT_REGION = "us-east-1"
 
 ```powershell
 aws sts get-caller-identity --profile phase3-cdo --region us-east-1
-aws eks describe-cluster --name ecommerce-dev-eks --profile phase3-cdo --region us-east-1
+aws eks describe-cluster --name ecommerce-develop-dev-eks --profile phase3-cdo --region us-east-1
 kubectl get namespaces
 kubectl auth can-i get pods --all-namespaces
 ```
@@ -54,16 +54,16 @@ saving.
 ## Validation commands before PR
 
 ```powershell
-terraform -chdir=terraform/environments/sandbox fmt -check -recursive
-terraform -chdir=terraform/environments/sandbox validate -no-color
+terraform -chdir=terraform/environments/develop fmt -check -recursive
+terraform -chdir=terraform/environments/develop validate -no-color
 terraform -chdir=terraform/modules/vpc-endpoints test -no-color
-terraform -chdir=terraform/environments/sandbox plan -input=false -lock=false -no-color
+terraform -chdir=terraform/environments/develop plan -input=false -lock=false -no-color
 helm lint platform/charts/application `
-  -f platform/gitops/environments/sandbox/values-flagd-sync.yaml `
-  -f platform/gitops/environments/sandbox/values-ops-observability.yaml `
-  -f platform/gitops/environments/sandbox/values-external-secrets.yaml `
-  -f platform/gitops/environments/sandbox/values-aio-llm.yaml `
-  -f platform/gitops/environments/sandbox/values-image-tags.yaml
+  -f platform/gitops/environments/develop/values/values-application.yaml `
+  -f platform/gitops/environments/develop/values/values-ops-observability.yaml `
+  -f platform/gitops/environments/develop/values/values-external-secrets.yaml `
+  -f platform/gitops/environments/develop/values/values-single-replica.yaml `
+  -f platform/gitops/environments/develop/values/values-image-tags.yaml
 git diff --check
 ```
 
@@ -81,7 +81,7 @@ add/change/destroy/replace counts and stop on unexpected delete/replace.
 
 ## Runtime acceptance sequence
 
-1. Confirm Argo app destination is `techx-tf1`, Synced and Healthy.
+1. Confirm Argo app destination is `techx-develop`, Synced and Healthy.
 2. Confirm all Deployment/StatefulSet/DaemonSet desired replicas are Ready.
 3. Confirm no image pull, AWS API credential or rollout errors.
 4. Run the same workload/window and verify checkout >=99%, browse/cart >=99.5%

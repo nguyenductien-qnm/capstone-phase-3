@@ -4,7 +4,7 @@ Status: proposed and rendered; not rolled out.
 
 ## Decision
 
-1. In the `techx-tf1` runtime values only, remove the OTel `debug` exporter
+1. In the `techx-develop` runtime values only, remove the OTel `debug` exporter
    from traces, metrics, and logs. Keep Jaeger, Prometheus, OpenSearch, and the
    `spanmetrics` connector unchanged.
 2. Add a safety-gated OpenSearch ISM policy for only `otel-logs-*`: hot

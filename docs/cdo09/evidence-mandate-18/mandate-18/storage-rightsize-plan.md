@@ -4,7 +4,7 @@
 
 Runtime already uses `gp3` for all nine scoped EBS volumes. No in-place shrink, snapshot creation, DLM policy or shared-state lifecycle change is authorized in Prompt 4.
 
-The only Terraform change retained in this prompt is removal of the stale `hashicorp/archive` lock entry from the sandbox root. It has no AWS resource action and allows `terraform validate` to use the providers actually present in configuration/state.
+No environment lock-file edit is retained. The Mandate 18 Terraform resource change is the reviewed S3 Gateway Endpoint wiring in the develop root; storage right-sizing remains plan-only until utilization and migration approval are complete.
 
 ## Right-size proposals
 
@@ -53,4 +53,4 @@ Rollback for a future lifecycle change: suspend/remove the new rule before its e
 
 ## Terraform plan blocker
 
-The sandbox root requires 28 environment/protected variables not stored in the repository. Supplying invented values would create a misleading plan. Run the full plan through the protected CI environment or provide the exact non-secret tfvars and secret inputs through the approved mechanism. No apply is allowed until the plan has zero unexpected destroy/replace actions.
+The develop root requires protected variables not stored in the repository. Supplying invented values would create a misleading plan. Run the full plan through the protected Develop CI environment or provide the exact non-secret tfvars and secret inputs through the approved mechanism. No apply is allowed until the plan has zero unexpected destroy/replace actions.

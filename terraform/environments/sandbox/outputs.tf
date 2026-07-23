@@ -219,11 +219,6 @@ output "cloudtrail_cloudwatch_log_group_name" {
   value       = module.cloudtrail.cloudwatch_log_group_name
 }
 
-output "s3_gateway_endpoint_id" {
-  description = "S3 gateway endpoint used by private app/MQ route tables"
-  value       = module.vpc_endpoints.s3_gateway_endpoint_id
-}
-
 output "cloudtrail_kms_key_arn" {
   description = "KMS key protecting CloudTrail evidence"
   value       = module.cloudtrail.kms_key_arn

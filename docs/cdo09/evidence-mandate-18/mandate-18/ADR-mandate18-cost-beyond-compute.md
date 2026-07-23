@@ -3,7 +3,9 @@
 - Status: Proposed; code validated, no optimization rolled out.
 - Date: 2026-07-22.
 - Owner: CDO-09.
-- Scope: `us-east-1`, `ecommerce-dev-eks`, `techx-tf1`.
+- Baseline scope: `us-east-1`, `ecommerce-dev-eks`, `techx-tf1`.
+- Reviewed rollout target: Terraform/GitOps develop,
+  `ecommerce-develop-dev-eks`, `techx-develop`.
 
 ## Context
 
@@ -60,7 +62,7 @@ results are remediated or accepted by the mentor.
 
 - S3 endpoint: remove the module only after a plan shows only the expected
   endpoint deletion; NAT default route stays available.
-- Debug exporter: revert sandbox exporter lists and allow Argo to resync.
+- Debug exporter: revert develop exporter lists and allow Argo to resync.
 - ISM: detach/disable policy before deleting it. Git rollback cannot restore
   deleted indices; restore requires the pre-rollout backup.
 - Storage migration: retain old PVC/node group until data and workload checks

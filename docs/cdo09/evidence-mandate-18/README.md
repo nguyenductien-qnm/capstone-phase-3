@@ -9,6 +9,11 @@ Evidence pack cho [MANDATE-18: Hoá đơn ẩn - cắt tiền ngoài node comput
 - EKS cluster: `ecommerce-dev-eks`.
 - Cluster tag environment: `dev`.
 - Application/observability namespace: `techx-tf1`.
+
+> The baseline above is historical data collected from sandbox. Per leader
+> review on 2026-07-23, the Mandate 18 deployment target is now Terraform and
+> GitOps `develop` (`ecommerce-develop-dev-eks`, `techx-develop`). Do not use
+> the sandbox baseline as develop after evidence.
 - Git baseline: `develop` tại `2376042`.
 
 ## Trạng thái mentor-facing hiện tại

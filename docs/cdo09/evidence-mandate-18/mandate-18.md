@@ -58,10 +58,14 @@ available allocation tag. NAT mirrored byte counters are not summed.
 ## Implemented but not rolled out
 
 - Reusable Terraform S3 Gateway Endpoint module, scoped to private app/MQ
-  egress route table; NAT retained.
-- OTel debug exporter removal in the `techx-tf1` sandbox values.
+  egress route table in the `develop` Terraform root; NAT retained.
+- OTel debug exporter removal in the `techx-develop` develop values.
 - OpenSearch `otel-logs-*` 3-day ISM policy manifest, disabled behind an owner
   and backup safety gate.
+
+The measurements above remain the original sandbox baseline. Develop requires
+a new before/after window after the reviewed environment migration; the two
+environments must not be mixed in one delta.
 
 These are code results, not runtime PASS evidence.
 
