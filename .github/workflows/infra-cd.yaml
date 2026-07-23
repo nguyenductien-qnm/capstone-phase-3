@@ -31,11 +31,6 @@ on:
         required: true
         default: false
         type: boolean
-      refresh_only:
-        description: "Only refresh Terraform state from live infrastructure"
-        required: false
-        default: false
-        type: boolean
       confirm:
         description: 'Type "apply-sandbox" to confirm apply'
         required: false
@@ -216,7 +211,6 @@ jobs:
         working-directory: ${{ env.TF_ROOT }}
     outputs:
       has_changes: ${{ steps.plan.outputs.has_changes }}
-      refresh_only: ${{ steps.mode.outputs.refresh_only }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -240,39 +234,13 @@ jobs:
       - name: Terraform init
         run: terraform init -input=false
 
-      - name: Select Terraform plan mode
-        id: mode
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          REFRESH_ONLY_INPUT: ${{ github.event.inputs.refresh_only || 'false' }}
-        run: |
-          set -euo pipefail
-          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$REFRESH_ONLY_INPUT" = "true" ]; then
-            echo "refresh_only=true" >> "$GITHUB_OUTPUT"
-            echo "Terraform plan mode: refresh-only"
-          else
-            echo "refresh_only=false" >> "$GITHUB_OUTPUT"
-            echo "Terraform plan mode: normal"
-          fi
-
       - name: Terraform plan
         id: plan
-        env:
-          REFRESH_ONLY: ${{ steps.mode.outputs.refresh_only }}
         run: |
           set +e
-          PLAN_ARGS=(
-            -no-color
-            -input=false
-            -lock-timeout="$TF_LOCK_TIMEOUT"
-            -var-file="primary-capacity.tfvars"
-            -detailed-exitcode
-            -out=tfplan
-          )
-          if [ "$REFRESH_ONLY" = "true" ]; then
-            PLAN_ARGS=(-refresh-only "${PLAN_ARGS[@]}")
-          fi
-          terraform plan "${PLAN_ARGS[@]}"
+          terraform plan -no-color -input=false -lock-timeout="$TF_LOCK_TIMEOUT" \
+            -var-file="primary-capacity.tfvars" \
+            -detailed-exitcode -out=tfplan
           PLAN_EXIT=$?
           set -e
           if [ "$PLAN_EXIT" -eq 1 ]; then
@@ -301,9 +269,8 @@ jobs:
           script: |
             const fs = require('fs');
             const plan = fs.readFileSync(`${process.env.TF_ROOT}/tfplan.txt`, 'utf8');
-            const mode = '${{ steps.mode.outputs.refresh_only }}' === 'true' ? 'refresh-only' : 'normal';
             const body = [
-              `### Terraform sandbox plan (${mode})`,
+              '### Terraform sandbox plan',
               '',
               '```',
               plan.slice(-60000),
@@ -385,10 +352,8 @@ jobs:
   # ================================================================== #
   bootstrap-argocd:
     name: Bootstrap ArgoCD vào EKS
-    needs: [terraform-plan, terraform-apply]
-    if: |
-      needs.terraform-apply.result == 'success' &&
-      needs.terraform-plan.outputs.refresh_only != 'true'
+    needs: terraform-apply
+    if: needs.terraform-apply.result == 'success'
     runs-on: ubuntu-latest
     environment: sandbox
     permissions:

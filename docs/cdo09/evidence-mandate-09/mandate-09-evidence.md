@@ -390,3 +390,12 @@ Bên cạnh ảnh chụp màn hình, các kịch bản chạy tự động (Powe
 * **TBD2 (Online Schema Migration)**: [tbd2-test-log.txt](logs/tbd2-test-log.txt)
 * **TBD3 (RDS Blue/Green 16 -> 17)**: [tbd3-bg-log.txt](logs/tbd3-bg-log.txt)
 * **TBD4 (Static Parameter + Failover)**: [tbd4-param-log.txt](logs/tbd4-param-log.txt)
+
+## 9. Tài Liệu Minh Chứng Môi Trường Develop (Develop Environment Evidence)
+
+Dưới đây là các tài liệu ghi nhận kết quả baseline, kế hoạch chạy tải và kiểm chứng bảo mật trên môi trường Develop cho Mandate 09:
+
+* **M9 Baseline & Load Window (Develop)**: [evidence-46.md](file:///d:/GitHub/capstone-phase-3/docs/cdo09/evidence-mandate-09/evidence/evidence-46.md) (hoặc [relative](evidence/evidence-46.md)) - Chi tiết kịch bản tải, baseline metric sạch lỗi (RPS 5.1, error rate 0%).
+* **Xác nhận Security Guardrails (Develop)**: [evidence-44.md](file:///d:/GitHub/capstone-phase-3/docs/cdo09/evidence-mandate-09/evidence/evidence-44.md) (hoặc [relative](evidence/evidence-44.md)) - Đảm bảo database/cache endpoint nội bộ, dashboard Ops, và TLS/auth logic không bị nới lỏng.
+* **Jaeger Trace & Storefront SLO**: [evidence-slo-02.md](file:///d:/GitHub/capstone-phase-3/docs/cdo09/evidence-mandate-09/evidence/evidence-slo-02.md) (hoặc [relative](evidence/evidence-slo-02.md)) - Phân tích latency của các dependency services qua Jaeger trace cho luồng storefront checkout.
+

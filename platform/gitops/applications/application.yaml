@@ -22,6 +22,8 @@ spec:
         - ../../gitops/environments/sandbox/values-ops-observability.yaml
         - ../../gitops/environments/sandbox/values-external-secrets.yaml
         - ../../gitops/environments/sandbox/values-aio-llm.yaml
+        # Mandate-19 sizing + HPA (port từ develop, bằng chứng EVIDENCE.md E7/E8).
+        - ../../gitops/environments/sandbox/values-application.yaml
         # CI-managed image tags (app-build.yaml bump) — load CUỐI để override tag.
         - ../../gitops/environments/sandbox/values-image-tags.yaml
 

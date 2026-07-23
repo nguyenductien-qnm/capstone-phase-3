@@ -1,17 +1,12 @@
 # TF1-72 [AIOps-W2] - deploy remediation engine chay lien tuc tren EKS (namespace techx-tf1).
-# Deploy THU CONG giong het aiops-detector (.github/workflows/aiops-ci.yaml chi chay
-# pytest, khong tu deploy module aiops/ nao).
 #
-# Truoc khi apply (1 lan duy nhat):
-#   kubectl -n techx-tf1 apply -f rbac.yaml
-#   kubectl -n techx-tf1 apply -f deployment.yaml
+# MANDATE-10 P2: khong con deploy/build tay. ArgoCD app `aiops` quan file nay (selfHeal),
+# va job `build-aiops` trong app-build.yaml build-scan-ky-attest roi bump tag vao dong
+# `image:` ben duoi. Xem giai thich day du o aiops/detector/deploy/deployment.yaml.
 #
-# Build + push image (tu repo root, chay tren may co quyen ECR):
-#   aws ecr get-login-password --region us-east-1 | docker login --username AWS \
-#     --password-stdin 804372444787.dkr.ecr.us-east-1.amazonaws.com
-#   docker buildx build --platform linux/amd64 \
-#     -t 804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.1-aiops-remediation \
-#     --push aiops/remediation
+# LUU Y build context: Dockerfile cua remediation COPY ca detector/sources.py va
+# detector/alerter.py, nen context la `aiops/` (cha), KHONG phai `aiops/remediation/` -
+# matrix cua job build-aiops khai dung nhu vay.
 #
 # QUAN TRONG: pod nay khoi dong voi REMEDIATION_DRY_RUN=true (AN TOAN, chi log +
 # alert, KHONG goi K8s API ghi). Chi doi sang "false" sau khi da xac nhan hanh vi
@@ -45,7 +40,7 @@ spec:
       containers:
         - name: aiops-remediation
           # MANDATE-05: pin tag co dinh, khong dung tag troi (:latest).
-          image: 804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.1-aiops-remediation
+          image: 804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.1-aiops-remediation-f1fe79c
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false
@@ -69,6 +64,12 @@ spec:
                   name: aiops-alert
                   key: webhook
                   optional: true
+          # Block style (khong phai flow `{ }`): yq cua job bump se viet lai flow-map
+          # -> diff rac moi lan bump. Xem comment cung cho o aiops/detector.
           resources:
-            requests: { cpu: "50m", memory: "64Mi" }
-            limits: { cpu: "200m", memory: "128Mi" }
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"

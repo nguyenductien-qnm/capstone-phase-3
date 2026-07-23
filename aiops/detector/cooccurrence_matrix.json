@@ -1,0 +1,51 @@
+{
+  "bucket_seconds": 300,
+  "generated_at": "2026-07-17T02:38:17.476949+00:00",
+  "total_buckets_with_alerts": 31,
+  "rule_fire_counts": {
+    "db-pool-exhaustion": 7,
+    "checkout-failure-high": 7,
+    "latency-p95-high": 7,
+    "llm-rate-limit-429": 13,
+    "genai-latency-high": 13,
+    "error-rate-high": 13
+  },
+  "cooccurrence": {
+    "error-rate-high|genai-latency-high": {
+      "count": 9,
+      "pct_of_ruleA_buckets": 0.6923,
+      "pct_of_ruleB_buckets": 0.6923,
+      "interpretation": "error-rate-high and genai-latency-high co-occur in 9 bucket(s); 69% of error-rate-high buckets, 69% of genai-latency-high buckets"
+    },
+    "genai-latency-high|llm-rate-limit-429": {
+      "count": 7,
+      "pct_of_ruleA_buckets": 0.5385,
+      "pct_of_ruleB_buckets": 0.5385,
+      "interpretation": "genai-latency-high and llm-rate-limit-429 co-occur in 7 bucket(s); 54% of genai-latency-high buckets, 54% of llm-rate-limit-429 buckets"
+    },
+    "error-rate-high|llm-rate-limit-429": {
+      "count": 7,
+      "pct_of_ruleA_buckets": 0.5385,
+      "pct_of_ruleB_buckets": 0.5385,
+      "interpretation": "error-rate-high and llm-rate-limit-429 co-occur in 7 bucket(s); 54% of error-rate-high buckets, 54% of llm-rate-limit-429 buckets"
+    },
+    "checkout-failure-high|db-pool-exhaustion": {
+      "count": 5,
+      "pct_of_ruleA_buckets": 0.7143,
+      "pct_of_ruleB_buckets": 0.7143,
+      "interpretation": "checkout-failure-high and db-pool-exhaustion co-occur in 5 bucket(s); 71% of checkout-failure-high buckets, 71% of db-pool-exhaustion buckets"
+    },
+    "checkout-failure-high|latency-p95-high": {
+      "count": 5,
+      "pct_of_ruleA_buckets": 0.7143,
+      "pct_of_ruleB_buckets": 0.7143,
+      "interpretation": "checkout-failure-high and latency-p95-high co-occur in 5 bucket(s); 71% of checkout-failure-high buckets, 71% of latency-p95-high buckets"
+    },
+    "db-pool-exhaustion|latency-p95-high": {
+      "count": 5,
+      "pct_of_ruleA_buckets": 0.7143,
+      "pct_of_ruleB_buckets": 0.7143,
+      "interpretation": "db-pool-exhaustion and latency-p95-high co-occur in 5 bucket(s); 71% of db-pool-exhaustion buckets, 71% of latency-p95-high buckets"
+    }
+  }
+}

@@ -411,6 +411,7 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
                           else "LLM → trả lời trực tiếp"),
             "latency_ms": int((time.time() - t_converse) * 1000),
             "status": "ok",
+            "detail": redact_pii(json.dumps({"decided_tools": _decided, "stop_reason": stop}))
         })
 
         if stop != "tool_use":
@@ -443,7 +444,7 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
                     start_out = time.time()
                     blocked_out, clean_text = apply_guardrail_output(bedrock_client, clean_text, source_text, user_query)
                     lat_out = int((time.time() - start_out) * 1000)
-                    trace_steps.append({"step_name": "Output Guardrail (Grounding)", "latency_ms": lat_out, "status": "blocked" if blocked_out else "pass"})
+                    trace_steps.append({"step_name": "Output Guardrail (Grounding)", "latency_ms": lat_out, "status": "blocked" if blocked_out else "pass", "detail": redact_pii(json.dumps({"blocked": blocked_out}))})
                     
                     ground_span.set_attribute("guardrail.blocked", blocked_out)
                     if blocked_out:
@@ -515,6 +516,7 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
                 "step_name": f"Tool: {name}" + (f" ({_arg_hint})" if _arg_hint else ""),
                 "latency_ms": dur_ms,
                 "status": "ok" if ok else "error",
+                "detail": redact_pii(json.dumps({"args": args, "succeeded": ok}))
             })
             parsed_out = json.loads(out)
             if not isinstance(parsed_out, dict):

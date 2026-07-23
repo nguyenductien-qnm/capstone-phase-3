@@ -146,7 +146,9 @@ networkPolicy:
     valkey-cart: [cart]
     kafka: [accounting, checkout, fraud-detection]
     llm: [shopping-copilot]
+    image-provider: [frontend-proxy, frontend]
     frontend: [frontend-proxy, load-generator]
+
   # Pod gắn label `egress-internet: "true"` mới được ra Internet (payment provider, Bedrock...).
 
 serviceAccount:
