@@ -74,3 +74,17 @@ components:
     resources:
       requests:
         cpu: 40m    # dùng 9m sau-shed (was 100m) — browse bị shed trước khi tới catalog
+  # INFRA-OPTIMIZE P1: ml-guard req 1000m/pod là giữ chỗ ảo lớn nhất cụm — 2 pod
+  # chiếm 2000m (36% tổng CPU requests, 25% trần NodePool cpu=8) trong khi dùng thật
+  # ~290m/pod lúc có tải (đo 22/07 ~23h), idle chỉ 1m. Hạ request trả lại 1200m cho
+  # scheduler; limit GIỮ 2000m vì model load (Presidio + classifier + NLI) cần burst.
+  # Memory không đụng: dùng 1297-1517Mi/pod, request 1536Mi đang đúng cỡ.
+  # HPA min2/max2 + PDB maxUnavailable=1 giữ nguyên (min>=2 khớp chuẩn INC-2).
+  # Số 400m là ước lượng từ snapshot — phải đo lại lúc có inference traffic thật
+  # (bài học mandate-19: ml-guard bị exclude khỏi loadtest baseline).
+  ml-guard:
+    resources:
+      requests:
+        cpu: 400m   # dùng thật ~290m/pod có tải (was 1000m = over-request 345%)
+      limits:
+        cpu: 2000m  # giữ — burst load model 25-90s (startupProbe đã cover)
