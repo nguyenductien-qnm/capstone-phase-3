@@ -10,6 +10,8 @@ mod telemetry_conf;
 use telemetry_conf::init_otel;
 mod shipping_service;
 use shipping_service::{get_quote, ship_order, validate_address};
+mod kafka_consumer;
+use kafka_consumer::start_kafka_consumer;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -21,6 +23,9 @@ async fn main() -> std::io::Result<()> {
             panic!("Couldn't start OTel: {0}", err);
         }
     };
+
+    start_kafka_consumer();
+
 
     let port: u16 = env::var("SHIPPING_PORT")
         .expect("$SHIPPING_PORT is not set")

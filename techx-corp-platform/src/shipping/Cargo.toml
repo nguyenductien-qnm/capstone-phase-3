@@ -21,6 +21,7 @@ opentelemetry-otlp = { version = "0.31.0", features = ["grpc-tonic"] }
 opentelemetry-instrumentation-actix-web = { version = "0.23.0", features = ["sync-middleware", "awc", "metrics"] }
 opentelemetry-appender-tracing = "0.31.1"
 opentelemetry-resource-detectors = "0.10.0"
+rdkafka = { version = "0.36", features = ["ssl-vendored"] }
 
 [dependencies.uuid]
 version = "1.19.0"

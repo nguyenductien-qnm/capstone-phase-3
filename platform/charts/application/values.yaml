@@ -579,6 +579,25 @@ components:
         value: flagd
       - name: FLAGD_PORT
         value: "8013"
+      - name: KAFKA_ADDR
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: brokers_sasl_scram
+      - name: KAFKA_USER
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: username
+      - name: KAFKA_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: password
+      - name: KAFKA_TOPIC
+        value: "domain.checkout.orders"
+      - name: KAFKA_GROUP_ID
+        value: "email"
     resources:
       requests:
         cpu: 50m
@@ -586,6 +605,36 @@ components:
       limits:
         cpu: 100m
         memory: 100Mi
+    initContainers:
+      - name: wait-for-kafka
+        image: busybox:1.38.0
+        env:
+          - name: KAFKA_ADDR
+            valueFrom:
+              secretKeyRef:
+                name: msk-secret
+                key: brokers_sasl_scram
+        command:
+          - sh
+          - -c
+          - |
+            broker=$(echo "$KAFKA_ADDR" | cut -d, -f1)
+            host=${broker%:*}; port=${broker##*:}
+            until nc -z -v -w30 "$host" "$port"; do echo waiting for kafka; sleep 2; done
+        securityContext:
+          runAsUser: 1000
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 50m
+            memory: 32Mi
   fraud-detection:
     enabled: true
     imageOverride:
@@ -1030,6 +1079,25 @@ components:
         value: http://$(OTEL_COLLECTOR_NAME):4317
       - name: IPV6_ENABLED
         value: "false"
+      - name: KAFKA_ADDR
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: brokers_sasl_scram
+      - name: KAFKA_USER
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: username
+      - name: KAFKA_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: password
+      - name: KAFKA_TOPIC
+        value: "domain.checkout.orders"
+      - name: KAFKA_GROUP_ID
+        value: "payment"
     resources:
       requests:
         cpu: 50m
@@ -1041,6 +1109,36 @@ components:
         # CrashLoop -> endpoint payment rỗng -> checkout dial refused -> 504.
         # Ngang tầm frontend (250Mi) cho service Node.js + OTel mới.
         memory: 256Mi
+    initContainers:
+      - name: wait-for-kafka
+        image: busybox:1.38.0
+        env:
+          - name: KAFKA_ADDR
+            valueFrom:
+              secretKeyRef:
+                name: msk-secret
+                key: brokers_sasl_scram
+        command:
+          - sh
+          - -c
+          - |
+            broker=$(echo "$KAFKA_ADDR" | cut -d, -f1)
+            host=${broker%:*}; port=${broker##*:}
+            until nc -z -v -w30 "$host" "$port"; do echo waiting for kafka; sleep 2; done
+        securityContext:
+          runAsUser: 1000
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 50m
+            memory: 32Mi
     securityContext:
       runAsUser: 1000 # node
       runAsGroup: 1000
@@ -1382,6 +1480,25 @@ components:
         value: http://$(OTEL_COLLECTOR_NAME):4317
       - name: IPV6_ENABLED
         value: "false"
+      - name: KAFKA_ADDR
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: brokers_sasl_scram
+      - name: KAFKA_USER
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: username
+      - name: KAFKA_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: password
+      - name: KAFKA_TOPIC
+        value: "domain.checkout.orders"
+      - name: KAFKA_GROUP_ID
+        value: "shipping"
     resources:
       requests:
         cpu: 50m # P0 right-size: limit cũ 20Mi quá thấp
@@ -1389,6 +1506,36 @@ components:
       limits:
         cpu: 100m
         memory: 96Mi # >= request 32Mi
+    initContainers:
+      - name: wait-for-kafka
+        image: busybox:1.38.0
+        env:
+          - name: KAFKA_ADDR
+            valueFrom:
+              secretKeyRef:
+                name: msk-secret
+                key: brokers_sasl_scram
+        command:
+          - sh
+          - -c
+          - |
+            broker=$(echo "$KAFKA_ADDR" | cut -d, -f1)
+            host=${broker%:*}; port=${broker##*:}
+            until nc -z -v -w30 "$host" "$port"; do echo waiting for kafka; sleep 2; done
+        securityContext:
+          runAsUser: 1000
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 50m
+            memory: 32Mi
   flagd:
     enabled: true
     imageOverride:
