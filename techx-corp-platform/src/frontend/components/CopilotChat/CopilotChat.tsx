@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import styled, { keyframes, css } from 'styled-components';
+import SessionGateway from '../../gateways/Session.gateway';
 
 const fadeIn = keyframes`
   from { opacity: 0; transform: translateY(20px) scale(0.95); }
@@ -380,8 +381,8 @@ export default function CopilotChat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Generate simple session ID per tab
-    setSessionId(Math.random().toString(36).substring(7));
+    // Sync session ID with storefront cart
+    setSessionId(SessionGateway.getSession().userId);
   }, []);
 
   useEffect(() => {
@@ -404,7 +405,7 @@ export default function CopilotChat() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           question: text,
-          user_id: 'user-' + sessionId,
+          user_id: sessionId,
           session_id: sessionId,
           confirmation_token: token
         })
