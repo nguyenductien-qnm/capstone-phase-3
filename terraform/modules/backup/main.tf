@@ -59,10 +59,9 @@ resource "aws_backup_vault" "this" {
 
 # AWS Backup Vault Lock (Governance Mode)
 resource "aws_backup_vault_lock_configuration" "this" {
-  backup_vault_name   = aws_backup_vault.this.name
-  changeable_for_days = 3
-  min_retention_days  = 7
-  max_retention_days  = 30
+  backup_vault_name  = aws_backup_vault.this.name
+  min_retention_days = 7
+  max_retention_days = 30
 }
 
 # AWS Backup Plan

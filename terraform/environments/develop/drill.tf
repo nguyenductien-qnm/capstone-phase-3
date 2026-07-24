@@ -9,7 +9,7 @@ resource "aws_security_group" "db_drill" {
     from_port   = 5432
     to_port     = 5432
     protocol    = "tcp"
-    cidr_blocks = ["${var.bastion_or_runner_ip}/32"]
+    cidr_blocks = [can(cidrhost(var.bastion_or_runner_ip, 0)) ? var.bastion_or_runner_ip : "${var.bastion_or_runner_ip}/32"]
     description = "Allow connection only from Admin Bastion or Runner host for verification"
   }
 

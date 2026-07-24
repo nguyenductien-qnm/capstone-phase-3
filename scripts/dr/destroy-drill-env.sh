@@ -49,9 +49,9 @@ log_info "Đang kiểm tra Deletion Protection cho DB Instance: $DB_IDENTIFIER..
 PROTECTION_STATUS=$(aws rds describe-db-instances \
     --db-instance-identifier "$DB_IDENTIFIER" \
     --query "DBInstances[0].DeletionProtection" \
-    --output text)
+    --output text | tr '[:upper:]' '[:lower:]')
 
-if [ "$PROTECTION_STATUS" = "True" ]; then
+if [ "$PROTECTION_STATUS" = "true" ]; then
     log_info "Deletion Protection đang Bật. Tiến hành tắt Deletion Protection cho DB Instance: $DB_IDENTIFIER..."
     aws rds modify-db-instance \
         --db-instance-identifier "$DB_IDENTIFIER" \
@@ -64,9 +64,9 @@ if [ "$PROTECTION_STATUS" = "True" ]; then
         PROTECTION_STATUS=$(aws rds describe-db-instances \
             --db-instance-identifier "$DB_IDENTIFIER" \
             --query "DBInstances[0].DeletionProtection" \
-            --output text)
+            --output text | tr '[:upper:]' '[:lower:]')
         
-        if [ "$PROTECTION_STATUS" = "False" ]; then
+        if [ "$PROTECTION_STATUS" = "false" ]; then
             log_info "Đã gỡ Deletion Protection thành công."
             break
         fi
