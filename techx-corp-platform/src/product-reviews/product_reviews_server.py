@@ -34,6 +34,7 @@ from bedrock_client import create_bedrock_runtime_client
 from guardrails import (
     apply_guardrail_input, apply_guardrail_output,
     sanitize_text, sanitize_json_for_llm, leaks_system_prompt, validate_citations,
+    redact_pii,
 )
 
 from openfeature import api
