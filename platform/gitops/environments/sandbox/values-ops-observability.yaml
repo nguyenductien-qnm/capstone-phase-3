@@ -20,8 +20,21 @@ opentelemetry-collector:
   config:
     service:
       pipelines:
+        # Keep all real backends and spanmetrics; remove only the duplicate
+        # stdout debug exporter in the canonical sandbox runtime.
+        traces:
+          exporters: [otlp/jaeger, spanmetrics]
+        metrics:
+          exporters: [otlphttp/prometheus]
         logs:
-          exporters: [opensearch, debug]
+          exporters: [opensearch]
+
+telemetryRetention:
+  # OpenSearch is already 85% full, but policy activation can delete old
+  # application-log indices. Keep this explicit safety gate off until the
+  # owner approves the retention window and a recoverable backup exists.
+  enabled: false
+  minIndexAge: 3d
 
 jaeger:
   jaeger:

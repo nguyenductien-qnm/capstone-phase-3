@@ -2165,5 +2165,16 @@ opensearch:
       cpu: "1"
       memory: 1100Mi
 
+# Finite retention for application telemetry only. This policy never matches
+# AWS audit/security log groups, which retain their independent CloudWatch/S3
+# lifecycle controls. The PostSync job is idempotent and also attaches the
+# policy to pre-existing unmanaged otel-logs-* indices.
+telemetryRetention:
+  enabled: false
+  policyId: otel-logs-retention
+  indexPattern: "otel-logs-*"
+  minIndexAge: 3d
+  image: curlimages/curl:8.9.1
+
 externalSecrets:
   enabled: false

@@ -1,0 +1,16 @@
+{
+  "capture": "2026-07-22T07:31:19Z",
+  "region": "us-east-1",
+  "ebsSummary": {"total":9,"inUse":9,"available":0,"gp3":9},
+  "eip": [{"allocationId":"eipalloc-0966094dead1ae53d","associationId":"eipassoc-04493b1daa963f017","networkInterfaceId":"eni-0a6525a7b6ad85ae3","name":"ecommerce-dev-nat-eip-single","classification":"IN_USE_BY_NAT"}],
+  "snapshotsOwnedBySelf": [],
+  "amisOwnedBySelf": [],
+  "loadBalancers": [{"name":"k8s-techxtf1-frontend-3e4ad10231","state":"active","type":"network","scheme":"internet-facing","vpcId":"vpc-06d4c34ec03f55c6d","availabilityZones":["us-east-1a","us-east-1b","us-east-1c"],"classification":"IN_USE"}],
+  "targetGroups": [
+    {"name":"k8s-techxtf1-frontend-da03cf6043","vpcId":"vpc-06d4c34ec03f55c6d","protocol":"TCP","port":8080,"attachedLoadBalancers":1,"targets":[{"id":"10.0.13.140","port":8080,"state":"healthy"},{"id":"10.0.11.235","port":8080,"state":"healthy"}],"classification":"IN_USE"},
+    {"name":"123123321","vpcId":"vpc-06d4c34ec03f55c6d","protocol":"HTTP","port":80,"attachedLoadBalancers":0,"targets":[],"classification":"DELETE_CANDIDATE_REQUIRES_OWNER_AND_DEPENDENCY_REVIEW"},
+    {"name":"89345789437843","vpcId":"vpc-06d4c34ec03f55c6d","protocol":"TCP","port":80,"attachedLoadBalancers":0,"targets":[],"classification":"DELETE_CANDIDATE_REQUIRES_OWNER_AND_DEPENDENCY_REVIEW"},
+    {"name":"testt","vpcId":"vpc-0e75d763a56d0aa38","protocol":"HTTP","port":80,"attachedLoadBalancers":0,"targets":[],"classification":"OUTSIDE_PROJECT_VPC_DELETE_CANDIDATE_REQUIRES_OWNER_REVIEW"}
+  ],
+  "decision": "No resource was changed or deleted. Empty target groups are candidates, not confirmed orphans."
+}

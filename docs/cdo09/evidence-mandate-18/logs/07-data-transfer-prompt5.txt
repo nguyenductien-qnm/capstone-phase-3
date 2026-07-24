@@ -1,0 +1,85 @@
+MANDATE-18 PROMPT-5 DATA TRANSFER AUDIT
+Captured: 2026-07-22
+Scope: us-east-1 / ecommerce-dev-vpc / ecommerce-dev-eks / techx-tf1
+Mode: read-only runtime measurements; Terraform code/test only; no apply
+
+NAT BASELINE
+- NAT gateway: ecommerce-dev-nat-gw-single, available, public, retained.
+- CloudWatch exact 24h window: 2026-07-21T08:22:17Z to 2026-07-22T08:22:17Z.
+- BytesInFromSource: 180538445 bytes.
+- BytesInFromDestination: 4903817398 bytes.
+- ActiveConnectionCount: average=54.6682, maximum=202.
+- ConnectionAttemptCount: sum=17419, maximum=174.
+- ConnectionEstablishedCount: sum=4606, maximum=85.
+- Do not add mirrored in/out counter pairs. Approximate unique request+response payload represented by the two ingress-side counters is 5084355843 bytes for this window.
+
+COST EXPLORER USAGE BASELINE
+- Window: 2026-07-15 through 2026-07-22 (end exclusive 2026-07-23), account-wide because Project=ecommerce is unavailable as a Cost Explorer allocation tag.
+- NatGateway-Bytes: 61.9773010455 GB.
+- NatGateway-Hours: 158 Hrs.
+- DataTransfer-Regional-Bytes: 357.6794858022 GB.
+- USE1-DataTransfer-xAZ-Out-Bytes: 1.603371047 GB.
+- USE1-DataTransfer-xAZ-In-Bytes: 1.2116824725 GB.
+- Units are not added together.
+
+ROUTING BASELINE
+- No VPC Flow Logs exist for vpc-06d4c34ec03f55c6d.
+- Private egress route table: rtb-009e679916ed18210.
+- It is associated with five private app/MQ subnets.
+- Routes before rollout: VPC local + 0.0.0.0/0 -> nat-0233cc7213a8c7b94.
+- No S3/ECR AWS service endpoint route exists.
+- Isolated data route table is not included in the S3 endpoint module association.
+- Public route table/IGW is not referenced by the new module.
+
+AWS SERVICE TRAFFIC ATTRIBUTION
+- Exact per-service NAT bytes: BLOCKED because VPC Flow Logs are not enabled.
+- Runtime has 56 unique container images:
+  - 13 AWS EKS images hosted in regional ECR.
+  - 22 private-account regional ECR images.
+  - 3 public ECR images.
+  - 18 non-ECR Internet registry images.
+- ECR dependency is therefore verified. ECR image layers are stored in regional S3, so S3 layer downloads currently follow the private default route through NAT when no S3 gateway endpoint exists.
+- Repository/IAM evidence also shows Secrets Manager, STS, EC2, SSM, EBS CSI and Karpenter API dependencies. Their exact NAT byte shares are not measured.
+- This is an evidence-backed routing inference, not a claim that all 61.98 GB belongs to S3/ECR.
+
+QUANTITATIVE ENDPOINT DECISION
+- S3 Gateway Endpoint: no additional hourly or data-processing charge; selected.
+- ECR interface endpoints considered: ecr.api + ecr.dkr.
+- HA scope is three AZs, so fixed footprint would be 2 endpoints x 3 AZ x 730 h x $0.01/endpoint-AZ-hour = approximately $43.80/month, plus $0.01/GB PrivateLink processing for the first PB.
+- NAT remains for Internet egress. Avoided processing margin is approximately $0.045 NAT/GB - $0.01 endpoint/GB = $0.035/GB.
+- Approximate interface break-even: $43.80 / $0.035 = 1251 GB/month of attributable ECR interface traffic, before minor cross-AZ effects.
+- Current account-wide NAT bytes extrapolate to about 232.4 GB/month (61.9773 GB / 8 days x 30), and only a subset is ECR API/registry traffic.
+- Decision: do not add ecr.api/ecr.dkr, Secrets Manager, STS, EC2, SSM or other interface endpoints yet.
+
+TERRAFORM IMPLEMENTATION
+- New reusable module: terraform/modules/vpc-endpoints.
+- Resource: one aws_vpc_endpoint of type Gateway for com.amazonaws.<region>.s3.
+- Association: only module.vpc.private_egress_route_table_ids (private app/MQ egress route table in current runtime).
+- Endpoint policy: null/default; existing IAM and bucket policies continue to authorize requests.
+- Security groups: not applicable to Gateway endpoints.
+- Private DNS: not applicable to S3 Gateway endpoints.
+- NAT gateway and 0.0.0.0/0 route remain unchanged.
+- Public storefront route table/load balancer resources are not referenced.
+
+TEST RESULTS
+- Terraform module mocked plan: PASS, 1 passed / 0 failed.
+- Assertions: exactly one endpoint, type Gateway, regional S3 service, only supplied route table.
+- Sandbox terraform fmt -check -recursive: PASS.
+- Sandbox terraform validate -no-color: PASS.
+- Full sandbox terraform plan: BLOCKED before resource planning by 28 protected/environment tfvars absent locally.
+- No placeholder values were invented.
+- No complete plan means destroy/replace count cannot be asserted.
+
+ROLLOUT/AFTER STATUS
+- Terraform apply: NOT RUN.
+- S3 endpoint runtime state: PENDING.
+- Endpoint route/prefix list: PENDING.
+- Post-rollout ECR image pull: PENDING.
+- Post-rollout AWS API access: PENDING.
+- Post-rollout NAT/SLO comparison: PENDING.
+- Public storefront/private ops after verification: PENDING.
+
+SAFETY
+- NAT was not deleted or modified.
+- No AWS/Kubernetes resource was changed.
+- No after-evidence was fabricated.

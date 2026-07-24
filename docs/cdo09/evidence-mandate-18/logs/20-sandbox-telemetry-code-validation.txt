@@ -1,0 +1,43 @@
+MANDATE-18 sandbox remediation - telemetry code validation and rollout gate
+Capture date: 2026-07-23
+GitOps values: platform/gitops/environments/sandbox/values-ops-observability.yaml
+Chart: platform/charts/application
+Runtime rollout performed: no
+
+Change
+------
+Only the duplicate stdout debug exporter was removed from pipeline exporter
+lists in the canonical sandbox override:
+- traces: otlp/jaeger, spanmetrics
+- metrics: otlphttp/prometheus
+- logs: opensearch
+
+The chart base still declares an inert debug exporter object, but no rendered
+pipeline references it. Therefore it receives no spans, metrics or logs and
+does not create the duplicate stdout copy. Real backends and spanmetrics remain.
+
+Retention safety gate
+---------------------
+telemetryRetention.enabled=false
+telemetryRetention.minIndexAge=3d
+
+Runtime OpenSearch was 85% full, but enabling this policy can delete old
+otel-logs-* indices. The gate remains false because no separate exact approval
+phrase and no recoverable pre-policy backup were supplied.
+
+Validation
+----------
+- helm lint with all six Argo sandbox values files: PASS; 0 chart failures.
+- helm template with the same values and namespace techx-tf1: PASS;
+  25,672 rendered lines.
+- Rendered trace pipeline contains otlp/jaeger and spanmetrics: PASS.
+- Rendered metrics pipeline contains otlphttp/prometheus: PASS.
+- Rendered logs pipeline contains opensearch: PASS.
+- Rendered pipeline reference to debug: NONE.
+- Rendered ISM ConfigMap/Job/policy resource: NONE (gate off).
+
+Gate decision
+-------------
+The code is ready for review/merge, but runtime after-evidence is BLOCKED until
+this follow-up branch is merged and Argo rolls it out. No kubectl apply, Helm
+upgrade, Argo sync or OpenSearch policy mutation was performed.

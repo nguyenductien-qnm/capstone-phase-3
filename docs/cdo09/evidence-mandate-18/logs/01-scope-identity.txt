@@ -1,0 +1,15 @@
+MANDATE-18 PROMPT-2 SCOPE BASELINE
+Captured: 2026-07-22T07:31:19Z
+Git branch: feat/mandate-18
+Git SHA: 2376042
+AWS profile: phase3-cdo
+AWS account: <ACCOUNT_ID_REDACTED>
+Caller ARN: arn:aws:sts::<ACCOUNT_ID_REDACTED>:assumed-role/AWSReservedSSO_Phase3-CDO-PermissionSet_<REDACTED>/<USER_REDACTED>
+Region: us-east-1
+Environment: dev
+EKS cluster: ecommerce-dev-eks
+EKS status/version: ACTIVE / 1.36
+Kubernetes namespace: techx-tf1
+
+Redaction note: account ID, permission-set suffix and user name are intentionally omitted.
+All AWS and Kubernetes operations used for this capture were read-only.
