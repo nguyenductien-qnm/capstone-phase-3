@@ -4,6 +4,16 @@
 > Vòng xử lý khép kín (dry-run → blast-radius → verify → rollback) thuộc TF1-50,
 > đặc tả tại [`anomaly_remediation.md`](anomaly_remediation.md). Không lặp lại ở đây.
 
+> **⚠️ Cập nhật 2026-07-24 — phương pháp thật KHÔNG phải EWMA:** tài liệu này (bản
+> spec gốc TF1-49) mô tả EWMA α=0.2 xuyên suốt bên dưới, nhưng code thật
+> (`aiops/detector/detector.py`) triển khai **rolling-window 3-sigma** (mean/std trên
+> 30 mẫu gần nhất theo `rule_id:service`), không phải EWMA. Đây là quyết định có chủ
+> đích, đã ghi trong **ADR-012** (`05_adrs.md`, phần "Alternatives considered") — EWMA
+> bị defer sang `#7b`/TF1-71 vì cần backtest ≥24h dữ liệu Prometheus thật trước khi
+> chọn α có căn cứ. Pseudocode EWMA bên dưới giữ nguyên làm tài liệu tham khảo cho
+> hướng nâng cấp tương lai, KHÔNG phản ánh hành vi hiện tại của detector — đọc
+> `detector.py`/ADR-012/ADR-015 để biết phương pháp đang chạy thật.
+
 ## 1. Mục tiêu & Phạm vi
 
 Soạn thảo đặc tả kỹ thuật giám sát hai tín hiệu vàng (Golden Signals) của hệ thống storefront:

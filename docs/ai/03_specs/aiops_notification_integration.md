@@ -3,10 +3,15 @@
 > **Trạng thái:** Implemented (Spec)
 > **Phạm vi:** Kênh thông báo của AIOps Detector, Log Clustering (Drain3), và Remediation Engine.
 > **Ngày:** 2026-07-15
+> **⚠️ Cập nhật 2026-07-24:** PagerDuty/OpsGenie ở kiến trúc §2 và bảng kênh bên dưới
+> là **spec ban đầu, chưa triển khai** — `alerter.py` thật chỉ hỗ trợ
+> `slack | discord | stdout` (`provider` tự nhận diện từ URL webhook, kênh team đang
+> dùng = Discord). Phần "Mẫu Alert" (payload Slack Block Kit / Discord embed) bên dưới
+> khớp đúng code thật, không lỗi thời.
 
 ## 1. Mục tiêu (Objective)
 
-Đảm bảo mọi phát hiện dị thường (Anomaly), mẫu log mới (Log Clusters), và các hành động can thiệp tự động (Auto-remediation) từ hệ thống AIOps đều được thông báo tức thời, chính xác đến đội ngũ vận hành (Platform/SRE Team) thông qua các kênh giao tiếp chuẩn (Slack/Discord/PagerDuty).
+Đảm bảo mọi phát hiện dị thường (Anomaly), mẫu log mới (Log Clusters), và các hành động can thiệp tự động (Auto-remediation) từ hệ thống AIOps đều được thông báo tức thời, chính xác đến đội ngũ vận hành (Platform/SRE Team) thông qua các kênh giao tiếp chuẩn (Slack/Discord — PagerDuty/OpsGenie ở mức spec, chưa triển khai, xem cảnh báo ở đầu tài liệu).
 
 ## 2. Kiến trúc Tích hợp (Integration Architecture)
 

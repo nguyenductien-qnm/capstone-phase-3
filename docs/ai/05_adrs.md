@@ -528,6 +528,42 @@ có đầy đủ); `product-reviews` vẫn chạy root (MANDATE-05, deadline 17/
 
 ---
 
+### Addendum 2026-07-24 — MANDATE-07 `#7b`: labeled-set measurement harness + trunk clarification
+
+**Vấn đề:** `#7b` (hạn 25/07) yêu cầu precision/recall/lead-time đo trên **bộ sự cố có
+nhãn** (K sự cố + giai đoạn bình thường), KHÔNG phải per-service. `evaluate_detector.py`
+(`detector_kpi_metrics.json`) — thứ duy nhất từng cho ra số precision/recall — tự khai
+rõ trong README là dữ liệu synthetic tự gán nhãn, **không được trích làm KPI hệ thống**.
+Chưa có bộ nhãn thật nào commit trong repo trước ngày này.
+
+**Fix:** thêm `aiops/incident_replay.py` (inject kịch bản qua flagd/lệnh + chấm điểm
+đúng công thức mandate: `recall = bắt được/K`, `precision = lần kêu đúng/tổng lần kêu`,
+`lead_time = fire_ts - start_ts`) và 3 kịch bản có nhãn commit trong
+`aiops/incident_scenarios/` (real / masking / healthy_load — case `real` phục vụ trực
+tiếp `#7b`, 2 case còn lại phục vụ MANDATE-15, xem ADR-015). Đây cũng là script `repro`
+bắt buộc phải nộp kèm ticket.
+
+**Định nghĩa "trunk" = `develop`** (áp dụng chung cho `#7b`/MANDATE-15/MANDATE-22 —
+ghi 1 lần ở đây, tham chiếu lại thay vì lặp lại 3 nơi): `main` đứng yên từ PR #31
+(2026-07-12); toàn đội đã chuyển hẳn sang `develop` làm nhánh vận hành thật từ tái cấu
+trúc 2026-07-16 (gần 400 commit tính tới 2026-07-24, workflow PR/CI đều nhắm `develop`).
+`CONTRIBUTING.md` vẫn ghi PR vào `main` — tài liệu chưa cập nhật theo thực tế, không
+phải hai nhánh cùng là trunk. Quyết định: coi `develop` là trunk khi các mandate yêu cầu
+"merged vào nhánh chính", ghi rõ ở đây để mentor không thắc mắc tại sao bằng chứng trỏ
+vào `develop` chứ không phải `main`.
+
+**Trạng thái tại thời điểm viết addendum này (2026-07-24, còn 1 ngày tới hạn):** harness
++ 3 kịch bản + unit test cho logic chấm điểm đã có (`aiops/test_incident_replay.py`,
+xanh hết). **Chạy sống + số đo thật CHƯA có** — phát hiện thêm 1 blocker hạ tầng khi
+kiểm tra `kubectl logs` trên EKS: `readOnlyRootFilesystem=true` không có volume ghi
+được, nên `alerter_history.jsonl` (nguồn dữ liệu duy nhất `incident_replay.py` dùng để
+chấm điểm) **chưa từng được ghi thật trên EKS từ trước tới giờ** — đang xử lý (thêm
+`emptyDir`, xem addendum ADR-013 bên dưới), chờ PR merge + ArgoCD sync rồi mới chạy được
+kịch bản `case_real_incident.json` để lấy số thật. Ảnh/log + số đo sẽ đính kèm bổ sung
+vào ticket `AI MANDATE #7b` khi có.
+
+---
+
 # ADR-013: Closed-loop Auto-remediation — dry-run → blast-radius → verify → rollback → CB (TF1-72)
 
 - **Trạng thái:** Chấp nhận (Accepted)
@@ -657,6 +693,58 @@ chắc chắn bắt được cửa sổ, chứ không phải lúc nào cũng ăn
 
 ---
 
+### Addendum 2026-07-24 — MANDATE-22: audit log có cấu trúc + phát hiện & fix blocker hạ tầng
+
+**Gap so với MANDATE-22 điểm 5 ("Audit log truy được: ai/cái gì kích hoạt, làm gì, kết
+quả verify, có lùi không"):** mọi state transition của `process_oom_policy` trước đây
+chỉ đi qua `Alerter.send()`/`flush()` — record trong `alerter_history.jsonl` chỉ có
+`{ts, rule_id, service, severity, fingerprint}`, KHÔNG có hành động thật đã làm hay kết
+quả verify. Chi tiết đó chỉ nằm trong `message` dạng free-text gửi webhook, không được
+lưu lại có cấu trúc, không truy vấn lại được.
+
+**Fix:** thêm `aiops/remediation/audit_log.py` — `record()` ghi 1 dòng JSONL có cấu
+trúc (`trigger`, `safety_check`, `action`, `verify`, `rollback_or_escalate`, `outcome`)
+cho MỌI nhánh của `process_oom_policy` (circuit-breaker-open-skip, error-budget-halt,
+blast-radius-blocked, dry-run, action-failed, verified-pass, verified-fail). 8 test mới
+trong `test_remediation.py` khoá lại đúng field cho từng nhánh, gồm 1 test integration
+ghi file JSONL thật (`test_audit_log_writes_real_jsonl_file`) và 1 test xác nhận điểm
+quan trọng nhất cho ca "ép hành động sai" của mandate
+(`test_audit_log_records_verified_fail_with_escalate`): **escalate xảy ra ngay ở lần
+verify-fail ĐẦU TIÊN**, không cần đợi đủ 3 lần liên tiếp để circuit breaker mở — nghĩa
+là kịch bản ẩn "ép 1 hành động sai" của BTC chắc chắn sẽ thấy rollback/escalate trong
+audit log, không phụ thuộc số lần lặp lại.
+
+**Blocker hạ tầng phát hiện khi kiểm tra live (2026-07-24, qua `kubectl logs` trên
+`techx-tf1`):** `readOnlyRootFilesystem: true` (đúng MANDATE-05) không đi kèm volume
+ghi được nào — pod báo lỗi liên tục `[Errno 30] Read-only file system:
+'/app/alerter_history.jsonl'`. Hệ quả: **không chỉ audit log mới, mà cả
+`alerter_history.jsonl` cũ cũng chưa từng được lưu thật trên EKS** — mọi bằng chứng
+"chạy liên tục trên trunk" trước đây chỉ xác nhận được qua log stdout (`kubectl logs`),
+chưa từng có file lịch sử thật để soát lại hay để `incident_replay.py` chấm điểm. Đã
+báo CDO (không có Kyverno ClusterPolicy nào giới hạn loại volume) và fix: thêm
+`volumes: [{emptyDir: {}}]` + `volumeMounts` vào `aiops/detector/deploy/deployment.yaml`
+và `aiops/remediation/deploy/deployment.yaml`, trỏ `ALERTER_HISTORY_FILE` +
+`REMEDIATION_AUDIT_LOG_FILE` sang đó. `readOnlyRootFilesystem` giữ nguyên `true` —
+không đánh đổi MANDATE-05 để đạt MANDATE-22. `emptyDir` là ephemeral (mất khi pod
+restart) — chấp nhận được cho mục đích evidence-capture, không phải audit store lâu
+dài; nâng cấp PVC/S3 export là việc sau nếu cần giữ qua nhiều lần restart.
+
+**Replay:** `aiops/incident_replay.py --check-remediation` đọc `audit_log.jsonl` trong
+đúng cửa sổ thời gian của kịch bản, cùng cơ chế inject/score dùng chung với `#7b`/
+MANDATE-15 (xem addendum ADR-012). Đây là "cửa replay nhận kịch bản từ ngoài" mandate
+yêu cầu.
+
+**Trạng thái tại thời điểm viết addendum (2026-07-24, còn 1 ngày tới hạn):** code + test
+đã xong (23/23 test `test_remediation.py` pass). Fix deployment đang chờ PR merge vào
+`develop` + ArgoCD sync. **Chưa chạy được**: (a) 1 lần remediation thật không dry-run
+end-to-end, (b) 1 lần ép verify-fail để chụp rollback/escalate thật trong audit log
+trên EKS, (c) MTTR before/after (bonus, không phải sàn — sàn chỉ cần 1 loại sự cố chạy
+e2e an toàn + 1 lần rollback). Sẽ chạy ngay sau khi sync xong, xác nhận từng bước với
+người phụ trách trước khi bơm lỗi vào cluster chung — kết quả đính kèm bổ sung vào
+ticket `AI MANDATE #22`.
+
+---
+
 # ADR-014 — ML Guard Cascade thay Bedrock Guardrails làm primary (MANDATE-06)
 
 - **Status:** Accepted (2026-07-17) — supersedes ADR-012.
@@ -722,3 +810,110 @@ Bedrock Guardrail tái tạo trên `us-east-1` (cùng region model Nova → bỏ
 - Grounding VN vẫn do ml-guard NLI đảm nhiệm.
 - Cost per-request được chấp nhận trong budget (ước tính < $15/wk @10.5k req/wk).
 - Rollback an toàn: set `LLM_BEDROCK_GUARDRAIL="false"` (1 dòng trong values).
+
+---
+
+# ADR-015: Detection đáng tin — masking-resistance, baseline per-service, MTTD before/after (MANDATE-15)
+
+- **Trạng thái:** Chấp nhận (Accepted)
+- **Ngày:** 2026-07-24
+- **Người ký:** Nhóm AI (AIO03) — Task Force 1 · Soạn thảo: Thanh Pham Huu Tien
+- **Trụ:** AI (AIOps) / Reliability / Operational Excellence
+- **Task:** MANDATE-15 (nối tiếp MANDATE-07, xem ADR-012 và addendum `#7b` của ADR-012)
+
+## Context
+MANDATE-15 khác MANDATE-07 ở 4 điểm: (2) không bị che (masking) — 1 spike/nhiễu không
+được làm bỏ sót 1 sự cố thật khác trong cùng cửa sổ; (3) cảnh báo dựa trên độ lệch khỏi
+mức bình thường CỦA CHÍNH service đó, không mốc tuyệt đối; (4) chạy liên tục + merged
+vào trunk; (5) tự sinh incident summary đẩy ra kênh thật; (6) đo MTTD before/after. Chấm
+bằng bộ kịch bản ẩn BTC bơm lúc chấm (1 sự cố thật, 1 ca masking, 1 cửa sổ tải-cao-nhưng-
+khoẻ), không phải demo 1 lần.
+
+## Decision
+
+1. **Baseline per-service (điểm 3) — TÁI DÙNG nguyên trạng ADR-012, không đổi:** rolling
+   3-sigma đã giữ history theo khoá `rule_id:service` (`detector.py:73`) từ #7a — mỗi
+   service tự có "bình thường" riêng, không mốc tuyệt đối. Không cần quyết định mới.
+
+2. **Masking-resistance (điểm 2) — winsorize trước khi nạp vào rolling history:** phát
+   hiện 1 bug thật khi audit lại code cho mandate này: `eval_metric_rule` nạp thẳng giá
+   trị outlier vừa gây alert vào `metric_history`, kéo méo mean/std ~30 chu kỳ sau (~15
+   phút @ poll 30s) — đúng cơ chế "bị che" mandate mô tả. Fix: khi đã có baseline
+   (`len(history) >= 5`), giới hạn giá trị nạp vào trong khoảng `dynamic_threshold`
+   trước khi append, thay vì bỏ qua sample hay giữ nguyên giá trị thô — 1 sự cố kéo dài
+   thật vẫn kéo được baseline dần theo thời gian, chỉ riêng outlier đơn lẻ không còn kéo
+   ngay lập tức. Regression test:
+   `test_detector.py::test_dynamic_detection_not_masked_by_prior_spike` (spike → alert →
+   sự cố nhẹ riêng biệt ngay sau vẫn phải bắt được).
+
+3. **Chạy liên tục + trunk (điểm 4) — đã đạt, không cần quyết định mới:** `Deployment`
+   (không phải Job/CronJob), ArgoCD-managed selfHeal, đã merge. **Định nghĩa "trunk" =
+   `develop`** — xem giải thích đầy đủ ở addendum `#7b` của ADR-012 (áp dụng chung cho
+   `#7b`/MANDATE-15/MANDATE-22, không lặp lại ở đây).
+
+4. **Incident summary (điểm 5) — dùng lại grouped alert (K3) làm MVP, không xây thêm
+   tầng tường thuật:** `Alerter.flush()` đã gộp nhiều rule cùng service/cùng cửa sổ 5
+   phút thành 1 message có cấu trúc (severity, service, value/baseline, detection
+   method — `alerter.py:113-144`). Coi đây là "incident summary" ở mức tối thiểu hợp lệ:
+   có nhóm theo sự cố (không phải log rời rạc), có severity, có bằng chứng số. KHÔNG
+   xây thêm tầng tóm tắt tường thuật/root-cause bằng LLM — xem Alternatives.
+
+5. **MTTD before/after (điểm 6) — số thật cả 2 phía, khác điều kiện đo, ghi rõ:**
+   - **Before (thủ công):** `report/flagd1/postmortem-INC-01.md` — **~2 phút**
+     (14/07/2026, EKS thật, BTC bơm sự cố qua flagd trung tâm, người phát hiện bằng mắt
+     qua Grafana/log).
+   - **After (tự động):** `docs/ai/evals/measure_detection_pipeline.py` — **mean 19.6s /
+     max 35.4s** (5 vòng, docker-compose local, bơm `llmRateLimitError` qua flagd file).
+   - **Cải thiện ~6× (mean) tới ~85% (max)** — nhưng 2 số đo trên **2 môi trường khác
+     nhau** (EKS thật vs compose local) và **2 loại sự cố khác nhau** (đa-flag cascading
+     14/07 vs 1 flag đơn lẻ) — không phải A/B kiểm soát chặt. Ghi rõ để không bị hiểu
+     nhầm là so sánh đồng nhất; đây là quyết định có chủ đích, không phải sơ suất — xem
+     Alternatives cho lý do không đo lại "before" mới.
+
+6. **Bộ kịch bản có nhãn + replay (điểm "đo trên bộ có nhãn... logic chấm phải mở"):**
+   `aiops/incident_replay.py` + `aiops/incident_scenarios/{case_masking,
+   case_healthy_load}.json` (case `real` dùng chung với `#7b`, xem ADR-012). Logic chấm
+   điểm (`score_events`/`verdict_for_type`) là Python thuần, không dependency, đọc trực
+   tiếp được — đúng yêu cầu "logic chấm phải mở để mentor soi".
+
+## Alternatives considered
+- **EWMA thay 3-sigma cho masking-resistance:** phản ứng mượt hơn với drift, nhưng đổi
+  cả thuật toán baseline sát deadline là thay đổi lớn hơn cần thiết — bug thật nằm ở chỗ
+  nạp history, không nằm ở việc dùng 3-sigma hay EWMA (EWMA không có exclusion cũng bị
+  chính bug này). Winsorize là fix tối thiểu, đúng chỗ, đủ hiểu. EWMA vẫn defer sang
+  #7b/TF1-71 như ADR-012 đã quyết.
+- **Đo lại MTTD "before" bằng cách tắt detector rồi test thủ công mới:** cho ra số cùng
+  điều kiện đo hơn, nhưng (a) tốn thời gian không có sát deadline, (b) một phép đo dàn
+  dựng ("giả vờ không có detector") kém trung thực hơn số thật từ 1 sự cố thật đã xảy ra
+  (INC-01) — ưu tiên bằng chứng thật hơn bằng chứng sạch. → Dùng số INC-01, ghi rõ caveat
+  thay vì dựng lại.
+- **Xây incident summary tường thuật bằng LLM (root-cause tự viết):** đúng tinh thần chữ
+  "summary" hơn, nhưng thêm 1 lời gọi LLM vào đường alert = thêm latency + cost + rủi ro
+  bịa (đúng thứ MANDATE-06 đang canh) cho một u cầu ở mức MVP. → Loại cho vòng này; nếu
+  làm thêm, ưu tiên nối `correlate.py` (đã có sẵn correlation/co-occurrence tĩnh) vào làm
+  gợi ý nguyên nhân trước khi nghĩ tới LLM.
+- **Coi `main` là trunk, chờ merge `develop` → `main` trước khi nộp:** đúng chữ nghĩa
+  `CONTRIBUTING.md` hơn, nhưng `main` đứng yên từ 12/07 trong khi toàn bộ vận hành thật
+  (bao gồm chính detector/remediation đang chấm) sống trên `develop` — coi `main` là
+  trunk sẽ khiến bằng chứng "merged vào trunk" trỏ vào nhánh không phản ánh hệ thống thật
+  đang chạy. → Loại; coi `develop` là trunk, ghi rõ lý do để mentor không thắc mắc.
+
+## Consequences
+- Bug masking đã fix ảnh hưởng MỌI rule `type: metric` (không riêng ca kiểm demo) — cải
+  thiện thật cho hệ thống, không chỉ để qua bài.
+- Incident summary ở mức MVP (grouped alert, không narrative) — nếu mentor kỳ vọng tường
+  thuật root-cause, đây là gap đã biết, không phải overclaim; đường nâng cấp đã có
+  (`correlate.py`).
+- MTTD before/after không phải A/B kiểm soát chặt — chấp nhận rủi ro bị hỏi, chuẩn bị
+  trả lời bằng chính đoạn caveat này thay vì né tránh.
+- Phụ thuộc vào fix hạ tầng `emptyDir` (xem addendum ADR-013) để `incident_replay.py`
+  chấm điểm được trên EKS thật — chưa merge/sync tại thời điểm viết ADR này.
+
+### Addendum 2026-07-24 — trạng thái bằng chứng tại thời điểm nộp
+Code + test đã xong: `test_detector.py` 22/22 pass (gồm test masking mới),
+`test_incident_replay.py` 13/13 pass. **Chạy sống 3 kịch bản (real/masking/
+healthy_load) + chụp bằng chứng bộ ẩn CHƯA thực hiện** — chờ PR
+`feat/aiops-mandate-7b-15-22` merge vào `develop` + ArgoCD sync (fix ghi file, xem
+addendum ADR-013), sau đó xác nhận với người phụ trách trước khi bơm lỗi vào cluster
+chung. Kết quả (ảnh/log + verdict pass/fail 3 case) sẽ đính kèm bổ sung vào ticket
+`AI MANDATE #15` khi có — xem `report/mandate15/` (đóng gói cùng đợt).

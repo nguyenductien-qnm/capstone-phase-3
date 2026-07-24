@@ -1,5 +1,14 @@
 # Đặc tả Anomaly Detection & Auto-Remediation (AIOps)
 
+> **⚠️ Cập nhật 2026-07-24 — 2 điểm lệch code thật, đọc trước khi dùng tài liệu này:**
+> (1) §3.1/§5 mô tả cơ chế **EWMA** — code thật (`aiops/detector/detector.py`) dùng
+> **rolling-window 3-sigma**, không phải EWMA (xem ADR-012 "Alternatives considered" —
+> EWMA defer sang `#7b`/TF1-71 có chủ đích, không phải sai sót). (2) §7 mô tả "Auto
+> Rollback... helm rollback" — hành vi thật cho action `k8s_restart_pod` là **dừng lại +
+> tăng circuit breaker + escalate người**, KHÔNG có helm rollback nào (restart-pod không
+> đổi config gì để mà hoàn tác về) — quyết định + lý do đầy đủ ở ADR-013 mục "Decision"
+> điểm 5. Xem `05_adrs.md` (ADR-012/ADR-013/ADR-015) để biết hành vi đang chạy thật.
+
 ## 1. Mục Tiêu & Phạm Vi (Context)
 Tài liệu này định nghĩa các kịch bản tự động phục hồi khép kín (closed-loop remediation) nhằm tự động xử lý các sự cố phát sinh trên hệ thống. Trọng tâm của hệ thống AIOps là đảm bảo khả năng phát hiện dị thường (Anomaly Detection) một cách chính xác dựa trên các thuật toán, và đi kèm với các **ranh giới an toàn (Safety Boundaries)** để ngăn chặn việc tự động hóa gây lỗi hàng loạt.
 
