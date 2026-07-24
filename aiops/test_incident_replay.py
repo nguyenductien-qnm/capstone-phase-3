@@ -1,8 +1,9 @@
-"""Unit tests for the pure scoring logic in incident_replay.py (MANDATE-07 #7b
-precision/recall/lead-time harness — also reused by MANDATE-15/22, see
-aiops/incident_scenarios/README.md). No live Prometheus/K8s/flagd needed:
-score_events/verdict_for_type/check_remediation only read a JSONL file and
-compare timestamps.
+"""Unit tests for the pure scoring logic in incident_replay.py — the part
+MANDATE-15 requires to be readable/open ("logic cham phai mo de mentor soi").
+Harness introduced for MANDATE-07 #7b, reused here for MANDATE-15's masking/
+healthy-load scenarios (see aiops/incident_scenarios/README.md). No live
+Prometheus/K8s/flagd needed: score_events/verdict_for_type/check_remediation
+only read a JSONL file and compare timestamps.
 
 Run:
     pytest aiops/test_incident_replay.py -v
@@ -125,13 +126,45 @@ def test_verdict_real_incident_passes_when_fired():
     assert ok is True
 
 
+def test_normalize_events_healthy_load_watches_monitored_rule_ids():
+    """expected_rule_ids is empty on purpose for a healthy_load scenario
+    (nothing SHOULD fire) — monitored_rule_ids is what we actually match
+    against to detect a false positive (MANDATE-15)."""
+    scenario = {
+        "id": "case-healthy-load-001", "type": "healthy_load", "service": "frontend",
+        "expected_rule_ids": [], "monitored_rule_ids": ["latency-p95-high"],
+        "expect_fire": False, "duration_seconds": 10,
+    }
+    events = ir._normalize_events(scenario)
+    assert events[0]["expected_rule_ids"] == ["latency-p95-high"]
+
+
+def test_healthy_load_scenario_end_to_end_false_positive_detected(tmp_path):
+    """A latency-p95-high alert firing for frontend during a 'healthy load'
+    window must be scored as a false positive -> verdict FAIL."""
+    history = tmp_path / "alerter_history.jsonl"
+    _write_jsonl(history, [
+        {"ts": 1050.0, "rule_id": "latency-p95-high", "service": "frontend"},
+    ])
+    scenario = {
+        "id": "case-healthy-load-001", "type": "healthy_load", "service": "frontend",
+        "expected_rule_ids": [], "monitored_rule_ids": ["latency-p95-high"],
+        "expect_fire": False, "duration_seconds": 100, "settle_seconds": 10,
+    }
+    events = ir._normalize_events(scenario)
+    events[0]["t_start"] = 1000.0
+    events[0]["t_end"] = 1100.0
+    score = ir.score_events(events, str(history), settle_seconds=10)
+    ok, reason = ir.verdict_for_type("healthy_load", score["per_event"])
+    assert ok is False
+    assert "case-healthy-load-001" in reason
+
+
 def test_committed_scenario_files_parse_and_normalize():
     """Every committed labeled-incident-set file must at least be
-    well-formed and produce events with the fields score_events() needs.
-    (monitored_rule_ids fallback for healthy_load-type scenarios is covered
-    once that scenario type is introduced — see MANDATE-15 work.)"""
+    well-formed and produce events with the fields score_events() needs."""
     files = glob.glob(os.path.join(SCENARIOS_DIR, "*.json"))
-    assert len(files) >= 1
+    assert len(files) >= 3
     for path in files:
         with open(path, "r", encoding="utf-8") as f:
             scenario = json.load(f)
