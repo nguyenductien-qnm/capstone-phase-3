@@ -3,6 +3,10 @@
 
 observabilityStorage:
   enabled: true
+  parameters:
+    type: gp3
+    encrypted: "true"
+    additional-tags: "Backup=true,Component=observability"
 
 opentelemetry-collector:
   tolerations:
