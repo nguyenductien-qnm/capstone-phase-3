@@ -459,6 +459,12 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		Items:              prep.orderItems,
 	}
 
+	if cs.orderEventPublisher != nil {
+		if pubErr := cs.orderEventPublisher.Publish(ctx, orderResult); pubErr != nil {
+			logger.Warn(fmt.Sprintf("checkout order event publish failed: %v", pubErr))
+		}
+	}
+
 	shippingCostFloat, _ := strconv.ParseFloat(fmt.Sprintf("%d.%02d", prep.shippingCostLocalized.GetUnits(), prep.shippingCostLocalized.GetNanos()/1000000000), 64)
 	totalPriceFloat, _ := strconv.ParseFloat(fmt.Sprintf("%d.%02d", total.GetUnits(), total.GetNanos()/1000000000), 64)
 
