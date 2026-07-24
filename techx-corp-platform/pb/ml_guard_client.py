@@ -28,7 +28,7 @@ _INVISIBLE_CHARS_RE = re.compile("[\u200b-\u200f\u2060\ufeff]")
 _OBVIOUS_INJECTION = re.compile(
     r"ignore\s+(all\s+|any\s+)?(previous|prior|above)\s+(instructions?|prompts?)"
     r"|reveal\s+(your\s+)?(system\s+prompt|instructions?)"
-    r"|bỏ\s+qua\s+(các\s+)?(lệnh|hướng\s+dẫn)"
+    r"|bỏ\s+qua\s+(các\s+|mọi\s+|toàn\s+bộ\s+)?(lệnh|hướng\s+dẫn)"
     r"|in\s+ra\s+(toàn\s+bộ\s+)?system\s+prompt"
     r"|tiết\s+lộ\s+(toàn\s+bộ\s+)?(chỉ\s+dẫn|hướng\s+dẫn|bí\s+mật)"
     r"|developer\s+mode"
