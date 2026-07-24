@@ -13,5 +13,4 @@ opentelemetry-distro
 opentelemetry-instrumentation
 grpcio
 grpcio-health-checking
-guardrails-ai
 boto3

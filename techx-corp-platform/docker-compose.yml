@@ -982,12 +982,30 @@ services:
       - "8091:8090"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/healthz')"]
+      test: ["CMD", "grpc_health_probe", "-addr=127.0.0.1:8090"]
       interval: 15s
       timeout: 5s
       retries: 10
       start_period: 100s
     logging: *logging
+    environment:
+      - AWS_REGION
+      # Local dev: passthrough creds SSO ngắn hạn (aws configure export-credentials).
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - AWS_SESSION_TOKEN
+      - BEDROCK_AWS_ROLE_ARN
+      - LLM_JUDGE_MODEL
+      - LLM_INJECTION_JUDGE_MODEL
+      - LLM_LOCAL_ML_GUARD=true
+      - AWS_SHARED_CREDENTIALS_FILE=/app/.aws/credentials
+      - OTEL_PYTHON_LOG_CORRELATION=true
+      - OTEL_EXPORTER_OTLP_ENDPOINT
+      - OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE
+      - OTEL_RESOURCE_ATTRIBUTES
+      - OTEL_SERVICE_NAME=ml-guard
+    volumes:
+      - ~/.aws:/app/.aws:ro
 
   # Shopping Copilot service (TF1-59)
   shopping-copilot:
@@ -1006,9 +1024,13 @@ services:
       - LLM_HOST
       - LLM_PORT
       - BEDROCK_AWS_ROLE_ARN
+      - AWS_REGION
+      - AWS_SHARED_CREDENTIALS_FILE=/app/.aws/credentials
       - OTEL_EXPORTER_OTLP_ENDPOINT
       - OTEL_SERVICE_NAME=shopping-copilot
       - OTEL_RESOURCE_ATTRIBUTES
+    volumes:
+      - ~/.aws:/app/.aws:ro
     depends_on:
       ml-guard:
         condition: service_healthy

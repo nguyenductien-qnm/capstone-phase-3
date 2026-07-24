@@ -1,6 +1,8 @@
-"""ml-guard v2 — Async gRPC central policy service with Guardrails AI engine.
+"""ml-guard v2 — Async gRPC central policy service.
 
-Replaces the sync HTTP ThreadingHTTPServer.
+Replaces the sync HTTP ThreadingHTTPServer. Cascade: regex pre-filter →
+Presidio PII → NLI grounding (mDeBERTa-XNLI) → Nova judge → optional Bedrock
+Guardrail (flag OFF mặc định, ADR-015).
 Implements CheckInput, CheckOutput, SanitizeReviews endpoints.
 """
 import asyncio
@@ -16,9 +18,6 @@ import grpc
 from grpc_health.v1 import health
 from grpc_health.v1 import health_pb2
 from grpc_health.v1 import health_pb2_grpc
-
-from guardrails import Guard
-from guardrails.validators import Validator, register_validator, PassResult, FailResult
 
 import ml_guard_pb2
 import ml_guard_pb2_grpc
@@ -54,7 +53,7 @@ GUARDRAIL_ID = os.environ.get("BEDROCK_GUARDRAIL_ID", "")
 GUARDRAIL_VERSION = os.environ.get("BEDROCK_GUARDRAIL_VERSION", "DRAFT")
 GUARDRAIL_ENABLED = bool(GUARDRAIL_ID) and (os.environ.get("LLM_BEDROCK_GUARDRAIL", "false").lower() == "true")
 
-JUDGE_MODEL = os.environ.get("LLM_JUDGE_MODEL", "amazon.nova-micro-v1:0")
+JUDGE_MODEL = os.environ.get("LLM_JUDGE_MODEL", "amazon.nova-lite-v1:0")  # 24/25 vs micro 23/25 (eval 24/07)
 INJECTION_JUDGE_MODEL = os.environ.get("LLM_INJECTION_JUDGE_MODEL", "amazon.nova-lite-v1:0")
 INJECTION_JUDGE = os.environ.get("LLM_INJECTION_JUDGE", "true").lower() == "true"
 
@@ -127,7 +126,13 @@ def _load_model():
     analyzer = AnalyzerEngine()
     anonymizer = AnonymizerEngine()
     
-    bedrock = boto3.client('bedrock-runtime', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
+    # Cross-account assume-role như 2 service kia (BEDROCK_AWS_ROLE_ARN + external id);
+    # thiếu bedrock_client.py (chạy ngoài container) thì rơi về boto3 default chain.
+    try:
+        from bedrock_client import create_bedrock_runtime_client
+        bedrock = create_bedrock_runtime_client(region_name=os.environ.get('AWS_REGION', 'us-east-1'))
+    except ImportError:
+        bedrock = boto3.client('bedrock-runtime', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
 
     _state.update(
         tok=tok, model=model, torch=torch, prompt_guard=prompt_guard, 
@@ -308,20 +313,6 @@ def validate_citations(llm_output, tool_results):
     return cleaned
 
 
-# --- Guardrails AI Custom Validator ---
-@register_validator(name="vietnamese_mdeberta_grounding", data_type="string")
-class VietnameseMDeBERTaGrounding(Validator):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-    
-    def validate(self, value, metadata=None) -> PassResult | FailResult:
-        source = metadata.get("grounding_source", "") if metadata else ""
-        action = _grounding_decision_sync(source, value)
-        if action == "block":
-            return FailResult(error_message="Grounding failed (contradiction).")
-        return PassResult(metadata={"action": action})
-
-
 # --- gRPC Service Implementation ---
 
 class MLGuardServicer(ml_guard_pb2_grpc.MLGuardServiceServicer):
@@ -384,21 +375,15 @@ class MLGuardServicer(ml_guard_pb2_grpc.MLGuardServiceServicer):
                 
             src = (request.grounding_source or "")[:GROUNDING_MAX_SOURCE_CHARS]
             
-            # Layer 1: ml-guard NLI (Guardrails AI Custom Validator wrapper)
+            # Layer 1: NLI grounding (mDeBERTa-XNLI, 1 lần trong executor)
             try:
-                guard = Guard.from_string(
-                    validators=[VietnameseMDeBERTaGrounding(on_fail="exception")]
-                )
-                loop = asyncio.get_running_loop()
-                await loop.run_in_executor(
-                    executor,
-                    lambda: guard.parse(masked, metadata={"grounding_source": src})
-                )
-                # If exception not raised, it means action was pass or judge
-                action = _grounding_decision_sync(src, masked)
+                action = await async_grounding_decision(src, masked)
             except Exception as e:
-                # Contradiction
-                logger.warning("Grounding BLOCK (ml-guard NLI contradiction)")
+                # Lỗi infra (model/OOM) ≠ contradiction — để judge quyết thay vì block nhầm.
+                logger.warning("NLI grounding error, defer to judge: %s", e)
+                action = "judge"
+            if action == "block":
+                logger.warning("Grounding BLOCK (NLI contradiction)")
                 return ml_guard_pb2.CheckOutputResponse(blocked=True, sanitized_text=masked, reason="Grounding block (NLI)")
 
             # Layer 2: Nova Judge
@@ -443,16 +428,27 @@ class MLGuardServicer(ml_guard_pb2_grpc.MLGuardServiceServicer):
 
 
 async def serve():
-    loop = asyncio.get_running_loop()
-    loop.run_in_executor(None, _load_model)
-    
     server = grpc.aio.server()
     ml_guard_pb2_grpc.add_MLGuardServiceServicer_to_server(MLGuardServicer(), server)
-    
-    health_servicer = health.HealthServicer(experimental_non_blocking=True, experimental_thread_pool=executor)
+
+    # Pool riêng cho health check — không tranh thread với torch inference.
+    health_executor = ThreadPoolExecutor(max_workers=1)
+    health_servicer = health.HealthServicer(experimental_non_blocking=True, experimental_thread_pool=health_executor)
     health_pb2_grpc.add_HealthServicer_to_server(health_servicer, server)
-    health_servicer.set("", health_pb2.HealthCheckResponse.SERVING)
-    
+    health_servicer.set("", health_pb2.HealthCheckResponse.NOT_SERVING)
+
+    loop = asyncio.get_running_loop()
+    load_future = loop.run_in_executor(None, _load_model)
+
+    def _mark_ready(fut):
+        exc = fut.exception()
+        if exc:
+            logger.error("model load failed — staying NOT_SERVING", exc_info=exc)
+        else:
+            health_servicer.set("", health_pb2.HealthCheckResponse.SERVING)
+            logger.info("ml-guard ready — health SERVING")
+    load_future.add_done_callback(_mark_ready)
+
     server.add_insecure_port(f'[::]:{PORT}')
     logger.info("ml-guard grpc.aio server listening on :%d", PORT)
     await server.start()

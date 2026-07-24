@@ -22,8 +22,6 @@ ENV HF_HOME=/app/hf-cache \
     PROMPT_GUARD_MODEL=protectai/deberta-v3-base-prompt-injection-v2 \
     ML_GUARD_PORT=8090
 RUN python -m spacy download en_core_web_lg && \
-    guardrails hub install hub://guardrails/detect_pii || true && \
-    guardrails hub install hub://guardrails/prompt_injection || true && \
     python -c "from transformers import AutoTokenizer, AutoModelForSequenceClassification as M, pipeline; \
     import os; m = os.environ['ML_GUARD_MODEL']; AutoTokenizer.from_pretrained(m); M.from_pretrained(m); \
     p = os.environ['PROMPT_GUARD_MODEL']; pipeline('text-classification', model=p)" \
@@ -32,6 +30,8 @@ RUN python -m spacy download en_core_web_lg && \
 COPY ./src/ml-guard/server.py .
 COPY ./src/ml-guard/ml_guard_pb2.py .
 COPY ./src/ml-guard/ml_guard_pb2_grpc.py .
+# Tái dùng assume-role client factory của product-reviews (single source, không fork).
+COPY ./src/product-reviews/bedrock_client.py .
 
 USER 10001:10001
 EXPOSE 8090

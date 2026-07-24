@@ -1087,17 +1087,19 @@ components:
         cpu: 500m
         memory: 500Mi     # P0 right-size: LOCUST_BROWSER_TRAFFIC_ENABLED=false -> HTTP thuần (PR#49, restore sau PR#106)
   ml-guard:
-    # Self-hosted ML Guard cascade stage (ADR-014, MANDATE-06 §7.1): Presidio PII +
-    # ProtectAI prompt-injection classifier + mDeBERTa-xnli grounding NLI, called over
-    # HTTP by product-reviews/shopping-copilot's guardrails.py (ML_GUARD_URL). Model
-    # load takes 25-90s -> startupProbe covers warm-up before readiness is checked,
-    # same convention as product-catalog's Postgres-wait startupProbe below.
+    # Self-hosted ML Guard v2 (ADR-015, MANDATE-06 §7.1): central async gRPC policy
+    # service — Presidio PII + ProtectAI prompt-injection classifier + mDeBERTa-xnli
+    # grounding NLI + Nova judge, called over gRPC by product-reviews/shopping-copilot
+    # (ML_GUARD_URL). Model load takes 25-90s -> startupProbe covers warm-up before
+    # readiness is checked; health chỉ SERVING sau khi model load xong.
+    # LƯU Ý v2: judge Nova gọi Bedrock TỪ ml-guard (v1 do 2 service gọi) -> env nào
+    # có Bedrock phải cấp egress-internet + BEDROCK_AWS_ROLE_ARN cho ml-guard
+    # (xem sandbox values-aio-llm.yaml); thiếu thì judge fail-open, chỉ còn regex+local ML.
     enabled: true
     useDefault:
       env: true
     imageOverride:
       tag: "1.0-ml-guard"
-    # no serviceAccount block: model is local, no AWS calls (docs §7.3)
     service:
       port: 8090
     podAnnotations:
@@ -1120,6 +1122,15 @@ components:
     env:
       - name: ML_GUARD_PORT
         value: "8090"
+      # v2: các knob cascade chuyển từ 2 client service vào đây (server-side).
+      - name: LLM_LOCAL_ML_GUARD
+        value: "true"
+      # nova-lite cho grounding judge: eval 24/07 24/25 (micro 23/25 — trượt partial-
+      # entailment); judge chỉ chạy khi NLI phân vân nên delta cost nhỏ trong budget.
+      - name: LLM_JUDGE_MODEL
+        value: amazon.nova-lite-v1:0
+      - name: LLM_INJECTION_JUDGE_MODEL
+        value: amazon.nova-lite-v1:0
     resources:
       requests:
         cpu: 400m
@@ -1330,12 +1341,6 @@ components:
             key: auth_token
       - name: ML_GUARD_URL
         value: ml-guard:8090
-      - name: LLM_LOCAL_ML_GUARD
-        value: "true"
-      - name: LLM_JUDGE_MODEL
-        value: amazon.nova-micro-v1:0
-      - name: LLM_INJECTION_JUDGE_MODEL
-        value: amazon.nova-lite-v1:0
     resources:
       requests:
         cpu: 100m
@@ -1505,12 +1510,6 @@ components:
         value: http://$(OTEL_COLLECTOR_NAME):4317
       - name: ML_GUARD_URL
         value: ml-guard:8090
-      - name: LLM_LOCAL_ML_GUARD
-        value: "true"
-      - name: LLM_JUDGE_MODEL
-        value: amazon.nova-micro-v1:0
-      - name: LLM_INJECTION_JUDGE_MODEL
-        value: amazon.nova-lite-v1:0
     resources:
       requests:
         cpu: 10m
