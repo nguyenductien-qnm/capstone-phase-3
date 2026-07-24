@@ -12,13 +12,21 @@
       "enabled": false
     },
     {
-      "description": "NHOM PIN: gom moi viec pin (action SHA + docker digest) vao DUNG 1 PR. groupSlug rieng de co gi moi commit vao cung PR nay.",
+      "description": "PR1 - PIN ACTION SHA: chi viec pin github-actions theo commit SHA (YC4a). groupSlug rieng -> co gi moi commit vao cung PR nay.",
+      "matchManagers": ["github-actions"],
       "matchUpdateTypes": ["pin", "pinDigest", "digest"],
-      "groupName": "pin sha + digest",
-      "groupSlug": "pin-all"
+      "groupName": "pin github actions (sha)",
+      "groupSlug": "pin-actions"
     },
     {
-      "description": "NHOM VERSION: gom moi nang version (major/minor/patch) vao 1 PR KHAC, tach khoi nhom pin.",
+      "description": "PR2 - PIN DOCKER DIGEST: chi viec pin base image Docker theo sha256 (YC4b). Tach khoi PR pin action.",
+      "matchManagers": ["dockerfile"],
+      "matchUpdateTypes": ["pin", "pinDigest", "digest"],
+      "groupName": "pin docker base-image (digest)",
+      "groupSlug": "pin-docker"
+    },
+    {
+      "description": "PR3 - VERSION: gom moi nang version (major/minor/patch) cua MOI manager vao 1 PR rieng, tach khoi 2 PR pin tren.",
       "matchUpdateTypes": ["major", "minor", "patch"],
       "groupName": "version updates",
       "groupSlug": "version-all"
