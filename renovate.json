@@ -6,9 +6,9 @@
   "pinDigests": true,
   "packageRules": [
     {
-      "description": "NE image ECR rieng (804...ecr): Renovate khong co credential AWS de tra digest -> bo qua, tranh loi getAuthorizationToken. Image nay da duoc pin digest trong pipeline build.",
+      "description": "NE moi image ECR rieng (*.dkr.ecr): Renovate khong co credential AWS de tra digest -> bo qua, tranh loi getAuthorizationToken. Image nay da duoc pin digest trong pipeline build.",
       "matchDatasources": ["docker"],
-      "matchPackageNames": ["/804372444787\\.dkr\\.ecr\\..*/"],
+      "matchPackageNames": ["/.*\\.dkr\\.ecr\\..*/"],
       "enabled": false
     },
     {
