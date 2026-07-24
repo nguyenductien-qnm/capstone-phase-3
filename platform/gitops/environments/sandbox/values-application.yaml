@@ -4,6 +4,13 @@
 # BẮT BUỘC đi cùng image frontend-proxy có YC4 load-shed (>= tag a0a954f — prod đã nhận
 # qua PR promote 22/07): ngưỡng shed browse 80rps/homepage 100rps được tune theo sizing
 # này; có shed mà không có sizing (hoặc ngược lại) là lệch điểm gãy.
+default:
+  # Karpenter Phase 1: ưu tiên khác host nhưng không ép tạo một node cho mỗi replica.
+  # Zone spread là hard requirement để critical replicas thực sự chạy trên >=2 AZ.
+  topologySpreadWhenUnsatisfiable: ScheduleAnyway
+  topologySpreadZoneWhenUnsatisfiable: DoNotSchedule
+  topologySpreadZoneMinDomains: 2
+
 components:
   frontend:
     # Next.js SSR là nút thắt user-facing: 200m limit bóp cổ (throttle 9.3% khi kịch

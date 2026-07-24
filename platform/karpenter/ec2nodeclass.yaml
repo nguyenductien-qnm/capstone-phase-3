@@ -7,6 +7,13 @@ spec:
   amiFamily: AL2023
   amiSelectorTerms:
     - alias: al2023@latest
+  kubelet:
+    podsPerCore: 20
+    maxPods: 80
+  metadataOptions:
+    httpEndpoint: enabled
+    httpTokens: required
+    httpPutResponseHopLimit: 1
   role: ecommerce-dev-eks-karpenter-node  # Khớp aws_iam_role.karpenter_node name trong module EKS
   subnetSelectorTerms:
     - tags:

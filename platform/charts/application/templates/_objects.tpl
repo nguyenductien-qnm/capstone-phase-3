@@ -63,16 +63,18 @@ spec:
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: {{ .topologySpreadWhenUnsatisfiable | default "DoNotSchedule" }}   # CDO-34: DoNotSchedule (hard) — ép 2 pod critical ra khác node để mất-node không sập cả service. Sandbox giữ baseline 2 primary node và pre-scale lên 3; override "ScheduleAnyway" per-component nếu cần nới.
+          whenUnsatisfiable: {{ .topologySpreadWhenUnsatisfiable | default .defaultValues.topologySpreadWhenUnsatisfiable | default "DoNotSchedule" }}
           nodeTaintsPolicy: Honor   # INC-FIX: Exclude tainted nodes khỏi domain count. Default Ignore khiến node-obs (tainted dedicated=observability:NoSchedule) bị đếm là 1 domain → skew 1,1,0 → pod mới → skew 2 > maxSkew 1 → deadlock. Ref: https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/#nodestaintspolicy
           labelSelector:
             matchLabels:
               {{- include "techx-corp.selectorLabels" . | nindent 14 }}
         # CDO-217 (M17-R2): trải pod theo AZ để mất trọn 1 AZ vẫn giữ SLO.
-        # ScheduleAnyway (soft) tránh deadlock khi cluster chưa đủ node ở ≥2 AZ; hostname ở trên vẫn giữ hard.
         - maxSkew: {{ .topologySpreadZoneMaxSkew | default 1 }}
           topologyKey: topology.kubernetes.io/zone
-          whenUnsatisfiable: {{ .topologySpreadZoneWhenUnsatisfiable | default "ScheduleAnyway" }}
+          whenUnsatisfiable: {{ .topologySpreadZoneWhenUnsatisfiable | default .defaultValues.topologySpreadZoneWhenUnsatisfiable | default "ScheduleAnyway" }}
+          {{- with (.topologySpreadZoneMinDomains | default .defaultValues.topologySpreadZoneMinDomains) }}
+          minDomains: {{ . }}
+          {{- end }}
           nodeTaintsPolicy: Honor
           labelSelector:
             matchLabels:
