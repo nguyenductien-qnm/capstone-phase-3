@@ -528,6 +528,44 @@ có đầy đủ); `product-reviews` vẫn chạy root (MANDATE-05, deadline 17/
 
 ---
 
+### Addendum 2026-07-24 — MANDATE-07 `#7b`: labeled-set measurement harness + trunk clarification
+
+**Vấn đề:** `#7b` (hạn 25/07) yêu cầu precision/recall/lead-time đo trên **bộ sự cố có
+nhãn** (K sự cố + giai đoạn bình thường), KHÔNG phải per-service. `evaluate_detector.py`
+(`detector_kpi_metrics.json`) — thứ duy nhất từng cho ra số precision/recall — tự khai
+rõ trong README là dữ liệu synthetic tự gán nhãn, **không được trích làm KPI hệ thống**.
+Chưa có bộ nhãn thật nào commit trong repo trước ngày này.
+
+**Fix:** thêm `aiops/incident_replay.py` (inject kịch bản qua flagd/lệnh + chấm điểm
+đúng công thức mandate: `recall = bắt được/K`, `precision = lần kêu đúng/tổng lần kêu`,
+`lead_time = fire_ts - start_ts`) và 1 kịch bản có nhãn commit trong
+`aiops/incident_scenarios/case_real_incident.json`. Đây cũng là script `repro` bắt
+buộc phải nộp kèm ticket. Harness dựng theo hướng tổng quát (hỗ trợ sẵn kiểu kịch bản
+`masking`/`healthy_load` và cờ `--check-remediation`) để MANDATE-15/MANDATE-22 tự thêm
+kịch bản riêng của mình lên trên trong PR riêng của từng mandate, không cần sửa lại
+harness.
+
+**Định nghĩa "trunk" = `develop`** (áp dụng chung cho `#7b`/MANDATE-15/MANDATE-22 —
+ghi 1 lần ở đây, các ADR sau tham chiếu lại thay vì lặp lại): `main` đứng yên từ PR #31
+(2026-07-12); toàn đội đã chuyển hẳn sang `develop` làm nhánh vận hành thật từ tái cấu
+trúc 2026-07-16 (gần 400 commit tính tới 2026-07-24, workflow PR/CI đều nhắm `develop`).
+`CONTRIBUTING.md` vẫn ghi PR vào `main` — tài liệu chưa cập nhật theo thực tế, không
+phải hai nhánh cùng là trunk. Quyết định: coi `develop` là trunk khi các mandate yêu cầu
+"merged vào nhánh chính", ghi rõ ở đây để mentor không thắc mắc tại sao bằng chứng trỏ
+vào `develop` chứ không phải `main`.
+
+**Trạng thái tại thời điểm viết addendum này (2026-07-24, còn 1 ngày tới hạn):** harness
++ 1 kịch bản `case_real_incident.json` + unit test cho logic chấm điểm đã có
+(`aiops/test_incident_replay.py`, xanh hết). **Chạy sống + số đo thật CHƯA có** — phát
+hiện thêm 1 blocker hạ tầng khi kiểm tra `kubectl logs` trên EKS:
+`readOnlyRootFilesystem=true` không có volume ghi được, nên `alerter_history.jsonl`
+(nguồn dữ liệu duy nhất `incident_replay.py` dùng để chấm điểm) **chưa từng được ghi
+thật trên EKS từ trước tới giờ** — đã fix trong PR này (`aiops/detector/deploy/
+deployment.yaml`, thêm `emptyDir`), chờ merge + ArgoCD sync rồi mới chạy được kịch bản
+để lấy số thật. Ảnh/log + số đo sẽ đính kèm bổ sung vào ticket `AI MANDATE #7b` khi có.
+
+---
+
 # ADR-013: Closed-loop Auto-remediation — dry-run → blast-radius → verify → rollback → CB (TF1-72)
 
 - **Trạng thái:** Chấp nhận (Accepted)
