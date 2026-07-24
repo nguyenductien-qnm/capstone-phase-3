@@ -118,6 +118,47 @@ def test_metric_rule_dynamic_only_uses_dynamic_headline():
     assert "SLO BREACH" not in alerts[0][1]
 
 
+def test_dynamic_detection_not_masked_by_prior_spike():
+    """MANDATE-15 masking case: a single noise spike must not inflate the
+    rolling baseline enough to hide a smaller, separate incident right after.
+
+    Regression test for the bug where eval_metric_rule folded the raw
+    anomalous value into metric_history, dragging mean/std toward the spike
+    for ~30 subsequent cycles and raising dynamic_threshold above the next,
+    genuinely-anomalous-but-smaller value.
+    """
+    prom = MagicMock()
+    rule = {
+        "id": "latency-test",
+        "type": "metric",
+        "query": "dummy_query",
+        "op": "gt",
+        "threshold": 100.0,  # static threshold never fires; isolate 3-sigma path
+        "summary": "High latency alert",
+        "severity": "warning",
+    }
+    detector.metric_history.clear()
+
+    # Stable baseline.
+    for val in [0.1, 0.11, 0.09, 0.1, 0.12]:
+        prom.query.return_value = [(val, {"service_name": "storefront"})]
+        detector.eval_metric_rule(rule, prom)
+
+    # Noise spike — must still fire on its own.
+    prom.query.return_value = [(5.0, {"service_name": "storefront"})]
+    spike_alerts = detector.eval_metric_rule(rule, prom)
+    assert len(spike_alerts) == 1
+
+    # A distinct, much smaller real incident right after the spike must
+    # still be caught, not masked by a baseline the spike dragged upward.
+    prom.query.return_value = [(0.5, {"service_name": "storefront"})]
+    incident_alerts = detector.eval_metric_rule(rule, prom)
+    assert len(incident_alerts) == 1, (
+        "a prior spike must not inflate mean/std enough to mask a smaller, "
+        "separate incident in the same window"
+    )
+
+
 # ---------------------------------------------------------------------------
 # W1 — k8s_status rule (OOM via K8s API, not logs)
 # ---------------------------------------------------------------------------
