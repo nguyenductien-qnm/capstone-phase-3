@@ -58,6 +58,8 @@ import (
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/status"
+
+	"github.com/open-telemetry/techx-corp/src/checkout/validator"
 )
 
 //go:generate go install google.golang.org/protobuf/cmd/protoc-gen-go
@@ -71,7 +73,7 @@ var initResourcesOnce sync.Once
 
 const (
 	checkoutDependencyTimeout = 750 * time.Millisecond
-	maxOrderItemConcurrency  = 4
+	maxOrderItemConcurrency   = 4
 )
 
 func initResource() *sdkresource.Resource {
@@ -155,10 +157,14 @@ type checkout struct {
 	currencySvcClient       pb.CurrencyServiceClient
 	emailSvcClient          pb.EmailServiceClient
 	paymentSvcClient        pb.PaymentServiceClient
-	
-	dbPool                  *pgxpool.Pool
-	productCatalogGroup     singleflight.Group
-	currencyGroup           singleflight.Group
+
+	dbPool              *pgxpool.Pool
+	productCatalogGroup singleflight.Group
+	currencyGroup       singleflight.Group
+}
+
+func (cs *checkout) sendToPostProcessor(context context.Context, result *pb.OrderResult) any {
+	panic("unimplemented")
 }
 
 func main() {
@@ -257,8 +263,8 @@ func main() {
 	svc.paymentSvcClient = pb.NewPaymentServiceClient(c)
 	defer c.Close()
 
+	// Initialize Kafka Broker so checkout will become Producer 
 	svc.kafkaBrokerSvcAddr = os.Getenv("KAFKA_ADDR")
-
 	if svc.kafkaBrokerSvcAddr != "" {
 		brokers := strings.Split(svc.kafkaBrokerSvcAddr, ",")
 		producer, producerErr := kafka.CreateKafkaProducer(brokers, logger)
@@ -351,17 +357,6 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		}
 	}()
 
-	// Makes a synchronous HTTP request to the Shipping Service (POST /validate-address) to verify all shipping fields are present
-	if err := cs.validateAddress(ctx, req.Address); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid shipping address: %v", err)
-	}
-	// Makes a synchronous gRPC call to the Payment Service (Validate) to ensure the credit card is a valid Visa/Mastercard, hasn't expired, and passes standard format checks
-	if err := cs.validatePayment(ctx, req.CreditCard); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid payment information: %v", err)
-	}
-	// If any of these validations fail, the service immediately throws an error back to the frontend, stopping the entire process 
-
-	
 	orderID, err := uuid.NewUUID()
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to generate order uuid")
@@ -372,12 +367,21 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
+	// In-memory validation
+	if err := validator.ValidateCreditCard(req.CreditCard); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid shipping address: %v", err)
+	}
+
+	if err := validator.ValidateAddress(req.Address); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid payment information: %v", err)
+	}
+
 	// 36.75$
-	// { 
-    //   "currencyCode": "USD",
-    //   "units": 36,
-    //   "nanos": 750000000
-    // }
+	// {
+	//   "currencyCode": "USD",
+	//   "units": 36,
+	//   "nanos": 750000000
+	// }
 	total := &pb.Money{CurrencyCode: req.UserCurrency, Units: 0, Nanos: 0}
 	total = money.Must(money.Sum(total, prep.shippingCostLocalized))
 	for _, it := range prep.orderItems {
@@ -432,31 +436,31 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		Total:                 total,
 	}
 	// add these fields into req
-	// {                                                                                                                                                                                                
-	//     "orderItems": [                                                                                                                                                                                
-	//       {                                                                                                                                                                                            
-	//         "item": {                                                                                                                                                                                  
-	//           "productId": "OLJCESPC7Z",                                                                                                                                                               
-	//           "quantity": 2                                                                                                                                                                            
-	//         },                                                                                                                                                                                         
-	//         "cost": {                                                                                                                                                                                  
-	//           "currencyCode": "EUR",                                                                                                                                                                   
-	//           "units": 15,                                                                                                                                                                             
-	//           "nanos": 500000000                                                                                                                                                                       
-	//         }                                                                                                                                                                                          
-	//       }                                                                                                                                                                                            
-	//     ],                                                                                                                                                                                             
-	//     "cartItems": [                                                                                                                                                                                 
-	//       {                                                                                                                                                                                            
-	//         "productId": "OLJCESPC7Z",                                                                                                                                                                 
-	//         "quantity": 2                                                                                                                                                                              
-	//       }                                                                                                                                                                                            
-	//     ],                                                                                                                                                                                             
-	//     "shippingCostLocalized": {                                                                                                                                                                     
-	//       "currencyCode": "EUR",                                                                                                                                                                       
-	//       "units": 5,                                                                                                                                                                                  
-	//       "nanos": 0                                                                                                                                                                                   
-	//     }                                                                                                                                                                                              
+	// {
+	//     "orderItems": [
+	//       {
+	//         "item": {
+	//           "productId": "OLJCESPC7Z",
+	//           "quantity": 2
+	//         },
+	//         "cost": {
+	//           "currencyCode": "EUR",
+	//           "units": 15,
+	//           "nanos": 500000000
+	//         }
+	//       }
+	//     ],
+	//     "cartItems": [
+	//       {
+	//         "productId": "OLJCESPC7Z",
+	//         "quantity": 2
+	//       }
+	//     ],
+	//     "shippingCostLocalized": {
+	//       "currencyCode": "EUR",
+	//       "units": 5,
+	//       "nanos": 0
+	//     }
 	// }
 	orderMetadataBytes, err := json.Marshal(orderMetadata)
 	if err != nil {
@@ -495,7 +499,7 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 	}
 
 	logger.Info("successfully saved order and outbox event to DB")
-	
+
 	orderResult := &pb.OrderResult{
 		OrderId:            orderID.String(),
 		ShippingTrackingId: "",
@@ -532,16 +536,16 @@ type orderPrep struct {
 	shippingCostLocalized *pb.Money
 }
 
-// In checkout service 
-//   1. getUserCart: 
-// 		- Calls Cart service using userID to retrieve the current list of items in the user's cart
-//   2. prepOrderItems: 
-// 		- For each item in the cart, calls the Product Catalog service to fetch the product's base price (USD). 
-// 		- It then calls the Currency service to convert that base price into the user's local currency (userCurrency).
-//   3. Gets a Shipping Quote (quoteShipping): 
-// 		- It sends the cart items and the destination address to the Shipping service to get a calculated shipping cost (returned in USD).
-//   4. Converts the Shipping Currency (convertCurrency): 
-// 		- It calls the Currency service again to convert the USD shipping cost into the user's local userCurrency.
+// In checkout service
+//  1. getUserCart:
+//     - Calls Cart service using userID to retrieve the current list of items in the user's cart
+//  2. prepOrderItems:
+//     - For each item in the cart, calls the Product Catalog service to fetch the product's base price (USD).
+//     - It then calls the Currency service to convert that base price into the user's local currency (userCurrency).
+//  3. Gets a Shipping Quote (quoteShipping):
+//     - It sends the cart items and the destination address to the Shipping service to get a calculated shipping cost (returned in USD).
+//  4. Converts the Shipping Currency (convertCurrency):
+//     - It calls the Currency service again to convert the USD shipping cost into the user's local userCurrency.
 func (cs *checkout) prepareOrderItemsAndShippingQuoteFromCart(ctx context.Context, userID, userCurrency string, address *pb.Address) (orderPrep, error) {
 
 	ctx, span := tracer.Start(ctx, "prepareOrderItemsAndShippingQuoteFromCart")
@@ -862,8 +866,6 @@ func (cs *checkout) shipOrder(ctx context.Context, address *pb.Address, items []
 
 	return shipResp.TrackingID, nil
 }
-
-
 
 func (cs *checkout) publishKafkaQueueProblems(ctx context.Context, result *pb.OrderResult, ffValue int) {
 	logger.Info("Warning: FeatureFlag 'kafkaQueueProblems' is activated, overloading queue now.")
