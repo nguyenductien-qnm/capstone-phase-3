@@ -97,8 +97,8 @@ resource "aws_iam_role_policy" "msk_connect" {
         Resource = "*"
       },
       {
-        Effect   = "Allow"
-        Action   = ["secretsmanager:GetSecretValue"]
+        Effect = "Allow"
+        Action = ["secretsmanager:GetSecretValue"]
         Resource = [
           aws_secretsmanager_secret.debezium_credentials.arn,
           module.msk.msk_secret_arn
