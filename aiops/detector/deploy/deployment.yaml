@@ -47,7 +47,7 @@ spec:
       containers:
         - name: aiops-detector
           # MANDATE-05: pin tag co dinh, khong dung tag troi (:latest).
-          image: 804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.3-aiops-detector-4252fed
+          image: 804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.3-aiops-detector-9815e66
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false
@@ -61,6 +61,15 @@ spec:
               value: "http://prometheus:9090"
             - name: OPENSEARCH_URL
               value: "http://opensearch:9200"
+            # MANDATE-15/22 evidence gap (found 2026-07-24 khi kiem tra live pod qua
+            # `kubectl logs`): readOnlyRootFilesystem=true (ben duoi) khien alerter.py
+            # _append_history() ghi /app/alerter_history.jsonl bi loi am tham
+            # ("Read-only file system") - MOI lich su alert tren EKS thuc te da bi mat
+            # tu truoc gio, khong the dung lam bang chung/labeled-set cho incident_replay.py.
+            # Tro sang thu muc emptyDir writable (volumeMounts ben duoi) thay vi doi
+            # readOnlyRootFilesystem (yeu cau cung cua MANDATE-05, khong duoc lui).
+            - name: ALERTER_HISTORY_FILE
+              value: "/data/alerter_history.jsonl"
             # Alerter moi (PR #61) doc AIOPS_SLACK_WEBHOOK_CRITICAL/INFO (2 kenh theo
             # 03_specs/aiops_notification_integration.md). Ten bien co chu SLACK nhung
             # nhan ca Discord webhook URL - provider tu detect tu URL (kenh team = Discord).
@@ -73,6 +82,9 @@ spec:
                   name: aiops-alert
                   key: webhook
                   optional: true
+          volumeMounts:
+            - name: aiops-data
+              mountPath: /data
           # Block style (khong phai flow `{ }`): job bump cua app-build ghi tag bang yq,
           # ma yq viet lai flow-map thanh `{cpu: ...}` -> moi lan bump lai kem 2 dong
           # diff rac. Block style la fixed point cua yq nen diff chi con dung dong image.
@@ -83,3 +95,9 @@ spec:
             limits:
               cpu: "200m"
               memory: "128Mi"
+      volumes:
+        # Ephemeral (mat khi pod restart) - du cho muc dich evidence-capture/G7
+        # correlate, KHONG phai durable audit store. Nang cap len PVC/S3 export
+        # la viec sau neu can giu qua nhieu lan restart.
+        - name: aiops-data
+          emptyDir: {}
