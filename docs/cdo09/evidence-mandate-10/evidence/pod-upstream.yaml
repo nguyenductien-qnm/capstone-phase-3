@@ -1,0 +1,22 @@
+# Pod đối chứng: image upstream (busybox), NẰM NGOÀI imageReferences của policy.
+# Dùng đo mốc overhead mạng — chênh lệch với pod-signed chính là chi phí verify thật.
+apiVersion: v1
+kind: Pod
+metadata: { name: kyverno-test-upstream, namespace: techx-tf1 }
+spec:
+  restartPolicy: Never
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    seccompProfile: { type: RuntimeDefault }
+  containers:
+    - name: test
+      image: busybox:1.38.0
+      command: ["sleep","300"]
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities: { drop: ["ALL"] }
+      resources:
+        requests: { cpu: "10m", memory: "16Mi" }
+        limits:   { cpu: "50m", memory: "32Mi" }

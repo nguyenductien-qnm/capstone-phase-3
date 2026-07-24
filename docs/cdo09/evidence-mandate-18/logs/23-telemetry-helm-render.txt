@@ -1,0 +1,17 @@
+MANDATE-18 - sandbox telemetry Helm validation
+Capture date: 2026-07-23
+Values: platform/gitops/environments/sandbox/values-ops-observability.yaml
+
+- helm lint with the six Argo sandbox values files: PASS; 0 chart failures.
+- helm template with the same values and namespace techx-tf1: PASS.
+- Rendered output: 25,672 lines.
+- kubectl create --dry-run=client --validate=false over the rendered stream:
+  PASS; 147 resources parsed without a server-side mutation.
+- Trace exporters: otlp/jaeger, spanmetrics.
+- Metrics exporters: otlphttp/prometheus.
+- Log exporters: opensearch.
+- Rendered pipeline references to debug exporter: none.
+- Rendered ISM ConfigMap/Job/policy resources: none; retention gate is off.
+
+This proves rendered configuration only. It is not runtime after-evidence.
+Expanded explanation is in 20-sandbox-telemetry-code-validation.txt.

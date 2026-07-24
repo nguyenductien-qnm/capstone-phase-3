@@ -41,3 +41,17 @@ spec:
         duration: 10s
         factor: 2
         maxDuration: 2m
+  # Kyverno tự điền default vào ClusterPolicy sau khi admit (defaulting webhook):
+  #   verifyImages[].attestors[].entries[].keyless.signatureAlgorithm: sha256
+  #   verifyImages[].useCache: true
+  # Chúng không có trong Git nên ArgoCD báo OutOfSync vĩnh viễn. Khai tường minh vào
+  # Git cũng không giải quyết được gốc — mọi default Kyverno thêm ở phiên bản sau lại
+  # tái diễn; bỏ qua đúng 2 đường dẫn này gọn và đúng bản chất hơn.
+  # `/status` cũng bỏ qua: Kyverno ghi conditions/rulecount ở runtime, Git không quản.
+  ignoreDifferences:
+    - group: kyverno.io
+      kind: ClusterPolicy
+      jsonPointers:
+        - /status
+        - /spec/rules/0/verifyImages/0/useCache
+        - /spec/rules/0/verifyImages/0/attestors/0/entries/0/keyless/signatureAlgorithm

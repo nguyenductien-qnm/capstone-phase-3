@@ -1,0 +1,33 @@
+=== BASELINE độ trễ admission — đo 23/07/2026 ~13:32 (+07) ===
+Điều kiện: ClusterPolicy verify-image-signature ở chế độ Audit / failurePolicy Ignore
+Cách đo:   kubectl apply --dry-run=server (tách riêng thời gian admission,
+           KHÔNG lẫn thời gian pull image / khởi động container)
+Máy đo:    WSL2 -> EKS prod 804 qua internet, nên ~2.4s là overhead mạng nền.
+
+--- Image QUA policy (ecommerce-dev-techx-corp:1.0-frontend-24b2d8c) ---
+  lần 1: 70145 ms   <-- verify keyless LẦN ĐẦU: tải TUF root + gọi Rekor/Fulcio
+  lần 2:  4673 ms
+  lần 3:  2812 ms
+  lần 4:  2641 ms
+  lần 5:  4780 ms
+
+--- Image NGOÀI policy (busybox:1.38.0) — mốc đối chứng ---
+  lần 1: 2582 ms
+  lần 2: 2362 ms
+  lần 3: 2383 ms
+
+=== KẾT LUẬN ===
+Chi phí verify thực tế khi cache đã ấm: ~0.2-2.4s (chênh giữa 2 nhóm trên).
+Con số 70s là cái giá MỘT LẦN cho mỗi digest mới — Kyverno phải tải TUF root
+của Sigstore và truy vấn Rekor qua NAT.
+
+Hệ quả cho cấu hình:
+  - Giữ webhookTimeoutSeconds: 30. Pod bị timeout ở lần verify đầu sẽ retry và
+    qua ngay lần 2 (cache đã ấm).
+  - Pod Kyverno CẦN egress internet qua NAT để tới Rekor/Fulcio. Nghẽn egress +
+    failurePolicy Fail = không tạo được pod mới.
+
+Hạn chế đã biết: Kyverno KHÔNG cache được token ECR vì readOnlyRootFilesystem
+chặn ghi /.ecr (log "Could not save cache" x143 lần), nên mỗi lần verify tốn thêm
+1 round-trip ECR. Giảm được bằng cách mount emptyDir vào /.ecr trong values chart
+— để lại sau deadline vì số đo hiện tại vẫn chấp nhận được.

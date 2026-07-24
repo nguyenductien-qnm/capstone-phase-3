@@ -1,0 +1,111 @@
+MANDATE-18 Prompt 6 - telemetry baseline before change
+Capture window: 2026-07-22T08:45:44Z to 2026-07-22T08:54:29Z
+AWS profile: phase3-cdo
+Account/caller: [REDACTED]
+Region: us-east-1
+Cluster: ecommerce-dev-eks
+Namespace: techx-tf1
+Mutation performed: none
+
+OTel runtime topology
+---------------------
+- DaemonSet: otel-collector-agent
+- Desired/current/ready: 7/7/7
+- Image: otel/opentelemetry-collector-contrib:0.151.0
+- Service: otel-collector, ClusterIP, internalTrafficPolicy=Local
+- Service selector: component=agent-collector
+- Pipelines: traces, metrics, logs
+- Current sampling processor: none
+- Current trace exporters: otlp/jaeger, debug, spanmetrics
+- Current metric exporters: otlphttp/prometheus, debug
+- Current log exporters: opensearch, debug
+- Runtime stdout showed the debug exporter emitting per-second Traces
+  summaries. This is a duplicate console sink, not an SLO backend.
+
+Five-minute ingestion rates from Prometheus API
+------------------------------------------------
+- accepted spans = 16.544886742600486 spans/s
+- exporter span deliveries = 24.836251865145005 exporter-span/s
+- accepted logs = 0.7655176099897085 records/s
+- exporter log deliveries = 1.5310341973870187 exporter-record/s
+
+Exporter counters count each exporter delivery. The debug sink duplicates
+logs, and traces additionally go to Jaeger, debug, and spanmetrics. Therefore
+exported/s is not a unique-span count and is not a loss ratio.
+
+Prometheus active series and cardinality
+-----------------------------------------
+- prometheus_tsdb_head_series = 230879
+- head label pairs = 9679; head chunks = 504592
+
+Top metric families by active series:
+1. apiserver_request_duration_seconds_bucket = 26112
+2. apiserver_request_sli_duration_seconds_bucket = 17798
+3. etcd_request_duration_seconds_bucket = 16416
+4. traces_span_metrics_duration_milliseconds_bucket = 14586
+5. apiserver_request_body_size_bytes_bucket = 9952
+6. apiserver_response_sizes_bucket = 4632
+7. http_server_duration_milliseconds_bucket = 3840
+8. apiserver_watch_list_duration_seconds_bucket = 3798
+9. apiserver_watch_cache_read_wait_seconds_bucket = 3332
+10. apiserver_storage_list_duration_seconds_bucket = 2904
+
+Top label names by distinct values:
+1. __name__ = 1697
+2. name = 706
+3. id = 462
+4. container_id = 444
+5. le = 392
+6. instance = 354
+7. service_instance_id = 335
+8. resource = 269
+9. k8s_replicaset_name = 248
+10. replicaset = 248
+11. uid = 177
+12. k8s_pod_uid = 164
+13. k8s_pod_name = 159
+14. span_name = 140
+15. pod = 129
+
+OpenSearch log bytes over time
+------------------------------
+Daily index                     docs       store bytes
+otel-logs-2026-07-16          388699        247839375 (partial day)
+otel-logs-2026-07-17          931252        583189065
+otel-logs-2026-07-18         1410520        900057965
+otel-logs-2026-07-19         5199685       2815549409
+otel-logs-2026-07-20         5682921       3153557724
+otel-logs-2026-07-21          431686        276220445
+otel-logs-2026-07-22           21243         11472598 (partial day)
+
+- Cluster: 16 total indices, 14098369 docs, 8004309801 bytes.
+- Data filesystem: 10464022528 bytes total, 8042770432 used, 77% used.
+- ISM policies: 0; managed otel-logs indices: 0.
+
+Current retention controls
+--------------------------
+- Prometheus runtime: 7d (finite).
+- OpenSearch otel-logs-*: no ISM policy (unbounded; GAP).
+- CloudTrail: 90d, storedBytes=147163554.
+- EKS control plane: 7d, storedBytes=2624158451.
+- Audit Slack Lambda: 30d, storedBytes=26439.
+- MSK: 3d, storedBytes=14940125.
+- RDS rotation Lambda: unset, storedBytes=8684 (GAP).
+- RDS Proxy: unset, storedBytes=62189841 (GAP).
+
+SLO baseline immediately before code-only change
+-------------------------------------------------
+- Checkout success, 5m = 100%.
+- frontend|cart|checkout call rate, 5m = 4.65000597226794 calls/s.
+- Storefront p95, 5m = NaN because frontend-proxy had no samples. This idle
+  result is retained honestly, not converted to zero.
+- SLO queries use traces_span_metrics_* from the spanmetrics connector, which
+  remains in the trace pipeline.
+
+Safety and limits
+-----------------
+- Runtime commands were read-only: AWS describe, kubectl get/logs/exec GET,
+  Prometheus GET, and OpenSearch GET.
+- No Helm install/upgrade, kubectl apply, Argo sync, Terraform apply, workload
+  generation, index policy creation, or index deletion occurred.
+- No after-change evidence exists yet.

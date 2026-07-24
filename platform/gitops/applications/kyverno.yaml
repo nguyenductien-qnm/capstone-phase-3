@@ -133,3 +133,12 @@ spec:
       kind: Deployment
       jsonPointers:
         - /status/terminatingReplicas
+    # 11 CRD của Kyverno kẹt OutOfSync vĩnh viễn: chart khai `annotations: {}` và
+    # `labels: {}` (map RỖNG) trong metadata, nhưng K8s không lưu field rỗng nên live
+    # không có gì để so -> ArgoCD thấy "Git có 2 dòng, cụm không có" mãi mãi. Không
+    # phải drift thật, không tự khỏi, và không sửa được từ phía chart.
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+      jsonPointers:
+        - /metadata/annotations
+        - /metadata/labels

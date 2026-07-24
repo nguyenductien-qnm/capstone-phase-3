@@ -59,6 +59,38 @@
     "opensearch": {
       "type": "object"
     },
+    "telemetryRetention": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "policyId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "indexPattern": {
+          "type": "string",
+          "pattern": "^otel-logs-"
+        },
+        "minIndexAge": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*[dh]$"
+        },
+        "image": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "enabled",
+        "policyId",
+        "indexPattern",
+        "minIndexAge",
+        "image"
+      ]
+    },
     "externalSecrets": {
       "type": "object"
     },

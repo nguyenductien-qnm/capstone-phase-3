@@ -1,6 +1,7 @@
 # Develop starts without a public ALB, Product-like ACM certificate or DNS name.
 # Enable ingress only after a Develop-owned certificate and hostname are approved.
 
+
 # M17-R3: override NetworkPolicy cho VPC develop (10.60.0.0/16, KHÁC sandbox 10.0.0.0/16).
 # Develop KHÔNG cần egress-internet label: flagd dùng file local, LLM in-cluster (không Bedrock)
 # — verify trên cluster 22/07/2026: product-reviews/shopping-copilot trỏ LLM_HOST=llm,
@@ -111,3 +112,5 @@ components:
     # flagd core vẫn chạy với flag file local. Muốn có UI ở develop thì phải
     # thêm đường build image flagd-ui vào CI trước.
     sidecarContainers: []
+    imageOverride:
+      tag: "v0.16.0"
