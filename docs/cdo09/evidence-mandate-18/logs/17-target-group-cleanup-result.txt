@@ -1,0 +1,63 @@
+MANDATE-18 sandbox remediation - authorized Target Group cleanup result
+Execution window: 2026-07-23T08:17:00Z to 2026-07-23T08:20:29Z
+AWS profile/region: phase3-cdo / us-east-1
+Cluster/namespace: ecommerce-dev-eks / techx-tf1
+Account: [REDACTED_ACCOUNT_ID]
+
+Authorization and safety
+------------------------
+Leader/owner authorization supplied by the user covered exactly two names:
+123123321 and 89345789437843. Each name was resolved to the audited full ARN,
+then checked against exact ARN suffix, project VPC, zero LB associations and
+zero registered targets immediately before its individual deletion.
+
+The first attempt for 123123321 was automatically ABORTED before mutation
+because the exact-ARN regular expression used the wrong delimiter. The safety
+check was corrected from /targetgroup to :targetgroup and all preconditions
+were repeated before deletion.
+
+Deletion 1: 123123321
+---------------------
+Precheck: LB_REFS=0 | TARGETS=0 | VPC_MATCH=true | ARN_MATCH=true
+Result: describe-target-groups inventory no longer contains the name.
+Immediate protected TG check:
+  k8s-techxtf1-frontend-da03cf6043 | LB_REFS=1 | HEALTHY_TARGETS=2
+Explicit HOLD check: testt remained present.
+Immediate storefront check: HTTP=200, total=0.854525s.
+Frontend deployments: frontend 2/2; frontend-proxy 2/2.
+
+Deletion 2: 89345789437843
+--------------------------
+Precheck: LB_REFS=0 | TARGETS=0 | VPC_MATCH=true | ARN_MATCH=true
+Result: describe-target-groups inventory no longer contains the name.
+Immediate protected TG check:
+  k8s-techxtf1-frontend-da03cf6043 | LB_REFS=1 | HEALTHY_TARGETS=2
+Explicit HOLD check: testt remained present.
+
+Final inventory and runtime verification at 2026-07-23T08:20:08Z
+-----------------------------------------------------------------
+Remaining Target Groups:
+- k8s-techxtf1-frontend-da03cf6043 | LB_REFS=1 | project VPC | KEEP
+- testt | LB_REFS=0 | different VPC | UNKNOWN/HOLD
+
+Authorized deleted candidates no longer present:
+- 123123321
+- 89345789437843
+
+Runtime checks:
+- Storefront: HTTP=200, connect=0.292807s, TTFB=0.546736s, total=0.796303s.
+- Argo application techx-corp: Synced / Healthy.
+- Deployments whose ready/available replicas differ from desired: NONE.
+- ImagePullBackOff, ErrImagePull, CrashLoopBackOff, CreateContainerError: NONE.
+- testt was not modified.
+- Active NLB/listener/rule/TargetGroupBinding was not modified.
+- No target was deregistered.
+- No Terraform state, Kubernetes object, tag, NAT or unrelated resource was
+  changed.
+
+Rollback boundary
+-----------------
+The full pre-delete recreation configuration is preserved in
+16-target-group-predelete-audit.txt. Recreation would produce a new ARN and is
+not automatically performed because current runtime checks are healthy and no
+dependency was found.

@@ -1,0 +1,29 @@
+MANDATE-18 - full sandbox Terraform plan gate
+Capture date: 2026-07-23
+Account: [REDACTED_ACCOUNT_ID]
+Profile/region: phase3-cdo / us-east-1
+Root: terraform/environments/sandbox
+
+Validation:
+- terraform validate: PASS
+- terraform/modules/vpc-endpoints test: PASS (1 passed, 0 failed)
+- remote state read: PASS (301 resources)
+
+Full plan result:
+- Detailed exit code: 2
+- Plan: 1 to add, 20 to change, 0 to destroy
+- Replacement actions: 0
+
+Expected in-scope create:
+- module.vpc_endpoints.aws_vpc_endpoint.s3[0]
+
+Unrelated updates that block apply:
+- module.eks.aws_eks_node_group.this
+- module.msk.aws_msk_cluster.this
+- module.msk.aws_msk_configuration.this
+- 17 module.audit_detection EventBridge processing_queue targets
+
+Decision: BLOCKED FOR APPLY. The plan violates the no-unrelated-change gate.
+No targeted apply, full apply or saved-plan apply was performed. Detailed
+addresses and input handling are recorded in
+19-sandbox-terraform-validation-plan.txt.
