@@ -1,7 +1,7 @@
 # Copyright The OpenTelemetry Authors
 # SPDX-License-Identifier: Apache-2.0
 
-FROM nginxinc/nginx-unprivileged:1.29.0-alpine3.22-otel
+FROM nginxinc/nginx-unprivileged:1.29.0-alpine3.22-otel@sha256:5a41b6424e817a6c97c057e4be7fb8fdc19ec95845c784487dee1fa795ef4d03
 
 # Vá CVE tầng OS: Alpine 3.22 repo đã có bản vá cho libssl3/libcrypto3, libexpat,
 # libpng, libxml2, pcre2, nghttp2, c-ares, zlib, musl. apk cần root -> upgrade
