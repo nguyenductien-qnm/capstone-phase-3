@@ -4,7 +4,7 @@
 * **PR #182**: fix(copilot): region config and test collision on category routing (Merged)
 * **PR #178**: fix(shopping-copilot): resolve max loop and bare category routing (Merged)
 * **Earlier Chain**: PRs #162-176 (Base agent and guardrails integration)
-* **Current Config**: `AWS_REGION=us-east-1`, `LLM_BEDROCK_GUARDRAIL=true`, Guardrail ID `crbxw41dbmxp` applied across `product-reviews` and `shopping-copilot`.
+* **Current Config**: `AWS_REGION=us-east-1`, `LLM_BEDROCK_GUARDRAIL=false` (Layer 3 AWS Bedrock Guardrail is OFF by default per ADR-014/015), applied centrally in `ml-guard` v2.
 
 ## 2. Reproducibility & Eval Reports
 

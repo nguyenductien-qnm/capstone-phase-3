@@ -8,7 +8,7 @@ components:
       egress-internet: "true"
     envOverrides:
       - name: LLM_BEDROCK_GUARDRAIL
-        value: "true"
+        value: "false"
       - name: BEDROCK_GUARDRAIL_ID
         valueFrom:
           secretKeyRef:

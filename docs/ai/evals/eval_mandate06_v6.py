@@ -39,7 +39,12 @@ async def main():
     import argparse
     parser = argparse.ArgumentParser(description="Eval MANDATE-06")
     parser.add_argument("--threshold", type=float, default=0.0, help="Minimum pass rate threshold (0.0 to 1.0)")
+    parser.add_argument("--cases", type=str, default="", help="Path to external cases JSON")
     args = parser.parse_args()
+
+    global cases
+    if args.cases:
+        cases = cases.from_json(args.cases)
 
     import boto3
     from botocore.config import Config
