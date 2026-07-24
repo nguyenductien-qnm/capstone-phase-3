@@ -56,6 +56,13 @@ spec:
             # "false" chi khi da san sang cho remediation act that len K8s.
             - name: REMEDIATION_DRY_RUN
               value: "true"
+            # MANDATE-22 audit-log yeu cau + cung 1 ly do voi aiops-detector (xem comment
+            # o aiops/detector/deploy/deployment.yaml): readOnlyRootFilesystem=true khien
+            # ghi vao /app/*.jsonl loi am tham - tro sang emptyDir writable.
+            - name: REMEDIATION_AUDIT_LOG_FILE
+              value: "/data/audit_log.jsonl"
+            - name: ALERTER_HISTORY_FILE
+              value: "/data/alerter_history.jsonl"
             # Tai dung secret webhook cua aiops-detector - remediation gui audit/escalate
             # alert vao cung kenh Discord, phan biet qua title "remediation-*".
             - name: AIOPS_SLACK_WEBHOOK_CRITICAL
@@ -64,6 +71,9 @@ spec:
                   name: aiops-alert
                   key: webhook
                   optional: true
+          volumeMounts:
+            - name: aiops-data
+              mountPath: /data
           # Block style (khong phai flow `{ }`): yq cua job bump se viet lai flow-map
           # -> diff rac moi lan bump. Xem comment cung cho o aiops/detector.
           resources:
@@ -73,3 +83,7 @@ spec:
             limits:
               cpu: "200m"
               memory: "128Mi"
+      volumes:
+        # Ephemeral (mat khi pod restart) - xem giai thich o aiops/detector/deploy.
+        - name: aiops-data
+          emptyDir: {}
