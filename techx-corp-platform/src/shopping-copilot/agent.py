@@ -120,8 +120,8 @@ SYSTEM_PROMPT_RULES = """QUY TẮC BẮT BUỘC:
 """
 
 SYSTEM_PROMPT = SYSTEM_PROMPT_INTRO + "\n" + SYSTEM_PROMPT_CATALOG + "\n" + SYSTEM_PROMPT_RULES
-# What the leak detector actually guards (identity + rules, minus the catalog).
-SYSTEM_PROMPT_GUARDED = SYSTEM_PROMPT_INTRO + "\n" + SYSTEM_PROMPT_RULES
+# What the leak detector actually guards (only the rules).
+SYSTEM_PROMPT_GUARDED = SYSTEM_PROMPT_RULES
 
 TOOLS_DEFINITION = [
     {"toolSpec": {

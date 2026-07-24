@@ -44,6 +44,10 @@ components:
             key: external_id
       - name: AWS_REGION
         value: "us-east-1"
+      - name: ML_GUARD_TIMEOUT
+        value: "40.0"
+      - name: LLM_REVIEWS_TIMEOUT
+        value: "45.0"
   shopping-copilot:
     # M17-R3: gọi AWS Bedrock (cross-account, public 443) -> cần egress ra Internet.
     podLabels:
@@ -69,3 +73,7 @@ components:
             key: external_id
       - name: AWS_REGION
         value: "us-east-1"
+      - name: ML_GUARD_TIMEOUT
+        value: "40.0"
+      - name: LLM_COPILOT_TIMEOUT
+        value: "45.0"

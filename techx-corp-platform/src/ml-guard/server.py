@@ -313,6 +313,18 @@ def validate_citations(llm_output, tool_results):
     return cleaned
 
 
+def _is_abstention(text):
+    text_lower = text.lower()
+    return any(phrase in text_lower for phrase in [
+        "tôi không có thông tin",
+        "xin lỗi",
+        "chưa có thông tin",
+        "không tìm thấy",
+        "không có dữ liệu",
+        "không thể xử lý"
+    ])
+
+
 # --- gRPC Service Implementation ---
 
 class MLGuardServicer(ml_guard_pb2_grpc.MLGuardServiceServicer):
@@ -373,6 +385,10 @@ class MLGuardServicer(ml_guard_pb2_grpc.MLGuardServiceServicer):
             if LOCAL_ML_GUARD:
                 masked, _ = await async_presidio_protect(masked, anonymize_only=True)
                 
+            if _is_abstention(masked):
+                logger.info("CheckOutput: bypassed grounding for abstention")
+                return ml_guard_pb2.CheckOutputResponse(blocked=False, sanitized_text=masked, reason="pass (abstention)")
+
             src = (request.grounding_source or "")[:GROUNDING_MAX_SOURCE_CHARS]
             
             # Layer 1: NLI grounding (mDeBERTa-XNLI, 1 lần trong executor)
