@@ -1,0 +1,39 @@
+Count,Message,Traceback,Nodes
+2,cannot access local variable 'flag_evaluation' where it is not associated with a value,"  File ""/home/dang-nhat-minh/.cache/uv/archive-v0/f69vVFM-LEfV2ChQ/lib/python3.13/site-packages/locust/user/task.py"", line 363, in run
+    self.execute_next_task()
+    ~~~~~~~~~~~~~~~~~~~~~~^^
+  File ""/home/dang-nhat-minh/.cache/uv/archive-v0/f69vVFM-LEfV2ChQ/lib/python3.13/site-packages/locust/user/task.py"", line 396, in execute_next_task
+    self.execute_task(self._task_queue.popleft())
+    ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File ""/home/dang-nhat-minh/.cache/uv/archive-v0/f69vVFM-LEfV2ChQ/lib/python3.13/site-packages/locust/user/task.py"", line 513, in execute_task
+    task(self.user)
+    ~~~~^^^^^^^^^^^
+  File ""/home/dang-nhat-minh/Minh/Coding/xbrain/xbrain-cap2-cdo5/techx-corp-platform/src/load-generator/locustfile.py"", line 222, in flood_home
+    flood_count = get_flagd_value(""loadGeneratorFloodHomepage"")
+  File ""/home/dang-nhat-minh/Minh/Coding/xbrain/xbrain-cap2-cdo5/techx-corp-platform/src/load-generator/locustfile.py"", line 85, in get_flagd_value
+    return client.get_integer_value(FlagName, 0)
+           ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File ""/home/dang-nhat-minh/.cache/uv/archive-v0/f69vVFM-LEfV2ChQ/lib/python3.13/site-packages/openfeature/client.py"", line 228, in get_integer_value
+    return self.get_integer_details(
+           ~~~~~~~~~~~~~~~~~~~~~~~~^
+        flag_key,
+        ^^^^^^^^^
+    ...<2 lines>...
+        flag_evaluation_options,
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+    ).value
+    ^
+  File ""/home/dang-nhat-minh/.cache/uv/archive-v0/f69vVFM-LEfV2ChQ/lib/python3.13/site-packages/openfeature/client.py"", line 257, in get_integer_details
+    return self.evaluate_flag_details(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        FlagType.INTEGER,
+        ^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+        flag_evaluation_options,
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File ""/home/dang-nhat-minh/.cache/uv/archive-v0/f69vVFM-LEfV2ChQ/lib/python3.13/site-packages/openfeature/client.py"", line 847, in evaluate_flag_details
+    flag_evaluation,
+    ^^^^^^^^^^^^^^^
+",local

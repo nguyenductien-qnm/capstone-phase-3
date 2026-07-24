@@ -1,0 +1,16 @@
+### SAU SYNC CHỌN LỌC ARGOCD @ 2026-07-22T13:06:51Z
+--- NetworkPolicy do ArgoCD quản lý ---
+   {'Synced': 32}  | tong: 32
+   revision: c7e6dbbd16
+--- pod team AI CÓ bị restart không (AGE phải còn cũ) ---
+   product-reviews  age=3h12m restarts=0
+   product-reviews  age=3h14m restarts=0
+   shopping-copilot age=3h14m restarts=0
+--- pod không khỏe ---
+   0 
+--- grafana sidecar lỗi 3m gần nhất ---
+   0
+--- storefront ---
+   HTTP 200
+   HTTP 200
+   HTTP 200

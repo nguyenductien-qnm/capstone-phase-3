@@ -45,6 +45,20 @@ module "vpc" {
   )
 }
 
+module "vpc_endpoints" {
+  source = "../../modules/vpc-endpoints"
+
+  project_name    = var.project_name
+  environment     = var.environment
+  aws_region      = var.aws_region
+  vpc_id          = module.vpc.vpc_id
+  route_table_ids = module.vpc.private_egress_route_table_ids
+
+  # S3 gateway endpoints have no fixed hourly footprint. Keep interface
+  # endpoints opt-in until service-specific NAT bytes exceed their AZ-hour cost.
+  enable_s3_gateway_endpoint = true
+}
+
 module "eks" {
   source = "../../modules/eks"
 
@@ -172,6 +186,33 @@ module "msk" {
   mq_subnet_ids         = values(module.vpc.private_mq_subnet_ids)
   eks_security_group_id = module.eks.cluster_security_group_id
   kafka_version         = var.kafka_version
+}
+
+module "cost_guard_automation" {
+  count = var.enable_cost_guard_automation ? 1 : 0
+
+  source = "../../modules/cost_guard_automation"
+
+  project_name   = var.project_name
+  environment    = var.environment
+  account_id     = data.aws_caller_identity.current.account_id
+  budget_limit   = var.budget_limit
+  budget_periods = var.budget_periods
+
+  alert_emails = {
+    threshold_80 = var.budget_alert_email_80
+    threshold_95 = var.budget_alert_email_95
+  }
+
+  eks_cluster_name = module.eks.cluster_name
+  eks_cluster_arn  = module.eks.cluster_arn
+
+  rds_instance_identifiers = [module.rds.instance_id]
+  elasticache_cluster_ids  = [module.elasticache.cluster_id]
+
+  lambda_timeout                = var.lambda_timeout
+  lambda_memory                 = var.lambda_memory
+  cloudwatch_log_retention_days = var.cloudwatch_log_retention_days
 }
 
 module "cloudtrail" {

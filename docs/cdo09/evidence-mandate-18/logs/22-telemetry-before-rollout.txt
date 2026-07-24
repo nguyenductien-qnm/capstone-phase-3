@@ -1,0 +1,15 @@
+MANDATE-18 - sandbox telemetry before follow-up rollout
+Capture date: 2026-07-23
+Environment: sandbox / techx-tf1
+
+Runtime state before rollout:
+- OTel runtime pipeline still included the duplicate debug exporter copy.
+- Logs continued to OpenSearch, traces to Jaeger, metrics to Prometheus and
+  spanmetrics remained enabled.
+- OpenSearch PVC usage was approximately 85% of 10 GiB.
+- OpenSearch ISM policy count for this rollout: 0.
+- Argo application techx-corp: Synced / Healthy.
+- No follow-up GitOps rollout was performed in this execution.
+
+The quantitative telemetry baseline is preserved in
+09-telemetry-prompt6-before.txt. This file is pre-rollout evidence only.

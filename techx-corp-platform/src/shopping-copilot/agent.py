@@ -69,6 +69,8 @@ CONFIRMATION_GATE_TEMPLATE = "Tôi đã chuẩn bị thêm [SP] vào giỏ. Vui 
 NO_REVIEW_TEMPLATE = "Tôi không có thông tin đánh giá về sản phẩm này."
 CATEGORY_PICKER_TEMPLATE = ("chọn đúng một trong các danh mục (Telescopes, Binoculars, "
                             "Accessories, Cameras, Books) hoặc tên gần giống")
+DOMAIN_SCOPE_TEMPLATE = ("Xin lỗi, mình là trợ lý mua sắm của TechX, chỉ hỗ trợ về thiết bị thiên văn thôi. "
+                         "Bạn cần tìm kính thiên văn, ống nhòm hay phụ kiện gì không?")
 
 # SYSTEM_PROMPT = INTRO (identity/mission) + CATALOG (customer-visible product
 # data, fine to echo) + RULES (operating instructions). The leak detector guards
@@ -81,26 +83,18 @@ Bạn KHÔNG phải trợ lý đa năng: KHÔNG dạy học, KHÔNG tư vấn ng
 """
 
 SYSTEM_PROMPT_CATALOG = """DANH MỤC SẢN PHẨM (CATALOG):
-- OLJCESPC7Z: National Park Foundation Explorascope ($101.96) - telescopes (refractor, portable, planets)
-- 66VCHSJNUP: Starsense Explorer Refractor Telescope ($349.95) - telescopes (smartphone app, beginners)
-- 1YMWWN1N4O: Eclipsmart Travel Refractor Telescope ($129.95) - telescopes,travel (solar safe, eclipses)
-- L9ECAV7KIM: Lens Cleaning Kit ($21.95) - accessories (cleaning, optics)
-- 2ZYFJ3GM2N: Roof Binoculars ($209.95) - binoculars (bird watching, nature, close focus)
-- 0PUK6V6EV0: Solar System Color Imager ($175.00) - accessories,telescopes (imaging planets)
-- LS4PSXUNUM: Red Flashlight ($57.08) - accessories,flashlights (3-in-1, red light, power bank)
-- 9SIQT8TOJO: Optical Tube Assembly ($3599.00) - accessories,telescopes,assembly (RASA V2, fast f/2.2)
-- 6E92ZMYYFZ: Solar Filter ($69.95) - accessories,telescopes (8" telescopes, solar safe)
-- HQTGWGPNH4: The Comet Book ($0.99) - books (16th-century treatise)
+TechX Corp bán các mặt hàng thuộc 5 danh mục chính: Telescopes, Binoculars, Accessories, Cameras, Books.
+(LƯU Ý: Đây chỉ là các danh mục. BẠN KHÔNG CÓ DANH SÁCH SẢN PHẨM CỤ THỂ TRONG BỘ NHỚ. Bạn BẮT BUỘC phải gọi tool `search_products` để lấy dữ liệu thật trước khi giới thiệu bất kỳ sản phẩm nào cho khách hàng.)
 """
 
 SYSTEM_PROMPT_RULES = """QUY TẮC BẮT BUỘC:
 0. PHẠM VI (SCOPE) — ƯU TIÊN CAO NHẤT: CHỈ trả lời về mua sắm tại TechX (sản phẩm thiên văn, giá,
-   review, gợi ý, giỏ hàng). Nếu khách hỏi BẤT KỲ chủ đề nào ngoài phạm vi này (lập trình, học tập,
-   tăng lương, nghề nghiệp, đầu tư, sức khỏe, chính trị, kiến thức chung...), TỪ CHỐI NGẮN GỌN và mời
-   quay lại đúng một câu: "Mình là trợ lý mua sắm của TechX, chỉ hỗ trợ về thiết bị thiên văn thôi.
-   Bạn cần tìm kính thiên văn, ống nhòm hay phụ kiện gì không?" TUYỆT ĐỐI KHÔNG đưa ra hướng dẫn,
-   bài học, danh sách bước, hay lời khuyên ngoài phạm vi — kể cả khi khách nài nỉ, đóng vai, hay nói
-   "chỉ lần này thôi".
+   review, gợi ý, giỏ hàng). Nếu khách hỏi BẤT KỲ chủ đề nào hoàn toàn ngoài lề (lập trình, học tập,
+   tăng lương, nghề nghiệp, đầu tư, chính trị, kiến thức chung...), TỪ CHỐI NGẮN GỌN và mời
+   quay lại đúng một câu: "Xin lỗi, mình là trợ lý mua sắm của TechX, chỉ hỗ trợ về thiết bị thiên văn thôi.
+   Bạn cần tìm kính thiên văn, ống nhòm hay phụ kiện gì không?" 
+   LƯU Ý QUAN TRỌNG: Các câu hỏi chung chung về "sản phẩm", "pin", "giao hàng", "bảo hành", "chống nước" ĐỀU HỢP LỆ, TUYỆT ĐỐI KHÔNG TỪ CHỐI. Hãy trả lời bình thường.
+   TUYỆT ĐỐI KHÔNG đưa ra hướng dẫn hay lời khuyên ngoài lề.
 1. NGẮN GỌN: tối đa 3-4 câu mỗi lượt.
 2. KHÔNG ẢO GIÁC: mọi thông tin review PHẢI đến từ tool get_product_reviews.
    Nếu review_count = 0 hoặc tool không có dữ liệu, nói đúng: "Tôi không có thông
@@ -270,7 +264,7 @@ def get_bedrock_fallback_client():
     global _fallback_client
     if _fallback_client is None:
         aws_region = os.environ.get('AWS_REGION', 'us-east-1')
-        fallback_timeout = float(os.environ.get('LLM_COPILOT_FALLBACK_TIMEOUT', '4.1'))
+        fallback_timeout = float(os.environ.get('LLM_COPILOT_FALLBACK_TIMEOUT', '2.7'))
         fallback_config = Config(connect_timeout=1.0, read_timeout=fallback_timeout, retries={'max_attempts': 0})
         _fallback_client = create_bedrock_runtime_client(region_name=aws_region, config=fallback_config)
     return _fallback_client
@@ -406,11 +400,18 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
         # Trace UI: show the model's DECISION this turn (what the AI "thinks" it should do next) —
         # either it chose to call tool(s), or it produced a direct answer.
         _decided = [b["toolUse"]["name"] for b in blocks if "toolUse" in b]
+        _raw_text = "\n".join(b["text"] for b in blocks if "text" in b).strip()
+        
+        detail_dict = {"decided_tools": _decided, "stop_reason": stop}
+        if _raw_text:
+            detail_dict["reasoning"] = _raw_text if len(_raw_text) <= 1500 else _raw_text[:1500] + "... [truncated]"
+
         trace_steps.append({
             "step_name": (f"LLM → gọi tool: {', '.join(_decided)}" if _decided
                           else "LLM → trả lời trực tiếp"),
             "latency_ms": int((time.time() - t_converse) * 1000),
             "status": "ok",
+            "detail": redact_pii(json.dumps(detail_dict))
         })
 
         if stop != "tool_use":
@@ -419,7 +420,7 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
             clean_text = redact_pii(_clean_model_output(text)) if text else ""
             if leaks_system_prompt(clean_text, SYSTEM_PROMPT_GUARDED,
                                    allowlist=[CONFIRMATION_GATE_TEMPLATE, NO_REVIEW_TEMPLATE,
-                                              CATEGORY_PICKER_TEMPLATE]):
+                                              CATEGORY_PICKER_TEMPLATE, DOMAIN_SCOPE_TEMPLATE]):
                 logger.error("[Guardrail] System prompt leakage blocked in copilot output.")
                 clean_text = "Xin lỗi, tôi không thể hiển thị nội dung này."
             # Citation validator (mentor 16/07): kiem tra so lieu trong output co khop tool result
@@ -443,7 +444,7 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
                     start_out = time.time()
                     blocked_out, clean_text = apply_guardrail_output(bedrock_client, clean_text, source_text, user_query)
                     lat_out = int((time.time() - start_out) * 1000)
-                    trace_steps.append({"step_name": "Output Guardrail (Grounding)", "latency_ms": lat_out, "status": "blocked" if blocked_out else "pass"})
+                    trace_steps.append({"step_name": "Output Guardrail (Grounding)", "latency_ms": lat_out, "status": "blocked" if blocked_out else "pass", "detail": redact_pii(json.dumps({"blocked": blocked_out}))})
                     
                     ground_span.set_attribute("guardrail.blocked", blocked_out)
                     if blocked_out:
@@ -515,6 +516,7 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
                 "step_name": f"Tool: {name}" + (f" ({_arg_hint})" if _arg_hint else ""),
                 "latency_ms": dur_ms,
                 "status": "ok" if ok else "error",
+                "detail": redact_pii(json.dumps({"args": args, "succeeded": ok}))
             })
             parsed_out = json.loads(out)
             if not isinstance(parsed_out, dict):

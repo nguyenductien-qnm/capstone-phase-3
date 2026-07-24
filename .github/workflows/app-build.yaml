@@ -19,6 +19,12 @@ name: App Build (ECR + Trivy + Cosign + GitOps bump)
 #       (có repository = image upstream: flagd/postgresql/valkey-cart -> bỏ), và
 #   (b) có Dockerfile trong techx-corp-platform/src/<svc>/ (hoặc <svc>/src/ như cart).
 # Thêm service mới vào chart + có Dockerfile là tự động được build, không sửa file này.
+#
+# NGOẠI LỆ aiops (MANDATE-10 P2): 2 image aiops (detector, remediation) KHÔNG nằm trong
+# chart application (deploy bằng manifest trần ở aiops/*/deploy, ArgoCD app `aiops`) và
+# build context lệch nhau (remediation dùng chung code của detector -> context là aiops/).
+# Nên chúng có job build-aiops riêng với matrix TĨNH ở cuối file, thay vì nhét vào detect.
+# Cùng file = cùng subject identity Cosign, đó là lý do không tách workflow.
 
 on:
   push:
@@ -27,6 +33,10 @@ on:
     paths:
       - "techx-corp-platform/src/**"
       - "platform/charts/application/values.yaml"
+      # MANDATE-10 P2: aiops/** vào ĐÚNG file này (không tách workflow riêng) để 2 image
+      # aiops mang CÙNG subject identity (app-build.yaml@refs/heads/develop) mà policy
+      # Kyverno verifyImages đang khai — thêm workflow khác = phải nới attestor.
+      - "aiops/**"
       - ".trivyignore"
       - ".github/workflows/app-build.yaml"
   pull_request:
@@ -34,6 +44,7 @@ on:
     paths:
       - "techx-corp-platform/src/**"
       - "platform/charts/application/values.yaml"
+      - "aiops/**"
       - ".trivyignore"
       - ".github/workflows/app-build.yaml"
   workflow_dispatch:
@@ -424,6 +435,207 @@ jobs:
           echo "✅ SBOM attested $REF ($(jq '.packages | length' sbom.spdx.json) packages)"
 
   # ------------------------------------------------------------------ #
+  # MANDATE-10 P2: build 2 image aiops trong CHÍNH workflow này.        #
+  #                                                                     #
+  # Vì sao không dùng job detect/build ở trên: detect suy service từ    #
+  # chart values.yaml, aiops không có component nào trong chart; và     #
+  # remediation build từ context `aiops/` (import sources.py/alerter.py #
+  # của detector) trong khi detector build từ `aiops/detector/`. Hai    #
+  # khác biệt đó không mô hình hoá được bằng vòng lặp chung -> matrix    #
+  # tĩnh 2 dòng, đọc thẳng ra là hiểu.                                  #
+  #                                                                     #
+  # Trước mandate này 2 image được `docker buildx --push` bằng TAY, tag  #
+  # trôi không có -<sha>: không scan, không ký, không truy được commit.  #
+  # Ở đây chúng đi đủ build -> Trivy gate -> push by-digest -> Cosign    #
+  # ký digest -> SBOM attest, hệt các service chart.                     #
+  # ------------------------------------------------------------------ #
+  # Có aiops/** thật sự đổi không. Tách job nhỏ vì build-aiops là matrix — hỏi git một
+  # lần ở đây rẻ hơn lặp trong từng nhánh matrix. Không dùng lại job detect: detect suy
+  # service từ chart, không biết gì về aiops.
+  detect-aiops:
+    name: Detect aiops changes
+    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.attest_sbom) }}
+    runs-on: ubuntu-latest
+    outputs:
+      any: ${{ steps.set.outputs.any }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: set
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -euo pipefail
+          # dispatch: luôn build (người bấm tay đang chủ động muốn ra image mới).
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "any=true" >> "$GITHUB_OUTPUT"; echo "dispatch -> build aiops."; exit 0
+          fi
+          # Không xác định được base (branch mới/force push) -> build cho an toàn,
+          # cùng lối fail-safe như job detect ở trên.
+          if [ -z "${BASE_SHA:-}" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ] \
+             || ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+            echo "any=true" >> "$GITHUB_OUTPUT"; echo "Không có base commit -> build aiops."; exit 0
+          fi
+          mapfile -t changed < <(git diff --name-only "$BASE_SHA" "${{ github.sha }}")
+
+          # Chỉ build khi CODE aiops đổi, tức file dưới aiops/ mà KHÔNG nằm trong
+          # */deploy/. Vì sao loại deploy/: đó là manifest mà chính job bump ghi tag
+          # vào; coi nó là "aiops đổi" thì commit bump lại kích một build nữa, build
+          # lại bump — vòng lặp tự nuôi (commit bump có [skip ci] nên thực tế đứt,
+          # nhưng không dựa vào đó: rebuild vì tag đổi vẫn là build thừa).
+          # .trivyignore / workflow đổi -> build lại để chính thay đổi đó được kiểm.
+          # Đếm file aiops/** KHÔNG nằm trong */deploy/ (dùng biến đếm cho dễ đọc, và
+          # để tránh bẫy `grep -v` trên stream rỗng vẫn trả 0 -> true oan).
+          code_changed=$(printf '%s\n' "${changed[@]}" \
+            | { grep -E '^aiops/' || true; } \
+            | { grep -vc '/deploy/' || true; })
+
+          build_config_changed=false
+          if printf '%s\n' "${changed[@]}" \
+               | grep -qE '^\.github/workflows/app-build\.yaml$|^\.trivyignore$'; then
+            build_config_changed=true
+          fi
+
+          if [ "$code_changed" -gt 0 ] || [ "$build_config_changed" = true ]; then
+            echo "any=true" >> "$GITHUB_OUTPUT"
+            echo "aiops đổi ($code_changed file code, build-config=$build_config_changed) -> build."
+          else
+            echo "any=false" >> "$GITHUB_OUTPUT"
+            echo "aiops không đổi -> skip."
+          fi
+
+  build-aiops:
+    name: Build aiops-${{ matrix.module }}
+    # KHÔNG needs detect: detect chỉ nói về service trong chart, aiops đổi mà chart
+    # không đổi thì detect.any=false -> needs sẽ skip oan cả job này.
+    # Vẫn needs validate-manifest để giữ 1 gate chung: chart hỏng thì không push gì.
+    needs: [detect-aiops, validate-manifest]
+    if: needs.detect-aiops.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    environment: sandbox
+    permissions:
+      contents: read
+      id-token: write # OIDC cho AWS + Cosign keyless (Fulcio)
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # version giữ nguyên số đang chạy trên prod để lịch sử tag đọc liền mạch
+          # (1.3-aiops-detector -> 1.3-aiops-detector-<sha>), chỉ thêm suffix sha.
+          - module: detector
+            version: "1.3"
+            context: aiops/detector
+            dockerfile: aiops/detector/Dockerfile
+          - module: remediation
+            version: "1.1"
+            context: aiops # cha của detector/ + remediation/ — xem Dockerfile
+            dockerfile: aiops/remediation/Dockerfile
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compute tag
+        id: meta
+        run: |
+          set -euo pipefail
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          TAG="${{ matrix.version }}-aiops-${{ matrix.module }}-${SHORT_SHA}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "image=${ECR_REGISTRY}/${ECR_REPOSITORY}:${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Configure AWS credentials
+        if: github.event_name != 'pull_request'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.TF_AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-aiops-${{ github.actor }}-${{ github.run_id }}
+
+      - name: Login to Amazon ECR
+        if: github.event_name != 'pull_request'
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Install Cosign
+        if: github.event_name != 'pull_request'
+        uses: sigstore/cosign-installer@59acb6260d9c0ba8f4a2f9d9b48431a222b68e20 # v3.5.0
+
+      - name: Build image (load, for scan)
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          load: true
+          push: false
+          tags: ${{ steps.meta.outputs.image }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          cache-from: type=gha,scope=aiops-${{ matrix.module }}
+          cache-to: type=gha,mode=max,scope=aiops-${{ matrix.module }}
+
+      # Cùng gate + cùng .trivyignore như service chart: aiops không được hưởng
+      # tiêu chuẩn scan thấp hơn chỉ vì trước đây nó nằm ngoài CI.
+      - name: Trivy vulnerability scan (gate)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ steps.meta.outputs.image }}
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          trivyignores: .trivyignore
+
+      - name: Push image
+        id: push
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.image }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          cache-from: type=gha,scope=aiops-${{ matrix.module }}
+
+      - name: Cosign keyless sign (by digest)
+        if: github.event_name != 'pull_request'
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          set -euo pipefail
+          REF="${ECR_REGISTRY}/${ECR_REPOSITORY}@${DIGEST}"
+          cosign sign --yes \
+            --rekor-url https://rekor.sigstore.dev \
+            --fulcio-url https://fulcio.sigstore.dev \
+            "$REF"
+          echo "✅ Signed $REF"
+
+      - name: Install Syft
+        if: github.event_name != 'pull_request'
+        uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+
+      - name: SBOM + cosign attest (spdxjson, by digest)
+        if: github.event_name != 'pull_request'
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          set -euo pipefail
+          REF="${ECR_REGISTRY}/${ECR_REPOSITORY}@${DIGEST}"
+          syft "registry:${REF}" -o spdx-json > sbom.spdx.json
+          cosign attest --yes \
+            --type spdxjson \
+            --predicate sbom.spdx.json \
+            --rekor-url https://rekor.sigstore.dev \
+            --fulcio-url https://fulcio.sigstore.dev \
+            "$REF"
+          echo "✅ SBOM attested $REF ($(jq '.packages | length' sbom.spdx.json) packages)"
+
+  # ------------------------------------------------------------------ #
   # CDO-142: bump tag vào Git -> ArgoCD selfHeal sync.                  #
   # Chạy SAU khi mọi service build+push+ký xong, chỉ trên push (không   #
   # PR). yq map service -> components.<svc>.imageOverride.tag trong      #
@@ -432,11 +644,16 @@ jobs:
   # ------------------------------------------------------------------ #
   bump:
     name: Bump image tags (GitOps)
-    needs: [detect, build]
+    # build-aiops luôn chạy (không phụ thuộc detect) nên needs nó vào đây; `always()`
+    # để bump vẫn chạy khi MỘT trong hai nhánh build bị skip — nhưng chỉ khi nhánh
+    # kia thành công (điều kiện result kiểm bên dưới), không bump tag của image chưa push.
+    needs: [detect, build, detect-aiops, build-aiops]
     # push VÀ workflow_dispatch đều bump (dispatch build-all mà không bump thì
     # image lên ECR nhưng ArgoCD không bao giờ biết — lỗi phát hiện 2026-07-19,
     # phải bump tay đợt 5e03ae7). Chỉ PR là không bump (không push image).
-    if: github.event_name != 'pull_request' && needs.detect.outputs.any == 'true'
+    if: >-
+      ${{ always() && github.event_name != 'pull_request'
+      && (needs.build.result == 'success' || needs.build-aiops.result == 'success') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -461,6 +678,9 @@ jobs:
         uses: mikefarah/yq@v4
 
       - name: Bump imageOverride.tag từng service
+        # Chỉ khi nhánh build chart thật sự đã push image. build-aiops chạy một mình
+        # (chỉ aiops/** đổi) thì bỏ qua bước này, không đụng TAGS_FILE.
+        if: needs.build.result == 'success' && needs.detect.outputs.any == 'true'
         env:
           MATRIX: ${{ needs.detect.outputs.matrix }}
         run: |
@@ -474,6 +694,29 @@ jobs:
             yq -i ".components.\"$svc\".imageOverride.tag = \"$TAG\"" "$TAGS_FILE"
           done
 
+      # aiops deploy bằng manifest TRẦN (không Helm, không values file) -> bump là sửa
+      # thẳng field image trong Deployment. Dùng yq theo ĐƯỜNG DẪN document
+      # (.spec.template.spec.containers[0].image) chứ không sed regex: file còn có tag
+      # ví dụ trong comment hướng dẫn build tay, sed sẽ sửa nhầm cả comment đó.
+      - name: Bump image aiops (manifest trần)
+        if: needs.build-aiops.result == 'success'
+        run: |
+          set -euo pipefail
+          SHORT_SHA=$(git rev-parse --short HEAD)
+
+          bump_aiops() {
+            local module="$1" version="$2"
+            local file="aiops/${module}/deploy/deployment.yaml"
+            local tag="${version}-aiops-${module}-${SHORT_SHA}"
+            echo "== aiops/$module -> $tag =="
+            IMAGE="${ECR_REGISTRY}/${ECR_REPOSITORY}:${tag}" \
+              yq -i '.spec.template.spec.containers[0].image = strenv(IMAGE)' "$file"
+          }
+
+          # version phải khớp matrix của build-aiops — lệch là bump ra tag không tồn tại.
+          bump_aiops detector    1.3
+          bump_aiops remediation 1.1
+
       - name: Commit & push
         env:
           BRANCH_NAME: ${{ github.ref_name }}
@@ -482,13 +725,20 @@ jobs:
           APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
         run: |
           set -euo pipefail
-          if git diff --quiet -- "$TAGS_FILE"; then
+          # Danh sách file có thể bị 2 bước bump ở trên chạm vào. File aiops chỉ đổi khi
+          # build-aiops xanh; nếu bước đó bị skip thì git diff của nó rỗng, vô hại.
+          BUMPED=(
+            "$TAGS_FILE"
+            aiops/detector/deploy/deployment.yaml
+            aiops/remediation/deploy/deployment.yaml
+          )
+          if git diff --quiet -- "${BUMPED[@]}"; then
             echo "ℹ️ Tag không đổi, bỏ qua commit."
             exit 0
           fi
           git config user.name  "${APP_SLUG}[bot]"
           git config user.email "${APP_SLUG}[bot]@users.noreply.github.com"
-          git add "$TAGS_FILE"
+          git add "${BUMPED[@]}"
           git commit -m "ci(app): bump image tags -> $(git rev-parse --short HEAD) [skip ci]"
 
           # Job này checkout branch lúc bắt đầu run rồi build vài phút mới push. Merge
@@ -514,10 +764,10 @@ jobs:
   # cosign attest spdxjson. Đặt CÙNG file để giữ cùng BUILD_IDENTITY    #
   # (subject app-build.yaml@refs/heads/develop) mà Kyverno/verify dùng. #
   #                                                                     #
-  # ECR IMMUTABLE: mỗi digest chỉ chứa 1 tag .att. Verify 2026-07-21:   #
-  # repo có 352 .sig / 0 .att -> promoted-develop chưa từng chạy, nên   #
-  # SBOM .att là lần ghi ĐẦU/digest -> không bị chặn. Nếu sau này bật   #
-  # promoted-develp trên cùng digest thì phải tách COSIGN_REPOSITORY.   #
+  # ECR IMMUTABLE: mỗi digest chỉ chứa 1 tag .att -> SBOM là ATTESTATION #
+  # DUY NHẤT trong repo image (lần ghi đầu/digest, không bị chặn).      #
+  # Attestation promoted-develop của app-attest.yaml đã TÁCH sang repo  #
+  # attest riêng (mutable) qua COSIGN_REPOSITORY -> không đụng nhau.    #
   # ------------------------------------------------------------------ #
   attest-sbom:
     name: Attest SBOM (prod digests)

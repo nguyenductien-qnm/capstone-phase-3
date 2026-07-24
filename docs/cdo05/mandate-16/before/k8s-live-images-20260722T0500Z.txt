@@ -1,0 +1,31 @@
+observed_at_utc: 2026-07-22T05:00:00Z
+namespace: techx-develop
+develop_commit: 1b5ab1b11ef87ee52b788bf52ee2e397ae10155b
+
+DEPLOYMENTS
+frontend          804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.0-frontend-ec72350          48
+frontend-proxy    804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.0-frontend-proxy-ec72350    27
+cart              804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.0-cart-ec72350              30
+checkout          804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.0-checkout-ec72350          35
+product-catalog   804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.0-product-catalog-ef8b835   30
+product-reviews   804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.0-product-reviews-61f161e   42
+
+RUNNING POD IMAGE IDS
+cart-84854cb565-9vpkt              Running   804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.0-cart-ec72350              804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp@sha256:a9fefd4d6504cf6019dbf07140d7ce6cf93eada9f31a86c0817176c6c6545781
+cart-84854cb565-f4d4f              Running   804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.0-cart-ec72350              804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp@sha256:a9fefd4d6504cf6019dbf07140d7ce6cf93eada9f31a86c0817176c6c6545781
+checkout-7c98bf6659-24vv5          Running   804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.0-checkout-ec72350          804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp@sha256:24c0f4dae6d84b6eca58fdd010cdb10e014eae6b6fb47769de8023c46baf4db9
+checkout-7c98bf6659-7gbnd          Running   804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.0-checkout-ec72350          804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp@sha256:24c0f4dae6d84b6eca58fdd010cdb10e014eae6b6fb47769de8023c46baf4db9
+frontend-6785d75f76-8n9kk          Running   804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.0-frontend-ec72350          804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp@sha256:c2c186b06f5654c43bea5476dae43fa39b1c3694c14a27754725fdf9d1a468bc
+frontend-6785d75f76-dkdb5          Running   804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.0-frontend-ec72350          804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp@sha256:c2c186b06f5654c43bea5476dae43fa39b1c3694c14a27754725fdf9d1a468bc
+frontend-6785d75f76-k5g5p          Running   804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.0-frontend-ec72350          804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp@sha256:c2c186b06f5654c43bea5476dae43fa39b1c3694c14a27754725fdf9d1a468bc
+frontend-6785d75f76-ptrx8          Running   804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.0-frontend-ec72350          804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp@sha256:c2c186b06f5654c43bea5476dae43fa39b1c3694c14a27754725fdf9d1a468bc
+frontend-6785d75f76-ql6xg          Running   804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.0-frontend-ec72350          804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp@sha256:c2c186b06f5654c43bea5476dae43fa39b1c3694c14a27754725fdf9d1a468bc
+frontend-6785d75f76-t59rv          Running   804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.0-frontend-ec72350          804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp@sha256:c2c186b06f5654c43bea5476dae43fa39b1c3694c14a27754725fdf9d1a468bc
+frontend-proxy-9c4fdcd75-fwwqq     Running   804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.0-frontend-proxy-ec72350    804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp@sha256:ddc256bca5b7c842653e9404e35952f3f62b4fbd8b2a0468642267e0fc98576b
+frontend-proxy-9c4fdcd75-v294l     Running   804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.0-frontend-proxy-ec72350    804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp@sha256:ddc256bca5b7c842653e9404e35952f3f62b4fbd8b2a0468642267e0fc98576b
+product-catalog-6675d84df5-6svl4   Running   804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.0-product-catalog-ef8b835   804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp@sha256:eef1d388dc71e92bc3bae4df5e70381f7f554cc67d4044eff836ea26cf532503
+product-catalog-6675d84df5-x92zd   Running   804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.0-product-catalog-ef8b835   804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp@sha256:eef1d388dc71e92bc3bae4df5e70381f7f554cc67d4044eff836ea26cf532503
+product-reviews-5d85fc85d6-48z8x   Running   804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.0-product-reviews-61f161e   804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp@sha256:cb2d25c1a26434b1c09fe81b0ba5b7126b1fad0e59e4a4b9305389ec8cda730e
+product-reviews-5d85fc85d6-h2qcv   Running   804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.0-product-reviews-61f161e   804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp@sha256:cb2d25c1a26434b1c09fe81b0ba5b7126b1fad0e59e4a4b9305389ec8cda730e
+product-reviews-5d85fc85d6-hvql2   Running   804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.0-product-reviews-61f161e   804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp@sha256:cb2d25c1a26434b1c09fe81b0ba5b7126b1fad0e59e4a4b9305389ec8cda730e
+product-reviews-5d85fc85d6-smhmv   Running   804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.0-product-reviews-61f161e   804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp@sha256:cb2d25c1a26434b1c09fe81b0ba5b7126b1fad0e59e4a4b9305389ec8cda730e

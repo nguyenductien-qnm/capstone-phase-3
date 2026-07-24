@@ -38,22 +38,48 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ------------------------------------------------------------------ #
-  # CDO-145: Unit test các service Go có sẵn (checkout, product-catalog).#
-  # Chạy `go test ./...` trong từng module. fail-fast=false để thấy    #
-  # hết service nào hỏng trong 1 lần chạy.                             #
+  # CDO-145: Dò service nào có unit test chạy được + đổi code trong PR. #
+  #                                                                    #
+  # Trước đây matrix liệt kê tay [checkout, product-catalog] nên hỏng   #
+  # 2 đằng: product-catalog KHÔNG có file _test.go nào (check luôn      #
+  # xanh, không bao giờ đỏ được), còn 12 file test của product-reviews/ #
+  # shopping-copilot/cart viết ra thì không ai chạy vì không có tên     #
+  # trong matrix. Dò tự động chấm dứt cả hai — thêm test mới là tự vào  #
+  # gate, hết test là tự rơi ra, không phải sửa file này nữa.           #
   # ------------------------------------------------------------------ #
-  unit-test:
-    name: Unit test (${{ matrix.service }})
+  discover:
+    name: Dò service có test
+    runs-on: ubuntu-latest
+    outputs:
+      go: ${{ steps.scan.outputs.go }}
+      py: ${{ steps.scan.outputs.py }}
+      cs: ${{ steps.scan.outputs.cs }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # cần lịch sử để diff được với nhánh đích của PR
+          fetch-depth: 0
+      - id: scan
+        run: |
+          # push (không có base_ref) -> quét toàn bộ, không lọc diff.
+          .github/scripts/discover-tests.sh "${{ github.event.pull_request.base.sha }}"
+
+  # ------------------------------------------------------------------ #
+  # Go: go vet + go test -race. Chỉ chạy service vừa có go.mod vừa có   #
+  # ít nhất 1 file _test.go.                                           #
+  # ------------------------------------------------------------------ #
+  unit-test-go:
+    name: Unit test Go (${{ matrix.service }})
+    needs: discover
+    if: needs.discover.outputs.go != '[]'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        service: [checkout, product-catalog]
+        service: ${{ fromJSON(needs.discover.outputs.go) }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Setup Go
-        uses: actions/setup-go@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
           go-version-file: techx-corp-platform/src/${{ matrix.service }}/go.mod
           cache-dependency-path: techx-corp-platform/src/${{ matrix.service }}/go.sum
@@ -63,6 +89,104 @@ jobs:
       - name: go test
         working-directory: techx-corp-platform/src/${{ matrix.service }}
         run: go test -race -count=1 ./...
+
+  # ------------------------------------------------------------------ #
+  # Python: pip install -r requirements.txt + pytest.                   #
+  # Bước collect-only là bắt buộc — ml-guard/llm có file tên test_*.py  #
+  # nhưng assert nằm ngoài hàm test_*, pytest thu 0 test rồi trả về     #
+  # "no tests ran". Không chặn thì lại đẻ ra ô tích trống mới.          #
+  # ------------------------------------------------------------------ #
+  unit-test-python:
+    name: Unit test Python (${{ matrix.service }})
+    needs: discover
+    if: needs.discover.outputs.py != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJSON(needs.discover.outputs.py) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: techx-corp-platform/src/${{ matrix.service }}/requirements.txt
+      - name: Cài dependency
+        working-directory: techx-corp-platform/src/${{ matrix.service }}
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+      - name: Kiểm pytest có thu được test không
+        working-directory: techx-corp-platform/src/${{ matrix.service }}
+        run: |
+          set -euo pipefail
+          n=$(python -m pytest --collect-only -q 2>/dev/null | grep -cE '::' || true)
+          if [ "$n" -eq 0 ]; then
+            echo "::error::pytest không thu được test nào — file test_*.py phải có hàm tên test_*, xem issue #339."
+            exit 1
+          fi
+          echo "✅ pytest thu được $n test"
+      - name: pytest
+        working-directory: techx-corp-platform/src/${{ matrix.service }}
+        run: python -m pytest -q
+
+  # ------------------------------------------------------------------ #
+  # .NET: dotnet test project xunit. TargetFramework net10.0 (xem       #
+  # cart/tests/cart.tests.csproj).                                      #
+  # ------------------------------------------------------------------ #
+  unit-test-dotnet:
+    name: Unit test .NET (${{ matrix.service }})
+    needs: discover
+    if: needs.discover.outputs.cs != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: ${{ fromJSON(needs.discover.outputs.cs) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: dotnet test
+        working-directory: techx-corp-platform/src/${{ matrix.service }}
+        run: dotnet test --nologo --verbosity normal
+
+  # ------------------------------------------------------------------ #
+  # Job gác cổng — ĐÂY mới là cái đặt vào required status checks, KHÔNG #
+  # phải từng job con.                                                  #
+  #                                                                    #
+  # Lý do: matrix sinh động nên tên job đổi theo từng PR. Required      #
+  # check là chuỗi cố định — PR không đụng service nào thì job đó không #
+  # tồn tại, GitHub chờ mãi một check không bao giờ tới và PR treo ở    #
+  # trạng thái Expected, không merge được. Job này luôn chạy nên tên    #
+  # luôn ổn định; thêm service mới cũng không phải sửa ruleset.         #
+  #                                                                    #
+  # skipped = không service nào có test bị đổi -> hợp lệ, cho qua.      #
+  # ------------------------------------------------------------------ #
+  unit-test:
+    name: Unit tests
+    needs: [discover, unit-test-go, unit-test-python, unit-test-dotnet]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Tổng hợp kết quả
+        run: |
+          set -euo pipefail
+          fail=0
+          for r in "discover:${{ needs.discover.result }}" \
+                   "go:${{ needs.unit-test-go.result }}" \
+                   "python:${{ needs.unit-test-python.result }}" \
+                   "dotnet:${{ needs.unit-test-dotnet.result }}"; do
+            name=${r%%:*}; res=${r#*:}
+            case "$res" in
+              success)  echo "✅ $name: $res" ;;
+              skipped)  echo "⏭️  $name: không service nào cần chạy" ;;
+              *)        echo "::error::❌ $name: $res"; fail=1 ;;
+            esac
+          done
+          exit $fail
 
   # ------------------------------------------------------------------ #
   # CDO-141: Validate Helm/manifest làm gate trước deploy.             #

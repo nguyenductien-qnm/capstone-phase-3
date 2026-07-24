@@ -1,0 +1,52 @@
+MANDATE-18 TELEMETRY BASELINE
+Captured: 2026-07-22T07:26:34Z to 2026-07-22T07:31:19Z
+Namespace: techx-tf1
+Queries: Prometheus instant queries using rate(...[5m]); local port-forward closed after capture.
+
+INGESTION / SPAN RATES
+otelcol_receiver_accepted_spans_total: 15.75860639719554 spans/s
+otelcol_exporter_sent_spans_total: 23.644823305742097 spans/s
+otelcol_receiver_accepted_log_records_total: 0.5999989655208086 log records/s
+otelcol_receiver_accepted_metric_points_total: 488.39954662463117 metric points/s
+traces_span_metrics_calls_total: 7.837512708541091 calls/s
+
+PROMETHEUS
+prometheus_tsdb_head_series: 221060
+runtime retention argument: --storage.tsdb.retention.time=7d
+
+Top 10 metric families by active series count (ranked within Count only):
+apiserver_request_duration_seconds_bucket 26064
+apiserver_request_sli_duration_seconds_bucket 17754
+etcd_request_duration_seconds_bucket 16416
+traces_span_metrics_duration_milliseconds_bucket 11373
+apiserver_request_body_size_bytes_bucket 9952
+apiserver_response_sizes_bucket 4624
+http_server_duration_milliseconds_bucket 3824
+apiserver_watch_list_duration_seconds_bucket 3798
+apiserver_watch_cache_read_wait_seconds_bucket 3332
+apiserver_storage_list_duration_seconds_bucket 2904
+
+OPENSEARCH
+cluster index count: 16
+cluster document count: 14094328
+cluster store size: 8001615825 bytes
+PVC: 10Gi, 8032915456/10464022528 bytes used (76.77%)
+
+Largest indices at capture:
+otel-logs-2026-07-20 docs=5682921 store=2.9gb
+otel-logs-2026-07-19 docs=5199685 store=2.6gb
+otel-logs-2026-07-18 docs=1410520 store=858.3mb
+otel-logs-2026-07-17 docs=931252 store=556.1mb
+otel-logs-2026-07-21 docs=431686 store=263.4mb
+otel-logs-2026-07-16 docs=388699 store=236.3mb
+otel-logs-2026-07-22 docs=17203 store=8.3mb
+
+OpenSearch ISM policies response: {"policies":[],"total_policies":0}
+OpenSearch ISM explain: total_managed_indices=0; every listed index has policy_id=null.
+
+RETENTION FINDING
+Prometheus has finite 7d retention: verified.
+OpenSearch has no ISM retention policy: GAP.
+CloudWatch log groups without retention: /aws/lambda/ecommerce-dev-rds-rotation and /aws/rds/proxy/ecommerce-dev-rds-proxy: GAP.
+
+No telemetry configuration or data was changed or deleted.

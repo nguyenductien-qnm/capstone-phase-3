@@ -1,0 +1,4 @@
+### R1 - LOG CIRCUIT BREAKER (frontend) @ 2026-07-22T10:24:12Z
+===== pod/frontend-5c8c6f6865-5lzk4 =====
+===== pod/frontend-5c8c6f6865-982tj =====
+[circuit-breaker:ad] state closed -> open (failures=5)

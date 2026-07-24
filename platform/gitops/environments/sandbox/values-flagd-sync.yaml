@@ -10,6 +10,8 @@ components:
       egress-internet: "true"
     # 1) Gỡ flagd-ui local (không cho toggle bằng web trong cluster TF)
     sidecarContainers: []
+    imageOverride:
+      tag: "v0.16.0"
     # 2) Đổi nguồn flag: từ file local -> central http có bearer (token literal, không cần shell expand)
     command:
       - "/flagd-build"

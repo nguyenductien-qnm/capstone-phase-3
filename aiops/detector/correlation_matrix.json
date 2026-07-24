@@ -1,0 +1,3048 @@
+{
+  "lags_seconds": [
+    0,
+    30,
+    60
+  ],
+  "step_seconds": 30,
+  "generated_at": "2026-07-17T02:38:17.433315+00:00",
+  "pairs": {
+    "cart/error_rate \u2192 cart/latency_p95": {
+      "lag_0": {
+        "pearson_r": 0.3475,
+        "pearson_p": 0.0,
+        "spearman_r": 0.357,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.3376,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3462,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.331,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3442,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "cart/latency_p95 \u2192 cart/error_rate": {
+      "lag_0": {
+        "pearson_r": 0.3475,
+        "pearson_p": 0.0,
+        "spearman_r": 0.357,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.3273,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3262,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.3335,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3448,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "cart/error_rate \u2192 cart/saturation": {
+      "lag_0": {
+        "pearson_r": 0.3124,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3153,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.3213,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3265,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.3334,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3399,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "cart/saturation \u2192 cart/error_rate": {
+      "lag_0": {
+        "pearson_r": 0.3124,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3153,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.3159,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3256,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.3377,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3364,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "cart/error_rate \u2192 checkout/error_rate": {
+      "lag_0": {
+        "pearson_r": 0.3515,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3646,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.3359,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3487,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.3236,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3334,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "checkout/error_rate \u2192 cart/error_rate": {
+      "lag_0": {
+        "pearson_r": 0.3515,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3646,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.3518,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3627,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.3478,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3552,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "cart/error_rate \u2192 checkout/latency_p95": {
+      "lag_0": {
+        "pearson_r": 0.3268,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3335,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.3368,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3438,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.3351,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3383,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "checkout/latency_p95 \u2192 cart/error_rate": {
+      "lag_0": {
+        "pearson_r": 0.3268,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3335,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.3297,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3259,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.3378,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3412,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "cart/error_rate \u2192 checkout/saturation": {
+      "lag_0": {
+        "pearson_r": 0.3314,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3374,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.3367,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3471,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.355,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3599,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "checkout/saturation \u2192 cart/error_rate": {
+      "lag_0": {
+        "pearson_r": 0.3314,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3374,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.3452,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3547,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.3294,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3369,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "cart/error_rate \u2192 frontend/error_rate": {
+      "lag_0": {
+        "pearson_r": -0.2675,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1083,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2673,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1219,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2685,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1225,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "frontend/error_rate \u2192 cart/error_rate": {
+      "lag_0": {
+        "pearson_r": -0.2675,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1083,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2666,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1076,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2676,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1062,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "cart/error_rate \u2192 frontend/latency_p95": {
+      "lag_0": {
+        "pearson_r": -0.2674,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1095,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2688,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0753,
+        "spearman_p": 5.2e-05,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2682,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1058,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "frontend/latency_p95 \u2192 cart/error_rate": {
+      "lag_0": {
+        "pearson_r": -0.2674,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1095,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2685,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1135,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2693,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0894,
+        "spearman_p": 2e-06,
+        "n": 2878
+      }
+    },
+    "cart/error_rate \u2192 frontend/saturation": {
+      "lag_0": {
+        "pearson_r": 0.3405,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3463,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.3384,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3449,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.3065,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3075,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "frontend/saturation \u2192 cart/error_rate": {
+      "lag_0": {
+        "pearson_r": 0.3405,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3463,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.3101,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3189,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.3217,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3295,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "cart/error_rate \u2192 product-reviews/error_rate": {
+      "lag_0": {
+        "pearson_r": -0.2705,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1121,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2703,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1129,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2717,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1231,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "product-reviews/error_rate \u2192 cart/error_rate": {
+      "lag_0": {
+        "pearson_r": -0.2705,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1121,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2695,
+        "pearson_p": 0.0,
+        "spearman_r": 0.133,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2706,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1195,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "cart/error_rate \u2192 product-reviews/latency_p95": {
+      "lag_0": {
+        "pearson_r": -0.2702,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0841,
+        "spearman_p": 6e-06,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2699,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1073,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2713,
+        "pearson_p": 0.0,
+        "spearman_r": 0.116,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "product-reviews/latency_p95 \u2192 cart/error_rate": {
+      "lag_0": {
+        "pearson_r": -0.2702,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0841,
+        "spearman_p": 6e-06,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2691,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1165,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2704,
+        "pearson_p": 0.0,
+        "spearman_r": 0.091,
+        "spearman_p": 1e-06,
+        "n": 2878
+      }
+    },
+    "cart/error_rate \u2192 product-reviews/saturation": {
+      "lag_0": {
+        "pearson_r": -0.2653,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1022,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2665,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1112,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2665,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0974,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "product-reviews/saturation \u2192 cart/error_rate": {
+      "lag_0": {
+        "pearson_r": -0.2653,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1022,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2653,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0974,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.264,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1177,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "cart/latency_p95 \u2192 cart/saturation": {
+      "lag_0": {
+        "pearson_r": 0.3158,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3223,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.317,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3143,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.328,
+        "pearson_p": 0.0,
+        "spearman_r": 0.334,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "cart/saturation \u2192 cart/latency_p95": {
+      "lag_0": {
+        "pearson_r": 0.3158,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3223,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.3141,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3132,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.3256,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3281,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "cart/latency_p95 \u2192 checkout/error_rate": {
+      "lag_0": {
+        "pearson_r": 0.3434,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3541,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.3471,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3529,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.3212,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3267,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "checkout/error_rate \u2192 cart/latency_p95": {
+      "lag_0": {
+        "pearson_r": 0.3434,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3541,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.3485,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3541,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.35,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3526,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "cart/latency_p95 \u2192 checkout/latency_p95": {
+      "lag_0": {
+        "pearson_r": 0.3066,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3218,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.3169,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3269,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.3172,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3228,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "checkout/latency_p95 \u2192 cart/latency_p95": {
+      "lag_0": {
+        "pearson_r": 0.3066,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3218,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.3328,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3373,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.3342,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3422,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "cart/latency_p95 \u2192 checkout/saturation": {
+      "lag_0": {
+        "pearson_r": 0.2987,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3116,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.3226,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3338,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.3407,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3459,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "checkout/saturation \u2192 cart/latency_p95": {
+      "lag_0": {
+        "pearson_r": 0.2987,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3116,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.3509,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3542,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.3507,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3589,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "cart/latency_p95 \u2192 frontend/error_rate": {
+      "lag_0": {
+        "pearson_r": -0.2166,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1447,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2138,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1424,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2109,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1573,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "frontend/error_rate \u2192 cart/latency_p95": {
+      "lag_0": {
+        "pearson_r": -0.2166,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1447,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2158,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1392,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2156,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1375,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "cart/latency_p95 \u2192 frontend/latency_p95": {
+      "lag_0": {
+        "pearson_r": -0.2167,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1201,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2184,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1099,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2147,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1255,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "frontend/latency_p95 \u2192 cart/latency_p95": {
+      "lag_0": {
+        "pearson_r": -0.2167,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1201,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2165,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1348,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2158,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1365,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "cart/latency_p95 \u2192 frontend/saturation": {
+      "lag_0": {
+        "pearson_r": 0.3068,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3083,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.3167,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3186,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.3083,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3231,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "frontend/saturation \u2192 cart/latency_p95": {
+      "lag_0": {
+        "pearson_r": 0.3068,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3083,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.3314,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3412,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.3049,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3066,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "cart/latency_p95 \u2192 product-reviews/error_rate": {
+      "lag_0": {
+        "pearson_r": -0.2198,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1502,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2169,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1319,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2144,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1567,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "product-reviews/error_rate \u2192 cart/latency_p95": {
+      "lag_0": {
+        "pearson_r": -0.2198,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1502,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2188,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1665,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2186,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1371,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "cart/latency_p95 \u2192 product-reviews/latency_p95": {
+      "lag_0": {
+        "pearson_r": -0.2193,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1451,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2164,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1361,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.214,
+        "pearson_p": 0.0,
+        "spearman_r": 0.133,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "product-reviews/latency_p95 \u2192 cart/latency_p95": {
+      "lag_0": {
+        "pearson_r": -0.2193,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1451,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2184,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1409,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2181,
+        "pearson_p": 0.0,
+        "spearman_r": 0.144,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "cart/latency_p95 \u2192 product-reviews/saturation": {
+      "lag_0": {
+        "pearson_r": -0.211,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1415,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2086,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1438,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2106,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1307,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "product-reviews/saturation \u2192 cart/latency_p95": {
+      "lag_0": {
+        "pearson_r": -0.211,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1415,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2144,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1333,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2138,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1311,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "cart/saturation \u2192 checkout/error_rate": {
+      "lag_0": {
+        "pearson_r": 0.3266,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3326,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.3063,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3124,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.3036,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3157,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "checkout/error_rate \u2192 cart/saturation": {
+      "lag_0": {
+        "pearson_r": 0.3266,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3326,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.3135,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3247,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.3353,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3327,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "cart/saturation \u2192 checkout/latency_p95": {
+      "lag_0": {
+        "pearson_r": 0.3192,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3277,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.3017,
+        "pearson_p": 0.0,
+        "spearman_r": 0.307,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.3291,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3401,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "checkout/latency_p95 \u2192 cart/saturation": {
+      "lag_0": {
+        "pearson_r": 0.3192,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3277,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.317,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3258,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.3263,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3252,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "cart/saturation \u2192 checkout/saturation": {
+      "lag_0": {
+        "pearson_r": 0.35,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3518,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.3488,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3514,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.3333,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3421,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "checkout/saturation \u2192 cart/saturation": {
+      "lag_0": {
+        "pearson_r": 0.35,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3518,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.3314,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3333,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.3257,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3314,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "cart/saturation \u2192 frontend/error_rate": {
+      "lag_0": {
+        "pearson_r": -0.2365,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1071,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.239,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1057,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2381,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1174,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "frontend/error_rate \u2192 cart/saturation": {
+      "lag_0": {
+        "pearson_r": -0.2365,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1071,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2353,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1038,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2337,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1095,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "cart/saturation \u2192 frontend/latency_p95": {
+      "lag_0": {
+        "pearson_r": -0.2361,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1052,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2373,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1122,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2399,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1033,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "frontend/latency_p95 \u2192 cart/saturation": {
+      "lag_0": {
+        "pearson_r": -0.2361,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1052,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2346,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1095,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2372,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0792,
+        "spearman_p": 2.1e-05,
+        "n": 2878
+      }
+    },
+    "cart/saturation \u2192 frontend/saturation": {
+      "lag_0": {
+        "pearson_r": 0.3164,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3143,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.3027,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3073,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.3483,
+        "pearson_p": 0.0,
+        "spearman_r": 0.35,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "frontend/saturation \u2192 cart/saturation": {
+      "lag_0": {
+        "pearson_r": 0.3164,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3143,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.3083,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3121,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.2945,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3029,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "cart/saturation \u2192 product-reviews/error_rate": {
+      "lag_0": {
+        "pearson_r": -0.2396,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0884,
+        "spearman_p": 2e-06,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2419,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1232,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2412,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1139,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "product-reviews/error_rate \u2192 cart/saturation": {
+      "lag_0": {
+        "pearson_r": -0.2396,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0884,
+        "spearman_p": 2e-06,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2384,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0985,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2367,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1298,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "cart/saturation \u2192 product-reviews/latency_p95": {
+      "lag_0": {
+        "pearson_r": -0.239,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1256,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2415,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1158,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2409,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "product-reviews/latency_p95 \u2192 cart/saturation": {
+      "lag_0": {
+        "pearson_r": -0.239,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1256,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2379,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1012,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2363,
+        "pearson_p": 0.0,
+        "spearman_r": 0.117,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "cart/saturation \u2192 product-reviews/saturation": {
+      "lag_0": {
+        "pearson_r": -0.2367,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0971,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2361,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1002,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2342,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0948,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "product-reviews/saturation \u2192 cart/saturation": {
+      "lag_0": {
+        "pearson_r": -0.2367,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0971,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.234,
+        "pearson_p": 0.0,
+        "spearman_r": 0.103,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.233,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1057,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "checkout/error_rate \u2192 checkout/latency_p95": {
+      "lag_0": {
+        "pearson_r": 0.3289,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3446,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.3184,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3284,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.3363,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3406,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "checkout/latency_p95 \u2192 checkout/error_rate": {
+      "lag_0": {
+        "pearson_r": 0.3289,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3446,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.3444,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3546,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.3099,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3111,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "checkout/error_rate \u2192 checkout/saturation": {
+      "lag_0": {
+        "pearson_r": 0.3474,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3591,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.3417,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3518,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.3376,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3456,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "checkout/saturation \u2192 checkout/error_rate": {
+      "lag_0": {
+        "pearson_r": 0.3474,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3591,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.3359,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3413,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.322,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3282,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "checkout/error_rate \u2192 frontend/error_rate": {
+      "lag_0": {
+        "pearson_r": -0.2519,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1306,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.252,
+        "pearson_p": 0.0,
+        "spearman_r": 0.118,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2528,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1178,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "frontend/error_rate \u2192 checkout/error_rate": {
+      "lag_0": {
+        "pearson_r": -0.2519,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1306,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2538,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1132,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2528,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1218,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "checkout/error_rate \u2192 frontend/latency_p95": {
+      "lag_0": {
+        "pearson_r": -0.2549,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0958,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2536,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0814,
+        "spearman_p": 1.2e-05,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2531,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0992,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "frontend/latency_p95 \u2192 checkout/error_rate": {
+      "lag_0": {
+        "pearson_r": -0.2549,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0958,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2542,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0923,
+        "spearman_p": 1e-06,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2528,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1186,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "checkout/error_rate \u2192 frontend/saturation": {
+      "lag_0": {
+        "pearson_r": 0.3332,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3381,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.3206,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3265,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.3125,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3181,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "frontend/saturation \u2192 checkout/error_rate": {
+      "lag_0": {
+        "pearson_r": 0.3332,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3381,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.3318,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3454,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.3342,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3395,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "checkout/error_rate \u2192 product-reviews/error_rate": {
+      "lag_0": {
+        "pearson_r": -0.2552,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1232,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.255,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1498,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.256,
+        "pearson_p": 0.0,
+        "spearman_r": 0.128,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "product-reviews/error_rate \u2192 checkout/error_rate": {
+      "lag_0": {
+        "pearson_r": -0.2552,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1232,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2568,
+        "pearson_p": 0.0,
+        "spearman_r": 0.133,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2561,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1109,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "checkout/error_rate \u2192 product-reviews/latency_p95": {
+      "lag_0": {
+        "pearson_r": -0.2546,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1239,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2547,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1183,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2555,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1227,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "product-reviews/latency_p95 \u2192 checkout/error_rate": {
+      "lag_0": {
+        "pearson_r": -0.2546,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1239,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2564,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1188,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2557,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1089,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "checkout/error_rate \u2192 product-reviews/saturation": {
+      "lag_0": {
+        "pearson_r": -0.2491,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1406,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2502,
+        "pearson_p": 0.0,
+        "spearman_r": 0.133,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2528,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1058,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "product-reviews/saturation \u2192 checkout/error_rate": {
+      "lag_0": {
+        "pearson_r": -0.2491,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1406,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2497,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1315,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2512,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1188,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "checkout/latency_p95 \u2192 checkout/saturation": {
+      "lag_0": {
+        "pearson_r": 0.3331,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3455,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.3232,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3307,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.3233,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3252,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "checkout/saturation \u2192 checkout/latency_p95": {
+      "lag_0": {
+        "pearson_r": 0.3331,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3455,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.3306,
+        "pearson_p": 0.0,
+        "spearman_r": 0.331,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.3253,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3272,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "checkout/latency_p95 \u2192 frontend/error_rate": {
+      "lag_0": {
+        "pearson_r": -0.2787,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0875,
+        "spearman_p": 3e-06,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2784,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0892,
+        "spearman_p": 2e-06,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2774,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0956,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "frontend/error_rate \u2192 checkout/latency_p95": {
+      "lag_0": {
+        "pearson_r": -0.2787,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0875,
+        "spearman_p": 3e-06,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2783,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0972,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2786,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0881,
+        "spearman_p": 2e-06,
+        "n": 2878
+      }
+    },
+    "checkout/latency_p95 \u2192 frontend/latency_p95": {
+      "lag_0": {
+        "pearson_r": -0.2793,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0847,
+        "spearman_p": 5e-06,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2797,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0831,
+        "spearman_p": 8e-06,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2799,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0721,
+        "spearman_p": 0.000108,
+        "n": 2878
+      }
+    },
+    "frontend/latency_p95 \u2192 checkout/latency_p95": {
+      "lag_0": {
+        "pearson_r": -0.2793,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0847,
+        "spearman_p": 5e-06,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2793,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0912,
+        "spearman_p": 1e-06,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2768,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1087,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "checkout/latency_p95 \u2192 frontend/saturation": {
+      "lag_0": {
+        "pearson_r": 0.3289,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3352,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.3054,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3144,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.3285,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3294,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "frontend/saturation \u2192 checkout/latency_p95": {
+      "lag_0": {
+        "pearson_r": 0.3289,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3352,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.3165,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3253,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.2984,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3053,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "checkout/latency_p95 \u2192 product-reviews/error_rate": {
+      "lag_0": {
+        "pearson_r": -0.2815,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1129,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2813,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0868,
+        "spearman_p": 3e-06,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2804,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0767,
+        "spearman_p": 3.8e-05,
+        "n": 2878
+      }
+    },
+    "product-reviews/error_rate \u2192 checkout/latency_p95": {
+      "lag_0": {
+        "pearson_r": -0.2815,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1129,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2813,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0987,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2816,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0972,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "checkout/latency_p95 \u2192 product-reviews/latency_p95": {
+      "lag_0": {
+        "pearson_r": -0.2811,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0988,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2807,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0966,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2797,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1083,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "product-reviews/latency_p95 \u2192 checkout/latency_p95": {
+      "lag_0": {
+        "pearson_r": -0.2811,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0988,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2809,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0835,
+        "spearman_p": 7e-06,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.281,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0998,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "checkout/latency_p95 \u2192 product-reviews/saturation": {
+      "lag_0": {
+        "pearson_r": -0.2762,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0834,
+        "spearman_p": 7e-06,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2745,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0873,
+        "spearman_p": 3e-06,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2771,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0818,
+        "spearman_p": 1.1e-05,
+        "n": 2878
+      }
+    },
+    "product-reviews/saturation \u2192 checkout/latency_p95": {
+      "lag_0": {
+        "pearson_r": -0.2762,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0834,
+        "spearman_p": 7e-06,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2757,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1105,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.276,
+        "pearson_p": 0.0,
+        "spearman_r": 0.101,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "checkout/saturation \u2192 frontend/error_rate": {
+      "lag_0": {
+        "pearson_r": -0.2689,
+        "pearson_p": 0.0,
+        "spearman_r": 0.11,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2721,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0906,
+        "spearman_p": 1e-06,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2723,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1071,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "frontend/error_rate \u2192 checkout/saturation": {
+      "lag_0": {
+        "pearson_r": -0.2689,
+        "pearson_p": 0.0,
+        "spearman_r": 0.11,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2694,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1193,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2679,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1169,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "checkout/saturation \u2192 frontend/latency_p95": {
+      "lag_0": {
+        "pearson_r": -0.2705,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1065,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2705,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0742,
+        "spearman_p": 6.8e-05,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2729,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0939,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "frontend/latency_p95 \u2192 checkout/saturation": {
+      "lag_0": {
+        "pearson_r": -0.2705,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1065,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.269,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0941,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2671,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0897,
+        "spearman_p": 1e-06,
+        "n": 2878
+      }
+    },
+    "checkout/saturation \u2192 frontend/saturation": {
+      "lag_0": {
+        "pearson_r": 0.3343,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3455,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.3292,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3255,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.317,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3243,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "frontend/saturation \u2192 checkout/saturation": {
+      "lag_0": {
+        "pearson_r": 0.3343,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3455,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.334,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3433,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.3408,
+        "pearson_p": 0.0,
+        "spearman_r": 0.3438,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "checkout/saturation \u2192 product-reviews/error_rate": {
+      "lag_0": {
+        "pearson_r": -0.272,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1317,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2749,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1185,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2754,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1097,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "product-reviews/error_rate \u2192 checkout/saturation": {
+      "lag_0": {
+        "pearson_r": -0.272,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1317,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2727,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1105,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2711,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1117,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "checkout/saturation \u2192 product-reviews/latency_p95": {
+      "lag_0": {
+        "pearson_r": -0.2716,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1071,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2746,
+        "pearson_p": 0.0,
+        "spearman_r": 0.094,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2748,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1131,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "product-reviews/latency_p95 \u2192 checkout/saturation": {
+      "lag_0": {
+        "pearson_r": -0.2716,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1071,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2723,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0988,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2707,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1054,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "checkout/saturation \u2192 product-reviews/saturation": {
+      "lag_0": {
+        "pearson_r": -0.2698,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0839,
+        "spearman_p": 6e-06,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2704,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0904,
+        "spearman_p": 1e-06,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2714,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1136,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "product-reviews/saturation \u2192 checkout/saturation": {
+      "lag_0": {
+        "pearson_r": -0.2698,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0839,
+        "spearman_p": 6e-06,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.267,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0966,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2677,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "frontend/error_rate \u2192 frontend/latency_p95": {
+      "lag_0": {
+        "pearson_r": 0.996,
+        "pearson_p": 0.0,
+        "spearman_r": 0.49,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.9998,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4643,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.996,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4749,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "frontend/latency_p95 \u2192 frontend/error_rate": {
+      "lag_0": {
+        "pearson_r": 0.996,
+        "pearson_p": 0.0,
+        "spearman_r": 0.49,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.9921,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4738,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.9882,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4789,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "frontend/error_rate \u2192 frontend/saturation": {
+      "lag_0": {
+        "pearson_r": -0.2576,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1182,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.259,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1092,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2599,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0934,
+        "spearman_p": 1e-06,
+        "n": 2878
+      }
+    },
+    "frontend/saturation \u2192 frontend/error_rate": {
+      "lag_0": {
+        "pearson_r": -0.2576,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1182,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2564,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1077,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.255,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1034,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "frontend/error_rate \u2192 product-reviews/error_rate": {
+      "lag_0": {
+        "pearson_r": 0.9999,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4928,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.996,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4957,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.9921,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4968,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "product-reviews/error_rate \u2192 frontend/error_rate": {
+      "lag_0": {
+        "pearson_r": 0.9999,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4928,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.996,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4777,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.9921,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4884,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "frontend/error_rate \u2192 product-reviews/latency_p95": {
+      "lag_0": {
+        "pearson_r": 0.9999,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4766,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.996,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4754,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.9921,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4781,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "product-reviews/latency_p95 \u2192 frontend/error_rate": {
+      "lag_0": {
+        "pearson_r": 0.9999,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4766,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.996,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4938,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.9921,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4861,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "frontend/error_rate \u2192 product-reviews/saturation": {
+      "lag_0": {
+        "pearson_r": 0.9957,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4753,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.9918,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4875,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.9879,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4716,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "product-reviews/saturation \u2192 frontend/error_rate": {
+      "lag_0": {
+        "pearson_r": 0.9957,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4753,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.9997,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4866,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.9957,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4995,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "frontend/latency_p95 \u2192 frontend/saturation": {
+      "lag_0": {
+        "pearson_r": -0.2601,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0943,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2604,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1039,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2595,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1097,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "frontend/saturation \u2192 frontend/latency_p95": {
+      "lag_0": {
+        "pearson_r": -0.2601,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0943,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2588,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1074,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2573,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0936,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "frontend/latency_p95 \u2192 product-reviews/error_rate": {
+      "lag_0": {
+        "pearson_r": 0.9961,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4723,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.9922,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4764,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.9884,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4784,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "product-reviews/error_rate \u2192 frontend/latency_p95": {
+      "lag_0": {
+        "pearson_r": 0.9961,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4723,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.9999,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4915,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.9961,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4699,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "frontend/latency_p95 \u2192 product-reviews/latency_p95": {
+      "lag_0": {
+        "pearson_r": 0.9961,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4835,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.9922,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4669,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.9883,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4778,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "product-reviews/latency_p95 \u2192 frontend/latency_p95": {
+      "lag_0": {
+        "pearson_r": 0.9961,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4835,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.9999,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4766,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.9961,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4776,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "frontend/latency_p95 \u2192 product-reviews/saturation": {
+      "lag_0": {
+        "pearson_r": 0.9919,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4657,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.988,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4823,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.9841,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4749,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "product-reviews/saturation \u2192 frontend/latency_p95": {
+      "lag_0": {
+        "pearson_r": 0.9919,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4657,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.9958,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4865,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.9997,
+        "pearson_p": 0.0,
+        "spearman_r": 0.508,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "frontend/saturation \u2192 product-reviews/error_rate": {
+      "lag_0": {
+        "pearson_r": -0.2608,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1089,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2595,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0834,
+        "spearman_p": 7e-06,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2579,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1125,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "product-reviews/error_rate \u2192 frontend/saturation": {
+      "lag_0": {
+        "pearson_r": -0.2608,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1089,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.262,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0995,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2626,
+        "pearson_p": 0.0,
+        "spearman_r": 0.099,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "frontend/saturation \u2192 product-reviews/latency_p95": {
+      "lag_0": {
+        "pearson_r": -0.2605,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0963,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2589,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0989,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2574,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1223,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "product-reviews/latency_p95 \u2192 frontend/saturation": {
+      "lag_0": {
+        "pearson_r": -0.2605,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0963,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2615,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1026,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2621,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1095,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "frontend/saturation \u2192 product-reviews/saturation": {
+      "lag_0": {
+        "pearson_r": -0.2539,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1055,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2529,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1005,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.2529,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1147,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "product-reviews/saturation \u2192 frontend/saturation": {
+      "lag_0": {
+        "pearson_r": -0.2539,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1055,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": -0.2556,
+        "pearson_p": 0.0,
+        "spearman_r": 0.1037,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": -0.257,
+        "pearson_p": 0.0,
+        "spearman_r": 0.0907,
+        "spearman_p": 1e-06,
+        "n": 2878
+      }
+    },
+    "product-reviews/error_rate \u2192 product-reviews/latency_p95": {
+      "lag_0": {
+        "pearson_r": 1.0,
+        "pearson_p": 0.0,
+        "spearman_r": 0.5194,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.9961,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4964,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.9922,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4819,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "product-reviews/latency_p95 \u2192 product-reviews/error_rate": {
+      "lag_0": {
+        "pearson_r": 1.0,
+        "pearson_p": 0.0,
+        "spearman_r": 0.5194,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.9961,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4905,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.9922,
+        "pearson_p": 0.0,
+        "spearman_r": 0.5088,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "product-reviews/error_rate \u2192 product-reviews/saturation": {
+      "lag_0": {
+        "pearson_r": 0.9958,
+        "pearson_p": 0.0,
+        "spearman_r": 0.5053,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.9919,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4987,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.988,
+        "pearson_p": 0.0,
+        "spearman_r": 0.5046,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "product-reviews/saturation \u2192 product-reviews/error_rate": {
+      "lag_0": {
+        "pearson_r": 0.9958,
+        "pearson_p": 0.0,
+        "spearman_r": 0.5053,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.9997,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4968,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.9958,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4826,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "product-reviews/latency_p95 \u2192 product-reviews/saturation": {
+      "lag_0": {
+        "pearson_r": 0.9958,
+        "pearson_p": 0.0,
+        "spearman_r": 0.5006,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.9919,
+        "pearson_p": 0.0,
+        "spearman_r": 0.487,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.988,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4825,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    },
+    "product-reviews/saturation \u2192 product-reviews/latency_p95": {
+      "lag_0": {
+        "pearson_r": 0.9958,
+        "pearson_p": 0.0,
+        "spearman_r": 0.5006,
+        "spearman_p": 0.0,
+        "n": 2880
+      },
+      "lag_30": {
+        "pearson_r": 0.9997,
+        "pearson_p": 0.0,
+        "spearman_r": 0.5033,
+        "spearman_p": 0.0,
+        "n": 2879
+      },
+      "lag_60": {
+        "pearson_r": 0.9958,
+        "pearson_p": 0.0,
+        "spearman_r": 0.4929,
+        "spearman_p": 0.0,
+        "n": 2878
+      }
+    }
+  },
+  "leading_indicators": []
+}

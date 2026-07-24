@@ -1,0 +1,16 @@
+# SS-04 - R2: PodDisruptionBudget (ALLOWED DISRUPTIONS phai >=1)
+Thoi diem: 2026-07-22 10:10:38 UTC
+
+NAME              MIN AVAILABLE   MAX UNAVAILABLE   ALLOWED DISRUPTIONS   AGE
+ad                N/A             1                 1                     17m
+cart              N/A             1                 0                     3d6h
+checkout          N/A             1                 1                     3d6h
+currency          N/A             1                 1                     17m
+frontend          N/A             1                 1                     3d6h
+frontend-proxy    N/A             1                 1                     3d6h
+opensearch-pdb    N/A             1                 1                     3d6h
+payment           N/A             1                 1                     17m
+product-catalog   N/A             1                 1                     3d6h
+product-reviews   N/A             1                 1                     7h56m
+recommendation    N/A             1                 1                     17m
+shipping          N/A             1                 1                     17m
