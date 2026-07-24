@@ -39,6 +39,6 @@
     "@opentelemetry/propagator-jaeger": "2.9.0",
     "@opentelemetry/exporter-prometheus": "0.217.0",
     "minimatch": "9.0.7",
-    "lodash": "4.18.0"
+    "lodash": "4.18.1"
   }
 }
