@@ -10,20 +10,22 @@ Evidence pack cho [MANDATE-18: Hoá đơn ẩn - cắt tiền ngoài node comput
 - Cluster tag environment: `dev`.
 - Application/observability namespace: `techx-tf1`.
 
-> The baseline above is historical data collected from sandbox. Per leader
-> review on 2026-07-23, the Mandate 18 deployment target is now Terraform and
-> GitOps `develop` (`ecommerce-develop-dev-eks`, `techx-develop`). Do not use
-> the sandbox baseline as develop after evidence.
-- Git baseline: `develop` tại `2376042`.
+> The canonical runtime for this remediation is Terraform/GitOps `sandbox`,
+> which deploys `ecommerce-dev-eks` / `techx-tf1`. Do not deploy this runtime
+> from the separate `develop` environment root.
+- Git baseline: `origin/develop@317f278`; follow-up branch
+  `fix/mandate-18-sandbox-rollout`.
 
 ## Trạng thái mentor-facing hiện tại
 
 - Evidence pack: **AUDITED, NOT SUBMISSION-READY**.
-- Directive compliance nghiêm ngặt: `0/5` requirement đạt PASS hoàn toàn.
-- Weighted directive completion (`PARTIAL=0.5`): `1.5/5 = 30%`.
+- Directive compliance nghiêm ngặt: `1/5 = 20%` requirement đạt PASS.
+- Weighted directive completion (`PARTIAL=0.5`): `2.5/5 = 50%`.
 - Screenshot thật: `0`; toàn bộ tên ảnh trong pack hiện là capture checklist.
-- Terraform full plan: `BLOCKED` do SSO role không đọc được remote state object
-  (`S3 HeadObject 403`); không thể khẳng định zero destroy/replace.
+- Orphan cleanup: hai Target Group được owner phê duyệt đã xóa; `testt` giữ
+  HOLD ngoài project VPC; active Kubernetes Target Group vẫn healthy.
+- Terraform full plan: chạy thành công `1 add, 20 change, 0 destroy`, zero
+  replace; apply `BLOCKED` vì 20 update ngoài scope Mandate 18.
 - Runtime change/after evidence: chưa có apply/Argo rollout cho S3 endpoint và
   telemetry controls.
 - SLO final verification: success SLI đạt, nhưng storefront p95 `15s` FAIL.
