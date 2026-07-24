@@ -87,7 +87,8 @@ async def main():
         "",
         f"- Region: {region}; injection judge: {os.environ.get('LLM_INJECTION_JUDGE_MODEL', 'amazon.nova-lite-v1:0')}; "
         f"grounding judge: {os.environ.get('LLM_JUDGE_MODEL', 'amazon.nova-lite-v1:0')}",
-        f"- ml-guard: ON; Bedrock Guardrails: OFF",
+        f"- ml-guard: ON; Bedrock Guardrails: {'ON' if os.environ.get('LLM_BEDROCK_GUARDRAIL', 'false').lower() == 'true' else 'OFF'} "
+        f"(offline cascade harness — layer-3 ApplyGuardrail chỉ chạy khi có creds Bedrock)",
         "",
         "| Rail | Case | Pass | Chi tiết | Latency |",
         "|---|---|---|---|---|",

@@ -36,7 +36,7 @@ def build_cases():
         cases_to_run.append((f"pii_{i}", "PII", txt, exp_toks, "redact"))
     cases_to_run.append(("leak_0", "LEAK", cases.LEAK_SYSTEM_PROMPT, True, "verbatim"))
     cases_to_run.append(("citation_0", "CITATION",
-                         f"Đánh giá của sản phẩm {EVAL_PRODUCT_ID} thế nào?", True, "citation"))
+                         f"Hãy tìm kiếm đánh giá của thiết bị thiên văn {EVAL_PRODUCT_ID}.", True, "citation"))
     if hasattr(cases, "WRITE_CASES"):
         for i, (txt, cat) in enumerate(cases.WRITE_CASES):
             cases_to_run.append((f"write_{i}", "WRITE", txt, True, cat))
@@ -66,7 +66,7 @@ def main():
         payload = {
             "question": inp,
             "user_id": f"test-user-{case_id}",
-            "session_id": f"sess-{case_id}"
+            "session_id": f"sess-{case_id}-{int(time.time()*1000)}"
         }
         
         t0 = time.time()
