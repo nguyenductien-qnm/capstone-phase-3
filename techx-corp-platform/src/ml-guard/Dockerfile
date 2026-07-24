@@ -7,10 +7,7 @@ RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 # Install auto-instrumentation plugins (same pattern as product-reviews)
 RUN PYTHONPATH=/install/lib/python3.12/site-packages /install/bin/opentelemetry-bootstrap -a install --prefix=/install || true
 
-# Install grpc_health_probe
-RUN apt-get update && apt-get install -y wget && \
-    wget -qO /install/bin/grpc_health_probe https://github.com/grpc-ecosystem/grpc-health-probe/releases/download/v0.4.19/grpc_health_probe-linux-amd64 && \
-    chmod +x /install/bin/grpc_health_probe
+
 
 # Bake model vào image: pod không cần egress tới HF Hub, không cold-download.
 FROM python:3.12-slim-trixie@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de
@@ -36,5 +33,5 @@ COPY ./src/product-reviews/bedrock_client.py .
 USER 10001:10001
 EXPOSE 8090
 HEALTHCHECK --interval=30s --timeout=3s --start-period=90s \
-    CMD ["grpc_health_probe", "-addr=127.0.0.1:8090"]
+    CMD ["python", "-c", "import socket;socket.create_connection(('127.0.0.1',8090),2)"]
 CMD ["opentelemetry-instrument", "python", "server.py"]

@@ -1109,17 +1109,17 @@ components:
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
     startupProbe:
-      exec: { command: ["grpc_health_probe", "-addr=127.0.0.1:8090"] }
+      grpc: { port: 8090 }
       periodSeconds: 5
       failureThreshold: 24
     readinessProbe:
-      exec: { command: ["grpc_health_probe", "-addr=127.0.0.1:8090"] }
+      grpc: { port: 8090 }
       periodSeconds: 5
       timeoutSeconds: 2
       failureThreshold: 3
       successThreshold: 1
     livenessProbe:
-      exec: { command: ["grpc_health_probe", "-addr=127.0.0.1:8090"] }
+      grpc: { port: 8090 }
       periodSeconds: 10
       timeoutSeconds: 2
       failureThreshold: 6

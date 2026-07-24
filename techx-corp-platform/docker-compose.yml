@@ -982,7 +982,7 @@ services:
       - "8091:8090"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "grpc_health_probe", "-addr=127.0.0.1:8090"]
+      test: ["CMD","python","-c","import socket;socket.create_connection(('127.0.0.1',8090),2)"]
       interval: 15s
       timeout: 5s
       retries: 10
