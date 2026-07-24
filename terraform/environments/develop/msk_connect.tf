@@ -2,6 +2,10 @@ data "aws_secretsmanager_secret_version" "msk_credentials" {
   secret_id = module.msk.msk_secret_arn
 }
 
+data "aws_secretsmanager_secret_version" "rds_credentials" {
+  secret_id = "${var.project_name}-${var.environment}-rds-secret"
+}
+
 # 1. S3 bucket for MSK Connect Plugins
 resource "aws_s3_bucket" "msk_plugins" {
   bucket = "${var.project_name}-${var.environment}-msk-plugins"
@@ -164,7 +168,7 @@ resource "aws_mskconnect_connector" "debezium_postgres" {
     "database.hostname"              = module.rds.db_primary_address
     "database.port"                  = "5432"
     "database.user"                  = module.rds.db_username
-    "database.password"              = module.rds.db_password
+    "database.password"              = jsondecode(data.aws_secretsmanager_secret_version.rds_credentials.secret_string)["password"]
     "database.dbname"                = module.rds.db_name
     "topic.prefix"                   = "fulfillment"
     "table.include.list"             = "checkout.outbox"
