@@ -188,7 +188,7 @@ resource "aws_mskconnect_connector" "debezium_postgres" {
   }
 
   kafka_cluster_client_authentication {
-    authentication_type = "SCRAM-SHA-512"
+    authentication_type = "NONE"
   }
 
   kafka_cluster_encryption_in_transit {
