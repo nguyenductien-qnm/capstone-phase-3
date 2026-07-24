@@ -321,7 +321,10 @@ def _is_abstention(text):
         "chưa có thông tin",
         "không tìm thấy",
         "không có dữ liệu",
-        "không thể xử lý"
+        "không thể xử lý",
+        "rất tiếc",
+        "dạ, câu hỏi của bạn",
+        "dạ, mình là trợ lý"
     ])
 
 

@@ -66,11 +66,9 @@ CONFIRMATION_GATE_TEMPLATE = "Tôi đã chuẩn bị thêm [SP] vào giỏ. Vui 
 # rule 5's category-picker phrasing legitimately shows up in clarifying answers —
 # both are windows of the system prompt the model is REQUIRED to echo, so the
 # leak detector must skip them (same contract as CONFIRMATION_GATE_TEMPLATE).
-NO_REVIEW_TEMPLATE = "Tôi không có thông tin đánh giá về sản phẩm này."
-CATEGORY_PICKER_TEMPLATE = ("chọn đúng một trong các danh mục (Telescopes, Binoculars, "
-                            "Accessories, Cameras, Books) hoặc tên gần giống")
-DOMAIN_SCOPE_TEMPLATE = ("Xin lỗi, mình là trợ lý mua sắm của TechX, chỉ hỗ trợ về thiết bị thiên văn thôi. "
-                         "Bạn cần tìm kính thiên văn, ống nhòm hay phụ kiện gì không?")
+NO_REVIEW_TEMPLATE = "Rất tiếc, hiện tại chưa có đánh giá nào cho sản phẩm này."
+CATEGORY_PICKER_TEMPLATE = "Dạ, câu hỏi của bạn hơi chung chung. Bạn muốn tìm kính thiên văn, ống nhòm hay phụ kiện?"
+DOMAIN_SCOPE_TEMPLATE = "Dạ, mình là trợ lý mua sắm của TechX, chuyên hỗ trợ về thiết bị thiên văn. Bạn cần tìm kính thiên văn, ống nhòm hay phụ kiện gì không?"
 
 # SYSTEM_PROMPT = INTRO (identity/mission) + CATALOG (customer-visible product
 # data, fine to echo) + RULES (operating instructions). The leak detector guards
@@ -91,14 +89,12 @@ SYSTEM_PROMPT_RULES = """QUY TẮC BẮT BUỘC:
 0. PHẠM VI (SCOPE) — ƯU TIÊN CAO NHẤT: CHỈ trả lời về mua sắm tại TechX (sản phẩm thiên văn, giá,
    review, gợi ý, giỏ hàng). Nếu khách hỏi BẤT KỲ chủ đề nào hoàn toàn ngoài lề (lập trình, học tập,
    tăng lương, nghề nghiệp, đầu tư, chính trị, kiến thức chung...), TỪ CHỐI NGẮN GỌN và mời
-   quay lại đúng một câu: "Xin lỗi, mình là trợ lý mua sắm của TechX, chỉ hỗ trợ về thiết bị thiên văn thôi.
-   Bạn cần tìm kính thiên văn, ống nhòm hay phụ kiện gì không?" 
+   quay lại đúng một câu: "Dạ, mình là trợ lý mua sắm của TechX, chuyên hỗ trợ về thiết bị thiên văn. Bạn cần tìm kính thiên văn, ống nhòm hay phụ kiện gì không?" 
    LƯU Ý QUAN TRỌNG: Các câu hỏi chung chung về "sản phẩm", "pin", "giao hàng", "bảo hành", "chống nước" ĐỀU HỢP LỆ, TUYỆT ĐỐI KHÔNG TỪ CHỐI. Hãy trả lời bình thường.
    TUYỆT ĐỐI KHÔNG đưa ra hướng dẫn hay lời khuyên ngoài lề.
 1. NGẮN GỌN: tối đa 3-4 câu mỗi lượt.
 2. KHÔNG ẢO GIÁC: mọi thông tin review PHẢI đến từ tool get_product_reviews.
-   Nếu review_count = 0 hoặc tool không có dữ liệu, nói đúng: "Tôi không có thông
-   tin đánh giá về sản phẩm này." Tuyệt đối không bịa điểm số hay nhận xét.
+   Nếu review_count = 0 hoặc tool không có dữ liệu, nói đúng: "Rất tiếc, hiện tại chưa có đánh giá nào cho sản phẩm này." Tuyệt đối không bịa điểm số hay nhận xét.
 3. TRÍCH DẪN: khi trả lời về review, nêu rõ điểm trung bình và rằng thông tin đến
    từ đánh giá thật của khách.
 4. CONFIRMATION GATE: KHÔNG được nói đã thêm thành công. Bắt buộc phải gọi tool add_item_to_cart, sau đó trả lời: "Tôi đã chuẩn bị thêm [SP] vào giỏ. Vui lòng xác nhận để thực hiện." (thay [SP] bằng tên sản phẩm).
@@ -127,9 +123,9 @@ TOOLS_DEFINITION = [
     {"toolSpec": {
         "name": "search_products",
         "description": (
-            "Tìm sản phẩm trong catalog TechX Corp bằng ngôn ngữ tự nhiên. "
-            "Trả về danh sách product_id, tên, giá, danh mục. Dùng khi khách hỏi "
-            "'có kính thiên văn nào...', 'tìm ống nhòm', hoặc bất kỳ câu hỏi tìm sản phẩm."
+            "TÌM KIẾM BẮT BUỘC: Tìm sản phẩm trong catalog TechX Corp. "
+            "LUÔN GỌI tool này ĐẦU TIÊN khi khách hỏi chung chung về sản phẩm, pin, tính năng... "
+            "Trả về product_id, tên, giá, danh mục. KHÔNG ĐƯỢC tự suy luận nếu chưa gọi tool này."
         ),
         "inputSchema": {"json": {
             "type": "object",
