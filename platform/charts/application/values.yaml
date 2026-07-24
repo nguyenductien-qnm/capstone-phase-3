@@ -123,7 +123,7 @@ networkPolicy:
         consumers: [cart, product-reviews]
       - name: msk              # Kafka (KAFKA_ADDR; 9092 plaintext / 9094 TLS / 9096 SASL)
         ports: [9092, 9094, 9096]
-        consumers: [accounting, checkout, fraud-detection]
+        consumers: [accounting, checkout, email, fraud-detection, payment, shipping]
       - name: rds              # Postgres (DB_CONNECTION_STRING)
         ports: [5432]
         consumers: [accounting, checkout, product-catalog, product-reviews]
@@ -565,6 +565,11 @@ components:
     env:
       - name: CHECKOUT_PORT
         value: "8080"
+      - name: DATABASE_URL
+        valueFrom:
+          secretKeyRef:
+            name: db-secret
+            key: catalog-db-conn
       - name: CART_ADDR
         value: cart:8080
       - name: CURRENCY_ADDR

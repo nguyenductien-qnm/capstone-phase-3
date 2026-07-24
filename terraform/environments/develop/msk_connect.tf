@@ -99,7 +99,15 @@ resource "aws_iam_role_policy" "msk_connect" {
       {
         Effect   = "Allow"
         Action   = ["secretsmanager:GetSecretValue"]
-        Resource = [aws_secretsmanager_secret.debezium_credentials.arn]
+        Resource = [
+          aws_secretsmanager_secret.debezium_credentials.arn,
+          module.msk.msk_secret_arn
+        ]
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["kms:Decrypt"]
+        Resource = [module.msk.kms_key_arn]
       }
     ]
   })
@@ -156,6 +164,9 @@ resource "aws_mskconnect_connector" "debezium_postgres" {
     "transforms.reroute.type"        = "org.apache.kafka.connect.transforms.RegexRouter"
     "transforms.reroute.regex"       = ".*"
     "transforms.reroute.replacement" = "domain.checkout.orders"
+    "kafka.security.protocol"        = "SASL_SSL"
+    "kafka.sasl.mechanism"           = "SCRAM-SHA-512"
+    "kafka.sasl.jaas.config"         = "org.apache.kafka.common.security.scram.ScramLoginModule required username=\"${jsondecode(data.aws_secretsmanager_secret_version.msk_credentials.secret_string)["username"]}\" password=\"${jsondecode(data.aws_secretsmanager_secret_version.msk_credentials.secret_string)["password"]}\";"
   }
 
   kafka_cluster {
@@ -170,7 +181,7 @@ resource "aws_mskconnect_connector" "debezium_postgres" {
   }
 
   kafka_cluster_client_authentication {
-    authentication_type = "NONE"
+    authentication_type = "SASL_SCRAM"
   }
 
   kafka_cluster_encryption_in_transit {
