@@ -216,8 +216,5 @@ resource "aws_mskconnect_worker_configuration" "debezium" {
     value.converter=org.apache.kafka.connect.json.JsonConverter
     value.converter.schemas.enable=false
     connector.client.config.override.policy=All
-    sasl.mechanism=SCRAM-SHA-512
-    security.protocol=SASL_SSL
-    sasl.jaas.config=org.apache.kafka.common.security.scram.ScramLoginModule required username="${jsondecode(data.aws_secretsmanager_secret_version.msk_credentials.secret_string)["username"]}" password="${jsondecode(data.aws_secretsmanager_secret_version.msk_credentials.secret_string)["password"]}";
   EOT
 }
