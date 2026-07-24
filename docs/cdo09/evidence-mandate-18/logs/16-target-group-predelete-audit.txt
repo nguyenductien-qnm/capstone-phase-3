@@ -1,0 +1,96 @@
+MANDATE-18 sandbox remediation - final Target Group pre-delete audit and backup
+Capture window: 2026-07-23T08:08:58Z to 2026-07-23T08:13:00Z
+AWS profile/region: phase3-cdo / us-east-1
+Cluster/namespace: ecommerce-dev-eks / techx-tf1
+Account: [REDACTED_ACCOUNT_ID]
+Authorization source: user states leader/owner approved cleanup of exactly
+123123321 and 89345789437843. No authorization exists for testt or the active
+Kubernetes-managed Target Group.
+
+Final dependency checks shared by both authorized candidates
+------------------------------------------------------------
+- Runtime account/region/cluster/namespace match baseline: YES.
+- Same project VPC as ecommerce-dev-eks: YES.
+- LoadBalancerArns: 0.
+- Listener/listener-rule references after enumerating every current LB: NONE.
+- Registered targets: 0.
+- Exact non-evidence repository reference: NONE.
+- Terraform sandbox state reference among 301 state addresses: NONE.
+- CloudFormation physical-resource reference: NONE.
+- Kubernetes Service/Ingress/Gateway/TargetGroupBinding reference: NONE.
+- Tags/controller ownership signal: NONE.
+- CloudTrail RegisterTargets, DeregisterTargets, ModifyTargetGroup,
+  ModifyTargetGroupAttributes or DeleteTargetGroup event: NONE in lookup window.
+- Only recorded activity is CreateTargetGroup on 2026-07-15.
+- Blast radius: no live path found; if the authorization were wrong, a future
+  deployment relying on the old ARN would need its reference updated because a
+  recreated Target Group receives a new ARN.
+
+Candidate 1 backup: 123123321
+--------------------------------
+ARN: arn:aws:elasticloadbalancing:us-east-1:[REDACTED_ACCOUNT_ID]:targetgroup/123123321/37ba213574e8eb88
+VPC: vpc-06d4c34ec03f55c6d
+Create event: 2026-07-15T14:44:39+07:00 by [OTHER_SSO_USER_REDACTED]
+Configuration:
+  protocol=HTTP port=80 target-type=instance ip-address-type=ipv4
+  protocol-version=HTTP1
+  health-check protocol=HTTP port=traffic-port path=/ interval=30 timeout=5
+  healthy-threshold=5 unhealthy-threshold=2 matcher=200
+Attributes:
+  deregistration_delay.timeout_seconds=300
+  stickiness.enabled=false; stickiness.type=lb_cookie
+  stickiness.lb_cookie.duration_seconds=86400
+  stickiness.app_cookie.duration_seconds=86400
+  stickiness.app_cookie.cookie_name=
+  slow_start.duration_seconds=0
+  load_balancing.algorithm.type=round_robin
+  load_balancing.algorithm.anomaly_mitigation=off
+  load_balancing.cross_zone.enabled=use_load_balancer_configuration
+  target_group_health.unhealthy_state_routing.minimum_healthy_targets.count=1
+  target_group_health.unhealthy_state_routing.minimum_healthy_targets.percentage=off
+  target_group_health.dns_failover.minimum_healthy_targets.count=1
+  target_group_health.dns_failover.minimum_healthy_targets.percentage=off
+Recreate outline (DO NOT run automatically): create-target-group with the
+configuration above, restore all attributes, restore confirmed tags, then
+update any explicitly approved dependency to the new ARN.
+Final classification before authorized action: DELETE_CANDIDATE.
+
+Candidate 2 backup: 89345789437843
+-----------------------------------
+ARN: arn:aws:elasticloadbalancing:us-east-1:[REDACTED_ACCOUNT_ID]:targetgroup/89345789437843/4d3b6e02d57da2ab
+VPC: vpc-06d4c34ec03f55c6d
+Create event: 2026-07-15T14:47:08+07:00 by [OTHER_SSO_USER_REDACTED]
+Configuration:
+  protocol=TCP port=80 target-type=instance ip-address-type=ipv4
+  health-check protocol=HTTP port=traffic-port path=/ interval=30 timeout=6
+  healthy-threshold=5 unhealthy-threshold=2 matcher=200-399
+Attributes:
+  deregistration_delay.timeout_seconds=300
+  proxy_protocol_v2.enabled=false
+  stickiness.enabled=false; stickiness.type=source_ip
+  preserve_client_ip.enabled=true
+  load_balancing.cross_zone.enabled=use_load_balancer_configuration
+  target_health_state.unhealthy.connection_termination.enabled=true
+  target_health_state.unhealthy.draining_interval_seconds=0
+  deregistration_delay.connection_termination.enabled=false
+  target_group_health.unhealthy_state_routing.minimum_healthy_targets.count=1
+  target_group_health.unhealthy_state_routing.minimum_healthy_targets.percentage=off
+  target_group_health.dns_failover.minimum_healthy_targets.count=1
+  target_group_health.dns_failover.minimum_healthy_targets.percentage=off
+Recreate outline (DO NOT run automatically): create-target-group with the
+configuration above, restore all attributes, restore confirmed tags, then
+update any explicitly approved dependency to the new ARN.
+Final classification before authorized action: DELETE_CANDIDATE.
+
+Explicit HOLD: testt
+--------------------
+ARN: arn:aws:elasticloadbalancing:us-east-1:[REDACTED_ACCOUNT_ID]:targetgroup/testt/64259b99fc3ea8be
+VPC: vpc-0e75d763a56d0aa38 (different/outside project VPC)
+Classification: UNKNOWN/HOLD. No mutation permitted.
+
+Explicit KEEP: k8s-techxtf1-frontend-da03cf6043
+---------------------------------------------------
+ARN: arn:aws:elasticloadbalancing:us-east-1:[REDACTED_ACCOUNT_ID]:targetgroup/k8s-techxtf1-frontend-da03cf6043/4b5e34cc964b0982
+Signals: one active NLB association, two healthy IP targets, Kubernetes
+controller tags, one TargetGroupBinding to techx-tf1/frontend-proxy.
+Classification: KEEP. No mutation permitted.
