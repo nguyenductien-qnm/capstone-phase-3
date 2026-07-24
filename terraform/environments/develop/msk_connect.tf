@@ -215,6 +215,5 @@ resource "aws_mskconnect_worker_configuration" "debezium" {
     key.converter=org.apache.kafka.connect.storage.StringConverter
     value.converter=org.apache.kafka.connect.json.JsonConverter
     value.converter.schemas.enable=false
-    connector.client.config.override.policy=All
   EOT
 }
