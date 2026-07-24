@@ -6,14 +6,22 @@
   "pinDigests": true,
   "packageRules": [
     {
-      "description": "Gom moi lan pin/nang GitHub Action vao 1 PR cho de duyet",
-      "matchManagers": ["github-actions"],
-      "groupName": "github-actions pin+update"
+      "description": "NE image ECR rieng (804...ecr): Renovate khong co credential AWS de tra digest -> bo qua, tranh loi getAuthorizationToken. Image nay da duoc pin digest trong pipeline build.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["/804372444787\\.dkr\\.ecr\\..*/"],
+      "enabled": false
     },
     {
-      "description": "Gom moi lan pin/nang base image Docker vao 1 PR",
-      "matchManagers": ["dockerfile"],
-      "groupName": "docker base-image pin+update"
+      "description": "NHOM PIN: gom moi viec pin (action SHA + docker digest) vao DUNG 1 PR. groupSlug rieng de co gi moi commit vao cung PR nay.",
+      "matchUpdateTypes": ["pin", "pinDigest", "digest"],
+      "groupName": "pin sha + digest",
+      "groupSlug": "pin-all"
+    },
+    {
+      "description": "NHOM VERSION: gom moi nang version (major/minor/patch) vao 1 PR KHAC, tach khoi nhom pin.",
+      "matchUpdateTypes": ["major", "minor", "patch"],
+      "groupName": "version updates",
+      "groupSlug": "version-all"
     }
   ]
 }
