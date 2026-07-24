@@ -1,0 +1,9 @@
+{
+  "capture": "2026-07-22T07:31:19Z",
+  "vpcEndpoints": [
+    {"id":"vpce-03c9b9b52b99c7b19","vpcId":"vpc-06d4c34ec03f55c6d","type":"Interface","serviceName":"com.amazonaws.vpce.us-east-1.vpce-svc-<REDACTED>","state":"available","privateDnsEnabled":false,"subnetCount":2,"classification":"PRIVATE_ENDPOINT_SERVICE_NOT_AN_AWS_S3_ECR_ENDPOINT"}
+  ],
+  "awsServiceEndpointsFoundForS3Ecr": 0,
+  "status": "GAP",
+  "note": "Read-only inventory only. No endpoint, route, DNS or security group was changed."
+}

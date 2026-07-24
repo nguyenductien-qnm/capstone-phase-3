@@ -5,6 +5,17 @@ observabilityStorage:
   enabled: true
 
 opentelemetry-collector:
+  image:
+    tag: "0.153.0"
+    digest: "sha256:93aad750175cbf1a973ae1c5886c3371f4d800f61be25cdd26870b8441ffe9fa"
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
   tolerations:
     - key: dedicated
       operator: Equal
@@ -18,10 +29,32 @@ opentelemetry-collector:
       cpu: 250m
       memory: 256Mi
   config:
+    connectors:
+      spanmetrics:
+        series_expiration: 30m
+        aggregation_cardinality_limit: 50000
+        resource_metrics_key_attributes:
+          - service.name
+          - service.namespace
     service:
       pipelines:
+        # Keep all real backends and spanmetrics; remove only the stdout-copy
+        # debug exporter in the Mandate-18 develop runtime scope.
+        traces:
+          exporters: [otlp/jaeger, spanmetrics]
+        metrics:
+          exporters: [otlphttp/prometheus]
         logs:
-          exporters: [opensearch, debug]
+          exporters: [opensearch]
+
+telemetryRetention:
+  # 3d keeps the measured peak three-day footprint below the 10Gi PVC while
+  # retaining recent operational logs. Audit/security telemetry is stored in
+  # separate AWS log groups and is outside this index pattern. Keep this safety
+  # gate off until the log owner approves 3d and a recoverable backup exists;
+  # the Argo application auto-syncs and deletion cannot be undone from Git.
+  enabled: false
+  minIndexAge: 3d
 
 jaeger:
   jaeger:
@@ -35,10 +68,10 @@ jaeger:
     resources:
       requests:
         cpu: 100m
-        memory: 640Mi
+        memory: 384Mi  # đo 23/07: soak 25u P95 297Mi, idle 245Mi (was 640 = thừa 2.6x)
       limits:
         cpu: 500m
-        memory: 1Gi
+        memory: 1Gi    # GIỮ — tiền sử OOMKilled khi bắn nặng mandate-19 (span burst)
 
 prometheus:
   kube-state-metrics:
@@ -70,13 +103,18 @@ prometheus:
       accessModes:
         - ReadWriteOnce
       size: 20Gi
+    # Đo 23/07 (MEMORY-SIZING develop): limit 1536Mi gây OOM-LOOP 87 lần/16h —
+    # WAL replay TSDB 4.9G xong là compact chạm nóc, chết, replay lại từ đầu.
+    # Đỉnh replay+compact đo được 2269Mi, steady-state có tải P95 1847Mi.
+    # Retention giữ 1w (yêu cầu); nếu cần giảm đỉnh sau này: bật feature
+    # memory-snapshot-on-shutdown thay vì cắt retention.
     resources:
       requests:
         cpu: 250m
-        memory: 768Mi
+        memory: 1024Mi
       limits:
         cpu: 1000m
-        memory: 1536Mi
+        memory: 2560Mi
 
 grafana:
   nodeSelector:
@@ -91,10 +129,10 @@ grafana:
   resources:
     requests:
       cpu: 100m
-      memory: 512Mi
+      memory: 320Mi  # đo 23/07: soak P95 251Mi phẳng (was 512 = thừa 2x)
     limits:
       cpu: 500m
-      memory: 768Mi
+      memory: 512Mi
   sidecar:
     resources:
       requests:
@@ -121,6 +159,17 @@ opensearch:
     # (chart default) — kubelet tự chown PVC trên EBS gp3. Bỏ container root =>
     # hết vi phạm priv-esc/caps/non-root/floating-tag của fsgroup-volume.
     enableInitChown: false
+  # Đo 23/07: working_set 898-950Mi ổn định (idle = soak) trên req 512Mi chart
+  # default — under-request 84%, node đầy là bị evict trước tiên. Heap -Xmx400m
+  # CỐ ĐỊNH, phần vượt là off-heap + page cache Lucene (nhả được khi ép) nên
+  # limit 1536Mi là trần an toàn, không cần đuổi theo max.
+  resources:
+    requests:
+      cpu: 250m
+      memory: 1024Mi
+    limits:
+      cpu: 1000m
+      memory: 1536Mi
   # Resources cho init còn lại (configfile) => thỏa require-cpu-memory.
   initResources:
     requests:

@@ -29,7 +29,7 @@ components:
       tag: 1.0-accounting-a0a954f
   product-reviews:
     imageOverride:
-      tag: 1.0-product-reviews-8edcaa5
+      tag: 1.0-product-reviews-1c0af6d
   llm:
     imageOverride:
       tag: 1.0-llm-a0a954f
@@ -47,7 +47,7 @@ components:
       tag: 1.0-shipping-a0a954f
   shopping-copilot:
     imageOverride:
-      tag: 1.0-shopping-copilot-24b2d8c
+      tag: 1.0-shopping-copilot-4252fed
   ml-guard:
     imageOverride:
       tag: 1.0-ml-guard-24b2d8c
@@ -56,7 +56,7 @@ components:
       tag: 1.0-fraud-detection-a0a954f
   frontend:
     imageOverride:
-      tag: 1.0-frontend-24b2d8c
+      tag: 1.0-frontend-4252fed
   image-provider:
     imageOverride:
       tag: 1.0-image-provider-a0a954f
