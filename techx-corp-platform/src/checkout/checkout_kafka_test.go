@@ -115,9 +115,20 @@ func TestPlaceOrderChargesOnceWhenKafkaIsUnavailable(t *testing.T) {
 	response, err := service.PlaceOrder(context.Background(), &pb.PlaceOrderRequest{
 		UserId:       "user-1",
 		UserCurrency: "USD",
-		Address:      &pb.Address{},
-		Email:        "test@example.invalid",
-		CreditCard:   &pb.CreditCardInfo{},
+		Address: &pb.Address{
+			StreetAddress: "1600 Amphitheatre Pkwy",
+			City:          "Mountain View",
+			State:         "CA",
+			Country:       "USA",
+			ZipCode:       "94043",
+		},
+		Email: "test@example.invalid",
+		CreditCard: &pb.CreditCardInfo{
+			CreditCardNumber:          "4532015112830366",
+			CreditCardCvv:             123,
+			CreditCardExpirationYear:  2030,
+			CreditCardExpirationMonth: 12,
+		},
 	})
 	if err != nil {
 		t.Fatalf("PlaceOrder() error = %v, want nil", err)

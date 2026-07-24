@@ -391,114 +391,65 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 
 	span.AddEvent("prepared")
 
-	if cs.dbPool == nil {
-		err := fmt.Errorf("database pool is not initialized")
-		logger.Error(err.Error())
-		return nil, status.Errorf(codes.Internal, "%v", err)
-	}
+	if cs.dbPool != nil {
+		tx, err := cs.dbPool.Begin(ctx)
+		if err != nil {
+			logger.Error(fmt.Sprintf("failed to begin transaction: %v", err))
+			return nil, status.Errorf(codes.Internal, "failed to begin transaction: %v", err)
+		}
 
-	tx, err := cs.dbPool.Begin(ctx)
-	if err != nil {
-		logger.Error(fmt.Sprintf("failed to begin transaction: %v", err))
-		return nil, status.Errorf(codes.Internal, "failed to begin transaction: %v", err)
-	}
+		orderMetadata := struct {
+			*pb.PlaceOrderRequest
+			OrderItems            []*pb.OrderItem `json:"orderItems"`
+			CartItems             []*pb.CartItem  `json:"cartItems"`
+			ShippingCostLocalized *pb.Money       `json:"shippingCostLocalized"`
+			Total                 *pb.Money       `json:"total"`
+		}{
+			PlaceOrderRequest:     req,
+			OrderItems:            prep.orderItems,
+			CartItems:             prep.cartItems,
+			ShippingCostLocalized: prep.shippingCostLocalized,
+			Total:                 total,
+		}
 
-	// req
-	// {
-	//     "user_id": "usr-12345-abcde",
-	//     "user_currency": "USD",
-	//     "email": "customer@example.com",
-	//     "address": {
-	//       "street_address": "1600 Amphitheatre Parkway",
-	//       "city": "Mountain View",
-	//       "state": "CA",
-	//       "country": "USA",
-	//       "zip_code": "94043"
-	//     },
-	//     "credit_card": {
-	//       "credit_card_number": "4111222233334444",
-	//       "credit_card_cvv": 123,
-	//       "credit_card_expiration_year": 2028,
-	//       "credit_card_expiration_month": 10
-	//     }
-	// }
-	orderMetadata := struct {
-		*pb.PlaceOrderRequest
-		OrderItems            []*pb.OrderItem `json:"orderItems"`
-		CartItems             []*pb.CartItem  `json:"cartItems"`
-		ShippingCostLocalized *pb.Money       `json:"shippingCostLocalized"`
-		Total                 *pb.Money       `json:"total"`
-	}{
-		PlaceOrderRequest:     req,
-		OrderItems:            prep.orderItems,
-		CartItems:             prep.cartItems,
-		ShippingCostLocalized: prep.shippingCostLocalized,
-		Total:                 total,
-	}
-	// add these fields into req
-	// {
-	//     "orderItems": [
-	//       {
-	//         "item": {
-	//           "productId": "OLJCESPC7Z",
-	//           "quantity": 2
-	//         },
-	//         "cost": {
-	//           "currencyCode": "EUR",
-	//           "units": 15,
-	//           "nanos": 500000000
-	//         }
-	//       }
-	//     ],
-	//     "cartItems": [
-	//       {
-	//         "productId": "OLJCESPC7Z",
-	//         "quantity": 2
-	//       }
-	//     ],
-	//     "shippingCostLocalized": {
-	//       "currencyCode": "EUR",
-	//       "units": 5,
-	//       "nanos": 0
-	//     }
-	// }
-	orderMetadataBytes, err := json.Marshal(orderMetadata)
-	if err != nil {
-		tx.Rollback(ctx)
-		logger.Error(fmt.Sprintf("failed to convert Go struct into a JSONB format: %v", err))
-		return nil, status.Errorf(codes.Internal, "failed to convert Go struct into a JSONB format: %v", err)
-	}
+		orderMetadataBytes, err := json.Marshal(orderMetadata)
+		if err != nil {
+			tx.Rollback(ctx)
+			logger.Error(fmt.Sprintf("failed to convert Go struct into a JSONB format: %v", err))
+			return nil, status.Errorf(codes.Internal, "failed to convert Go struct into a JSONB format: %v", err)
+		}
 
-	_, err = tx.Exec(ctx, `
-		INSERT INTO checkout.orders 
-		(order_id, user_id, currency_code, status, order_metadata) 
-		VALUES ($1, $2, $3, $4, $5)`,
-		orderID.String(), req.UserId, req.UserCurrency, "PROCESSING", orderMetadataBytes,
-	)
-	if err != nil {
-		tx.Rollback(ctx)
-		logger.Error(fmt.Sprintf("failed to insert order: %v", err))
-		return nil, status.Errorf(codes.Internal, "failed to insert order: %v", err)
-	}
+		_, err = tx.Exec(ctx, `
+			INSERT INTO checkout.orders 
+			(order_id, user_id, currency_code, status, order_metadata) 
+			VALUES ($1, $2, $3, $4, $5)`,
+			orderID.String(), req.UserId, req.UserCurrency, "PROCESSING", orderMetadataBytes,
+		)
+		if err != nil {
+			tx.Rollback(ctx)
+			logger.Error(fmt.Sprintf("failed to insert order: %v", err))
+			return nil, status.Errorf(codes.Internal, "failed to insert order: %v", err)
+		}
 
-	_, err = tx.Exec(ctx, `
-		INSERT INTO checkout.outbox 
-		(aggregate_id, event_type, order_id) 
-		VALUES ($1, $2, $3)`,
-		orderID.String(), "ORDER_PLACED", orderID.String(),
-	)
-	if err != nil {
-		tx.Rollback(ctx)
-		logger.Error(fmt.Sprintf("failed to insert outbox event: %v", err))
-		return nil, status.Errorf(codes.Internal, "failed to insert outbox event: %v", err)
-	}
+		_, err = tx.Exec(ctx, `
+			INSERT INTO checkout.outbox 
+			(aggregate_id, event_type, order_id) 
+			VALUES ($1, $2, $3)`,
+			orderID.String(), "ORDER_PLACED", orderID.String(),
+		)
+		if err != nil {
+			tx.Rollback(ctx)
+			logger.Error(fmt.Sprintf("failed to insert outbox event: %v", err))
+			return nil, status.Errorf(codes.Internal, "failed to insert outbox event: %v", err)
+		}
 
-	if err := tx.Commit(ctx); err != nil {
-		logger.Error(fmt.Sprintf("failed to commit transaction: %v", err))
-		return nil, status.Errorf(codes.Internal, "failed to commit transaction: %v", err)
-	}
+		if err := tx.Commit(ctx); err != nil {
+			logger.Error(fmt.Sprintf("failed to commit transaction: %v", err))
+			return nil, status.Errorf(codes.Internal, "failed to commit transaction: %v", err)
+		}
 
-	logger.Info("successfully saved order and outbox event to DB")
+		logger.Info("successfully saved order and outbox event to DB")
+	}
 
 	orderResult := &pb.OrderResult{
 		OrderId:            orderID.String(),

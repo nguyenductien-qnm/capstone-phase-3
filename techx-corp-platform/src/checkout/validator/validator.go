@@ -13,23 +13,22 @@ import (
 	"time"
 
 	pb "github.com/open-telemetry/techx-corp/src/checkout/genproto/oteldemo"
-	"golang.org/x/text/currency"
 )
 
 var (
 	ErrInvalidCardNumber = errors.New("invalid credit card number (must 13-19 digits and pass Luhn check)")
-	ErrInvalidCVV = errors.New("invalid CVV (mist be 3 or 4 digits)")
-	ErrCardExpired = errors.New("credit card has expired")
-	ErrInvalidAddress = errors.New("shipping address fields are incomplete or invalid")
+	ErrInvalidCVV        = errors.New("invalid CVV (must be 3 or 4 digits)")
+	ErrCardExpired       = errors.New("credit card has expired")
+	ErrInvalidAddress    = errors.New("shipping address fields are incomplete or invalid")
 )
 
 var (
-	zigRegex = regexp.MustCompile(`^[A-Za-z0-9\s\-]{3,10}$`)
+	zipRegex  = regexp.MustCompile(`^[A-Za-z0-9\s\-]{3,10}$`)
 	digitOnly = regexp.MustCompile(`^\d+$`)
 )
 
-// Performs in-memory syntax and mathematical checcks on CreditCardInfo
-func ValidateCreditCard(card * pb.CreditCardInfor) error {
+// Performs in-memory syntax and mathematical checks on CreditCardInfo
+func ValidateCreditCard(card *pb.CreditCardInfo) error {
 	if card == nil {
 		return errors.New("credit card information is missing")
 	}
@@ -50,13 +49,13 @@ func ValidateCreditCard(card * pb.CreditCardInfor) error {
 	// 3. Validate CVV (3 or 4 digits)
 	cvvStr := strconv.Itoa(int(card.CreditCardCvv))
 	if len(cvvStr) < 3 || len(cvvStr) > 4 {
-		return ErrInvalidAddress
+		return ErrInvalidCVV
 	}
 
 	// 4. Validate Expiration Date 
 	now := time.Now()
-	currencyYear := now.Year()
-	currencyMonth := now.Month()
+	currentYear := now.Year()
+	currentMonth := now.Month()
 
 	expYear := int(card.CreditCardExpirationYear)
 	expMonth := int(card.CreditCardExpirationMonth)
@@ -65,7 +64,7 @@ func ValidateCreditCard(card * pb.CreditCardInfor) error {
 		return errors.New("invalid expiration month")
 	}
 
-	if expYear < currencyYear || (expYear == currencyYear && expMonth < currencyMonth) {
+	if expYear < currentYear || (expYear == currentYear && expMonth < int(currentMonth)) {
 		return ErrCardExpired
 	}
 
@@ -73,7 +72,7 @@ func ValidateCreditCard(card * pb.CreditCardInfor) error {
 }
 
 // ValidateAddress checks all mandatory address fields are populated and valid 
-func ValidateAddress(addr *pb.Address)  error {
+func ValidateAddress(addr *pb.Address) error {
 	if addr == nil {
 		return ErrInvalidAddress
 	}
@@ -91,8 +90,7 @@ func ValidateAddress(addr *pb.Address)  error {
 	}
 
 	zip := strings.TrimSpace(addr.ZipCode)
-	zipInt := regexp.MustCompile(`^[0-9]+$`)
-	if zip == "" || zipInt.MatchString(zip) {
+	if zip == "" || !zipRegex.MatchString(zip) {
 		return fmt.Errorf("%w: invalid postal/zip code format", ErrInvalidAddress)
 	}
 	
@@ -104,7 +102,7 @@ func passesLuhnCheck(cardNumber string) bool {
 	var sum int 
 	alternate := false 
 
-	for i := len(cardNumber) - 1; i >= 0; i -- {
+	for i := len(cardNumber) - 1; i >= 0; i-- {
 		n, err := strconv.Atoi(string(cardNumber[i]))
 
 		if err != nil {
@@ -121,4 +119,6 @@ func passesLuhnCheck(cardNumber string) bool {
 		sum += n 
 		alternate = !alternate
 	}
+
+	return sum%10 == 0
 }
