@@ -1,5 +1,28 @@
 # Mandate 18 — Target Group cleanup manifest
 
+## Authorized sandbox cleanup executed 2026-07-23
+
+The leader/owner authorization supplied by the user covered exactly
+`123123321` and `89345789437843`. A fresh dependency audit and recreate backup
+were captured before any mutation. Both resources satisfied every deletion
+gate and were deleted sequentially; runtime health was verified after each.
+
+| Target Group | Final classification | Action/result |
+|---|---|---|
+| `123123321` | `DELETE_CANDIDATE` | Deleted; absent in final inventory |
+| `89345789437843` | `DELETE_CANDIDATE` | Deleted; absent in final inventory |
+| `testt` | `UNKNOWN/HOLD` | Preserved; different VPC/project scope |
+| `k8s-techxtf1-frontend-da03cf6043` | `KEEP` | Preserved; active NLB, controller binding and 2 healthy targets |
+
+Current raw records:
+
+- [`../logs/16-target-group-predelete-audit.txt`](../logs/16-target-group-predelete-audit.txt)
+- [`../logs/17-target-group-cleanup-result.txt`](../logs/17-target-group-cleanup-result.txt)
+
+The section below is the historical pre-authorization audit from 2026-07-22;
+its `UNKNOWN/HOLD` result was correct at that capture time and is retained as
+an audit trail.
+
 Captured `2026-07-22T07:51:57Z`. This manifest is **audit-only**. It authorizes no deletion.
 
 ## Decision summary

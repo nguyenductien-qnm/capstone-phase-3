@@ -1,0 +1,33 @@
+MANDATE-18 sandbox remediation - final pre-apply/rollout gate
+Capture time: 2026-07-23T09:09:08Z onward
+AWS profile/region: phase3-cdo / us-east-1
+Cluster/namespace: ecommerce-dev-eks / techx-tf1
+Account: [REDACTED_ACCOUNT_ID]
+
+Runtime after authorized orphan cleanup
+---------------------------------------
+- Target Groups remaining:
+  - k8s-techxtf1-frontend-da03cf6043 (active/protected KEEP)
+  - testt (different VPC/project UNKNOWN/HOLD)
+- Authorized candidates 123123321 and 89345789437843: absent.
+- Argo techx-corp: Synced / Healthy.
+- Deployments not matching desired Ready/Available replicas: 0.
+- Storefront direct probe: HTTP 200; total 1.005489s.
+
+Proof that rollout has not happened
+-----------------------------------
+- S3 Gateway Endpoint count in project VPC: 0.
+- Runtime OTel pipeline still references debug: true.
+- Runtime OpenSearch ISM policy count: 0.
+
+Gate outcome
+------------
+- Terraform apply: BLOCKED. Full plan is 1 add / 20 unrelated updates /
+  0 destroy / 0 replace, and no exact apply approval phrase was supplied.
+- Telemetry GitOps rollout: PENDING merge/review; no manual Argo sync.
+- ISM enablement: BLOCKED. telemetryRetention remains false, there is no
+  recoverable pre-policy backup, and no exact ISM approval phrase was supplied.
+- 24-48 hour Cost Explorer after window: PENDING because endpoint/telemetry
+  optimizations have not rolled out.
+
+No mutation occurred during this final gate check.

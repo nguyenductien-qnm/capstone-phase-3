@@ -46,6 +46,20 @@ module "vpc" {
   )
 }
 
+module "vpc_endpoints" {
+  source = "../../modules/vpc-endpoints"
+
+  project_name    = var.project_name
+  environment     = var.environment
+  aws_region      = var.aws_region
+  vpc_id          = module.vpc.vpc_id
+  route_table_ids = module.vpc.private_egress_route_table_ids
+
+  # S3 gateway endpoints have no fixed hourly footprint. Keep interface
+  # endpoints opt-in until service-specific NAT bytes exceed their AZ-hour cost.
+  enable_s3_gateway_endpoint = true
+}
+
 module "eks" {
   source = "../../modules/eks"
 

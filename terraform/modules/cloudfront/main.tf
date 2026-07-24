@@ -60,12 +60,15 @@ resource "aws_cloudfront_distribution" "this" {
     }
   }
 
-  # Cấu hình Certificate (sử dụng ACM nếu được cấp, ngược lại dùng default cloudfront cert)
+  # Chứng chỉ: LUÔN dùng ACM, không có nhánh fallback sang cert mặc định của
+  # CloudFront. Lý do: cert mặc định không cho đặt minimum_protocol_version, AWS ép
+  # về TLSv1 (2006) — client cũ vẫn bắt tay được bằng bộ mã đã lỗi thời.
+  # acm_certificate_arn có validation bắt buộc (xem variables.tf) nên nhánh null
+  # không tồn tại nữa.
   viewer_certificate {
-    cloudfront_default_certificate = var.acm_certificate_arn == null ? true : false
-    acm_certificate_arn            = var.acm_certificate_arn
-    ssl_support_method             = var.acm_certificate_arn != null ? "sni-only" : null
-    minimum_protocol_version       = var.acm_certificate_arn != null ? "TLSv1.2_2021" : null
+    acm_certificate_arn      = var.acm_certificate_arn
+    ssl_support_method       = "sni-only"
+    minimum_protocol_version = "TLSv1.2_2021"
   }
 
   tags = {

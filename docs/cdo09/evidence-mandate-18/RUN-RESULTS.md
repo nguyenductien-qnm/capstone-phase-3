@@ -1,5 +1,31 @@
 # MANDATE-18 run results
 
+## Remediation update — 2026-07-23
+
+- Follow-up branch `fix/mandate-18-sandbox-rollout` was created from
+  `origin/develop@317f278` with a clean tree.
+- Canonical runtime was reconfirmed as Terraform `environments/sandbox` and
+  Argo sandbox values; `techx-corp` was Synced/Healthy.
+- After final dependency audit and backup, the two explicitly authorized
+  Target Groups `123123321` and `89345789437843` were deleted sequentially.
+  `testt` remains HOLD in another VPC and the active Kubernetes Target Group
+  remains KEEP with two healthy targets.
+- Post-cleanup storefront returned HTTP 200; Argo remained Synced/Healthy; all
+  Deployments were Ready and no image-pull/container error was present.
+- Fresh storage audit: 9/9 EBS gp3/in-use; Prometheus PVC 28%; OpenSearch PVC
+  85%; zero DLM policies; CloudTrail lifecycle active; shared Terraform state
+  bucket still lacks versioning/lifecycle/tags.
+- S3 Gateway Endpoint wiring and telemetry debug-copy removal were ported to
+  canonical sandbox code. ISM remains disabled.
+- Terraform fmt/validate/module test and Helm lint/render passed.
+- Full Terraform plan was valid: `1 add, 20 change, 0 destroy`, with 20
+  unrelated in-place changes. Apply is BLOCKED by the safety policy and was not
+  run. Runtime after/cost-after evidence therefore remains pending.
+
+This update supersedes the older Prompt 3 ownership classification below for
+the two now-authorized Target Groups; the historical text is retained as the
+original audit trail.
+
 ## Session metadata
 
 - Date: `2026-07-22`.

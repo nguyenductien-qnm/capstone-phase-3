@@ -1,0 +1,21 @@
+MANDATE-18 - authorized Target Groups after cleanup
+Execution window: 2026-07-23T08:17:00Z to 2026-07-23T08:20:29Z
+Account: [REDACTED_ACCOUNT_ID]
+Profile/region: phase3-cdo / us-east-1
+
+Deleted sequentially after repeated dependency checks:
+- 123123321: absent after deletion.
+- 89345789437843: absent after deletion.
+
+Protected resources after each action and at final verification:
+- k8s-techxtf1-frontend-da03cf6043: present, LB_REFS=1, HEALTHY_TARGETS=2.
+- testt: present and unchanged.
+- Argo application techx-corp: Synced / Healthy.
+- Deployments with ready/available replicas below desired: none.
+- ImagePullBackOff, ErrImagePull, CrashLoopBackOff, CreateContainerError: none.
+- Storefront final probe: HTTP 200, total 0.796303 seconds.
+
+No target was deregistered. No active LB/listener/rule, Kubernetes object,
+Terraform state, NAT, tag or unrelated AWS resource was changed. Full command
+results and the initial fail-closed precheck are in
+17-target-group-cleanup-result.txt.

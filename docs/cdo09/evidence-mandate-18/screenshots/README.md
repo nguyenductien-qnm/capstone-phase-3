@@ -28,7 +28,9 @@ Lưu ý bắt buộc khi trình bày: Cost Explorer hiện không trả tag `Pro
 5. EC2 → Load Balancers; giữ State/Type/VPC. Chụp `03e-load-balancers-before.png`.
 6. EC2 → Target Groups; mở lần lượt `123123321`, `89345789437843`, `testt`; chụp tab Targets và Load balancer association. Chụp `03f-target-groups-before.png`.
 
-Ba target group trống chỉ là ứng viên cần owner/dependency review; ảnh không được ghi “đã xác nhận orphan”.
+Ảnh before phải ghi rõ hai candidate trong project VPC đã được owner phê duyệt
+sau dependency audit; `testt` vẫn HOLD vì khác VPC. Không suy luận chỉ từ trạng
+thái trống.
 
 ## 4. EBS gp3 và PVC usage
 
@@ -81,7 +83,10 @@ Không cộng bốn NAT byte counters vì các cặp in/out mô tả cùng paylo
 
 ## 10. Ảnh after-change
 
-Chưa chụp các file `04-*`, `10-*`, `11-slo-after.png`, `13-*` trước khi Prompt 3+ có thay đổi thật và chạy lại đúng query/window. Không dùng ảnh baseline làm evidence after.
+Cleanup Target Group đã xảy ra thật nên operator có thể chụp
+`04-orphans-after.png` với inventory chỉ còn active Kubernetes TG và `testt`
+HOLD. Chưa chụp `08b`, `08c`, `10-*`, `11-slo-after.png`, `13-*` trước khi có
+rollout thật và chạy lại đúng query/window. Không dùng ảnh baseline làm after.
 
 ## 11. Prompt 7 final verification và investigation drill
 
@@ -118,10 +123,10 @@ evidence. Every frame must show the UTC time picker/window and relevant scope.
 | `03c-snapshots-before.png` | Self-owned snapshot inventory | 0 snapshots | inventory capture time | `03-orphans-before.json` |
 | `03d-amis-before.png` | Self-owned AMI inventory | 0 AMIs | inventory capture time | `03-orphans-before.json` |
 | `03e-load-balancers-before.png` | Active LB inventory | state/type/VPC and associations | inventory capture time | `03-orphans-before.json` |
-| `03f-target-groups-before.png` | Three TGs are empty but not proven orphan | names, VPC, zero targets/listener refs; caption UNKNOWN/HOLD | inventory capture time | `03-orphan-dependency-audit.txt` |
-| `04-orphans-after.png` | Same-scope post-approved-cleanup inventory | exact approved IDs absent and no confirmed orphan remaining | same filters after cleanup | missing `04-orphans-after.json` |
+| `03f-target-groups-before.png` | Pre-cleanup candidates and protected active TG | names, VPC, zero candidate targets/listener refs; active TG associations visible | pre-cleanup context; raw captured 2026-07-23 | `16-target-group-predelete-audit.txt` |
+| `04-orphans-after.png` | Same-scope post-approved-cleanup inventory | `123123321` and `89345789437843` absent; active TG + `testt` HOLD remain | after 2026-07-23T08:20Z | `17-target-group-cleanup-result.txt` |
 | `05a-ebs-gp3.png` | Scoped EBS type/size/attachment | 9/9 `gp3`, attached | storage capture time | `05-storage-baseline.json` |
-| `05b-pvc-usage.png` | Right-size headroom basis | Prometheus ~25.9%; OpenSearch ~76.8% used | same instant/table timestamp | `05-storage-prompt4-audit.txt` |
+| `05b-pvc-usage.png` | Right-size headroom basis | Prometheus 28%; OpenSearch 85% used | 2026-07-23 storage capture | `18-storage-runtime-audit.txt` |
 | `06a-cloudtrail-lifecycle.png` | Audit bucket lifecycle is finite | Enabled; Glacier IR 90d; expiry 2555d | lifecycle capture time | `06-lifecycle-baseline.json` |
 | `06b-terraform-state-lifecycle-gap.png` | Shared state bucket control gap | no lifecycle/versioning status; ownership warning | lifecycle capture time | `05-storage-prompt4-audit.txt` |
 | `06c-dlm-baseline.png` | Snapshot lifecycle inventory | 0 DLM policies and 0 current self snapshots | lifecycle capture time | `06-lifecycle-baseline.json` |
@@ -148,7 +153,7 @@ evidence. Every frame must show the UTC time picker/window and relevant scope.
 | `12b-opensearch-trace-logs.png` | Same trace reaches service logs | 18 hits; same checkout span; payload identifiers redacted | same trace timestamp | `12-investigation-drill.txt` |
 | `12c-prometheus-exemplar-blocked.png` | Direct metric→trace exemplar is missing | `data=[]`, query and time range visible | 1h ending drill capture | `12-investigation-drill.txt` |
 | `13-top-driver-after.png` | Same-Usage-Type reduction after finalized window | exact before/after/delta for the selected Usage Type | equal finalized CE duration/scope | missing `13-noncompute-usage-after.json` |
-| `14a-terraform-plan.png` | Protected plan safety | exact add/change/destroy/replace counts, zero unexpected destroy/replace | PR commit SHA | `14-pr-readiness-audit.txt`; complete plan absent |
+| `14a-terraform-plan.png` | Full plan gate and blocker | `1 add, 20 change, 0 destroy`, zero replace; 20 updates marked unrelated/BLOCKED | follow-up PR commit SHA | `19-sandbox-terraform-validation-plan.txt` |
 | `14b-pr-ci-review.png` | Delivery governance | PR URL/SHA, required checks green, reviewer approval | PR capture timestamp | missing `14-pr-ci.txt` |
 
 Images must not be captured until the corresponding runtime state exists.

@@ -4,8 +4,9 @@
 
 Status: **IN PROGRESS / NOT READY FOR MENTOR SIGN-OFF**.
 
-Baseline, design and code validation are substantial, but no top usage driver
-has a comparable after value and no optimization has runtime rollout evidence.
+The scoped orphan cleanup now has runtime after evidence, but no top usage
+driver has a comparable after value and the endpoint/telemetry optimizations
+do not yet have runtime rollout evidence.
 Storefront p95 is `15s`, above the `<1s` target. The pack therefore makes no
 claim that Mandate 18 has reduced AWS usage.
 
@@ -19,20 +20,20 @@ claim that Mandate 18 has reduced AWS usage.
 | Environment | `dev` |
 | Namespace | `techx-tf1` |
 | Argo application | `techx-corp`, runtime observed Synced/Healthy |
-| Git branch | `feat/mandate-18` |
+| Git branch | `fix/mandate-18-sandbox-rollout` from `origin/develop@317f278` |
 
 ## Directive requirement status
 
 | Requirement | Status | Mentor conclusion |
 |---|---|---|
-| 1. No orphan resources | BLOCKED | Inventory exists; three target groups remain UNKNOWN/HOLD because owner is unconfirmed; no after inventory |
-| 2. Correct storage and lifecycle | PARTIAL | 9/9 scoped EBS are gp3 and CloudTrail lifecycle is active; right-size not implemented; zero DLM; state bucket ownership/lifecycle unresolved |
-| 3. Reduce hidden data transfer | PARTIAL | NAT/cross-AZ baseline and S3 gateway module exist; protected plan, rollout and after usage absent |
-| 4. Telemetry bounded and operable | PARTIAL | Baseline/cardinality/topology measured; debug removal code rendered; ISM is safety-gated; no after delta; storefront p95 fails |
+| 1. No orphan resources | PASS | Two authorized project-VPC orphan TGs were re-audited, backed up and deleted; after inventory retains only active Kubernetes TG plus out-of-scope `testt` HOLD; runtime healthy |
+| 2. Correct storage and lifecycle | PARTIAL | 9/9 EBS are gp3/in-use and CloudTrail lifecycle is active; OpenSearch is 85%; zero DLM; shared state bucket lifecycle unresolved |
+| 3. Reduce hidden data transfer | PARTIAL | Sandbox S3 gateway wiring validates, but full plan contains 20 unrelated updates so apply/after usage are blocked |
+| 4. Telemetry bounded and operable | PARTIAL | Sandbox debug-copy removal renders safely; ISM remains off; no runtime after delta; storefront p95 still fails |
 | 5. Top non-compute driver reduced | BLOCKED | Account-wide top GB row identified, but TF attribution and same-Usage-Type after value are absent |
 
-Strict directive PASS: `0/5 = 0%`. Weighted progress with `PARTIAL=0.5`:
-`1.5/5 = 30%`. This is Mandate compliance, not Prompt 8 documentation progress.
+Strict directive PASS: `1/5 = 20%`. Weighted progress with `PARTIAL=0.5`:
+`2.5/5 = 50%`. This is Mandate compliance, not documentation progress.
 
 ## Before/after delta
 
@@ -58,8 +59,8 @@ available allocation tag. NAT mirrored byte counters are not summed.
 ## Implemented but not rolled out
 
 - Reusable Terraform S3 Gateway Endpoint module, scoped to private app/MQ
-  egress route table in the `develop` Terraform root; NAT retained.
-- OTel debug exporter removal in the `techx-develop` develop values.
+  egress route tables in the canonical `sandbox` Terraform root; NAT retained.
+- OTel duplicate debug-copy removal in canonical sandbox GitOps values.
 - OpenSearch `otel-logs-*` 3-day ISM policy manifest, disabled behind an owner
   and backup safety gate.
 
@@ -85,18 +86,17 @@ These are code results, not runtime PASS evidence.
 - `fmt -check`: PASS.
 - Root `validate`: PASS.
 - S3 endpoint module test: PASS, 1/1.
-- Full root plan: BLOCKED by remote-state `S3 HeadObject 403` for current SSO
-  role. Destroy/replace count is unknown.
+- Full root plan: PASS execution, `1 add, 20 change, 0 destroy`, zero replace.
+  Apply is BLOCKED because all 20 updates are outside Mandate 18.
 - Apply/Argo rollout: not run.
 - PR, CI run and reviewer approval: absent.
 
 ## Evidence missing before opening PR
 
-1. **Terraform:** remote-state read permission; protected variables; complete
-   plan; explicit add/change/destroy/replace counts; zero-unexpected-change
-   review at the exact PR commit.
-2. **Orphans:** owner/project confirmation for all three UNKNOWN/HOLD target
-   groups; exact approved full ARNs; before/after inventory if cleanup occurs.
+1. **Terraform:** reconcile/separate the 20 unrelated full-plan updates, then
+   obtain a reviewed plan whose only intended add is the S3 endpoint.
+2. **Orphans:** capture AWS Console screenshots for before/after raw evidence;
+   keep `testt` HOLD and the Kubernetes Target Group KEEP.
 3. **Storage sizing:** full 7-day/max-used evidence for Prometheus and root
    disks; protected migration plan; post-migration size/utilization if changed.
 4. **Snapshot lifecycle:** owner-approved DLM policy evidence or a documented
