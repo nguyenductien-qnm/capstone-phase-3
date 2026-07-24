@@ -2,5 +2,18 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended"
+  ],
+  "pinDigests": true,
+  "packageRules": [
+    {
+      "description": "Gom moi lan pin/nang GitHub Action vao 1 PR cho de duyet",
+      "matchManagers": ["github-actions"],
+      "groupName": "github-actions pin+update"
+    },
+    {
+      "description": "Gom moi lan pin/nang base image Docker vao 1 PR",
+      "matchManagers": ["dockerfile"],
+      "groupName": "docker base-image pin+update"
+    }
   ]
 }
