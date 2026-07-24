@@ -1,3 +1,7 @@
+data "aws_secretsmanager_secret_version" "msk_credentials" {
+  secret_id = module.msk.msk_secret_arn
+}
+
 # 1. S3 bucket for MSK Connect Plugins
 resource "aws_s3_bucket" "msk_plugins" {
   bucket = "${var.project_name}-${var.environment}-msk-plugins"
@@ -97,12 +101,9 @@ resource "aws_iam_role_policy" "msk_connect" {
         Resource = "*"
       },
       {
-        Effect = "Allow"
-        Action = ["secretsmanager:GetSecretValue"]
-        Resource = [
-          aws_secretsmanager_secret.debezium_credentials.arn,
-          module.msk.msk_secret_arn
-        ]
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
+        Resource = [module.msk.msk_secret_arn]
       },
       {
         Effect   = "Allow"
@@ -147,14 +148,14 @@ resource "aws_mskconnect_connector" "debezium_postgres" {
     "tasks.max"                      = "1"
     "database.hostname"              = module.rds.db_primary_address
     "database.port"                  = "5432"
-    "database.user"                  = postgresql_role.debezium_user.name
-    "database.password"              = random_password.debezium_password.result
+    "database.user"                  = module.rds.db_username
+    "database.password"              = module.rds.db_password
     "database.dbname"                = module.rds.db_name
     "topic.prefix"                   = "fulfillment"
     "table.include.list"             = "checkout.outbox"
     "plugin.name"                    = "pgoutput"
-    "publication.name"               = postgresql_publication.dbz_publication.name
-    "publication.autocreate.mode"    = "filtered"
+    "publication.name"               = "dbz_publication"
+    "publication.autocreate.mode"    = "all_tables"
     "tombstones.on.delete"           = "false"
     "decimal.handling.mode"          = "double"
     "key.converter"                  = "org.apache.kafka.connect.storage.StringConverter"
