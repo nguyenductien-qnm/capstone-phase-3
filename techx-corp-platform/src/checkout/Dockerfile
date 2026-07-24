@@ -14,6 +14,7 @@ RUN go mod download
 COPY ./src/checkout/genproto/oteldemo/ genproto/oteldemo/
 COPY ./src/checkout/kafka/ kafka/
 COPY ./src/checkout/money/ money/
+COPY ./src/checkout/validator/ validator/
 COPY ./src/checkout/main.go main.go
 COPY ./src/checkout/kafka_publisher.go kafka_publisher.go
 
