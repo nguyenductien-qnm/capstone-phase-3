@@ -536,13 +536,13 @@
           "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
           "refId": "A",
           "legendFormat": "p95",
-          "expr": "histogram_quantile(0.95, sum(rate(traces_span_metrics_duration_milliseconds_bucket{service_name=\"frontend-proxy\"}[5m])) by (le))"
+          "expr": "histogram_quantile(0.95, sum(rate(traces_span_metrics_duration_milliseconds_bucket{service_name=\"frontend\", span_name!~\".*(copilot|product-ask-ai-assistant|AskProductAIAssistant|ChatWithCopilot).*\"}[5m])) by (le))"
         },
         {
           "datasource": { "type": "prometheus", "uid": "webstore-metrics" },
           "refId": "B",
           "legendFormat": "p99",
-          "expr": "histogram_quantile(0.99, sum(rate(traces_span_metrics_duration_milliseconds_bucket{service_name=\"frontend-proxy\"}[5m])) by (le))"
+          "expr": "histogram_quantile(0.99, sum(rate(traces_span_metrics_duration_milliseconds_bucket{service_name=\"frontend\", span_name!~\".*(copilot|product-ask-ai-assistant|AskProductAIAssistant|ChatWithCopilot).*\"}[5m])) by (le))"
         }
       ]
     },

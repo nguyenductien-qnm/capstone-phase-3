@@ -11,7 +11,9 @@ actix-web = "4"
 anyhow = "1.0.100"
 awc = { version = "3.8.1", default-features = false, features = ["compress-zstd"] }
 serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0"
 tonic = "0.14.2"
+tokio = { version = "1.48", features = ["full"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
 
@@ -21,6 +23,7 @@ opentelemetry-otlp = { version = "0.31.0", features = ["grpc-tonic"] }
 opentelemetry-instrumentation-actix-web = { version = "0.23.0", features = ["sync-middleware", "awc", "metrics"] }
 opentelemetry-appender-tracing = "0.31.1"
 opentelemetry-resource-detectors = "0.10.0"
+rdkafka = { version = "0.36", features = ["ssl-vendored"] }
 
 [dependencies.uuid]
 version = "1.19.0"
