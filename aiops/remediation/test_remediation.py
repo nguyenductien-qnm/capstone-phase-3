@@ -258,6 +258,128 @@ def test_live_action_verify_fail_records_failure_no_rollback_action(mock_verify)
     assert called_methods <= {"list_namespaced_pod", "delete_namespaced_pod"}
 
 
+# ---------- MANDATE-22: structured audit log (audit_log.py) ----------
+# "Audit log truy duoc: moi hanh dong tu dong ghi lai du de tai dung: ai/cai gi
+# kich hoat, lam gi, ket qua verify, co lui khong." Each safety-gate/action/verify
+# branch in process_oom_policy must call audit_log.record with the outcome that
+# actually happened.
+
+@patch("remediation.audit_log.record")
+def test_audit_log_records_circuit_breaker_open_skip(mock_audit):
+    prom, osc, core_v1, alerter = _mocks()
+    blast_guard = BlastRadiusGuard(1, 3600)
+    breaker = CircuitBreaker(1, 86400)
+    breaker.record_failure("oom-detected:email")
+
+    remediation.process_oom_policy(POLICY, RULE, CFG, prom, osc, core_v1, alerter, blast_guard, breaker, dry_run=False)
+
+    assert mock_audit.called
+    kwargs = mock_audit.call_args.kwargs
+    assert kwargs["outcome"] == "circuit_breaker_open_skip"
+    assert kwargs["rollback_or_escalate"] == "escalate"
+
+
+@patch("remediation.audit_log.record")
+def test_audit_log_records_error_budget_halt(mock_audit):
+    prom, osc, core_v1, alerter = _mocks(error_budget_ok=False)
+    blast_guard = BlastRadiusGuard(1, 3600)
+    breaker = CircuitBreaker(3, 86400)
+
+    remediation.process_oom_policy(POLICY, RULE, CFG, prom, osc, core_v1, alerter, blast_guard, breaker, dry_run=False)
+
+    kwargs = mock_audit.call_args.kwargs
+    assert kwargs["outcome"] == "error_budget_halt"
+    assert kwargs["error_budget_ok"] is False
+
+
+@patch("remediation.audit_log.record")
+def test_audit_log_records_blast_radius_blocked(mock_audit):
+    prom, osc, core_v1, alerter = _mocks()
+    blast_guard = BlastRadiusGuard(1, 3600)
+    blast_guard.record("techx-tf1")
+    breaker = CircuitBreaker(3, 86400)
+
+    remediation.process_oom_policy(POLICY, RULE, CFG, prom, osc, core_v1, alerter, blast_guard, breaker, dry_run=False)
+
+    kwargs = mock_audit.call_args.kwargs
+    assert kwargs["outcome"] == "blast_radius_blocked"
+    assert kwargs["blast_radius_ok"] is False
+
+
+@patch("remediation.audit_log.record")
+def test_audit_log_records_dry_run(mock_audit):
+    prom, osc, core_v1, alerter = _mocks()
+    blast_guard = BlastRadiusGuard(1, 3600)
+    breaker = CircuitBreaker(3, 86400)
+
+    remediation.process_oom_policy(POLICY, RULE, CFG, prom, osc, core_v1, alerter, blast_guard, breaker, dry_run=True)
+
+    kwargs = mock_audit.call_args.kwargs
+    assert kwargs["outcome"] == "dry_run"
+    assert kwargs["dry_run"] is True
+    assert kwargs["action_target"] == "email-abc123"
+
+
+@patch("remediation.verify_oom_recovery")
+@patch("remediation.audit_log.record")
+def test_audit_log_records_verified_pass(mock_audit, mock_verify):
+    mock_verify.return_value = True
+    prom, osc, core_v1, alerter = _mocks()
+    blast_guard = BlastRadiusGuard(1, 3600)
+    breaker = CircuitBreaker(3, 86400)
+
+    remediation.process_oom_policy(POLICY, RULE, CFG, prom, osc, core_v1, alerter, blast_guard, breaker, dry_run=False)
+
+    kwargs = mock_audit.call_args.kwargs
+    assert kwargs["outcome"] == "verified_pass"
+    assert kwargs["verify_result"] == "pass"
+    assert kwargs["verify_duration_seconds"] >= 0
+
+
+@patch("remediation.verify_oom_recovery")
+@patch("remediation.audit_log.record")
+def test_audit_log_records_verified_fail_with_escalate(mock_audit, mock_verify):
+    """Forced-wrong-action / verify-fail case (MANDATE-22 rollback branch): a
+    single verify failure must show up in the audit log as an immediate escalate,
+    it must NOT require 3 consecutive failures (circuit breaker) first."""
+    mock_verify.return_value = False
+    prom, osc, core_v1, alerter = _mocks()
+    blast_guard = BlastRadiusGuard(1, 3600)
+    breaker = CircuitBreaker(3, 86400)  # needs 3 fails to open - this is only the 1st
+
+    remediation.process_oom_policy(POLICY, RULE, CFG, prom, osc, core_v1, alerter, blast_guard, breaker, dry_run=False)
+
+    kwargs = mock_audit.call_args.kwargs
+    assert kwargs["outcome"] == "verified_fail"
+    assert kwargs["verify_result"] == "fail"
+    assert kwargs["rollback_or_escalate"] == "escalate"
+    assert kwargs["circuit_breaker_open"] is False  # only 1st failure, CB not open yet
+
+
+def test_audit_log_writes_real_jsonl_file(tmp_path):
+    """Integration: with the real audit_log.record (not mocked), a dry-run
+    action must produce one JSONL line with the expected structured fields."""
+    import json
+    import audit_log as audit_log_module
+
+    audit_file = tmp_path / "audit_log.jsonl"
+    prom, osc, core_v1, alerter = _mocks()
+    blast_guard = BlastRadiusGuard(1, 3600)
+    breaker = CircuitBreaker(3, 86400)
+
+    with patch.object(audit_log_module, "_audit_log_path", return_value=str(audit_file)):
+        remediation.process_oom_policy(POLICY, RULE, CFG, prom, osc, core_v1, alerter, blast_guard, breaker, dry_run=True)
+
+    lines = audit_file.read_text().strip().split("\n")
+    assert len(lines) == 1
+    entry = json.loads(lines[0])
+    assert entry["outcome"] == "dry_run"
+    assert entry["trigger"]["rule_id"] == "oom-detected"
+    assert entry["trigger"]["service"] == "email"
+    assert entry["safety_check"]["dry_run"] is True
+    assert entry["action"]["target"] == "email-abc123"
+
+
 def test_no_flagd_or_helm_reference_anywhere_in_remediation_module():
     """Guard test tuong minh (bai hoc RULES.md Sec8): khong CODE nao (loai tru comment
     giai thich ly do tranh) trong aiops/remediation/ duoc phep doc/goi flagd hay helm

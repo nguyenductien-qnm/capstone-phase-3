@@ -37,6 +37,7 @@ from blast_radius import BlastRadiusGuard  # noqa: E402
 from circuit_breaker import CircuitBreaker  # noqa: E402
 from k8s_actions import find_oom_pods, restart_pod, load_k8s_client  # noqa: E402
 from verifier import verify_oom_recovery  # noqa: E402
+import audit_log  # noqa: E402
 
 logging.basicConfig(
     level=os.environ.get("LOG_LEVEL", "INFO"),
@@ -140,6 +141,11 @@ def process_oom_policy(policy, rule, cfg, prom, osc, core_v1, alerter, blast_gua
                 f"Circuit breaker đang MỞ cho {service_label} (namespace={namespace}) — đã fail liên tiếp quá "
                 f"{breaker.max_consecutive_failures} lần, từ chối tự động remediate. CẦN người can thiệp thủ công.",
             )
+            audit_log.record(
+                dedup_key=dedup_key, rule_id=rule["id"], service=service_label, namespace=namespace,
+                outcome="circuit_breaker_open_skip", circuit_breaker_open=True,
+                rollback_or_escalate="escalate", detail="circuit breaker already open, action refused",
+            )
             continue
 
         # 2. Error-budget guard (spec Sec4.2)
@@ -148,6 +154,11 @@ def process_oom_policy(policy, rule, cfg, prom, osc, core_v1, alerter, blast_gua
             alerter.send(
                 f"remediation-budget-halt:{dedup_key}", "critical", f"remediation-halt-error-budget:{rule['id']}",
                 f"Error budget đã cạn — TẠM DỪNG auto-remediation cho {service_label}, cần người xử lý thủ công.",
+            )
+            audit_log.record(
+                dedup_key=dedup_key, rule_id=rule["id"], service=service_label, namespace=namespace,
+                outcome="error_budget_halt", error_budget_ok=False,
+                rollback_or_escalate="escalate", detail="error budget depleted, action refused",
             )
             continue
 
@@ -159,6 +170,11 @@ def process_oom_policy(policy, rule, cfg, prom, osc, core_v1, alerter, blast_gua
                 f"Đã vượt giới hạn blast-radius ({sb['blast_radius']['max_actions']} action / "
                 f"{sb['blast_radius']['time_window_seconds']}s / {sb['blast_radius']['scope']}) cho {scope_key} — "
                 f"từ chối restart thêm, cần người kiểm tra.",
+            )
+            audit_log.record(
+                dedup_key=dedup_key, rule_id=rule["id"], service=service_label, namespace=namespace,
+                outcome="blast_radius_blocked", blast_radius_ok=False,
+                rollback_or_escalate="escalate", detail=f"blast-radius exceeded for scope={scope_key}",
             )
             continue
 
@@ -172,6 +188,10 @@ def process_oom_policy(policy, rule, cfg, prom, osc, core_v1, alerter, blast_gua
                 f"chưa thực thi thật, đang ở chế độ mô phỏng.",
                 fields=evidence_fields,
             )
+            audit_log.record(
+                dedup_key=dedup_key, rule_id=rule["id"], service=service_label, namespace=namespace,
+                outcome="dry_run", dry_run=True, action_type=policy["action"]["type"], action_target=pod_name,
+            )
             continue
 
         # 5. Hanh dong that: restart pod (action duy nhat trong scope).
@@ -180,15 +200,22 @@ def process_oom_policy(policy, rule, cfg, prom, osc, core_v1, alerter, blast_gua
             restart_pod(core_v1, namespace, pod_name, policy["action"]["grace_period_seconds"])
         except Exception as exc:  # noqa: BLE001
             log.error("restart_pod that bai: %s", exc)
+            audit_log.record(
+                dedup_key=dedup_key, rule_id=rule["id"], service=service_label, namespace=namespace,
+                outcome="action_failed", dry_run=False, action_type=policy["action"]["type"],
+                action_target=pod_name, rollback_or_escalate=None, detail=str(exc),
+            )
             continue
 
         # 6. Verify (spec Sec4.4)
         verify_cfg = sb["verify"]
+        verify_started = time.time()
         ok = verify_oom_recovery(
             core_v1, namespace, service_label_key, service_label, pod_name,
             duration_seconds=verify_cfg["duration_seconds"],
             poll_interval_seconds=verify_cfg["poll_interval_seconds"],
         )
+        verify_elapsed = time.time() - verify_started
 
         if ok:
             breaker.record_success(dedup_key)
@@ -196,6 +223,11 @@ def process_oom_policy(policy, rule, cfg, prom, osc, core_v1, alerter, blast_gua
                 f"remediation-success:{dedup_key}", "info", f"remediation-verified:{rule['id']}",
                 f"Đã restart pod {pod_name} (service={service_label}) — verify PASS, service đã hồi phục.",
                 fields=evidence_fields,
+            )
+            audit_log.record(
+                dedup_key=dedup_key, rule_id=rule["id"], service=service_label, namespace=namespace,
+                outcome="verified_pass", dry_run=False, action_type=policy["action"]["type"],
+                action_target=pod_name, verify_result="pass", verify_duration_seconds=verify_elapsed,
             )
         else:
             # 7. "Rollback": action restart-pod khong doi config gi de ma rollback ve -
@@ -208,6 +240,13 @@ def process_oom_policy(policy, rule, cfg, prom, osc, core_v1, alerter, blast_gua
                 f"remediation-verify-failed:{dedup_key}:{time.time()}", severity, f"remediation-verify-failed:{rule['id']}",
                 f"Restart pod {pod_name} (service={service_label}) KHÔNG khắc phục được — verify FAIL.{suffix}",
                 fields=evidence_fields,
+            )
+            audit_log.record(
+                dedup_key=dedup_key, rule_id=rule["id"], service=service_label, namespace=namespace,
+                outcome="verified_fail", dry_run=False, action_type=policy["action"]["type"],
+                action_target=pod_name, verify_result="fail", verify_duration_seconds=verify_elapsed,
+                circuit_breaker_open=just_opened,
+                rollback_or_escalate="circuit_breaker_opened" if just_opened else "escalate",
             )
 
 
