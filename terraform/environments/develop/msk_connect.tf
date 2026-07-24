@@ -199,5 +199,22 @@ resource "aws_mskconnect_connector" "debezium_postgres" {
     }
   }
 
+  worker_configuration {
+    arn      = aws_mskconnect_worker_configuration.debezium.arn
+    revision = aws_mskconnect_worker_configuration.debezium.latest_revision
+  }
+
   service_execution_role_arn = aws_iam_role.msk_connect.arn
+}
+
+# 6. Worker Configuration for MSK Connect SASL/SCRAM authentication
+resource "aws_mskconnect_worker_configuration" "debezium" {
+  name = "${var.project_name}-${var.environment}-debezium-worker-config"
+
+  properties_file_content = <<-EOT
+    connector.client.config.override.policy=All
+    sasl.mechanism=SCRAM-SHA-512
+    security.protocol=SASL_SSL
+    sasl.jaas.config=org.apache.kafka.common.security.scram.ScramLoginModule required username="${jsondecode(data.aws_secretsmanager_secret_version.msk_credentials.secret_string)["username"]}" password="${jsondecode(data.aws_secretsmanager_secret_version.msk_credentials.secret_string)["password"]}";
+  EOT
 }
