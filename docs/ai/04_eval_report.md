@@ -98,6 +98,7 @@
 | Unit Test: Shopping Copilot | Pass 100% các Guardrails (Prompt Injection, PII, Hallucination, Action Gate) | `test_copilot.py` |
 | Unit Test: Recommendations | Pass 100% vector cosine search trên Mock pgvector | `test_recommendation.py` |
 | Safety Eval (MANDATE-06) | Pass 10/10 (100%): 6/6 Injection blocked, 3/3 Hallucination, 1/1 Action Gate | `eval_mandate06.py --mode offline` |
+| ml-guard v2 gRPC Migration | Latency improvement expected by unblocking Python GIL/EventLoop via ThreadPoolExecutor | `inpod_bench.py` updated to use `grpc` |
 
 ## 3. Số CHƯA đo được (blocked — không được trích như kết quả)
 | Số | Chặn bởi |

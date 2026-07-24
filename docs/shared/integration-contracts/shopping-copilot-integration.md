@@ -55,7 +55,7 @@ Toàn bộ model ML (ProtectAI DeBERTa ~738MB, mDeBERTa-xnli NLI, Presidio/SpaCy
 * **CPU Request / Limit**: `500m` / `1000m`
 * **Memory Request / Limit**: `1280Mi` / `1536Mi`
 * **readinessProbe**: `initialDelaySeconds: 90` — model load mất 25–90s; probe mặc định sẽ kill pod trước khi torch load xong
-* **Env chốt cho 2 service tiêu thụ**: `ML_GUARD_URL=http://ml-guard:8090` (không còn là giá trị ví dụ)
+* **Env chốt cho 2 service tiêu thụ**: `ML_GUARD_URL=ml-guard:8090` (không còn là giá trị ví dụ)
 * Guardrails **fail-open** khi ml-guard chưa sẵn sàng (PII vẫn mask bằng regex) — thứ tự khởi động không gây lỗi chuỗi.
 
 ---
@@ -144,7 +144,7 @@ Số đo thật 17/07 (bench local, fp32, 2 threads): RSS **1148MB**, grounding 
 | CPU request / limit | `500m` / `1000m` | 2 torch threads; serialize 1 inference/lượt |
 | Memory request / limit | `1280Mi` / `1536Mi` | RSS 1148MB + headroom |
 | Replicas | 1 (không HPA — traffic Ask AI 10 view:1 call) | |
-| Port | `8090` HTTP (`/healthz`, `/metrics`, `/v1/grounding`) | |
+| Port | `8090` gRPC (với `grpc_health_probe`) | |
 | Probes | readiness `/healthz` (model load ~25–90s → `initialDelaySeconds: 60`) | đo local 25s |
 | Image | build từ `techx-corp-platform/src/ml-guard/` — model nướng sẵn, **không egress HF Hub** | |
 | Quota | CDO-42 hiện peak 3.45/4.00 cores → thêm 0.5 = 3.95 **sát trần**. Đề nghị nâng `requests.cpu` quota lên **4.5** hoặc xác nhận chấp nhận rủi ro sát trần | docs/cdo09/cdo-42 |
@@ -153,7 +153,7 @@ Số đo thật 17/07 (bench local, fp32, 2 threads): RSS **1148MB**, grounding 
 
 | Env | Default | Ý nghĩa |
 |---|---|---|
-| `ML_GUARD_URL` | `""` (tắt) | `http://ml-guard:8090` khi pod sẵn sàng; tắt → cascade rơi xuống judge |
+| `ML_GUARD_URL` | `""` (tắt) | `ml-guard:8090` khi pod sẵn sàng; tắt → cascade rơi xuống judge |
 | `LLM_JUDGE_MODEL` | `amazon.nova-micro-v1:0` | grounding judge (đo 4/4 VN) |
 | `LLM_INJECTION_JUDGE_MODEL` | `amazon.nova-lite-v1:0` | injection judge (đo 7/7 VN; Micro chỉ 4/7) |
 | `LLM_INJECTION_JUDGE` | `true` | tắt được để degrade về regex-only |

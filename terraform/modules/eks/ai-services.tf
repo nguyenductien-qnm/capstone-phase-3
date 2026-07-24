@@ -72,3 +72,11 @@ resource "aws_eks_pod_identity_association" "product_reviews" {
   service_account = "product-reviews"
   role_arn        = aws_iam_role.shopping_copilot_bedrock.arn
 }
+
+# EKS Pod Identity Association for ml-guard
+resource "aws_eks_pod_identity_association" "ml_guard" {
+  cluster_name    = aws_eks_cluster.this.name
+  namespace       = "techx-tf1"
+  service_account = "ml-guard"
+  role_arn        = aws_iam_role.shopping_copilot_bedrock.arn
+}

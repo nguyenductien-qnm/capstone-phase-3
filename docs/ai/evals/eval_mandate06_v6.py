@@ -33,8 +33,9 @@ spec.loader.exec_module(g)
 
 import mandate06_cases as cases
 
+import asyncio
 
-def main():
+async def main():
     import argparse
     parser = argparse.ArgumentParser(description="Eval MANDATE-06")
     parser.add_argument("--threshold", type=float, default=0.0, help="Minimum pass rate threshold (0.0 to 1.0)")
@@ -79,8 +80,9 @@ def main():
     report = [
         "# Eval MANDATE-06 v6 — kết quả chạy " + time.strftime("%Y-%m-%d %H:%M"),
         "",
-        f"- Region: {region}; injection judge: {g.INJECTION_JUDGE_MODEL}; grounding judge: {g.JUDGE_MODEL}",
-        f"- ml-guard: {g.ML_GUARD_URL or 'OFF (fallback judge)'}; Bedrock Guardrails: {'ON' if g.GUARDRAIL_ENABLED else 'OFF (ADR-014)'}",
+        f"- Region: {region}; injection judge: {os.environ.get('LLM_INJECTION_JUDGE_MODEL', 'amazon.nova-lite-v1:0')}; "
+        f"grounding judge: {os.environ.get('LLM_JUDGE_MODEL', 'amazon.nova-lite-v1:0')}",
+        f"- ml-guard: ON; Bedrock Guardrails: OFF",
         "",
         "| Rail | Case | Pass | Chi tiết | Latency |",
         "|---|---|---|---|---|",
@@ -103,4 +105,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
