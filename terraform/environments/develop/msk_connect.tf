@@ -212,6 +212,9 @@ resource "aws_mskconnect_worker_configuration" "debezium" {
   name = "${var.project_name}-${var.environment}-debezium-worker-config"
 
   properties_file_content = <<-EOT
+    key.converter=org.apache.kafka.connect.storage.StringConverter
+    value.converter=org.apache.kafka.connect.json.JsonConverter
+    value.converter.schemas.enable=false
     connector.client.config.override.policy=All
     sasl.mechanism=SCRAM-SHA-512
     security.protocol=SASL_SSL
