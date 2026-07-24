@@ -7,6 +7,7 @@ const opentelemetry = require('@opentelemetry/api')
 
 const charge = require('./charge')
 const logger = require('./logger')
+const { startConsumer, stopConsumer } = require('./consumer')
 
 async function chargeServiceHandler(call, callback) {
   const span = opentelemetry.trace.getActiveSpan();
@@ -30,7 +31,20 @@ async function chargeServiceHandler(call, callback) {
   }
 }
 
+async function validateServiceHandler(call, callback) {
+  try {
+    logger.info({ request: call.request }, "Validate payment request received.");
+    const response = await charge.validate(call.request);
+    callback(null, response);
+  } catch (err) {
+    logger.warn({ err });
+    callback(null, { valid: false, message: err.message });
+  }
+}
+
+
 async function closeGracefully(signal) {
+  await stopConsumer();
   server.forceShutdown()
   process.kill(process.pid, signal)
 }
@@ -42,7 +56,10 @@ server.addService(health.service, new health.Implementation({
   '': health.servingStatus.SERVING
 }))
 
-server.addService(otelDemoPackage.oteldemo.PaymentService.service, { charge: chargeServiceHandler })
+server.addService(otelDemoPackage.oteldemo.PaymentService.service, {
+  charge: chargeServiceHandler,
+  validate: validateServiceHandler
+})
 
 
 let ip = "0.0.0.0";
@@ -62,7 +79,11 @@ server.bindAsync(address, grpc.ServerCredentials.createInsecure(), (err, port) =
   }
 
   logger.info(`payment gRPC server started on ${address}`)
+  startConsumer().catch(consumerErr => {
+    logger.error({ err: consumerErr }, "Error launching Payment Kafka consumer");
+  });
 })
 
 process.once('SIGINT', closeGracefully)
 process.once('SIGTERM', closeGracefully)
+

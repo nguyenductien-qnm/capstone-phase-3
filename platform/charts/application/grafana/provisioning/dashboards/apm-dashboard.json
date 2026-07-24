@@ -268,7 +268,7 @@
             "uid": "${prometheus_datasource}"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(\n  0.95,\n  sum by (le, deployment_environment_name, service_namespace, service_name) (\n    rate(\n      rpc_server_duration_milliseconds_bucket{\n        deployment_environment_name=~\"$deployment_environment_name\",\n        service_namespace=~\"$service_namespace\",\n        service_name=\"$service_name\"\n      }[$__rate_interval]\n    ) / 1000\n  )\n)",
+          "expr": "histogram_quantile(\n  0.95,\n  sum by (le, deployment_environment_name, service_namespace, service_name) (\n    rate(\n      rpc_server_duration_milliseconds_bucket{\n        deployment_environment_name=~\"$deployment_environment_name\",\n        service_namespace=~\"$service_namespace\",\n        service_name=\"$service_name\"\n      }[$__rate_interval]\n    )\n  )\n) / 1000",
           "hide": false,
           "instant": false,
           "interval": "60",

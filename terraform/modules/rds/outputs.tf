@@ -39,6 +39,17 @@ output "db_username" {
   value       = var.db_username
 }
 
+output "rds_security_group_id" {
+  description = "Security Group ID cho RDS PostgreSQL"
+  value       = aws_security_group.db.id
+}
+
+output "db_name" {
+  description = "Tên database PostgreSQL"
+  value       = var.db_name
+}
+
+
 output "instance_id" {
   description = "ID/Identifier của RDS instance"
   value       = aws_db_instance.this.identifier

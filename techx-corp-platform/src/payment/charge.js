@@ -86,3 +86,43 @@ module.exports.charge = async request => {
 
   return { transactionId };
 };
+
+module.exports.validate = async request => {
+  const span = tracer.startSpan('validate');
+  
+  const {
+    creditCardNumber: number,
+    creditCardExpirationYear: year,
+    creditCardExpirationMonth: month
+  } = request.creditCard;
+  
+  const currentMonth = new Date().getMonth() + 1;
+  const currentYear = new Date().getFullYear();
+  const lastFourDigits = number.substr(-4);
+
+  const card = cardValidator(number);
+  const { card_type: cardType, valid } = card.getCardDetails();
+
+  span.setAttributes({
+    'app.payment.card_type': cardType,
+    'app.payment.card_valid': valid,
+  });
+
+  if (!valid) {
+    span.end();
+    throw new Error('Credit card info is invalid.');
+  }
+
+  if (!['visa', 'mastercard'].includes(cardType)) {
+    span.end();
+    throw new Error(`Sorry, we cannot process ${cardType} credit cards. Only VISA or MasterCard is accepted.`);
+  }
+
+  if ((currentYear * 12 + currentMonth) > (year * 12 + month)) {
+    span.end();
+    throw new Error(`The credit card (ending ${lastFourDigits}) expired on ${month}/${year}.`);
+  }
+
+  span.end();
+  return { valid: true, message: "Valid credit card" };
+};

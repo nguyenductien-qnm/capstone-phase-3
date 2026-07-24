@@ -37,6 +37,8 @@ services:
       - OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE
       - OTEL_RESOURCE_ATTRIBUTES
       - OTEL_SERVICE_NAME=accounting
+      - KAFKA_TOPIC=domain.fulfillment.events
+      - KAFKA_GROUP_ID=accounting
       - DB_CONNECTION_STRING=Host=${POSTGRES_HOST};Username=otelu;Password=otelp;Database=${POSTGRES_DB}
       - OTEL_DOTNET_AUTO_TRACES_ENTITYFRAMEWORKCORE_INSTRUMENTATION_ENABLED=false
     depends_on:
@@ -226,6 +228,9 @@ services:
       - OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE
       - OTEL_RESOURCE_ATTRIBUTES
       - OTEL_SERVICE_NAME=email
+      - KAFKA_ADDR
+      - KAFKA_TOPIC=domain.fulfillment.events
+      - KAFKA_GROUP_ID=email
     depends_on:
       otel-collector:
         condition: service_started
@@ -473,6 +478,9 @@ services:
       - OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE
       - OTEL_RESOURCE_ATTRIBUTES
       - OTEL_SERVICE_NAME=payment
+      - KAFKA_ADDR
+      - KAFKA_TOPIC=domain.checkout.orders
+      - KAFKA_GROUP_ID=payment
     depends_on:
       otel-collector:
         condition: service_started
@@ -659,6 +667,9 @@ services:
       - OTEL_EXPORTER_OTLP_ENDPOINT
       - OTEL_RESOURCE_ATTRIBUTES
       - OTEL_SERVICE_NAME=shipping
+      - KAFKA_ADDR
+      - KAFKA_TOPIC=domain.checkout.orders
+      - KAFKA_GROUP_ID=shipping
       - OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE
     depends_on:
       otel-collector:

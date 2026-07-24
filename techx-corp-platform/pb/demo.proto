@@ -236,6 +236,7 @@ message CurrencyConversionRequest {
 
 service PaymentService {
     rpc Charge(ChargeRequest) returns (ChargeResponse) {}
+    rpc Validate(ValidatePaymentRequest) returns (ValidatePaymentResponse) {}
 }
 
 message CreditCardInfo {
@@ -243,6 +244,15 @@ message CreditCardInfo {
     int32 credit_card_cvv = 2;
     int32 credit_card_expiration_year = 3;
     int32 credit_card_expiration_month = 4;
+}
+
+message ValidatePaymentRequest {
+    CreditCardInfo credit_card = 1;
+}
+
+message ValidatePaymentResponse {
+    bool valid = 1;
+    string message = 2;
 }
 
 message ChargeRequest {

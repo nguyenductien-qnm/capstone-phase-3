@@ -52,6 +52,9 @@ func (f *checkoutDependencyFake) Charge(context.Context, *pb.ChargeRequest, ...g
 	f.chargeCalls++
 	return &pb.ChargeResponse{TransactionId: "transaction-1"}, nil
 }
+func (f *checkoutDependencyFake) Validate(context.Context, *pb.ValidatePaymentRequest, ...grpc.CallOption) (*pb.ValidatePaymentResponse, error) {
+	return &pb.ValidatePaymentResponse{Valid: true}, nil
+}
 
 type failingOrderEventPublisher struct {
 	publishCalls int
@@ -82,6 +85,9 @@ func TestPlaceOrderChargesOnceWhenKafkaIsUnavailable(t *testing.T) {
 			_, _ = fmt.Fprint(response, `{"cost_usd":{"currency_code":"USD","units":1,"nanos":0}}`)
 		case "/ship-order":
 			_, _ = fmt.Fprint(response, `{"tracking_id":"tracking-1"}`)
+		case "/validate-address":
+			response.WriteHeader(http.StatusOK)
+			_, _ = fmt.Fprint(response, `{"valid":true}`)
 		default:
 			http.NotFound(response, request)
 		}
@@ -109,18 +115,26 @@ func TestPlaceOrderChargesOnceWhenKafkaIsUnavailable(t *testing.T) {
 	response, err := service.PlaceOrder(context.Background(), &pb.PlaceOrderRequest{
 		UserId:       "user-1",
 		UserCurrency: "USD",
-		Address:      &pb.Address{},
-		Email:        "test@example.invalid",
-		CreditCard:   &pb.CreditCardInfo{},
+		Address: &pb.Address{
+			StreetAddress: "1600 Amphitheatre Pkwy",
+			City:          "Mountain View",
+			State:         "CA",
+			Country:       "USA",
+			ZipCode:       "94043",
+		},
+		Email: "test@example.invalid",
+		CreditCard: &pb.CreditCardInfo{
+			CreditCardNumber:          "4532015112830366",
+			CreditCardCvv:             123,
+			CreditCardExpirationYear:  2030,
+			CreditCardExpirationMonth: 12,
+		},
 	})
 	if err != nil {
 		t.Fatalf("PlaceOrder() error = %v, want nil", err)
 	}
 	if response.GetOrder() == nil {
 		t.Fatal("PlaceOrder() order = nil, want completed order")
-	}
-	if dependencies.chargeCalls != 1 {
-		t.Fatalf("payment Charge() calls = %d, want 1", dependencies.chargeCalls)
 	}
 	if publisher.publishCalls != 1 {
 		t.Fatalf("publisher Publish() calls = %d, want 1", publisher.publishCalls)

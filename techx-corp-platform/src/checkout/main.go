@@ -29,6 +29,7 @@ import (
 
 	"github.com/IBM/sarama"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	otelhooks "github.com/open-feature/go-sdk-contrib/hooks/open-telemetry/pkg"
 	flagd "github.com/open-feature/go-sdk-contrib/providers/flagd/pkg"
 	"github.com/open-feature/go-sdk/openfeature"
@@ -57,6 +58,8 @@ import (
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/status"
+
+	"github.com/open-telemetry/techx-corp/src/checkout/validator"
 )
 
 //go:generate go install google.golang.org/protobuf/cmd/protoc-gen-go
@@ -70,7 +73,7 @@ var initResourcesOnce sync.Once
 
 const (
 	checkoutDependencyTimeout = 750 * time.Millisecond
-	maxOrderItemConcurrency  = 4
+	maxOrderItemConcurrency   = 4
 )
 
 func initResource() *sdkresource.Resource {
@@ -154,8 +157,14 @@ type checkout struct {
 	currencySvcClient       pb.CurrencyServiceClient
 	emailSvcClient          pb.EmailServiceClient
 	paymentSvcClient        pb.PaymentServiceClient
-	productCatalogGroup     singleflight.Group
-	currencyGroup           singleflight.Group
+
+	dbPool              *pgxpool.Pool
+	productCatalogGroup singleflight.Group
+	currencyGroup       singleflight.Group
+}
+
+func (cs *checkout) sendToPostProcessor(context context.Context, result *pb.OrderResult) any {
+	panic("unimplemented")
 }
 
 func main() {
@@ -206,6 +215,24 @@ func main() {
 
 	svc := new(checkout)
 
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL != "" {
+		poolConfig, err := pgxpool.ParseConfig(dbURL)
+		if err != nil {
+			logger.Error(fmt.Sprintf("Unable to parse DATABASE_URL: %v", err))
+		} else {
+			dbPool, err := pgxpool.NewWithConfig(context.Background(), poolConfig)
+			if err != nil {
+				logger.Error(fmt.Sprintf("Unable to create connection pool: %v", err))
+			} else {
+				svc.dbPool = dbPool
+				defer dbPool.Close()
+			}
+		}
+	} else {
+		logger.Warn("DATABASE_URL not set, DB features disabled")
+	}
+
 	mustMapEnv(&svc.shippingSvcAddr, "SHIPPING_ADDR")
 	c := mustCreateClient(svc.shippingSvcAddr)
 	svc.shippingSvcClient = pb.NewShippingServiceClient(c)
@@ -236,8 +263,8 @@ func main() {
 	svc.paymentSvcClient = pb.NewPaymentServiceClient(c)
 	defer c.Close()
 
+	// Initialize Kafka Broker so checkout will become Producer 
 	svc.kafkaBrokerSvcAddr = os.Getenv("KAFKA_ADDR")
-
 	if svc.kafkaBrokerSvcAddr != "" {
 		brokers := strings.Split(svc.kafkaBrokerSvcAddr, ",")
 		producer, producerErr := kafka.CreateKafkaProducer(brokers, logger)
@@ -339,45 +366,103 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
-	span.AddEvent("prepared")
 
-	total := &pb.Money{CurrencyCode: req.UserCurrency,
-		Units: 0,
-		Nanos: 0}
+	// In-memory validation
+	if err := validator.ValidateCreditCard(req.CreditCard); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid shipping address: %v", err)
+	}
+
+	if err := validator.ValidateAddress(req.Address); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid payment information: %v", err)
+	}
+
+	// 36.75$
+	// {
+	//   "currencyCode": "USD",
+	//   "units": 36,
+	//   "nanos": 750000000
+	// }
+	total := &pb.Money{CurrencyCode: req.UserCurrency, Units: 0, Nanos: 0}
 	total = money.Must(money.Sum(total, prep.shippingCostLocalized))
 	for _, it := range prep.orderItems {
 		multPrice := money.Multiply(it.Cost, uint32(it.GetItem().GetQuantity()))
 		total = money.Must(money.Sum(total, multPrice))
 	}
 
-	txID, err := cs.chargeCard(ctx, total, req.CreditCard)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to charge card: %+v", err)
+	span.AddEvent("prepared")
+
+	if cs.dbPool != nil {
+		tx, err := cs.dbPool.Begin(ctx)
+		if err != nil {
+			logger.Error(fmt.Sprintf("failed to begin transaction: %v", err))
+			return nil, status.Errorf(codes.Internal, "failed to begin transaction: %v", err)
+		}
+
+		orderMetadata := struct {
+			*pb.PlaceOrderRequest
+			OrderItems            []*pb.OrderItem `json:"orderItems"`
+			CartItems             []*pb.CartItem  `json:"cartItems"`
+			ShippingCostLocalized *pb.Money       `json:"shippingCostLocalized"`
+			Total                 *pb.Money       `json:"total"`
+		}{
+			PlaceOrderRequest:     req,
+			OrderItems:            prep.orderItems,
+			CartItems:             prep.cartItems,
+			ShippingCostLocalized: prep.shippingCostLocalized,
+			Total:                 total,
+		}
+
+		orderMetadataBytes, err := json.Marshal(orderMetadata)
+		if err != nil {
+			tx.Rollback(ctx)
+			logger.Error(fmt.Sprintf("failed to convert Go struct into a JSONB format: %v", err))
+			return nil, status.Errorf(codes.Internal, "failed to convert Go struct into a JSONB format: %v", err)
+		}
+
+		_, err = tx.Exec(ctx, `
+			INSERT INTO checkout.orders 
+			(order_id, user_id, currency_code, status, order_metadata) 
+			VALUES ($1, $2, $3, $4, $5)`,
+			orderID.String(), req.UserId, req.UserCurrency, "PROCESSING", orderMetadataBytes,
+		)
+		if err != nil {
+			tx.Rollback(ctx)
+			logger.Error(fmt.Sprintf("failed to insert order: %v", err))
+			return nil, status.Errorf(codes.Internal, "failed to insert order: %v", err)
+		}
+
+		_, err = tx.Exec(ctx, `
+			INSERT INTO checkout.outbox 
+			(aggregate_id, event_type, order_id) 
+			VALUES ($1, $2, $3)`,
+			orderID.String(), "ORDER_PLACED", orderID.String(),
+		)
+		if err != nil {
+			tx.Rollback(ctx)
+			logger.Error(fmt.Sprintf("failed to insert outbox event: %v", err))
+			return nil, status.Errorf(codes.Internal, "failed to insert outbox event: %v", err)
+		}
+
+		if err := tx.Commit(ctx); err != nil {
+			logger.Error(fmt.Sprintf("failed to commit transaction: %v", err))
+			return nil, status.Errorf(codes.Internal, "failed to commit transaction: %v", err)
+		}
+
+		logger.Info("successfully saved order and outbox event to DB")
 	}
-
-	span.AddEvent("charged",
-		trace.WithAttributes(attribute.String("app.payment.transaction.id", txID)))
-	logger.LogAttrs(
-		ctx,
-		slog.LevelInfo, "payment went through",
-		slog.String("transaction_id", txID),
-	)
-
-	shippingTrackingID, err := cs.shipOrder(ctx, req.Address, prep.cartItems)
-	if err != nil {
-		return nil, status.Errorf(codes.Unavailable, "shipping error: %+v", err)
-	}
-	shippingTrackingAttribute := attribute.String("app.shipping.tracking.id", shippingTrackingID)
-	span.AddEvent("shipped", trace.WithAttributes(shippingTrackingAttribute))
-
-	_ = cs.emptyUserCart(ctx, req.UserId)
 
 	orderResult := &pb.OrderResult{
 		OrderId:            orderID.String(),
-		ShippingTrackingId: shippingTrackingID,
+		ShippingTrackingId: "",
 		ShippingCost:       prep.shippingCostLocalized,
 		ShippingAddress:    req.Address,
 		Items:              prep.orderItems,
+	}
+
+	if cs.orderEventPublisher != nil {
+		if pubErr := cs.orderEventPublisher.Publish(ctx, orderResult); pubErr != nil {
+			logger.Warn(fmt.Sprintf("checkout order event publish failed: %v", pubErr))
+		}
 	}
 
 	shippingCostFloat, _ := strconv.ParseFloat(fmt.Sprintf("%d.%02d", prep.shippingCostLocalized.GetUnits(), prep.shippingCostLocalized.GetNanos()/1000000000), 64)
@@ -388,31 +473,15 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		attribute.Float64("app.shipping.amount", shippingCostFloat),
 		attribute.Float64("app.order.amount", totalPriceFloat),
 		attribute.Int("app.order.items.count", len(prep.orderItems)),
-		shippingTrackingAttribute,
 	)
 	logger.LogAttrs(
 		ctx,
-		slog.LevelInfo, "order placed",
+		slog.LevelInfo, "order placed (asynchronous)",
 		slog.String("app.order.id", orderID.String()),
 		slog.Float64("app.shipping.amount", shippingCostFloat),
 		slog.Float64("app.order.amount", totalPriceFloat),
 		slog.Int("app.order.items.count", len(prep.orderItems)),
-		slog.String("app.shipping.tracking.id", shippingTrackingID),
 	)
-
-	if err := cs.sendOrderConfirmation(ctx, req.Email, orderResult); err != nil {
-		logger.Warn(fmt.Sprintf("failed to send order confirmation to %q: %+v", req.Email, err))
-	} else {
-		logger.Info(fmt.Sprintf("order confirmation email sent to %q", req.Email))
-	}
-
-	// send to kafka only if kafka broker address is set
-	if cs.kafkaBrokerSvcAddr != "" {
-		logger.Info("sending to postProcessor")
-		if publishErr := cs.sendToPostProcessor(ctx, orderResult); publishErr != nil {
-			logger.Warn(fmt.Sprintf("failed to publish order post-processing event: %v", publishErr))
-		}
-	}
 
 	resp := &pb.PlaceOrderResponse{Order: orderResult}
 	return resp, nil
@@ -424,6 +493,16 @@ type orderPrep struct {
 	shippingCostLocalized *pb.Money
 }
 
+// In checkout service
+//  1. getUserCart:
+//     - Calls Cart service using userID to retrieve the current list of items in the user's cart
+//  2. prepOrderItems:
+//     - For each item in the cart, calls the Product Catalog service to fetch the product's base price (USD).
+//     - It then calls the Currency service to convert that base price into the user's local currency (userCurrency).
+//  3. Gets a Shipping Quote (quoteShipping):
+//     - It sends the cart items and the destination address to the Shipping service to get a calculated shipping cost (returned in USD).
+//  4. Converts the Shipping Currency (convertCurrency):
+//     - It calls the Currency service again to convert the USD shipping cost into the user's local userCurrency.
 func (cs *checkout) prepareOrderItemsAndShippingQuoteFromCart(ctx context.Context, userID, userCurrency string, address *pb.Address) (orderPrep, error) {
 
 	ctx, span := tracer.Start(ctx, "prepareOrderItemsAndShippingQuoteFromCart")
@@ -623,6 +702,63 @@ func (cs *checkout) chargeCard(ctx context.Context, amount *pb.Money, paymentInf
 	return paymentResp.GetTransactionId(), nil
 }
 
+func (cs *checkout) validatePayment(ctx context.Context, paymentInfo *pb.CreditCardInfo) error {
+	paymentService := cs.paymentSvcClient
+	if cs.isFeatureFlagEnabled(ctx, "paymentUnreachable") {
+		badAddress := "badAddress:50051"
+		c := mustCreateClient(badAddress)
+		paymentService = pb.NewPaymentServiceClient(c)
+	}
+
+	resp, err := paymentService.Validate(ctx, &pb.ValidatePaymentRequest{
+		CreditCard: paymentInfo,
+	})
+	if err != nil {
+		return fmt.Errorf("could not reach payment validation: %v", err)
+	}
+	if !resp.GetValid() {
+		return fmt.Errorf("payment validation failed: %s", resp.GetMessage())
+	}
+	return nil
+}
+
+func (cs *checkout) validateAddress(ctx context.Context, address *pb.Address) error {
+	valPayload, err := json.Marshal(map[string]interface{}{
+		"address": address,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to marshal address validation request: %+v", err)
+	}
+
+	resp, err := otelhttp.Post(ctx, cs.shippingSvcAddr+"/validate-address", "application/json", bytes.NewBuffer(valPayload))
+	if err != nil {
+		return fmt.Errorf("failed POST to shipping service for validation: %+v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed address validation: expected 200, got %d", resp.StatusCode)
+	}
+
+	valRespBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read address validation response: %+v", err)
+	}
+
+	var valResp struct {
+		Valid   bool   `json:"valid"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(valRespBytes, &valResp); err != nil {
+		return fmt.Errorf("failed to unmarshal address validation response: %+v", err)
+	}
+
+	if !valResp.Valid {
+		return fmt.Errorf("address validation failed: %s", valResp.Message)
+	}
+	return nil
+}
+
 func (cs *checkout) sendOrderConfirmation(ctx context.Context, email string, order *pb.OrderResult) error {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
@@ -686,21 +822,6 @@ func (cs *checkout) shipOrder(ctx context.Context, address *pb.Address, items []
 	}
 
 	return shipResp.TrackingID, nil
-}
-
-func (cs *checkout) sendToPostProcessor(ctx context.Context, result *pb.OrderResult) error {
-	if cs.orderEventPublisher == nil {
-		return ErrKafkaProducerUnavailable
-	}
-
-	publishErr := cs.orderEventPublisher.Publish(ctx, result)
-
-	ffValue := cs.getIntFeatureFlag(ctx, "kafkaQueueProblems")
-	if ffValue > 0 {
-		cs.publishKafkaQueueProblems(ctx, result, ffValue)
-	}
-
-	return publishErr
 }
 
 func (cs *checkout) publishKafkaQueueProblems(ctx context.Context, result *pb.OrderResult, ffValue int) {
