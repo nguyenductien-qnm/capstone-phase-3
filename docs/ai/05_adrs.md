@@ -760,3 +760,110 @@ Bedrock Guardrail tái tạo trên `us-east-1` (cùng region model Nova → bỏ
 - Grounding VN vẫn do ml-guard NLI đảm nhiệm.
 - Cost per-request được chấp nhận trong budget (ước tính < $15/wk @10.5k req/wk).
 - Rollback an toàn: set `LLM_BEDROCK_GUARDRAIL="false"` (1 dòng trong values).
+
+---
+
+# ADR-015: Detection đáng tin — masking-resistance, baseline per-service, MTTD before/after (MANDATE-15)
+
+- **Trạng thái:** Chấp nhận (Accepted)
+- **Ngày:** 2026-07-24
+- **Người ký:** Nhóm AI (AIO03) — Task Force 1 · Soạn thảo: Thanh Pham Huu Tien
+- **Trụ:** AI (AIOps) / Reliability / Operational Excellence
+- **Task:** MANDATE-15 (nối tiếp MANDATE-07, xem ADR-012 và addendum `#7b` của ADR-012)
+
+## Context
+MANDATE-15 khác MANDATE-07 ở 4 điểm: (2) không bị che (masking) — 1 spike/nhiễu không
+được làm bỏ sót 1 sự cố thật khác trong cùng cửa sổ; (3) cảnh báo dựa trên độ lệch khỏi
+mức bình thường CỦA CHÍNH service đó, không mốc tuyệt đối; (4) chạy liên tục + merged
+vào trunk; (5) tự sinh incident summary đẩy ra kênh thật; (6) đo MTTD before/after. Chấm
+bằng bộ kịch bản ẩn BTC bơm lúc chấm (1 sự cố thật, 1 ca masking, 1 cửa sổ tải-cao-nhưng-
+khoẻ), không phải demo 1 lần.
+
+## Decision
+
+1. **Baseline per-service (điểm 3) — TÁI DÙNG nguyên trạng ADR-012, không đổi:** rolling
+   3-sigma đã giữ history theo khoá `rule_id:service` (`detector.py:73`) từ #7a — mỗi
+   service tự có "bình thường" riêng, không mốc tuyệt đối. Không cần quyết định mới.
+
+2. **Masking-resistance (điểm 2) — winsorize trước khi nạp vào rolling history:** phát
+   hiện 1 bug thật khi audit lại code cho mandate này: `eval_metric_rule` nạp thẳng giá
+   trị outlier vừa gây alert vào `metric_history`, kéo méo mean/std ~30 chu kỳ sau (~15
+   phút @ poll 30s) — đúng cơ chế "bị che" mandate mô tả. Fix: khi đã có baseline
+   (`len(history) >= 5`), giới hạn giá trị nạp vào trong khoảng `dynamic_threshold`
+   trước khi append, thay vì bỏ qua sample hay giữ nguyên giá trị thô — 1 sự cố kéo dài
+   thật vẫn kéo được baseline dần theo thời gian, chỉ riêng outlier đơn lẻ không còn kéo
+   ngay lập tức. Regression test:
+   `test_detector.py::test_dynamic_detection_not_masked_by_prior_spike` (spike → alert →
+   sự cố nhẹ riêng biệt ngay sau vẫn phải bắt được).
+
+3. **Chạy liên tục + trunk (điểm 4) — đã đạt, không cần quyết định mới:** `Deployment`
+   (không phải Job/CronJob), ArgoCD-managed selfHeal, đã merge. **Định nghĩa "trunk" =
+   `develop`** — xem giải thích đầy đủ ở addendum `#7b` của ADR-012 (áp dụng chung cho
+   `#7b`/MANDATE-15/MANDATE-22, không lặp lại ở đây).
+
+4. **Incident summary (điểm 5) — dùng lại grouped alert (K3) làm MVP, không xây thêm
+   tầng tường thuật:** `Alerter.flush()` đã gộp nhiều rule cùng service/cùng cửa sổ 5
+   phút thành 1 message có cấu trúc (severity, service, value/baseline, detection
+   method — `alerter.py:113-144`). Coi đây là "incident summary" ở mức tối thiểu hợp lệ:
+   có nhóm theo sự cố (không phải log rời rạc), có severity, có bằng chứng số. KHÔNG
+   xây thêm tầng tóm tắt tường thuật/root-cause bằng LLM — xem Alternatives.
+
+5. **MTTD before/after (điểm 6) — số thật cả 2 phía, khác điều kiện đo, ghi rõ:**
+   - **Before (thủ công):** `report/flagd1/postmortem-INC-01.md` — **~2 phút**
+     (14/07/2026, EKS thật, BTC bơm sự cố qua flagd trung tâm, người phát hiện bằng mắt
+     qua Grafana/log).
+   - **After (tự động):** `docs/ai/evals/measure_detection_pipeline.py` — **mean 19.6s /
+     max 35.4s** (5 vòng, docker-compose local, bơm `llmRateLimitError` qua flagd file).
+   - **Cải thiện ~6× (mean) tới ~85% (max)** — nhưng 2 số đo trên **2 môi trường khác
+     nhau** (EKS thật vs compose local) và **2 loại sự cố khác nhau** (đa-flag cascading
+     14/07 vs 1 flag đơn lẻ) — không phải A/B kiểm soát chặt. Ghi rõ để không bị hiểu
+     nhầm là so sánh đồng nhất; đây là quyết định có chủ đích, không phải sơ suất — xem
+     Alternatives cho lý do không đo lại "before" mới.
+
+6. **Bộ kịch bản có nhãn + replay (điểm "đo trên bộ có nhãn... logic chấm phải mở"):**
+   `aiops/incident_replay.py` (giới thiệu ở addendum `#7b` của ADR-012) +
+   `aiops/incident_scenarios/{case_masking, case_healthy_load}.json` (case `real` dùng
+   chung với `#7b`). Logic chấm điểm (`score_events`/`verdict_for_type`) là Python
+   thuần, không dependency, đọc trực tiếp được — đúng yêu cầu "logic chấm phải mở để
+   mentor soi".
+
+## Alternatives considered
+- **EWMA thay 3-sigma cho masking-resistance:** phản ứng mượt hơn với drift, nhưng đổi
+  cả thuật toán baseline sát deadline là thay đổi lớn hơn cần thiết — bug thật nằm ở chỗ
+  nạp history, không nằm ở việc dùng 3-sigma hay EWMA (EWMA không có exclusion cũng bị
+  chính bug này). Winsorize là fix tối thiểu, đúng chỗ, đủ hiểu. EWMA vẫn defer sang
+  #7b/TF1-71 như ADR-012 đã quyết.
+- **Đo lại MTTD "before" bằng cách tắt detector rồi test thủ công mới:** cho ra số cùng
+  điều kiện đo hơn, nhưng (a) tốn thời gian không có sát deadline, (b) một phép đo dàn
+  dựng ("giả vờ không có detector") kém trung thực hơn số thật từ 1 sự cố thật đã xảy ra
+  (INC-01) — ưu tiên bằng chứng thật hơn bằng chứng sạch. → Dùng số INC-01, ghi rõ caveat
+  thay vì dựng lại.
+- **Xây incident summary tường thuật bằng LLM (root-cause tự viết):** đúng tinh thần chữ
+  "summary" hơn, nhưng thêm 1 lời gọi LLM vào đường alert = thêm latency + cost + rủi ro
+  bịa (đúng thứ MANDATE-06 đang canh) cho một u cầu ở mức MVP. → Loại cho vòng này; nếu
+  làm thêm, ưu tiên nối `correlate.py` (đã có sẵn correlation/co-occurrence tĩnh) vào làm
+  gợi ý nguyên nhân trước khi nghĩ tới LLM.
+- **Coi `main` là trunk, chờ merge `develop` → `main` trước khi nộp:** đúng chữ nghĩa
+  `CONTRIBUTING.md` hơn, nhưng `main` đứng yên từ 12/07 trong khi toàn bộ vận hành thật
+  (bao gồm chính detector/remediation đang chấm) sống trên `develop` — coi `main` là
+  trunk sẽ khiến bằng chứng "merged vào trunk" trỏ vào nhánh không phản ánh hệ thống thật
+  đang chạy. → Loại; coi `develop` là trunk, ghi rõ lý do để mentor không thắc mắc.
+
+## Consequences
+- Bug masking đã fix ảnh hưởng MỌI rule `type: metric` (không riêng ca kiểm demo) — cải
+  thiện thật cho hệ thống, không chỉ để qua bài.
+- Incident summary ở mức MVP (grouped alert, không narrative) — nếu mentor kỳ vọng tường
+  thuật root-cause, đây là gap đã biết, không phải overclaim; đường nâng cấp đã có
+  (`correlate.py`).
+- MTTD before/after không phải A/B kiểm soát chặt — chấp nhận rủi ro bị hỏi, chuẩn bị
+  trả lời bằng chính đoạn caveat này thay vì né tránh.
+- Phụ thuộc vào fix hạ tầng `emptyDir` (đã merge ở PR MANDATE-07 #7b, xem addendum
+  ADR-012) để `incident_replay.py` chấm điểm được trên EKS thật.
+
+### Addendum 2026-07-24 — trạng thái bằng chứng tại thời điểm nộp
+Code + test đã xong: `test_detector.py` 22/22 pass (gồm test masking mới),
+`test_incident_replay.py` 13/13 pass. **Chạy sống 3 kịch bản (real/masking/
+healthy_load) + chụp bằng chứng bộ ẩn CHƯA thực hiện** — sẽ chạy ngay sau khi PR này
+merge, xác nhận với người phụ trách trước khi bơm lỗi vào cluster chung. Kết quả
+(ảnh/log + verdict pass/fail 3 case) sẽ đính kèm bổ sung vào ticket `AI MANDATE #15`
+khi có — xem `report/mandate15/`.

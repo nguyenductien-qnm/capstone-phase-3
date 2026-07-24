@@ -90,14 +90,30 @@ def eval_metric_rule(rule, prom):
             mean = sum(history) / len(history)
             variance = sum((x - mean) ** 2 for x in history) / len(history)
             std_dev = variance ** 0.5
-            dynamic_threshold = mean + 3 * std_dev
-            if op == "gt" and value > dynamic_threshold and (value - mean) > 0.001:
-                dynamic_fired = True
-            elif op == "lt" and value < (mean - 3 * std_dev) and (mean - value) > 0.001:
-                dynamic_fired = True
+            if op == "gt":
+                dynamic_threshold = mean + 3 * std_dev
+                if value > dynamic_threshold and (value - mean) > 0.001:
+                    dynamic_fired = True
+            elif op == "lt":
+                dynamic_threshold = mean - 3 * std_dev
+                if value < dynamic_threshold and (mean - value) > 0.001:
+                    dynamic_fired = True
 
-        # Keep rolling window of 30 samples
-        history.append(value)
+        # Keep rolling window of 30 samples. Winsorize before appending: an
+        # unmitigated outlier would otherwise drag mean/std toward itself for
+        # the next ~30 cycles, raising the bar for detecting a second, smaller,
+        # separate incident right after (MANDATE-15 masking-resistance case —
+        # a single spike/noise in the window must not hide a distinct real
+        # incident). Only clip once a baseline exists (len>=5); clip toward
+        # dynamic_threshold rather than dropping the sample, so a sustained
+        # anomaly still drags the baseline eventually instead of pinning it.
+        history_value = value
+        if len(history) >= 5:
+            if op == "gt":
+                history_value = min(value, dynamic_threshold)
+            elif op == "lt":
+                history_value = max(value, dynamic_threshold)
+        history.append(history_value)
         if len(history) > 30:
             history.pop(0)
 
