@@ -165,9 +165,12 @@ resource "aws_mskconnect_connector" "debezium_postgres" {
     "transforms.reroute.type"        = "org.apache.kafka.connect.transforms.RegexRouter"
     "transforms.reroute.regex"       = ".*"
     "transforms.reroute.replacement" = "domain.checkout.orders"
-    "kafka.security.protocol"        = "SASL_SSL"
-    "kafka.sasl.mechanism"           = "SCRAM-SHA-512"
-    "kafka.sasl.jaas.config"         = "org.apache.kafka.common.security.scram.ScramLoginModule required username=\"${jsondecode(data.aws_secretsmanager_secret_version.msk_credentials.secret_string)["username"]}\" password=\"${jsondecode(data.aws_secretsmanager_secret_version.msk_credentials.secret_string)["password"]}\";"
+    "producer.security.protocol"     = "SASL_SSL"
+    "producer.sasl.mechanism"        = "SCRAM-SHA-512"
+    "producer.sasl.jaas.config"      = "org.apache.kafka.common.security.scram.ScramLoginModule required username=\"${jsondecode(data.aws_secretsmanager_secret_version.msk_credentials.secret_string)["username"]}\" password=\"${jsondecode(data.aws_secretsmanager_secret_version.msk_credentials.secret_string)["password"]}\";"
+    "consumer.security.protocol"     = "SASL_SSL"
+    "consumer.sasl.mechanism"        = "SCRAM-SHA-512"
+    "consumer.sasl.jaas.config"      = "org.apache.kafka.common.security.scram.ScramLoginModule required username=\"${jsondecode(data.aws_secretsmanager_secret_version.msk_credentials.secret_string)["username"]}\" password=\"${jsondecode(data.aws_secretsmanager_secret_version.msk_credentials.secret_string)["password"]}\";"
   }
 
   kafka_cluster {
