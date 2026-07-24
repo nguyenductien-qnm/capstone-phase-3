@@ -8,6 +8,14 @@ opentelemetry-collector:
   image:
     tag: "0.153.0"
     digest: "sha256:93aad750175cbf1a973ae1c5886c3371f4d800f61be25cdd26870b8441ffe9fa"
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
   tolerations:
     - key: dedicated
       operator: Equal
