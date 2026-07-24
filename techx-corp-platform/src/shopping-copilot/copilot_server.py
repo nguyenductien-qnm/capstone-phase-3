@@ -33,10 +33,11 @@ import agent
 import tools
 from botocore.config import Config
 from bedrock_client import create_bedrock_runtime_client
-from guardrails import apply_guardrail_input
+from guardrails import apply_guardrail_input, redact_pii
 import model_router
 import shopping_copilot_pb2 as pb
 import shopping_copilot_pb2_grpc as pb_grpc
+import demo_pb2
 
 tracer = trace.get_tracer_provider().get_tracer("shopping-copilot")
 
@@ -100,14 +101,18 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
             blocked, sanitized_question = apply_guardrail_input(self._bedrock, request.question)
             input_span.set_attribute("guardrail.blocked", blocked)
         lat_in = int((time.time() - start_in) * 1000)
-        trace_steps.append(pb.TraceStep(
+        trace_steps.append(demo_pb2.TraceStep(
             step_name="Input Guardrail (PII/Prompt Guard)",
             latency_ms=lat_in,
-            status="blocked" if blocked else "pass"
+            status="blocked" if blocked else "pass",
+            detail=redact_pii(json.dumps({"question": request.question, "blocked": blocked}))
         ))
         if blocked:
             logger.warning("[Guardrail] Blocked input for session=%s", session_id)
-            sanitized_question = "[filtered]"
+            return pb.ChatWithCopilotResponse(
+                response="Xin lỗi, tôi không thể xử lý yêu cầu này do vi phạm quy định an toàn.",
+                degraded=False,
+            )
 
         session.append({"role": "user", "content": [{"text": sanitized_question}]})
 
@@ -117,17 +122,19 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
         start_llm = time.time()
         result = agent.run_agent(self._bedrock, routed_model, session, request.user_id)
         lat_llm = int((time.time() - start_llm) * 1000)
-        trace_steps.append(pb.TraceStep(
+        trace_steps.append(demo_pb2.TraceStep(
             step_name="Model Gateway & Bedrock Nova",
             latency_ms=lat_llm,
-            status="ok"
+            status="ok",
+            detail=redact_pii(json.dumps({"routed_model": routed_model}))
         ))
         
         for ts in result.trace_steps:
-            trace_steps.append(pb.TraceStep(
+            trace_steps.append(demo_pb2.TraceStep(
                 step_name=ts.get("step_name", ""),
                 latency_ms=ts.get("latency_ms", 0),
-                status=ts.get("status", "")
+                status=ts.get("status", ""),
+                detail=ts.get("detail", "")
             ))
 
         session.append({"role": "assistant", "content": [{"text": result.text}]})
@@ -186,7 +193,7 @@ def _to_records(actions: list[agent.ToolCall]) -> list:
 
 
 def serve():
-    main_timeout = float(os.environ.get('LLM_COPILOT_TIMEOUT', '4.9'))
+    main_timeout = float(os.environ.get('LLM_COPILOT_TIMEOUT', '6.9'))
     primary_config = Config(connect_timeout=1.0, read_timeout=main_timeout, retries={'max_attempts': 0})
     bedrock = create_bedrock_runtime_client(region_name=AWS_REGION, config=primary_config)
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=MAX_WORKERS))

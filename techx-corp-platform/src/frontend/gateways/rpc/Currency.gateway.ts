@@ -2,7 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ChannelCredentials } from '@grpc/grpc-js';
-import { GetSupportedCurrenciesResponse, CurrencyServiceClient, Money } from '../../protos/demo';
+import {
+  CurrencyConversionRequest,
+  Empty,
+  GetSupportedCurrenciesResponse,
+  CurrencyServiceClient,
+  Money,
+} from '../../protos/demo';
+import { GrpcDeadlineMs, unaryWithDeadline } from './GrpcDeadline';
 
 const { CURRENCY_ADDR = '' } = process.env;
 
@@ -10,13 +17,18 @@ const client = new CurrencyServiceClient(CURRENCY_ADDR, ChannelCredentials.creat
 
 const CurrencyGateway = () => ({
   convert(from: Money, toCode: string) {
-    return new Promise<Money>((resolve, reject) =>
-      client.convert({ from, toCode }, (error, response) => (error ? reject(error) : resolve(response)))
+    return unaryWithDeadline<CurrencyConversionRequest, Money>(
+      (request, metadata, options, callback) => client.convert(request, metadata, options, callback),
+      { from, toCode },
+      GrpcDeadlineMs.catalog
     );
   },
   getSupportedCurrencies() {
-    return new Promise<GetSupportedCurrenciesResponse>((resolve, reject) =>
-      client.getSupportedCurrencies({}, (error, response) => (error ? reject(error) : resolve(response)))
+    return unaryWithDeadline<Empty, GetSupportedCurrenciesResponse>(
+      (request, metadata, options, callback) =>
+        client.getSupportedCurrencies(request, metadata, options, callback),
+      {},
+      GrpcDeadlineMs.catalog
     );
   },
 });

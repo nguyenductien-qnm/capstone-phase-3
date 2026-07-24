@@ -1,0 +1,16 @@
+{
+  "id": "case-real-incident-001",
+  "type": "real",
+  "description": "MANDATE-07 #7b / MANDATE-15 'real incident' case: inject paymentFailure=100% on checkout via flagd. Detector must fire on grpc-error-rate-high or error-budget-burn-fast-checkout (either counts as 'caught' for this event) within one detection cycle. duration_seconds/settle_seconds are a starting point tuned for a low-to-moderate-traffic demo stack — both queries use a trailing rate(...[5m]) window, so if live traffic volume is much higher/lower than expected, extend duration_seconds until the fault clearly dominates the 5m window before re-scoring.",
+  "service": "checkout",
+  "expected_rule_ids": ["grpc-error-rate-high", "error-budget-burn-fast-checkout"],
+  "expect_fire": true,
+  "inject": {
+    "type": "flagd",
+    "flag": "paymentFailure",
+    "on_variant": "100%",
+    "off_variant": "off"
+  },
+  "duration_seconds": 150,
+  "settle_seconds": 120
+}

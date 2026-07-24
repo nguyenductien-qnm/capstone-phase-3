@@ -1,0 +1,57 @@
+# MANDATE-10 P2 — ClusterPolicy của Kyverno, tách khỏi Application `kyverno` (chart).
+#
+# Vì sao tách 2 Application: policy là CR của CRD do chart cài. Nhét chung một
+# Application thì ArgoCD có thể apply ClusterPolicy trước khi CRD kịp đăng ký ->
+# sync fail "no matches for kind ClusterPolicy". Tách ra + sync-wave lớn hơn để thứ
+# tự luôn đúng, và để `kubectl delete`/revert policy không đụng gì tới bản cài Kyverno
+# (rollback nhanh ở bước 2.5 dựa vào đúng tính chất này).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kyverno-policies
+  namespace: argocd
+  annotations:
+    # Sau kyverno (-2) để CRD có trước, vẫn trước workload techx-corp (mặc định 0).
+    argocd.argoproj.io/sync-wave: "-1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/nguyenductien-qnm/capstone-phase-3.git
+    targetRevision: develop
+    path: platform/policies/kyverno
+    directory:
+      recurse: true
+  destination:
+    server: https://kubernetes.default.svc
+    # ClusterPolicy là cluster-scoped; namespace ở đây chỉ là ngữ cảnh mặc định.
+    namespace: kyverno
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+    retry:
+      # CRD vừa đăng ký có độ trễ vài giây trước khi API server phục vụ được — retry
+      # để lần sync đầu ngay sau khi cài chart không fail oan.
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 2m
+  # Kyverno tự điền default vào ClusterPolicy sau khi admit (defaulting webhook):
+  #   verifyImages[].attestors[].entries[].keyless.signatureAlgorithm: sha256
+  #   verifyImages[].useCache: true
+  # Chúng không có trong Git nên ArgoCD báo OutOfSync vĩnh viễn. Khai tường minh vào
+  # Git cũng không giải quyết được gốc — mọi default Kyverno thêm ở phiên bản sau lại
+  # tái diễn; bỏ qua đúng 2 đường dẫn này gọn và đúng bản chất hơn.
+  # `/status` cũng bỏ qua: Kyverno ghi conditions/rulecount ở runtime, Git không quản.
+  ignoreDifferences:
+    - group: kyverno.io
+      kind: ClusterPolicy
+      jsonPointers:
+        - /status
+        - /spec/rules/0/verifyImages/0/useCache
+        - /spec/rules/0/verifyImages/0/attestors/0/entries/0/keyless/signatureAlgorithm

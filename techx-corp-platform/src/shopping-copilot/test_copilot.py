@@ -140,11 +140,34 @@ def test_thinking_tags_are_stripped():
     assert res.text == "Visible answer"
 
 
+def test_reasoning_in_trace_steps():
+    import json
+    orig = tools.get_cart
+    tools.get_cart = lambda uid: '{"status":"ok","items":[]}'
+    try:
+        res = agent.run_agent(FakeBedrock([
+            {"stopReason": "tool_use",
+             "output": {"message": {"content": [
+                 {"text": "<thinking>need to check cart</thinking>\\nChecking cart now."},
+                 {"toolUse": {"name": "get_cart", "input": {}, "toolUseId": "t1"}}
+             ]}}},
+            _end("Đã kiểm tra giỏ hàng xong.")
+        ]), "m", [{"role": "user", "content": [{"text": "kiểm tra giỏ hàng"}]}], "u1")
+        
+        assert len(res.trace_steps) >= 1
+        detail = json.loads(res.trace_steps[0]["detail"])
+        assert "reasoning" in detail
+        assert "Checking cart now." in detail["reasoning"]
+    finally:
+        tools.get_cart = orig
+
+
 if __name__ == "__main__":
     test_confirmation_gate_two_phase()
     test_read_tool_routing_and_audit()
     test_max_loop_limit()
     test_degraded_on_bedrock_failure()
     test_thinking_tags_are_stripped()
+    test_reasoning_in_trace_steps()
 
     print("OK — all shopping-copilot self-checks passed")

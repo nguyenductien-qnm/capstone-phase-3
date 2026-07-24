@@ -3,6 +3,7 @@
 
 import { ChannelCredentials } from '@grpc/grpc-js';
 import { CheckoutServiceClient, PlaceOrderRequest, PlaceOrderResponse } from '../../protos/demo';
+import { GrpcDeadlineMs, unaryWithDeadline } from './GrpcDeadline';
 
 const { CHECKOUT_ADDR = '' } = process.env;
 
@@ -10,8 +11,10 @@ const client = new CheckoutServiceClient(CHECKOUT_ADDR, ChannelCredentials.creat
 
 const CheckoutGateway = () => ({
   placeOrder(order: PlaceOrderRequest) {
-    return new Promise<PlaceOrderResponse>((resolve, reject) =>
-      client.placeOrder(order, (error, response) => (error ? reject(error) : resolve(response)))
+    return unaryWithDeadline<PlaceOrderRequest, PlaceOrderResponse>(
+      (request, metadata, options, callback) => client.placeOrder(request, metadata, options, callback),
+      order,
+      GrpcDeadlineMs.checkout
     );
   },
 });

@@ -17,3 +17,9 @@ output "secret_arn" {
   description = "ARN của Secret Manager lưu Valkey credentials"
   value       = aws_secretsmanager_secret.valkey_credentials.arn
 }
+
+output "cluster_id" {
+  description = "ID của ElastiCache replication group"
+  value       = aws_elasticache_replication_group.this.id
+}
+

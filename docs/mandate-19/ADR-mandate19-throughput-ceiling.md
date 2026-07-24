@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-07-21 (cập nhật 22/07: trần user-facing qua NLB, HPA checkout-path)
-- **Owner (ký):** lken1514
+- **Owner (ký):** lken1514,nguyenthanhdat2707
 - **Deciders:** Task Force CDO
 - **Evidence:** `docs/mandate-19/loadtest/README.md` (số đo), `docs/mandate-19/loadtest/EVIDENCE.md`
   (checklist ảnh), `flood-test-tuned-system.md` + `shed-verification-clusterip-vs-podip.md` (YC4 trên hệ đã tuning)
@@ -50,9 +50,9 @@ bài, xác nhận backend không phải nút thắt ở luồng này.
 
 **Con số trần:**
 
-- **Per-pod (frontend, catalog flow):** theo SLO<1s khoảng 56 rps/pod (ở 120u p95 mới 553ms, chưa
-  chạm trần thật); theo ngưỡng cảnh báo 200ms khoảng 20 rps/pod (bắt đầu căng từ 80u). Sizing dùng
-  số 20 cho thận trọng. Trần luồng Web UI theo SLO ≈ 56 × số pod max.
+- **Per-pod (frontend, catalog flow):** run chứng minh **capacity ≥56.2 rps/pod** với p95<1s nhưng
+  chưa chạm trần thật. Team dùng **safe planning capacity = 20 rps/pod** theo ngưỡng cảnh báo 200ms
+  để có headroom; đây là số thực nghiệm của team, không phải công thức Kubernetes.
 - **User-facing (mixed traffic qua NLB, đo từ EC2 c6i.2xlarge ngoài cụm, 21/07):** **98 rps @
   200u** — checkout p99 970ms vẫn dưới 1s, fail 0%; gãy ở 280u (frontend throttle 9.4%, payment
   8.8%). Node giữ nguyên suốt bài. Đây là con số dùng khi trả lời "hệ chịu được bao nhiêu".
@@ -93,7 +93,9 @@ currency 29.1%, và email/quote/shipping/payment kẹt 1 replica không có HPA.
   right-size requests theo CPU thật sau-shed (email 100m, payment 80m, cart/checkout 60m,
   product-catalog 40m).
 - Thêm HPA min2/max4 cho email, quote, shipping, payment. Kết quả: email throttle từ 43% còn 2.1%,
-  quote từ 58% còn 8%, shipping về 0.4%. Trần checkout theo SLO tăng từ ~27 rps lên ~76 rps (2.8×).
+  quote từ 58% còn 8%, shipping về 0.4%. Run chứng minh checkout đạt **capacity ≥76.3 rps** với
+  SLO<1s, so với passing point trước tuning ~26.9 rps (measured ratio ≈2.8×). Chưa gọi 76.3 rps là
+  trần tuyệt đối vì chưa có bậc kế tiếp làm checkout vi phạm SLO.
 
 Ràng buộc node giữ được ở mọi phép đo (verify `kubectl get nodes` đầu và cuối mỗi bài). Requests
 tổng không phình — chỗ tăng (email/payment vốn under-request) bù bằng chỗ giảm (cart/checkout/
@@ -107,7 +109,8 @@ catalog vốn over-request).
 duy nhất của storefront.
 
 **Thiết kế theo ưu tiên flow:** route `/api/checkout` và `/api/cart` tách lên trên catch-all và
-không gắn rate-limit — ưu tiên tuyệt đối, quá tải cỡ nào cũng đi qua. Browse `/api/products` chịu
+không gắn browse rate-limit — hai route này không bị shed bằng 429, nhưng vẫn có thể lỗi/vi phạm
+SLO do downstream overload. Browse `/api/products` chịu
 token bucket 80 rps; catch-all `/` (chặn flood homepage) bucket 100 rps. Lưu ý bucket là **per-pod**:
 tổng ngưỡng hiệu dụng bằng bucket nhân số pod proxy.
 
@@ -116,10 +119,11 @@ tổng ngưỡng hiệu dụng bằng bucket nhân số pod proxy.
 | Route | reqs | 429 shed | % shed | Kết luận |
 |---|---|---|---|---|
 | browse `/api/products` | 64448 | 45378 | **70.4%** | shed phần vượt bucket |
-| cart (checkout-path) | 10803 | **0** | **0%** | qua hết — được bảo vệ |
+| cart (checkout-path) | 10803 | **0** | **0%** | không bị shed 429; theo dõi 5xx/SLO riêng |
 
-Browse bị shed 70% (toàn bộ là 429 chủ động, không phải 5xx lỗi), checkout-path qua hết, hệ không
-sập. Chạy lại trên hệ đã tuning với cờ flood thật của mentor (`loadGeneratorFloodHomepage`, 22/07):
+Browse bị shed 70% bằng 429 chủ động. `0% 429` của checkout-path chỉ chứng minh route được loại khỏi
+browse rate limit, không tự động chứng minh đạt SLO hoặc không có 5xx. Chạy lại trên hệ đã tuning
+với cờ flood thật của mentor (`loadGeneratorFloodHomepage`, 22/07):
 checkout SLI giữ 100%, node giữ 4, frontend tự scale hấp thụ flood — chi tiết trong
 `flood-test-tuned-system.md`. Một bài học phương pháp: vì bucket per-pod, probe qua ClusterIP không
 thấy 429 dù shed vẫn chạy đúng; muốn verify phải bắn thẳng pod IP hoặc giữ rps tức thời vượt
@@ -139,7 +143,8 @@ mới chạy.
   frontend theo SLO), tail-latency giảm 3 lần trên cùng số node.
 - **+ Cost Optimization:** không thêm node, nhiều request hơn trên mỗi node nghĩa là rẻ hơn trên mỗi
   request. Requests tổng không phình nhờ right-size hai chiều.
-- **+ Reliability:** shed bảo vệ checkout khi quá tải; email/payment hết cảnh 1 replica đơn điểm.
+- **+ Reliability:** shed loại cart/checkout khỏi 429 của browse; SLO và 5xx của downstream vẫn phải
+  giám sát riêng. Email/payment hết cảnh 1 replica đơn điểm.
 - **− Browse bị hy sinh khi vượt trần** (trả 429) — chấp nhận có chủ đích, vì browse đứng sau
   checkout về giá trị business.
 - **Nút thắt sẽ dịch chuyển:** sau đợt tuning này, trần frontend do concurrency SSR quyết định. Nếu

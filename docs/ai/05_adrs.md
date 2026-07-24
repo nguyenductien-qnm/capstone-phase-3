@@ -110,11 +110,11 @@ Bối cảnh của ADR này đã thay đổi do CDO migrate hạ tầng cache:
   - **Tác vụ Reviews Summary (Tải cực cao, độ phức tạp thấp):**
     - Định tuyến chính (Primary): Amazon Nova Lite (`amazon.nova-lite-v1:0`). TTFT ~1.04s, ~175.7 tok/s theo [Artificial Analysis](https://artificialanalysis.ai/models/nova-lite) *(sửa 12/07 — bản đầu ghi 0.4s sai nguồn)*, chi phí cực rẻ ([$0.06/$0.24 per 1M tokens](https://aws.amazon.com/bedrock/pricing/)).
     - Dự phòng (Fallback): Amazon Nova Micro (`amazon.nova-micro-v1:0`) và cuối cùng là Mock Summary.
-    - Timeout: **4.0 giây (4000ms)** — chốt theo P95 đo thật 15/07/2026 (`measure_bedrock_latency.py`, Reviews Lite flow P95 3.969s). Đặt thấp hơn sẽ cắt ngang đuôi phân phối latency, huỷ đúng lúc sắp thành công rồi retry lại từ đầu: trả tiền token nhiều lần cho 0 kết quả và dội tải ngược lên Bedrock đúng lúc nó đang chậm. Đổi lại **không được gì**, vì tóm tắt AI là **best-effort, không SLA cứng** (`SLO.md`) và chỉ chạy khi khách bấm nút, không chặn render trang → không tính vào SLO storefront p95 < 1s.
+    - Timeout: **2.6 giây (2600ms)** — cập nhật theo baseline hiện hành 21/07/2026 (`bedrock_latency_results_current.md`, Reviews Lite flow P95 2.542s). Tóm tắt AI là **best-effort, không SLA cứng** (`SLO.md`) và chỉ chạy khi khách bấm nút, không chặn render trang → không tính vào SLO storefront p95 < 1s.
   - **Tác vụ Shopping Copilot (Tải thấp, độ phức tạp cao, cần độ chính xác gọi tool tuyệt đối):**
     - Định tuyến chính (Primary): Amazon Nova Pro (`amazon.nova-pro-v1:0`). Đảm bảo độ chính xác gọi tool xuất sắc và chi phí được cấn trừ hoàn toàn 100% bằng AWS Credits (tiền mặt thật = $0).
     - Dự phòng (Fallback): Amazon Nova Lite (`amazon.nova-lite-v1:0`).
-    - Timeout: Giới hạn **5.7 giây (5700ms)** theo P95 tool loop đo thật; fallback Nova Lite **2.5 giây**.
+    - Timeout: Giới hạn **6.9 giây (6900ms)** theo baseline P95 tool loop 21/07; fallback Nova Lite **2.7 giây**.
 - **Phương án khác đã cân:**
   - *Option A - Sử dụng Claude (A1):* Bị loại bỏ hoàn toàn vì Claude thuộc AWS Marketplace, bắt buộc trả bằng tiền mặt thật, không được trừ vào credit. Quyết định: Loại bỏ Claude để đưa chi phí tiền mặt về $0.
   - *Option B - Sử dụng thuần Amazon Nova Lite (A2):* Tiết kiệm nhất nhưng bị loại do khả năng gọi tool tiếng Việt của Nova Lite chưa đủ tin cậy cho Copilot Agent so với Nova Pro.
@@ -525,6 +525,44 @@ mặc định.
 nhưng chặn việc mentor test được):** `shopping-copilot` đang `enabled: false`
 trong `values.yaml` (comment cũ "no source/image yet" — đã lỗi thời, code đã
 có đầy đủ); `product-reviews` vẫn chạy root (MANDATE-05, deadline 17/07).
+
+---
+
+### Addendum 2026-07-24 — MANDATE-07 `#7b`: labeled-set measurement harness + trunk clarification
+
+**Vấn đề:** `#7b` (hạn 25/07) yêu cầu precision/recall/lead-time đo trên **bộ sự cố có
+nhãn** (K sự cố + giai đoạn bình thường), KHÔNG phải per-service. `evaluate_detector.py`
+(`detector_kpi_metrics.json`) — thứ duy nhất từng cho ra số precision/recall — tự khai
+rõ trong README là dữ liệu synthetic tự gán nhãn, **không được trích làm KPI hệ thống**.
+Chưa có bộ nhãn thật nào commit trong repo trước ngày này.
+
+**Fix:** thêm `aiops/incident_replay.py` (inject kịch bản qua flagd/lệnh + chấm điểm
+đúng công thức mandate: `recall = bắt được/K`, `precision = lần kêu đúng/tổng lần kêu`,
+`lead_time = fire_ts - start_ts`) và 1 kịch bản có nhãn commit trong
+`aiops/incident_scenarios/case_real_incident.json`. Đây cũng là script `repro` bắt
+buộc phải nộp kèm ticket. Harness dựng theo hướng tổng quát (hỗ trợ sẵn kiểu kịch bản
+`masking`/`healthy_load` và cờ `--check-remediation`) để MANDATE-15/MANDATE-22 tự thêm
+kịch bản riêng của mình lên trên trong PR riêng của từng mandate, không cần sửa lại
+harness.
+
+**Định nghĩa "trunk" = `develop`** (áp dụng chung cho `#7b`/MANDATE-15/MANDATE-22 —
+ghi 1 lần ở đây, các ADR sau tham chiếu lại thay vì lặp lại): `main` đứng yên từ PR #31
+(2026-07-12); toàn đội đã chuyển hẳn sang `develop` làm nhánh vận hành thật từ tái cấu
+trúc 2026-07-16 (gần 400 commit tính tới 2026-07-24, workflow PR/CI đều nhắm `develop`).
+`CONTRIBUTING.md` vẫn ghi PR vào `main` — tài liệu chưa cập nhật theo thực tế, không
+phải hai nhánh cùng là trunk. Quyết định: coi `develop` là trunk khi các mandate yêu cầu
+"merged vào nhánh chính", ghi rõ ở đây để mentor không thắc mắc tại sao bằng chứng trỏ
+vào `develop` chứ không phải `main`.
+
+**Trạng thái tại thời điểm viết addendum này (2026-07-24, còn 1 ngày tới hạn):** harness
++ 1 kịch bản `case_real_incident.json` + unit test cho logic chấm điểm đã có
+(`aiops/test_incident_replay.py`, xanh hết). **Chạy sống + số đo thật CHƯA có** — phát
+hiện thêm 1 blocker hạ tầng khi kiểm tra `kubectl logs` trên EKS:
+`readOnlyRootFilesystem=true` không có volume ghi được, nên `alerter_history.jsonl`
+(nguồn dữ liệu duy nhất `incident_replay.py` dùng để chấm điểm) **chưa từng được ghi
+thật trên EKS từ trước tới giờ** — đã fix trong PR này (`aiops/detector/deploy/
+deployment.yaml`, thêm `emptyDir`), chờ merge + ArgoCD sync rồi mới chạy được kịch bản
+để lấy số thật. Ảnh/log + số đo sẽ đính kèm bổ sung vào ticket `AI MANDATE #7b` khi có.
 
 ---
 

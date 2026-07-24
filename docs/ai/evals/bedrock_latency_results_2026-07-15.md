@@ -6,6 +6,7 @@
 - Runtime API: `bedrock-runtime.converse`
 - Timeout rule: measured end-to-end `flow_p95_s`, rounded up to nearest 0.1s.
 - Access note: requested `us-east-1` runtime returned `ValidationException: Operation not allowed` for Nova/Titan with this SSO role. The same Nova inference profiles were invokable in `us-east-1`, so this run records real Bedrock latency there instead of using benchmark estimates.
+- Resolution (2026-07-22): direct Nova Pro/Lite/Micro invocation now succeeds for the same CDO SSO profile in `us-east-1`; this note is retained only as historical context.
 
 | Flow | Role | Model | Runtime model ID | n | Flow P50 (s) | Flow P95 (s) | Per-call P95 (s) | Timeout (s) |
 |---|---|---|---|---:|---:|---:|---:|---:|

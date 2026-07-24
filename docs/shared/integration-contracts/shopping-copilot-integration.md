@@ -160,10 +160,12 @@ Số đo thật 17/07 (bench local, fp32, 2 threads): RSS **1148MB**, grounding 
 | `LLM_BEDROCK_GUARDRAIL` | **`false`** (đổi từ §6) | option Standard-tier sau này |
 
 ### 7.3 IAM / region (quan trọng)
-- Judge chạy **`us-east-1`** (Nova đã mở model access — test 17/07 qua profile `default`,
-  acct 384511757667, cùng org). SSO role `Phase3-CDO-PermissionSet` bị `OperationNotAllowed`
-  ở us-east-1 → **CDO cần cấp IRSA/role cho 2 pod app gọi `bedrock:InvokeModel` (Nova Lite +
-  Micro) ở us-east-1**, hoặc mở model access cùng region đang dùng.
+- Judge chạy **`us-east-1`**. Ngày 22/07/2026, profile SSO CDO
+  `Phase3-CDO-PermissionSet-804372444787` đã invoke trực tiếp Nova Pro/Lite/Micro thành công
+  trong account `804372444787`; lỗi `OperationNotAllowed` trước đây đã được gỡ.
+- Pod không dùng SSO local: `shopping-copilot` và `product-reviews` dùng EKS Pod Identity rồi
+  assume role Bedrock cross-account `384511757667:role/techx-bedrock-invoke`. Vì vậy vẫn phải
+  verify in-pod sau deploy; kết quả SSO chỉ xác nhận model access của account CDO.
 - Pod `ml-guard` KHÔNG cần IAM (model local, không gọi AWS).
 
 ### 7.4 TF1-65 — ECR push (phối hợp, không tự đẩy)

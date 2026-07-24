@@ -79,8 +79,40 @@ networkPolicy:
       - prometheus
       - kube-state-metrics
       - opentelemetry-collector
+      # reloader watch ConfigMap/Secret qua API server để restart pod khi config đổi;
+      # thiếu rule này thì default-deny cắt watch -> reloader im lặng ngừng hoạt động.
+      - reloader
+      # grafana chạy 3 container k8s-sidecar (dashboard/datasource/alert) watch ConfigMap
+      # qua API server. Đây là ca hỏng IM LẶNG nguy hiểm nhất nhóm: sidecar retry vô hạn
+      # chứ không crash, pod vẫn 4/4 Running, dashboard cũ vẫn hiện vì đã nằm trên đĩa —
+      # chỉ dashboard/datasource MỚI là không bao giờ xuất hiện. Kiểm tra "pod có khỏe
+      # không" KHÔNG bắt được ca này; phải đọc log sidecar.
+      - grafana
     # Dải chứa ENI control-plane (API server IP xoay) — VPC CIDR cluster này.
     apiServerCIDR: 10.0.0.0/16
+    # ClusterIP của Service `kubernetes` (đích TRƯỚC DNAT khi client gọi
+    # kubernetes.default). Bắt buộc phải mở kèm apiServerCIDR — xem chú thích trong
+    # templates/networkpolicy.yaml. Luôn là IP đầu của service CIDR.
+    apiServerClusterIP: 172.20.0.1/32
+    # Scraper còn phải lấy metrics NGOÀI namespace: kubelet/cadvisor trên node và pod
+    # hạ tầng ở kube-system (CoreDNS, ALB controller). Thiếu phần này thì default-deny
+    # cắt 6 target node + CoreDNS -> dashboard tài nguyên trống (verify develop 22/07/2026).
+    scraperEgress:
+      # Cổng kubelet trên node (job kubernetes-nodes + kubernetes-nodes-cadvisor).
+      kubeletPort: 10250
+      # Dải chứa NODE (kubelet), KHÁC ý nghĩa với apiServerCIDR (dải chứa ENI
+      # control-plane) dù hiện tại hai dải trùng nhau. Tách riêng để lỡ ai thu hẹp
+      # apiServerCIDR xuống đúng subnet control-plane — việc hardening rất hợp lý —
+      # thì scrape kubelet không gãy theo. Gãy kiểu đó rất khó truy: triệu chứng là
+      # 6 target node DOWN + dashboard tài nguyên trống, cách nguyên nhân rất xa.
+      nodeCIDR: 10.0.0.0/16
+      # Namespace hạ tầng cho phép scrape cross-namespace.
+      infraNamespaces:
+        - kube-system
+      # Cổng metrics của pod hạ tầng: 9153 CoreDNS, 8080 aws-load-balancer-controller.
+      infraPorts:
+        - 9153
+        - 8080
   # Egress tới managed datastore NGOÀI cluster (kafka/valkey/postgresql tắt in-cluster ->
   # app gọi ElastiCache/MSK/RDS ở IP VPC 10.x; default-deny egress sẽ chặn nếu thiếu rule).
   datastoreEgress:
@@ -114,7 +146,9 @@ networkPolicy:
     valkey-cart: [cart]
     kafka: [accounting, checkout, fraud-detection]
     llm: [shopping-copilot]
+    image-provider: [frontend-proxy, frontend]
     frontend: [frontend-proxy, load-generator]
+
   # Pod gắn label `egress-internet: "true"` mới được ra Internet (payment provider, Bedrock...).
 
 serviceAccount:
@@ -2131,6 +2165,17 @@ opensearch:
     limits:
       cpu: "1"
       memory: 1100Mi
+
+# Finite retention for application telemetry only. This policy never matches
+# AWS audit/security log groups, which retain their independent CloudWatch/S3
+# lifecycle controls. The PostSync job is idempotent and also attaches the
+# policy to pre-existing unmanaged otel-logs-* indices.
+telemetryRetention:
+  enabled: false
+  policyId: otel-logs-retention
+  indexPattern: "otel-logs-*"
+  minIndexAge: 3d
+  image: curlimages/curl:8.9.1
 
 externalSecrets:
   enabled: false

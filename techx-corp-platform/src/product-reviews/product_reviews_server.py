@@ -297,7 +297,7 @@ def get_bedrock_primary_client():
     global bedrock_primary_client
     if bedrock_primary_client is None:
         aws_region = os.environ.get('AWS_REGION', 'us-east-1')
-        main_timeout = float(os.environ.get('LLM_REVIEWS_TIMEOUT', '4.0'))
+        main_timeout = float(os.environ.get('LLM_REVIEWS_TIMEOUT', '2.6'))
         primary_config = Config(connect_timeout=1.0, read_timeout=main_timeout, retries={'max_attempts': 0})
         bedrock_primary_client = create_bedrock_runtime_client(region_name=aws_region, config=primary_config)
     return bedrock_primary_client
@@ -306,7 +306,7 @@ def get_bedrock_fallback_client():
     global bedrock_fallback_client
     if bedrock_fallback_client is None:
         aws_region = os.environ.get('AWS_REGION', 'us-east-1')
-        fallback_timeout = float(os.environ.get('LLM_REVIEWS_FALLBACK_TIMEOUT', '2.0'))
+        fallback_timeout = float(os.environ.get('LLM_REVIEWS_FALLBACK_TIMEOUT', '2.3'))
         fallback_config = Config(connect_timeout=1.0, read_timeout=fallback_timeout, retries={'max_attempts': 0})
         bedrock_fallback_client = create_bedrock_runtime_client(region_name=aws_region, config=fallback_config)
     return bedrock_fallback_client
@@ -531,11 +531,17 @@ def get_ai_assistant_response(request_product_id, question, context=None):
         trace_steps.append(demo_pb2.TraceStep(
             step_name="Input Guardrail (PII/Prompt Guard)",
             latency_ms=lat_in,
-            status="blocked" if blocked_in else "pass"
+            status="blocked" if blocked_in else "pass",
+            detail=redact_pii(json.dumps({"question": question, "blocked": blocked_in}))
         ))
         if blocked_in:
             logger.warning(f"[Guardrail INPUT] blocked direct question for product_id={request_product_id}")
-            question = "[filtered]"
+            ai_assistant_response.response = (
+                "Xin lỗi, câu hỏi chứa nội dung không hợp lệ nên mình không thể xử lý. "
+                "Bạn có thể hỏi về chất lượng, ưu nhược điểm hoặc trải nghiệm sử dụng của sản phẩm."
+            )
+            ai_assistant_response.trace_steps.extend(trace_steps)
+            return ai_assistant_response
         # -----------------------------------------------------------------------
 
         # Lớp 4: Context-Aware Dynamic Deadlines
@@ -544,7 +550,7 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                 time_remaining = context.time_remaining()
                 if time_remaining is not None:
                     logger.info(f"gRPC request time remaining: {time_remaining:.3f}s")
-                    deadline_floor = float(os.environ.get('LLM_REVIEWS_FALLBACK_TIMEOUT', '2.0'))
+                    deadline_floor = float(os.environ.get('LLM_REVIEWS_FALLBACK_TIMEOUT', '2.3'))
                     if time_remaining < deadline_floor:
                         logger.warning(f"Time remaining {time_remaining:.3f}s is less than hard floor {deadline_floor:.1f}s. Fail-fast to Mock Summary.")
                         logger.error("AI_SUMMARY_FALLBACK stage=deadline reason=DeadlineTooClose")
@@ -631,17 +637,43 @@ def get_ai_assistant_response(request_product_id, question, context=None):
 
         start_llm = time.time()
         if not is_mock_rate_limit:
-            # AWS Bedrock Converse API flow
-            logger.info("Invoking AWS Bedrock Converse API with fallback wrapper")
-
+            # AWS Bedrock Converse API flow - Single Round
+            logger.info("Pre-fetching tool data for single-round Bedrock Converse API")
+            
+            t_tool = time.time()
+            # 1. Pre-fetch + sanitize
+            reviews_json = sanitize_json_for_llm(fetch_product_reviews(product_id=request_product_id))
+            blocked_rev, _ = apply_guardrail_input(get_bedrock_primary_client(), reviews_json)
+            if blocked_rev:
+                logger.warning(f"[Guardrail INPUT] Bedrock blocked review for product_id={request_product_id}.")
+                reviews_json = json.dumps({"error": "Content blocked by security guardrail."})
+            
+            info_json = sanitize_json_for_llm(fetch_product_info(product_id=request_product_id))
+            tool_results_raw = [reviews_json, info_json]
+            
+            trace_steps.append(demo_pb2.TraceStep(
+                step_name="Fetch reviews+info",
+                latency_ms=int((time.time() - t_tool) * 1000),
+                status="ok",
+                detail=redact_pii(json.dumps({"product_id": request_product_id}))
+            ))
+            
             system_prompt = SYSTEM_PROMPT
-            user_prompt = f"Answer the following question about product ID:{request_product_id}: {question}"
+            
+            llm_inaccurate_response = check_feature_flag("llmInaccurateResponse")
+            logger.info(f"llmInaccurateResponse feature flag: {llm_inaccurate_response}")
+            if llm_inaccurate_response and request_product_id == "L9ECAV7KIM":
+                logger.info(f"Returning an inaccurate response for product_id: {request_product_id}")
+                instruction_text = f"Based on the tool results, answer the original question about product ID, but make the answer inaccurate:{request_product_id}. Keep the response brief with no more than 1-2 sentences."
+            else:
+                instruction_text = f"Based on the tool results, answer the original question about product ID:{request_product_id}. Keep the response brief with no more than 1-2 sentences."
+
+            user_prompt = f"Question: {question}\n\nDATA:\nReviews: {reviews_json}\nInfo: {info_json}\n\nInstruction: {instruction_text}"
             messages = [
                 {"role": "user", "content": [{"text": user_prompt}]}
             ]
 
-            # Lớp 3: Bulkhead Isolation — non-blocking (review B1): waiter van giu thread cua
-            # gRPC pool nen khi bao hoa phai tra mock NGAY thay vi xep hang (thi nghiem B1: 10ms vs 1909ms).
+            # Lớp 3: Bulkhead Isolation
             if not bedrock_bulkhead.acquire(blocking=False):
                 logger.error("AI_SUMMARY_FALLBACK stage=bulkhead reason=BulkheadSaturated")
                 ai_assistant_response.response = MOCK_SUMMARY_VI
@@ -651,11 +683,11 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                 response = invoke_bedrock_converse_with_fallback(
                     messages=messages,
                     system_prompt=system_prompt,
-                    tool_config={"tools": tools}
+                    tool_config=None
                 )
+                result = response["output"]["message"]["content"][0]["text"]
             except Exception as e:
                 logger.error(f"Bedrock converse failure: {str(e)}")
-                # Marker G6: ghi dung nguyen nhan that, khong gan nhan 429 cho moi loai loi.
                 logger.error(f"AI_SUMMARY_FALLBACK stage=bedrock reason={type(e).__name__}")
                 span.record_exception(e)
                 span.set_status(Status(StatusCode.ERROR, description=str(e)))
@@ -664,125 +696,6 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                 return ai_assistant_response
             finally:
                 bedrock_bulkhead.release()
-
-            stop_reason = response.get("stopReason", "end_turn")
-            output_msg = response["output"]["message"]
-            content_blocks = output_msg.get("content", [])
-
-            if stop_reason == "tool_use":
-                logger.info(f"Bedrock wants to call tool(s)")
-                messages.append({"role": "assistant", "content": content_blocks})
-
-                tool_results = []
-                for block in content_blocks:
-                    if "toolUse" not in block:
-                        continue
-                    tool_use = block["toolUse"]
-                    tool_name = tool_use["name"]
-                    tool_input = tool_use.get("input", {})
-                    tool_use_id = tool_use["toolUseId"]
-                    t_tool = time.time()
-
-                    logger.info(f"Processing tool call: '{tool_name}' with arguments: {tool_input}")
-
-                    if tool_name == "fetch_product_reviews":
-                        # Guardrail Phan A: review la du lieu KHONG tin cay — loc PII + injection
-                        # truoc khi dua vao prompt (sanitize per-field, giu JSON hop le).
-                        function_response = fetch_product_reviews(
-                            product_id=tool_input.get("product_id")
-                        )
-                        # --- INPUT rail L1: always-on regex sanitize (PII + obvious injection, per-field) ---
-                        function_response = sanitize_json_for_llm(function_response)
-                        logger.info(f"[Guardrail L1] review sanitized for product_id={tool_input.get('product_id')}")
-                        # --- INPUT rail L2 (TF1-61): Bedrock prompt-attack on untrusted review text.
-                        # Fail-CLOSED while enabled → block on error. Off → L1 regex already applied. ---
-                        blocked_rev, _ = apply_guardrail_input(get_bedrock_primary_client(), function_response)
-                        if blocked_rev:
-                            logger.warning(f"[Guardrail INPUT] Bedrock blocked review for product_id={tool_input.get('product_id')}.")
-                            function_response = json.dumps({"error": "Content blocked by security guardrail."})
-                        # -----------------------------------------------------------------------
-                        logger.info(f"Function response for fetch_product_reviews: '{function_response}'")
-                    elif tool_name == "fetch_product_info":
-                        function_response = fetch_product_info(
-                            product_id=tool_input.get("product_id")
-                        )
-                        function_response = sanitize_json_for_llm(function_response)
-                        logger.info(f"Function response for fetch_product_info: '{function_response}'")
-                    else:
-                        raise Exception(f'Received unexpected tool call request: {tool_name}')
-
-                    tool_results_raw.append(function_response)
-                    # Trace UI: show WHICH tool the AI operated with + on which product.
-                    trace_steps.append(demo_pb2.TraceStep(
-                        step_name=f"Tool: {tool_name}" + (f" ({tool_input.get('product_id')})" if tool_input.get('product_id') else ""),
-                        latency_ms=int((time.time() - t_tool) * 1000),
-                        status="ok" if '"error"' not in function_response else "error",
-                    ))
-                    parsed_res = json.loads(function_response)
-                    if not isinstance(parsed_res, dict):
-                        parsed_res = {"result": parsed_res}
-                    tool_results.append({
-                        "toolUseId": tool_use_id,
-                        # function_response is already sanitized above (both branches) —
-                        # reuse it instead of re-sanitizing the same string twice.
-                        "content": [{"json": parsed_res}],
-                    })
-
-                llm_inaccurate_response = check_feature_flag("llmInaccurateResponse")
-                logger.info(f"llmInaccurateResponse feature flag: {llm_inaccurate_response}")
-
-                if llm_inaccurate_response and request_product_id == "L9ECAV7KIM":
-                    logger.info(f"Returning an inaccurate response for product_id: {request_product_id}")
-                    instruction_text = f"Based on the tool results, answer the original question about product ID, but make the answer inaccurate:{request_product_id}. Keep the response brief with no more than 1-2 sentences."
-                else:
-                    instruction_text = f"Based on the tool results, answer the original question about product ID:{request_product_id}. Keep the response brief with no more than 1-2 sentences."
-
-                user_content = [{"toolResult": tr} for tr in tool_results]
-                user_content.append({"text": instruction_text})
-
-                messages.append({
-                    "role": "user",
-                    "content": user_content
-                })
-
-                # Lop 4 (bo sung 12/07): re-check deadline TRUOC vong converse thu 2 —
-                # check dau request khong con dung sau khi vong 1 + tool da tieu thoi gian.
-                if context is not None:
-                    try:
-                        _tr = context.time_remaining()
-                        if _tr is not None and _tr < float(os.environ.get('LLM_REVIEWS_FALLBACK_TIMEOUT', '2.0')):
-                            logger.error("AI_SUMMARY_FALLBACK stage=deadline reason=DeadlineTooCloseFinalRound")
-                            ai_assistant_response.response = MOCK_SUMMARY_VI
-                            return ai_assistant_response
-                    except Exception:
-                        pass
-
-                logger.info(f"Invoking Bedrock for final completion")
-                if not bedrock_bulkhead.acquire(blocking=False):
-                    logger.error("AI_SUMMARY_FALLBACK stage=bulkhead reason=BulkheadSaturated")
-                    ai_assistant_response.response = MOCK_SUMMARY_VI
-                    ai_assistant_response.trace_steps.extend(trace_steps)
-                    return ai_assistant_response
-                try:
-                    final_response = invoke_bedrock_converse_with_fallback(
-                        messages=messages,
-                        system_prompt=system_prompt,
-                        tool_config={"tools": tools}
-                    )
-                    result = final_response["output"]["message"]["content"][0]["text"]
-                except Exception as e:
-                    logger.error(f"Bedrock final completion error: {str(e)}")
-                    logger.error(f"AI_SUMMARY_FALLBACK stage=bedrock-final reason={type(e).__name__}")
-                    span.record_exception(e)
-                    span.set_status(Status(StatusCode.ERROR, description=str(e)))
-                    ai_assistant_response.response = MOCK_SUMMARY_VI
-                    ai_assistant_response.trace_steps.extend(trace_steps)
-                    return ai_assistant_response
-                finally:
-                    bedrock_bulkhead.release()
-            else:
-                text_parts = [b["text"] for b in content_blocks if "text" in b]
-                result = "\n".join(text_parts) if text_parts else ""
 
             # Bug (reproduced live 17/07): model doi khi tra <thinking>...</thinking>
             # lam van ban thuong thay vi reasoning block rieng -> leak thang ra UI.
@@ -816,7 +729,8 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                 trace_steps.append(demo_pb2.TraceStep(
                     step_name="Output Guardrail (Grounding)",
                     latency_ms=lat_out,
-                    status="blocked" if blocked_out else "pass"
+                    status="blocked" if blocked_out else "pass",
+                    detail=redact_pii(json.dumps({"blocked": blocked_out}))
                 ))
                 if blocked_out:
                     logger.warning(f"AI_SUMMARY_FALLBACK stage=output-grounding reason=Ungrounded product_id={request_product_id}")
@@ -834,7 +748,8 @@ def get_ai_assistant_response(request_product_id, question, context=None):
             trace_steps.append(demo_pb2.TraceStep(
                 step_name="Model Gateway & Bedrock Nova",
                 latency_ms=lat_llm,
-                status="ok"
+                status="ok",
+                detail=redact_pii(json.dumps({"routed_model": os.environ.get('LLM_REVIEWS_MAIN_MODEL', 'amazon.nova-micro-v1:0')}))
             ))
             ai_assistant_response.trace_steps.extend(trace_steps)
 
