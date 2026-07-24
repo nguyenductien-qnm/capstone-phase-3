@@ -1,0 +1,16 @@
+{
+  "id": "case-healthy-load-001",
+  "type": "healthy_load",
+  "description": "MANDATE-15 'busy but not broken' case: generate real, legitimate elevated traffic with the team's own locustfile.py (no flagd fault flag involved at all) and confirm the detector does NOT false-alarm on ordinary high load. Set LOCUST_HOST to the live frontend URL before running (defaults to http://localhost:8080 for docker-compose). Mirrors the load-test methodology already used in report/flagd1/postmortem-INC-01.md's KB3 section (Locust rolling-restart verification: 175 requests, 0 connection errors on the main purchase flow).",
+  "service": "frontend",
+  "expected_rule_ids": [],
+  "monitored_rule_ids": ["latency-p95-high", "error-budget-burn-fast-standard", "error-budget-burn-fast-checkout"],
+  "expect_fire": false,
+  "inject": {
+    "type": "command",
+    "on": "cd techx-corp-platform/src/load-generator && locust -f locustfile.py --headless -u 50 -r 10 --run-time 150s --host \"${LOCUST_HOST:-http://localhost:8080}\"",
+    "off": null
+  },
+  "duration_seconds": 150,
+  "settle_seconds": 60
+}

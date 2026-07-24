@@ -1,0 +1,36 @@
+{
+  "id": "case-masking-001",
+  "type": "masking",
+  "description": "MANDATE-15 masking case: two DISTINCT events on the SAME rule+service (latency-p95-high / frontend) so they share the same rolling metric_history bucket in detector.py — this is the exact bucket that used to get polluted by the pre-fix bug (raw outlier folded into metric_history, dragging mean/std upward for ~30 cycles). Event 1 is a short, noisy load-flood blip (self-resolving); event 2, ~4 minutes later once the flood has cleared, is a smaller but genuinely separate degraded-performance incident (imageSlowLoad). The detector must still catch event 2 — it must not be masked by the inflated baseline event 1 would have left behind pre-fix. See aiops/detector/test_detector.py::test_dynamic_detection_not_masked_by_prior_spike for the equivalent unit-level regression test.",
+  "settle_seconds": 90,
+  "events": [
+    {
+      "label": "noise-spike",
+      "service": "frontend",
+      "expected_rule_ids": ["latency-p95-high"],
+      "expect_fire": true,
+      "offset_seconds": 0,
+      "duration_seconds": 90,
+      "inject": {
+        "type": "flagd",
+        "flag": "loadGeneratorFloodHomepage",
+        "on_variant": "on",
+        "off_variant": "off"
+      }
+    },
+    {
+      "label": "subtle-incident",
+      "service": "frontend",
+      "expected_rule_ids": ["latency-p95-high"],
+      "expect_fire": true,
+      "offset_seconds": 240,
+      "duration_seconds": 120,
+      "inject": {
+        "type": "flagd",
+        "flag": "imageSlowLoad",
+        "on_variant": "5sec",
+        "off_variant": "off"
+      }
+    }
+  ]
+}
