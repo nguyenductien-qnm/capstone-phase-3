@@ -55,7 +55,7 @@
     "@opentelemetry/propagator-jaeger": "2.9.0",
     "@opentelemetry/exporter-prometheus": "0.217.0",
     "protobufjs": "7.6.1",
-    "minimatch": "9.0.7",
+    "minimatch": "9.0.9",
     "postcss": "8.5.12"
   },
   "devDependencies": {
