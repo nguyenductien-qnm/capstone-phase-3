@@ -1096,6 +1096,10 @@ components:
     # có Bedrock phải cấp egress-internet + BEDROCK_AWS_ROLE_ARN cho ml-guard
     # (xem sandbox values-aio-llm.yaml); thiếu thì judge fail-open, chỉ còn regex+local ML.
     enabled: true
+    serviceAccount:
+      create: true
+      annotations: {}
+      name: ml-guard
     useDefault:
       env: true
     imageOverride:
