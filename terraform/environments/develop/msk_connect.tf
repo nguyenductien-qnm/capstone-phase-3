@@ -171,6 +171,9 @@ resource "aws_mskconnect_connector" "debezium_postgres" {
     "consumer.override.security.protocol" = "SASL_SSL"
     "consumer.override.sasl.mechanism"    = "SCRAM-SHA-512"
     "consumer.override.sasl.jaas.config"  = "org.apache.kafka.common.security.scram.ScramLoginModule required username=\"${jsondecode(data.aws_secretsmanager_secret_version.msk_credentials.secret_string)["username"]}\" password=\"${jsondecode(data.aws_secretsmanager_secret_version.msk_credentials.secret_string)["password"]}\";"
+    "admin.override.security.protocol"    = "SASL_SSL"
+    "admin.override.sasl.mechanism"       = "SCRAM-SHA-512"
+    "admin.override.sasl.jaas.config"     = "org.apache.kafka.common.security.scram.ScramLoginModule required username=\"${jsondecode(data.aws_secretsmanager_secret_version.msk_credentials.secret_string)["username"]}\" password=\"${jsondecode(data.aws_secretsmanager_secret_version.msk_credentials.secret_string)["password"]}\";"
   }
 
   kafka_cluster {
@@ -185,7 +188,7 @@ resource "aws_mskconnect_connector" "debezium_postgres" {
   }
 
   kafka_cluster_client_authentication {
-    authentication_type = "NONE"
+    authentication_type = "SCRAM-SHA-512"
   }
 
   kafka_cluster_encryption_in_transit {
