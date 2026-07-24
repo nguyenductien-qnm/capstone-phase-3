@@ -51,7 +51,7 @@ resource "aws_security_group_rule" "rds_ingress_msk_connect" {
 resource "aws_security_group_rule" "msk_ingress_msk_connect" {
   type                     = "ingress"
   from_port                = 9092
-  to_port                  = 9096
+  to_port                  = 9098
   protocol                 = "tcp"
   source_security_group_id = aws_security_group.msk_connect.id
   security_group_id        = module.msk.msk_security_group_id
@@ -109,6 +109,21 @@ resource "aws_iam_role_policy" "msk_connect" {
         Effect   = "Allow"
         Action   = ["kms:Decrypt"]
         Resource = [module.msk.kms_key_arn]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "kafka-cluster:Connect",
+          "kafka-cluster:AlterCluster",
+          "kafka-cluster:DescribeCluster",
+          "kafka-cluster:CreateTopic",
+          "kafka-cluster:DescribeTopic",
+          "kafka-cluster:WriteData",
+          "kafka-cluster:ReadData",
+          "kafka-cluster:AlterGroup",
+          "kafka-cluster:DescribeGroup"
+        ]
+        Resource = "*"
       }
     ]
   })
@@ -144,41 +159,32 @@ resource "aws_mskconnect_connector" "debezium_postgres" {
   // Debezium connects via the native PostgreSQL pgoutput logical decoding plugin
   // listens for change events on dbz_publication
   connector_configuration = {
-    "connector.class"                     = "io.debezium.connector.postgresql.PostgresConnector"
-    "tasks.max"                           = "1"
-    "database.hostname"                   = module.rds.db_primary_address
-    "database.port"                       = "5432"
-    "database.user"                       = module.rds.db_username
-    "database.password"                   = module.rds.db_password
-    "database.dbname"                     = module.rds.db_name
-    "topic.prefix"                        = "fulfillment"
-    "table.include.list"                  = "checkout.outbox"
-    "plugin.name"                         = "pgoutput"
-    "publication.name"                    = "dbz_publication"
-    "publication.autocreate.mode"         = "all_tables"
-    "tombstones.on.delete"                = "false"
-    "decimal.handling.mode"               = "double"
-    "key.converter"                       = "org.apache.kafka.connect.storage.StringConverter"
-    "value.converter"                     = "org.apache.kafka.connect.json.JsonConverter"
-    "value.converter.schemas.enable"      = "false"
-    "transforms"                          = "reroute"
-    "transforms.reroute.type"             = "org.apache.kafka.connect.transforms.RegexRouter"
-    "transforms.reroute.regex"            = ".*"
-    "transforms.reroute.replacement"      = "domain.checkout.orders"
-    "producer.override.security.protocol" = "SASL_SSL"
-    "producer.override.sasl.mechanism"    = "SCRAM-SHA-512"
-    "producer.override.sasl.jaas.config"  = "org.apache.kafka.common.security.scram.ScramLoginModule required username=\"${jsondecode(data.aws_secretsmanager_secret_version.msk_credentials.secret_string)["username"]}\" password=\"${jsondecode(data.aws_secretsmanager_secret_version.msk_credentials.secret_string)["password"]}\";"
-    "consumer.override.security.protocol" = "SASL_SSL"
-    "consumer.override.sasl.mechanism"    = "SCRAM-SHA-512"
-    "consumer.override.sasl.jaas.config"  = "org.apache.kafka.common.security.scram.ScramLoginModule required username=\"${jsondecode(data.aws_secretsmanager_secret_version.msk_credentials.secret_string)["username"]}\" password=\"${jsondecode(data.aws_secretsmanager_secret_version.msk_credentials.secret_string)["password"]}\";"
-    "admin.override.security.protocol"    = "SASL_SSL"
-    "admin.override.sasl.mechanism"       = "SCRAM-SHA-512"
-    "admin.override.sasl.jaas.config"     = "org.apache.kafka.common.security.scram.ScramLoginModule required username=\"${jsondecode(data.aws_secretsmanager_secret_version.msk_credentials.secret_string)["username"]}\" password=\"${jsondecode(data.aws_secretsmanager_secret_version.msk_credentials.secret_string)["password"]}\";"
+    "connector.class"                = "io.debezium.connector.postgresql.PostgresConnector"
+    "tasks.max"                      = "1"
+    "database.hostname"              = module.rds.db_primary_address
+    "database.port"                  = "5432"
+    "database.user"                  = module.rds.db_username
+    "database.password"              = module.rds.db_password
+    "database.dbname"                = module.rds.db_name
+    "topic.prefix"                   = "fulfillment"
+    "table.include.list"             = "checkout.outbox"
+    "plugin.name"                    = "pgoutput"
+    "publication.name"               = "dbz_publication"
+    "publication.autocreate.mode"    = "all_tables"
+    "tombstones.on.delete"           = "false"
+    "decimal.handling.mode"          = "double"
+    "key.converter"                  = "org.apache.kafka.connect.storage.StringConverter"
+    "value.converter"                = "org.apache.kafka.connect.json.JsonConverter"
+    "value.converter.schemas.enable" = "false"
+    "transforms"                     = "reroute"
+    "transforms.reroute.type"        = "org.apache.kafka.connect.transforms.RegexRouter"
+    "transforms.reroute.regex"       = ".*"
+    "transforms.reroute.replacement" = "domain.checkout.orders"
   }
 
   kafka_cluster {
     apache_kafka_cluster {
-      bootstrap_servers = module.msk.bootstrap_brokers_sasl_scram
+      bootstrap_servers = module.msk.bootstrap_brokers_sasl_iam
 
       vpc {
         subnets         = values(module.vpc.private_mq_subnet_ids)
@@ -188,7 +194,7 @@ resource "aws_mskconnect_connector" "debezium_postgres" {
   }
 
   kafka_cluster_client_authentication {
-    authentication_type = "NONE"
+    authentication_type = "IAM"
   }
 
   kafka_cluster_encryption_in_transit {
