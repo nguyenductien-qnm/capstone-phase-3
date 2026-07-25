@@ -162,6 +162,17 @@ data "aws_iam_policy_document" "karpenter_controller" {
       values   = ["ec2.amazonaws.com"]
     }
   }
+
+  statement {
+    sid       = "AllowInterruptionQueueActions"
+    effect    = "Allow"
+    resources = [aws_sqs_queue.karpenter_interruption.arn]
+    actions = [
+      "sqs:DeleteMessage",
+      "sqs:GetQueueUrl",
+      "sqs:ReceiveMessage",
+    ]
+  }
 }
 
 resource "aws_iam_role_policy" "karpenter_controller" {
@@ -181,4 +192,94 @@ resource "aws_ec2_tag" "karpenter_cluster_security_group_discovery" {
   resource_id = aws_eks_cluster.this.vpc_config[0].cluster_security_group_id
   key         = "karpenter.sh/discovery"
   value       = local.cluster_name
+}
+
+# Spot capacity: Karpenter cần nhận cảnh báo interruption (spot reclaim, rebalance
+# recommendation, instance state change...) trước khi AWS thu hồi instance, để kịp
+# drain pod graceful thay vì mất đột ngột. Không có queue này thì NodePool dùng
+# capacity-type=spot vẫn launch được nhưng mất khả năng graceful shutdown.
+resource "aws_sqs_queue" "karpenter_interruption" {
+  name                      = "${local.cluster_name}-karpenter"
+  message_retention_seconds = 300
+  sqs_managed_sse_enabled   = true
+
+  tags = {
+    Name = "${local.cluster_name}-karpenter"
+  }
+
+  lifecycle {
+    ignore_changes = [tags["karpenter.sh/discovery"]]
+  }
+}
+
+data "aws_iam_policy_document" "karpenter_interruption_queue" {
+  statement {
+    sid       = "AllowEventBridgeToSendMessages"
+    effect    = "Allow"
+    actions   = ["sqs:SendMessage"]
+    resources = [aws_sqs_queue.karpenter_interruption.arn]
+
+    principals {
+      type        = "Service"
+      identifiers = ["events.amazonaws.com", "sqs.amazonaws.com"]
+    }
+  }
+
+  statement {
+    sid       = "DenyHTTP"
+    effect    = "Deny"
+    actions   = ["sqs:*"]
+    resources = [aws_sqs_queue.karpenter_interruption.arn]
+
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+
+    condition {
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
+    }
+  }
+}
+
+resource "aws_sqs_queue_policy" "karpenter_interruption" {
+  queue_url = aws_sqs_queue.karpenter_interruption.id
+  policy    = data.aws_iam_policy_document.karpenter_interruption_queue.json
+}
+
+resource "aws_cloudwatch_event_rule" "karpenter_interruption" {
+  for_each = {
+    scheduled_change = {
+      source      = ["aws.health"]
+      detail-type = ["AWS Health Event"]
+    }
+    spot_interruption = {
+      source      = ["aws.ec2"]
+      detail-type = ["EC2 Spot Instance Interruption Warning"]
+    }
+    rebalance = {
+      source      = ["aws.ec2"]
+      detail-type = ["EC2 Instance Rebalance Recommendation"]
+    }
+    instance_state_change = {
+      source      = ["aws.ec2"]
+      detail-type = ["EC2 Instance State-change Notification"]
+    }
+    capacity_reservation_interruption = {
+      source      = ["aws.ec2"]
+      detail-type = ["EC2 Capacity Reservation Instance Interruption Warning"]
+    }
+  }
+
+  name          = "${local.cluster_name}-karpenter-${each.key}"
+  event_pattern = jsonencode(each.value)
+}
+
+resource "aws_cloudwatch_event_target" "karpenter_interruption" {
+  for_each = aws_cloudwatch_event_rule.karpenter_interruption
+
+  rule = each.value.name
+  arn  = aws_sqs_queue.karpenter_interruption.arn
 }

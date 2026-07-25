@@ -12,6 +12,26 @@ default:
   topologySpreadZoneMinDomains: 2
 
 components:
+  # Karpenter spot pilot: 2 service ngoài money-path (không cart/checkout/payment/
+  # currency/shipping/frontend), ad có sẵn circuit breaker + graceful fallback
+  # (M17-R1) nên chịu gián đoạn spot tốt. Toleration khớp taint NodePool `spot`
+  # (platform/karpenter/nodepool-spot.yaml).
+  ad:
+    schedulingRules:
+      tolerations:
+        - key: techx.io/capacity
+          value: spot
+          effect: NoSchedule
+      nodeSelector:
+        techx.io/capacity: spot
+  product-reviews:
+    schedulingRules:
+      tolerations:
+        - key: techx.io/capacity
+          value: spot
+          effect: NoSchedule
+      nodeSelector:
+        techx.io/capacity: spot
   frontend:
     # Next.js SSR là nút thắt user-facing: 200m limit bóp cổ (throttle 9.3% khi kịch
     # HPA max 6). Nới limit nâng trần bằng hiệu suất, không thêm node; giữ requests

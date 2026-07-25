@@ -22,6 +22,7 @@ spec:
       values: |
         settings:
           clusterName: ecommerce-dev-eks
+          interruptionQueue: ecommerce-dev-eks-karpenter
         serviceAccount:
           create: true
           name: karpenter
