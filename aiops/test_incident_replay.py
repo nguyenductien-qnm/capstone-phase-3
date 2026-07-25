@@ -130,7 +130,11 @@ def test_committed_scenario_files_parse_and_normalize():
     well-formed and produce events with the fields score_events() needs.
     (monitored_rule_ids fallback for healthy_load-type scenarios is covered
     once that scenario type is introduced — see MANDATE-15 work.)"""
-    files = glob.glob(os.path.join(SCENARIOS_DIR, "*.json"))
+    # Skip <scenario>.result.json: those are outputs a live run drops next to
+    # the scenario it scored, not scenarios, and globbing them in made this
+    # test fail the moment anyone actually ran the harness.
+    files = [p for p in glob.glob(os.path.join(SCENARIOS_DIR, "*.json"))
+             if not p.endswith(".result.json")]
     assert len(files) >= 1
     for path in files:
         with open(path, "r", encoding="utf-8") as f:
@@ -141,7 +145,11 @@ def test_committed_scenario_files_parse_and_normalize():
         for ev in events:
             assert "expect_fire" in ev
             assert isinstance(ev.get("expected_rule_ids"), list)
-            assert ev.get("inject") is not None
+            if ev.get("expect_fire"):
+                # An event that must fire needs something to make it fire.
+                # Observation-only windows (expect_fire False, e.g. the #7b
+                # quiet-window baseline) deliberately carry no inject.
+                assert ev.get("inject") is not None
 
 
 def test_check_remediation_filters_to_window(tmp_path):

@@ -514,6 +514,12 @@ services:
       - OTEL_RESOURCE_ATTRIBUTES
       - OTEL_SERVICE_NAME=product-catalog
       - OTEL_SEMCONV_STABILITY_OPT_IN=database
+      # src/postgresql/init.sql is already at the post-contract schema (catalog.products
+      # has image_url, the legacy picture column is gone), so read_new is the matching
+      # phase here. The dual_read default would emit COALESCE(image_url, p.picture) and
+      # fail with "column p.picture does not exist" — see productPictureSQLExpr() in
+      # src/product-catalog/main.go.
+      - CATALOG_SCHEMA_PHASE=read_new
       - DB_CONNECTION_STRING=postgres://otelu:otelp@${POSTGRES_HOST}/${POSTGRES_DB}?sslmode=disable
     depends_on:
       otel-collector:

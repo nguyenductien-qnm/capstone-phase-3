@@ -1,0 +1,15 @@
+  [inject] flagd imageSlowLoad -> 5sec
+  [inject] flagd imageSlowLoad -> off
+  [inject] settling 120s before scoring...
+
+======================================================================
+SCENARIO: case-image-slow-001 [real]
+MANDATE-07 #7b service-expansion case #3: inject imageSlowLoad=5sec via flagd. image-provider starts serving images with a 5s delay, so the HTTP p95 latency of the serving path breaches the 1s storefront SLO and latency-p95-high must fire. Third signal class in the labeled set (latency, vs gRPC error rate in the other two cases) — #7b asks for detection across several signals, not one repeated. latency-p95-high groups by service_name over all non-infra services, so the alert may land on image-provider or on frontend depending on which side of the call the slow span is recorded; either is a correct catch for this event.
+----------------------------------------------------------------------
+  [case-image-slow-001] expect_fire=True -> silent (lead_time=n/a) MISMATCH
+----------------------------------------------------------------------
+  K incidents = 1 | recall = 0.0 | precision = 0.0 (correct=0/total=2)
+  VERDICT (real): FAIL — real incident NOT caught
+======================================================================
+
+  result written to aiops/incident_scenarios/case_image_slow.result.json

@@ -1,0 +1,16 @@
+{
+  "id": "case-cart-failure-001",
+  "type": "real",
+  "description": "MANDATE-07 #7b NEGATIVE/BLIND-SPOT case: inject cartFailure=on via flagd and show the detector does NOT catch it. Kept in the labeled set on purpose. Measuring this set surfaced the reason: the .NET cart service exports no rpc_server_duration_milliseconds series at all — only http_server_request_duration_seconds for its own HTTP surface plus collector-generated traces_span_metrics_* — so grpc-error-rate-high, which is a ratio over rpc_server_duration_milliseconds_count, has nothing to read for cart no matter how badly cart is failing. Nor does any other current rule cover it: the burn-rate rules key off http_server_request_duration_seconds 5xx, and cart's failures surface as gRPC status on the CALLER, not as 5xx on cart. This is an instrumentation gap, not a threshold that needs loosening, and tuning thresholds would not fix it. Expected verdict is FAIL until either cart emits server-side RPC metrics or a rule is added over traces_span_metrics_*. Recorded here so the gap stays visible instead of being quietly dropped from the set.",
+  "service": "cart",
+  "expected_rule_ids": ["grpc-error-rate-high", "error-budget-burn-fast-standard"],
+  "expect_fire": true,
+  "inject": {
+    "type": "flagd",
+    "flag": "cartFailure",
+    "on_variant": "on",
+    "off_variant": "off"
+  },
+  "duration_seconds": 300,
+  "settle_seconds": 120
+}

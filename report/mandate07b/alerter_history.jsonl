@@ -1,0 +1,18 @@
+
+{"ts": 1784994512.732024, "rule_id": "db-pool-exhaustion", "service": "log", "severity": "critical", "fingerprint": "log:5949981"}
+{"ts": 1784994618.098318, "rule_id": "db-pool-exhaustion", "service": "log", "severity": "critical", "fingerprint": "log:5949982"}
+{"ts": 1784994619.607784, "rule_id": "dns-resolution-error", "service": "log", "severity": "warning", "fingerprint": "log:5949982"}
+{"ts": 1784994806.5727391, "rule_id": "latency-p95-high", "service": "cart", "severity": "warning", "fingerprint": "cart:5949982"}
+{"ts": 1784994869.3676538, "rule_id": "grpc-error-rate-high", "service": "checkout", "severity": "critical", "fingerprint": "checkout:5949982"}
+{"ts": 1784995249.937068, "rule_id": "dns-resolution-error", "service": "log", "severity": "warning", "fingerprint": "log:5949984"}
+{"ts": 1784995499.322651, "rule_id": "grpc-error-rate-high", "service": "checkout", "severity": "critical", "fingerprint": "checkout:5949984"}
+{"ts": 1784995851.274702, "rule_id": "dns-resolution-error", "service": "log", "severity": "warning", "fingerprint": "log:5949986"}
+{"ts": 1784995881.4498088, "rule_id": "latency-p95-high", "service": "cart", "severity": "warning", "fingerprint": "cart:5949986"}
+{"ts": 1784996105.9081678, "rule_id": "grpc-error-rate-high", "service": "checkout", "severity": "critical", "fingerprint": "checkout:5949987"}
+{"ts": 1784996138.7948768, "rule_id": "grpc-error-rate-high", "service": "product-catalog", "severity": "critical", "fingerprint": "product-catalog:5949987"}
+{"ts": 1784996462.7108102, "rule_id": "dns-resolution-error", "service": "log", "severity": "warning", "fingerprint": "log:5949988"}
+{"ts": 1784996724.203018, "rule_id": "grpc-error-rate-high", "service": "checkout", "severity": "critical", "fingerprint": "checkout:5949989"}
+{"ts": 1784997074.37201, "rule_id": "dns-resolution-error", "service": "log", "severity": "warning", "fingerprint": "log:5949990"}
+{"ts": 1784997327.25793, "rule_id": "grpc-error-rate-high", "service": "checkout", "severity": "critical", "fingerprint": "checkout:5949991"}
+{"ts": 1784997703.396981, "rule_id": "dns-resolution-error", "service": "log", "severity": "warning", "fingerprint": "log:5949992"}
+{"ts": 1784997952.6072478, "rule_id": "grpc-error-rate-high", "service": "checkout", "severity": "critical", "fingerprint": "checkout:5949993"}
