@@ -49,8 +49,22 @@ on:
       - ".github/workflows/app-build.yaml"
   workflow_dispatch:
     inputs:
+      # MANDATE-10 yêu cầu #6 ("chỉ đụng cái gì đổi"): đường full rebuild phải HẸP và
+      # CÓ LÝ DO, không phải mặc định. Trước đây bỏ trống ô này = build im lặng cả 20+
+      # image; đó chính là cách run 30159978689 (04/07) đóng dấu commit 6beefa4 lên MỌI
+      # image, khiến trace currency trỏ về PR #401 vốn chỉ sửa shipping. Nay bỏ trống
+      # là FAIL: phải hoặc liệt kê service, hoặc chủ động xác nhận full + nêu lý do.
       services:
-        description: "Danh sách service build (space-separated), rỗng = build tất cả"
+        description: "Service cần build (space-separated). Bỏ trống = full rebuild, khi đó PHẢI bật confirm_full + ghi reason"
+        required: false
+        type: string
+      confirm_full:
+        description: "Xác nhận CHỦ ĐÍCH rebuild TOÀN BỘ image (chỉ dùng khi services để trống)"
+        required: false
+        type: boolean
+        default: false
+      reason:
+        description: "Lý do full rebuild (bắt buộc khi confirm_full=true) — ghi vào job summary để truy vết"
         required: false
         type: string
       attest_sbom:
@@ -105,6 +119,10 @@ jobs:
     outputs:
       matrix: ${{ steps.set.outputs.matrix }}
       any: ${{ steps.set.outputs.any }}
+      # Danh sách service thật sự được dựng trong run này (cách nhau bằng khoảng
+      # trắng). Job bump đọc lại để tự kiểm: không được ghi tag cho service nằm
+      # ngoài danh sách này.
+      services: ${{ steps.set.outputs.services }}
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -120,6 +138,8 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           DISPATCH_SERVICES: ${{ github.event.inputs.services }}
+          DISPATCH_CONFIRM_FULL: ${{ github.event.inputs.confirm_full }}
+          DISPATCH_REASON: ${{ github.event.inputs.reason }}
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           VALUES: platform/charts/application/values.yaml
         run: |
@@ -156,10 +176,20 @@ jobs:
           # do + hạn review) thay vì hoãn cả service — service vẫn deploy được code mới.
 
           # --- Chọn service cần build ---------------------------------------
+          # WHY = câu giải thích VÌ SAO tập service dưới đây được chọn, viết thẳng ra
+          # job summary. Không phân loại thành nhãn: "rộng hay hẹp" cứ đếm số service
+          # là biết, còn thứ người trực cần khi mở run lên là LÝ DO. Mỗi nhánh chọn
+          # service bên dưới tự đặt lại WHY của mình.
           selected=()
+          WHY="thay đổi khu trú trong techx-corp-platform/src/<service>/"
           case "$EVENT" in
             workflow_dispatch)
               if [ -n "${DISPATCH_SERVICES:-}" ]; then
+                # Dispatch có liệt kê service: build đúng những cái được nêu tên.
+                if [ "${DISPATCH_CONFIRM_FULL:-false}" = "true" ]; then
+                  echo "::error::Hai ô mâu thuẫn: đã liệt kê services='$DISPATCH_SERVICES' thì đừng bật confirm_full. Muốn build hết thì để trống ô services."
+                  exit 1
+                fi
                 read -ra requested <<< "$DISPATCH_SERVICES"
                 for svc in "${requested[@]}"; do
                   if [ -z "${DOCKERFILE[$svc]:-}" ]; then
@@ -168,8 +198,21 @@ jobs:
                   fi
                   selected+=("$svc")
                 done
+                WHY="người chạy chỉ định qua ô 'services' của workflow_dispatch"
               else
+                # MANDATE-10 #6: full rebuild KHÔNG còn là mặc định im lặng. Bỏ trống
+                # services mà không xác nhận = FAIL, kèm hướng dẫn. Đây là chốt chặn
+                # cho đúng thao tác đã gây ra sự cố trace ngày 04/07 (run 30159978689).
+                if [ "${DISPATCH_CONFIRM_FULL:-false}" != "true" ]; then
+                  echo "::error::services để trống = FULL REBUILD toàn bộ $(echo "${!DOCKERFILE[@]}" | wc -w) image. Đây không phải mặc định: hãy điền 'services' để build có phạm vi, hoặc bật confirm_full=true kèm reason nếu thật sự cần full."
+                  exit 1
+                fi
+                if [ -z "${DISPATCH_REASON:- }" ] || [ -z "${DISPATCH_REASON// }" ]; then
+                  echo "::error::confirm_full=true nhưng thiếu 'reason'. Full rebuild phải có lý do ghi lại được (MANDATE-10 #6: đường full phải hẹp và có lý do)."
+                  exit 1
+                fi
                 selected=("${!DOCKERFILE[@]}")
+                WHY="người chạy xác nhận rebuild toàn bộ, lý do khai báo: $DISPATCH_REASON"
               fi
               ;;
             *)
@@ -178,6 +221,7 @@ jobs:
                  || ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
                 echo "Không xác định được base commit -> build tất cả."
                 selected=("${!DOCKERFILE[@]}")
+                WHY="không xác định được base commit (nhánh mới, hoặc BASE_SHA không còn tồn tại) nên không biết gì đã đổi — chọn tất cả cho an toàn"
               else
                 mapfile -t changed < <(git diff --name-only "$BASE_SHA" "${{ github.sha }}")
 
@@ -198,6 +242,24 @@ jobs:
                 # key lạ/mới KHÔNG nằm trong danh sách xoá vẫn ở phần còn lại -> build
                 # thừa (an toàn) thay vì skip nhầm -> deploy image cũ.
                 if printf '%s\n' "${changed[@]}" | grep -qx "$VALUES"; then
+                  # Phần NGOÀI .components không phải thứ gì cũng toàn cục. File này
+                  # còn chứa subchart bên thứ ba (jaeger/prometheus/grafana/opensearch/
+                  # opentelemetry-collector) và chính sách hạ tầng (networkPolicy/
+                  # observabilityStorage/telemetryRetention/externalSecrets/serviceAccount)
+                  # — chúng dùng image upstream riêng, KHÔNG bake từ code repo này.
+                  #
+                  # Trước đây so nguyên `del(.components)` nên chạm bất kỳ key nào trong
+                  # số đó cũng kéo full rebuild. Đó là lý do merge PR #284 (mandate-18,
+                  # commit 4252fed) thêm khối `telemetryRetention` — một policy xoá log
+                  # OpenSearch, còn để enabled:false — mà build lại cả 21 image, trong
+                  # khi thay đổi code thật chỉ nằm ở src/email/.
+                  #
+                  # Nay chỉ giữ .default để so: đây là key DUY NHẤT áp cho MỌI service
+                  # (image.repository/tag, env, envOverrides, schedulingRules...). Đổi nó
+                  # thì mọi image mới lệch thật. Thêm key toàn cục mới sau này thì thêm
+                  # vào GLOBAL_KEEP; quên thì hệ quả là build THIẾU, nên bước
+                  # validate-manifest + Kyverno verify digest vẫn là lưới đỡ phía sau.
+                  GLOBAL_KEEP='pick(["default"])'
                   RT='del(.resources,.hpa,.podAnnotations,.env,.service,.securityContext,.readinessProbe,.livenessProbe,.startupProbe,.podDisruptionBudget,.topologySpread,.terminationGracePeriodSeconds,.lifecycle,.deploymentStrategy,.replicas,.ports,.serviceAccount,.command,.initContainers,.sidecarContainers,.additionalVolumes,.mountedConfigMaps,.mountedEmptyDirs,.ingress)'
                   BASE_V=$(git show "$BASE_SHA:$VALUES" 2>/dev/null || true)
                   HEAD_V=$(git show "${{ github.sha }}:$VALUES" 2>/dev/null || cat "$VALUES")
@@ -205,10 +267,14 @@ jobs:
                   if [ -z "$BASE_V" ]; then
                     echo "Không đọc được $VALUES ở base -> build tất cả (an toàn)."
                     selected=("${!DOCKERFILE[@]}")
-                  elif [ "$(yq 'del(.components)' <<<"$BASE_V")" != "$(yq 'del(.components)' <<<"$HEAD_V")" ]; then
-                    # Thay đổi NGOÀI .components (global/default/... ảnh hưởng mọi service).
-                    echo "$VALUES: đổi ngoài .components -> build tất cả."
+                    WHY="không đọc được $VALUES ở base commit nên không so được gì đã đổi — chọn tất cả cho an toàn"
+                  elif [ "$(yq "del(.components) | $GLOBAL_KEEP" <<<"$BASE_V")" \
+                      != "$(yq "del(.components) | $GLOBAL_KEEP" <<<"$HEAD_V")" ]; then
+                    # Đổi ở key TOÀN CỤC THẬT (.default: image/env/envOverrides/... áp
+                    # cho MỌI service) -> mọi image đều lệch, phải build lại tất cả.
+                    echo "$VALUES: đổi key toàn cục (.default) -> build tất cả."
                     selected=("${!DOCKERFILE[@]}")
+                    WHY="$VALUES đổi ở nhánh .default — nhánh này áp cho MỌI service nên mọi image đều lệch theo"
                   else
                     for svc in "${!DOCKERFILE[@]}"; do
                       b=$(yq ".components[\"$svc\"] | $RT" <<<"$BASE_V")
@@ -224,22 +290,65 @@ jobs:
               ;;
           esac
 
+          TOTAL_BUILDABLE=$(echo "${!DOCKERFILE[@]}" | wc -w)
+
           if [ "${#selected[@]}" -eq 0 ]; then
             echo "any=false" >> "$GITHUB_OUTPUT"
+            echo "services=" >> "$GITHUB_OUTPUT"
             echo "matrix={\"include\":[]}" >> "$GITHUB_OUTPUT"
             echo "Không service nào thay đổi."
+            {
+              echo "### Không dựng image nào"
+              echo ""
+              echo "Không service nào có thay đổi ảnh hưởng tới nội dung image."
+              echo "Thay đổi runtime thuần (resources/hpa/probe/env...) được Helm tiêm lúc chạy,"
+              echo "nên chỉ cần deploy gate + ArgoCD sync, không cần dựng lại image."
+            } >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
 
+          # Gom luôn danh sách đã khử trùng lặp trong CÙNG vòng lặp dựng matrix, thay vì
+          # chạy lại sort -u thêm lần nữa — hai nguồn rời nhau là có ngày lệch nhau.
           include=""
+          picked=()
           for svc in $(printf '%s\n' "${selected[@]}" | sort -u); do
             [ -n "$include" ] && include+=","
             include+="{\"service\":\"$svc\",\"dockerfile\":\"${DOCKERFILE[$svc]}\"}"
+            picked+=("$svc")
           done
+
+          SELECTED_SORTED="${picked[*]}"
+          SELECTED_COUNT="${#picked[@]}"
 
           echo "any=true" >> "$GITHUB_OUTPUT"
           echo "matrix={\"include\":[$include]}" >> "$GITHUB_OUTPUT"
-          echo "Sẽ build: $(printf '%s ' "${selected[@]}")"
+          echo "services=$SELECTED_SORTED" >> "$GITHUB_OUTPUT"
+          echo "Sẽ build $SELECTED_COUNT/$TOTAL_BUILDABLE service: $SELECTED_SORTED"
+          echo "Vì: $WHY"
+
+          # MANDATE-10 #6: mỗi run tự khai nó dựng bao nhiêu image và vì sao, ngay trên
+          # trang run. Không cần nhãn phân loại — SỐ ĐẾM đã nói lên phạm vi, WHY nói
+          # lên nguyên nhân. Cảnh báo chỉ bật khi tập chọn phủ đúng toàn bộ service.
+          {
+            echo "### Dựng lại $SELECTED_COUNT/$TOTAL_BUILDABLE image"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Sự kiện | \`$EVENT\` |"
+            echo "| Service được dựng | $SELECTED_SORTED |"
+            echo "| Căn cứ chọn | $WHY |"
+            echo ""
+            if [ "$SELECTED_COUNT" -eq "$TOTAL_BUILDABLE" ]; then
+              echo "> [!WARNING]"
+              echo "> Run này chạm **toàn bộ** service. Mọi image sinh ra đều mang commit"
+              echo "> \`$(git rev-parse --short HEAD)\` — kể cả service không hề đổi trong commit đó."
+              echo "> Khi truy nguồn gốc, chúng sẽ cùng trỏ về PR của commit này; đó là hệ quả đúng"
+              echo "> của việc dựng lại tất cả, không phải sai sót của bước truy vết."
+            else
+              echo "Những service không nằm trong danh sách trên giữ nguyên image và digest cũ:"
+              echo "không đẩy ECR, không ký lại, không đổi tag, ArgoCD không redeploy chúng."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
   # ------------------------------------------------------------------ #
   # CDO-141: Validate Helm/manifest làm GATE trước build/deploy.        #
@@ -719,6 +828,54 @@ jobs:
             echo "== $svc -> $TAG =="
             yq -i ".components.\"$svc\".imageOverride.tag = \"$TAG\"" "$TAGS_FILE"
           done
+
+      # MANDATE-10 #6: bump chỉ được chạm ĐÚNG service vừa build. Nếu matrix và diff
+      # lệch nhau, ta sẽ ghi tag cho service KHÔNG có image trên ECR -> ImagePullBackOff
+      # (đúng dạng sự cố 2026-07-16). Chặn ở CI thay vì trông vào người review diff.
+      - name: Verify diff chỉ chạm service đã build
+        if: needs.build.result == 'success' && needs.detect.outputs.any == 'true'
+        env:
+          EXPECTED: ${{ needs.detect.outputs.services }}
+        run: |
+          set -euo pipefail
+
+          # File tags chỉ được phép là file duy nhất mà bước bump này chạm vào.
+          mapfile -t touched < <(git diff --name-only -- "$TAGS_FILE")
+          if [ "${#touched[@]}" -eq 0 ]; then
+            echo "ℹ️ $TAGS_FILE không đổi (tag đã đúng sẵn) — bỏ qua kiểm."
+            exit 0
+          fi
+
+          # Service nào có dòng tag thay đổi trong diff? Đọc từ chính hunk header của
+          # yq output: mỗi tag nằm dưới components.<svc>.imageOverride.tag, nên so
+          # base vs head bằng yq cho chắc thay vì đoán qua text diff.
+          git show "HEAD:$TAGS_FILE" > /tmp/tags-base.yaml
+          mapfile -t changed_svcs < <(
+            {
+              yq -r '.components | keys | .[]' /tmp/tags-base.yaml
+              yq -r '.components | keys | .[]' "$TAGS_FILE"
+            } | sort -u | while read -r svc; do
+              b=$(yq -r ".components.\"$svc\".imageOverride.tag // \"\"" /tmp/tags-base.yaml)
+              h=$(yq -r ".components.\"$svc\".imageOverride.tag // \"\"" "$TAGS_FILE")
+              [ "$b" != "$h" ] && echo "$svc"
+            done
+          )
+
+          echo "Service đã build : $EXPECTED"
+          echo "Service bị bump  : ${changed_svcs[*]:-<không có>}"
+
+          # So khớp theo TỪNG DÒNG (grep -qx) chứ không tìm chuỗi con: tên service có
+          # cái là tiền tố của cái khác (product-catalog / product-reviews), khớp lỏng
+          # sẽ nhận nhầm và bỏ lọt đúng lỗi cần bắt.
+          rc=0
+          for svc in "${changed_svcs[@]:-}"; do
+            [ -z "$svc" ] && continue
+            if ! printf '%s\n' $EXPECTED | grep -qx "$svc"; then
+              echo "::error::Bump ghi tag cho '$svc' nhưng service này KHÔNG nằm trong tập vừa build ($EXPECTED). Tag sẽ trỏ tới image không tồn tại trên ECR."
+              rc=1
+            fi
+          done
+          exit "$rc"
 
       # aiops deploy bằng manifest TRẦN (không Helm, không values file) -> bump là sửa
       # thẳng field image trong Deployment. Dùng yq theo ĐƯỜNG DẪN document
