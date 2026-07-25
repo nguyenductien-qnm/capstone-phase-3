@@ -225,7 +225,7 @@ jobs:
           RUN_TRIGGERING_ACTOR="$(jq -r '.triggering_actor.login // "unknown"' run-detail.json)"
           pass_line "app-build run" "run=$RUN_ID conclusion=success"
           echo "| Build/scan/sign run | [run ${RUN_ID}](${RUN_URL}) conclusion=success |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Build workflow/action | \`${RUN_WORKFLOW_NAME}\` (\`${RUN_WORKFLOW_PATH}\`) #${RUN_NUMBER} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Build workflow/action | [${RUN_WORKFLOW_NAME} #${RUN_NUMBER}](${RUN_URL}) (\`${RUN_WORKFLOW_PATH}\`) |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Build run trigger | \`${RUN_EVENT}\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Build run actor | \`${RUN_ACTOR}\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Build run triggering actor | \`${RUN_TRIGGERING_ACTOR}\` |" >> "$GITHUB_STEP_SUMMARY"
@@ -270,10 +270,22 @@ jobs:
 
           gh pr view "$PR_NUMBER" \
             --repo "$GITHUB_REPOSITORY" \
-            --json reviews,mergedAt,url,title,number > pr-view.json
+            --json author,reviews,mergedAt,url,title,number > pr-view.json
 
-          REVIEWERS="$(jq -r '[.reviews[]? | select(.state == "APPROVED") | .author.login] | unique | join(", ")' pr-view.json)"
-          [ -n "$REVIEWERS" ] || fail "PR #$PR_NUMBER found, but no APPROVED review in API response"
+          PR_AUTHOR="$(jq -r '.author.login // "unknown"' pr-view.json)"
+          REVIEWERS="$(
+            jq -r --arg author "$PR_AUTHOR" '
+              [.reviews[]? | select(.state != "COMMENTED" and .state != "PENDING" and .state != "DISMISSED")]
+              | sort_by(.submittedAt // "")
+              | group_by(.author.login)
+              | map(last)
+              | map(select(.state == "APPROVED" and .author.login != $author))
+              | map(.author.login)
+              | unique
+              | join(", ")
+            ' pr-view.json
+          )"
+          [ -n "$REVIEWERS" ] || fail "PR #$PR_NUMBER found, but no latest non-author APPROVED review in API response"
           pass_line "source PR" "#$PR_NUMBER approvedBy=$REVIEWERS"
           echo "| Source merge commit PR | [#${PR_NUMBER} ${PR_TITLE}](${PR_URL}) |" >> "$GITHUB_STEP_SUMMARY"
           if [ "$RUN_EVENT" = "workflow_dispatch" ]; then
