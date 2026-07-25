@@ -484,6 +484,21 @@ components:
         value: flagd
       - name: FLAGD_PORT
         value: "8013"
+      - name: KAFKA_ADDR
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: brokers_sasl_scram
+      - name: KAFKA_USER
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: username
+      - name: KAFKA_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: password
       - name: OTEL_EXPORTER_OTLP_ENDPOINT
         value: http://$(OTEL_COLLECTOR_NAME):4317
     resources:
