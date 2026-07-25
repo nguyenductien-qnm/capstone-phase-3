@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
-FROM docker.io/library/ruby:3.4.9-alpine3.22 AS builder
+FROM docker.io/library/ruby:3.4.9-alpine3.22@sha256:2f1913c4f4880a5d3f6d0b314029153989f35b72b88591495089ebfb6ca86252 AS builder
 
 COPY ./src/email/Gemfile Gemfile
 COPY ./src/email/Gemfile.lock Gemfile.lock
@@ -12,7 +12,7 @@ RUN apk update && \
     apk add --no-cache make gcc musl-dev gcompat zlib-dev && \
     bundle install
 
-FROM docker.io/library/ruby:3.4.9-alpine3.22
+FROM docker.io/library/ruby:3.4.9-alpine3.22@sha256:2f1913c4f4880a5d3f6d0b314029153989f35b72b88591495089ebfb6ca86252
 
 # Patch OS packages from the base image.
 RUN apk upgrade --no-cache
