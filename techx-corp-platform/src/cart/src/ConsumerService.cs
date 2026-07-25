@@ -34,7 +34,7 @@ public class ConsumerService : BackgroundService
             GroupId = "cart-fulfillment-consumer", // Independent consumer group                                                         
             AutoOffsetReset = AutoOffsetReset.Earliest,                                                                                  
             EnableAutoCommit = true,
-            SecurityProtocol = SecurityProtocol.SaslPlaintext,
+            SecurityProtocol = SecurityProtocol.SaslSsl,
             SaslMechanism = SaslMechanism.ScramSha512,
             SaslUsername = Environment.GetEnvironmentVariable("KAFKA_USER") ?? "msk_user",
             SaslPassword = Environment.GetEnvironmentVariable("KAFKA_PASSWORD") ?? ""
