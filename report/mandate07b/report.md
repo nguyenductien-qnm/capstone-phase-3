@@ -72,6 +72,21 @@ Dùng biểu đồ dựng từ dữ liệu thay vì ảnh chụp màn hình là 
 chứng được, còn cái này đi kèm `image/error_ratio_raw.json` (phản hồi Prometheus nguyên
 văn) nên mentor tự vẽ lại và đối chiếu được.
 
+**Đối chiếu trên UI Prometheus** — cùng biểu thức, chụp trực tiếp từ giao diện:
+
+![Prometheus UI: tỉ lệ lỗi gRPC checkout đạt 0.9638 lúc 15:56:22Z](image/prometheus-error-ratio-ui.png)
+
+Ba điểm cần đọc đúng ở ảnh này:
+
+- **Trục thời gian là UTC** (`15:30–16:30Z`), tức **22:30–23:30 giờ VN** (UTC+7). Cùng
+  khoảng thời gian với biểu đồ bên trên, chỉ khác múi giờ hiển thị của UI.
+- **Cột nhọn 15:55–16:00Z là sự cố bơm vào** (`paymentFailure=100%`); tooltip đọc được
+  **0.9638 lúc 15:56:22Z**, so với ngưỡng rule 0.05. Con số này lệch nhẹ so với 0.959 ở
+  biểu đồ trên vì UI đang ở `Medium res.` còn script lấy `step=30s` — khác bước lấy mẫu,
+  không phải khác dữ liệu.
+- **Đoạn cao từ 16:15Z trở đi (~0.70) KHÔNG phải sự cố bơm vào** — đó là `email`
+  restart-loop, xem mục 4.6. Nêu ra để không bị hiểu nhầm thành lần bơm thứ hai.
+
 
 ```
 ======================================================================
