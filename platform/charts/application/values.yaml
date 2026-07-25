@@ -297,7 +297,7 @@ components:
     terminationGracePeriodSeconds: 30
     lifecycle:
       preStop:
-        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
+        sleep: { seconds: 5 }   # M17: sleep native (K8s>=1.29) thay exec /bin/sh — image distroless không có shell → exec fail (FailedPreStopHook).
     deploymentStrategy:
       type: RollingUpdate
       rollingUpdate:
@@ -440,7 +440,7 @@ components:
     terminationGracePeriodSeconds: 30
     lifecycle:
       preStop:
-        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
+        sleep: { seconds: 5 }   # M17: sleep native (K8s>=1.29) thay exec /bin/sh — image distroless không có shell → exec fail (FailedPreStopHook).
     deploymentStrategy:
       type: RollingUpdate
       rollingUpdate:
@@ -539,7 +539,7 @@ components:
     terminationGracePeriodSeconds: 30
     lifecycle:
       preStop:
-        exec: { command: ["/bin/sh", "-c", "sleep 5"] } # CDO-29: chờ endpoint propagate, không rơi request
+        sleep: { seconds: 5 }   # CDO-29: chờ endpoint propagate, không rơi request. M17: sleep native (K8s>=1.29) — image distroless không có /bin/sh nên exec fail (FailedPreStopHook).
     deploymentStrategy: # CDO-29: rollout không hạ pod cũ trước khi pod mới Ready
       type: RollingUpdate
       rollingUpdate:
@@ -886,7 +886,7 @@ components:
     terminationGracePeriodSeconds: 30
     lifecycle:
       preStop:
-        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
+        sleep: { seconds: 5 }   # M17: sleep native (K8s>=1.29) thay exec /bin/sh — image distroless không có shell → exec fail (FailedPreStopHook).
     deploymentStrategy:
       type: RollingUpdate
       rollingUpdate:
@@ -1004,7 +1004,7 @@ components:
     terminationGracePeriodSeconds: 30
     lifecycle:
       preStop:
-        exec: { command: ["/bin/sh", "-c", "sleep 5"] } # cực quan trọng cho Envoy: drain kết nối trước khi tắt
+        sleep: { seconds: 5 }   # cực quan trọng cho Envoy: drain kết nối trước khi tắt. M17: sleep native (K8s>=1.29) thay exec — không phụ thuộc shell trong image.
     deploymentStrategy: # CDO-29: zero-downtime khi rollout Envoy cho Mandate 01
       type: RollingUpdate
       rollingUpdate:
@@ -1353,7 +1353,7 @@ components:
     terminationGracePeriodSeconds: 30
     lifecycle:
       preStop:
-        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
+        sleep: { seconds: 5 }   # M17: sleep native (K8s>=1.29) thay exec /bin/sh — image distroless không có shell → exec fail (FailedPreStopHook).
     deploymentStrategy:
       type: RollingUpdate
       rollingUpdate:
@@ -1433,7 +1433,7 @@ components:
     terminationGracePeriodSeconds: 30
     lifecycle:
       preStop:
-        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
+        sleep: { seconds: 5 }   # M17: sleep native (K8s>=1.29) thay exec /bin/sh — image distroless không có shell → exec fail (FailedPreStopHook).
     deploymentStrategy:
       type: RollingUpdate
       rollingUpdate:
