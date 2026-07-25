@@ -61,7 +61,8 @@ async function startConsumer() {
         }
 
         const dataObj = payload.after || payload.before || payload;
-        const orderId = message.key ? message.key.toString() : (dataObj.order_id || dataObj.orderId || payload.order_id);
+        const rawKey = message.key ? message.key.toString() : '';
+        const orderId = dataObj.order_id || dataObj.orderId || dataObj.aggregate_id || (rawKey.includes('Struct') ? '' : rawKey);
         
         let userId = dataObj.user_id || dataObj.userId || payload.user_id || '';
         if (!userId && dataObj.order_metadata) {
