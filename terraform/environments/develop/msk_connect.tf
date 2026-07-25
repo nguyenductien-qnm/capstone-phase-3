@@ -177,10 +177,21 @@ resource "aws_mskconnect_connector" "debezium_postgres" {
     "publication.autocreate.mode"    = "all_tables"
     "tombstones.on.delete"           = "false"
     "decimal.handling.mode"          = "double"
+
+    # Configure Debezium to use 'order_id' as the message key 
+    # instead of checkout.outbox auto-increased primary key 
+    "message.key.columns" = "checkout.outbox:order_id"
+
+    # The message key is then serialized as a plain string
     "key.converter"                  = "org.apache.kafka.connect.storage.StringConverter"
     "value.converter"                = "org.apache.kafka.connect.json.JsonConverter"
     "value.converter.schemas.enable" = "false"
-    "transforms"                     = "reroute"
+
+    # Kafka Connect requires a comma-seperated list of active transformation
+    "transforms"                     = "extractKey,reroute"
+    "transforms.extractKey.type"     = "org.apache.kafka.connect.transforms.ExtractField$Key"
+    "transforms.extractKey.field"    = "order_id"
+   
     "transforms.reroute.type"        = "org.apache.kafka.connect.transforms.RegexRouter"
     "transforms.reroute.regex"       = ".*"
     "transforms.reroute.replacement" = "domain.checkout.orders"
