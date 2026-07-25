@@ -57,6 +57,22 @@ Dữ liệu thô để mentor tự chấm lại: `alerter_history.jsonl` (16 ale
 
 ### 4.3 Ca chính — detector kêu đúng, e2e
 
+![Tỉ lệ lỗi gRPC theo thời gian, các cửa sổ bơm sự cố và thời điểm alert](image/error-ratio-timeline.png)
+
+Biểu đồ vẽ **đúng biểu thức mà rule `grpc-error-rate-high` đánh giá**, lấy trực tiếp từ
+Prometheus của stack đo. Vùng xám = cửa sổ bơm sự cố (đọc từ `*.result.json`), ▼ = alert
+thực sự được gửi (đọc từ `alerter_history.jsonl`) — không có số nào gõ tay. Dựng lại:
+
+```bash
+python report/mandate07b/plot_evidence.py              # truy vấn Prometheus đang chạy
+python report/mandate07b/plot_evidence.py --from-cache # vẽ lại từ JSON thô đã commit
+```
+
+Dùng biểu đồ dựng từ dữ liệu thay vì ảnh chụp màn hình là có chủ đích: ảnh chụp không kiểm
+chứng được, còn cái này đi kèm `image/error_ratio_raw.json` (phản hồi Prometheus nguyên
+văn) nên mentor tự vẽ lại và đối chiếu được.
+
+
 ```
 ======================================================================
 SCENARIO: case-real-incident-001 [real]

@@ -16,3 +16,7 @@
 {"ts": 1784997327.25793, "rule_id": "grpc-error-rate-high", "service": "checkout", "severity": "critical", "fingerprint": "checkout:5949991"}
 {"ts": 1784997703.396981, "rule_id": "dns-resolution-error", "service": "log", "severity": "warning", "fingerprint": "log:5949992"}
 {"ts": 1784997952.6072478, "rule_id": "grpc-error-rate-high", "service": "checkout", "severity": "critical", "fingerprint": "checkout:5949993"}
+{"ts": 1784998308.313347, "rule_id": "dns-resolution-error", "service": "log", "severity": "warning", "fingerprint": "log:5949994"}
+{"ts": 1784998556.421962, "rule_id": "grpc-error-rate-high", "service": "checkout", "severity": "critical", "fingerprint": "checkout:5949995"}
+{"ts": 1784998839.842968, "rule_id": "grpc-error-rate-high", "service": "product-catalog", "severity": "critical", "fingerprint": "product-catalog:5949996"}
+{"ts": 1784998933.760294, "rule_id": "dns-resolution-error", "service": "log", "severity": "warning", "fingerprint": "log:5949996"}
