@@ -2,7 +2,7 @@ name: Trace Image Provenance
 
 # Manual evidence workflow for Mandate 10. It starts from a running pod and a
 # claimed image digest, then reconstructs the supply-chain trail:
-# pod -> runtime digest -> SLSA provenance -> signature -> SBOM -> build run -> PR reviewer.
+# pod -> runtime digest -> SLSA provenance -> signature -> SBOM -> promote attest -> build run -> PR reviewer.
 
 on:
   workflow_dispatch:
@@ -37,8 +37,11 @@ env:
   CLUSTER_NAME: ${{ vars.EKS_CLUSTER_NAME || 'ecommerce-dev-eks' }}
   ECR_REGISTRY: ${{ vars.ECR_REGISTRY || '804372444787.dkr.ecr.us-east-1.amazonaws.com' }}
   ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY || 'ecommerce-dev-techx-corp' }}
+  ATTEST_REPOSITORY: ${{ vars.ECR_ATTEST_REPOSITORY || 'ecommerce-dev-techx-corp-attest' }}
   BUILD_IDENTITY: https://github.com/${{ github.repository }}/.github/workflows/app-build.yaml@refs/heads/develop
+  ATTEST_IDENTITY: https://github.com/${{ github.repository }}/.github/workflows/app-attest.yaml@refs/heads/develop
   OIDC_ISSUER: https://token.actions.githubusercontent.com
+  PROMOTED_DEVELOP_TYPE: https://github.com/nguyenductien-qnm/capstone-phase-3/promoted-develop/v1
   APP_BUILD_WORKFLOW: app-build.yaml
 
 jobs:
@@ -171,6 +174,32 @@ jobs:
           pass_line "sbom attestation" "type=spdxjson"
           echo "| SBOM | PASS \`spdxjson\` attestation verified |" >> "$GITHUB_STEP_SUMMARY"
 
+          echo "== Promoted-develop attestation =="
+          ATTEST_REPO="${ECR_REGISTRY}/${ATTEST_REPOSITORY}"
+          COSIGN_REPOSITORY="$ATTEST_REPO" cosign verify-attestation \
+            --type "$PROMOTED_DEVELOP_TYPE" \
+            --certificate-identity "$ATTEST_IDENTITY" \
+            --certificate-oidc-issuer "$OIDC_ISSUER" \
+            "$IMAGE_REF" > promoted-develop-attestation.json
+
+          PROMOTE_JSON="$(
+            jq -ecs '
+              [.[] | .payload | @base64d | fromjson | .predicate]
+              | map(select(.environment == "develop"))
+              | .[0] // empty
+            ' promoted-develop-attestation.json
+          )"
+          [ -n "$PROMOTE_JSON" ] || fail "promoted-develop attestation exists but no develop predicate was found"
+
+          PROMOTED_SERVICE="$(jq -r '.service // "unknown"' <<<"$PROMOTE_JSON")"
+          PROMOTED_TAG="$(jq -r '.tag // "unknown"' <<<"$PROMOTE_JSON")"
+          PROMOTED_DIGEST="$(jq -r '.digest // "unknown"' <<<"$PROMOTE_JSON")"
+          PROMOTED_BY="$(jq -r '.attestedBy // "unknown"' <<<"$PROMOTE_JSON")"
+          if [ "$PROMOTED_DIGEST" != "unknown" ] && [ "${PROMOTED_DIGEST,,}" != "${DIGEST,,}" ]; then
+            fail "promoted-develop digest mismatch. attestation=$PROMOTED_DIGEST runtime=$DIGEST"
+          fi
+          pass_line "promote attestation" "service=$PROMOTED_SERVICE tag=$PROMOTED_TAG"
+          echo "| Promoted from develop | PASS service=\`${PROMOTED_SERVICE}\`, tag=\`${PROMOTED_TAG}\`, attestedBy=${PROMOTED_BY} |" >> "$GITHUB_STEP_SUMMARY"
           echo "== GitHub Actions build run =="
           gh run list \
             --repo "$GITHUB_REPOSITORY" \
@@ -225,6 +254,6 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "### Result" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "PASS: pod runtime digest traced to SLSA provenance, cosign signature, SBOM, successful app-build run, and approved PR." >> "$GITHUB_STEP_SUMMARY"
+          echo "PASS: pod runtime digest traced to SLSA provenance, cosign signature, SBOM, promoted-develop attestation, successful app-build run, and approved PR." >> "$GITHUB_STEP_SUMMARY"
 
 
