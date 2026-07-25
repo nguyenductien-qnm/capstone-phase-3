@@ -216,10 +216,20 @@ checkout không gọi nổi nó —
   `json.dump(..., ensure_ascii=False)` + newline cuối. Trước đó mỗi lần bơm sự cố lại
   escape toàn bộ ký tự non-ASCII trong `demo.flagd.json` (file có trong git) và mất newline
   cuối, làm `git diff` bẩn sau mỗi lần chạy. Phát hiện khi dọn dẹp sau đợt đo.
+- `aiops/detector/test_detector.py`: thêm fixture `autouse` trỏ `ALERTER_HISTORY_FILE` vào
+  `tmp_path`. Trước đó chạy `pytest` là ghi thật 11 dòng alert vào
+  `aiops/detector/alerter_history.jsonl` — **file đang được git theo dõi** — làm bẩn
+  working tree mỗi lần chạy test. Để `autouse` (thay vì từng test tự opt-in) để test mới
+  có gọi `flush()` cũng không tái tạo lại rò rỉ. Kiểm chứng: chạy cả suite rồi so md5 file
+  trước/sau — **không đổi**.
 - `techx-corp-platform/docker-compose.yml`: `CATALOG_SCHEMA_PHASE=read_new` cho
   `product-catalog`. `init.sql` đã ở schema hậu-contract (chỉ còn `image_url`), nên
   `read_new` mới là chế độ khớp; mặc định `dual_read` sinh
   `COALESCE(image_url, p.picture)` và chết với `column p.picture does not exist`.
+
+Ba lỗi đầu cùng một họ: **chạy thứ gì đó là làm bẩn file trong git, hoặc làm vỡ suite**.
+Cả ba chỉ lộ ra khi có người thật sự chạy harness/test — không lỗi nào bắt được bằng đọc
+code.
 
 ## 6. Link ADR
 
