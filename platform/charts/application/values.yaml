@@ -449,6 +449,7 @@ components:
     startupProbe: # .NET + chờ valkey, JIT warmup lâu hơn
       grpc: { port: 8080, service: "readiness" }
       periodSeconds: 5
+      timeoutSeconds: 5
       failureThreshold: 30
     readinessProbe:
       grpc: { port: 8080, service: "readiness" }
