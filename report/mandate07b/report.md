@@ -49,6 +49,12 @@ checkout vì luồng này thưa (~0.06 req/s) — mọi rule metric đều dùng
 
 Log đầy đủ: `run-case_*.log`. Số máy sinh (không gõ tay): `<scenario>.result.json`.
 Dữ liệu thô để mentor tự chấm lại: `alerter_history.jsonl` (16 alert của cả phiên).
+**Nội dung cảnh báo detector thực sự phát ra: `detector-run.log`** — 42 khối
+`GROUPED ALERT`, mỗi khối gộp các rule cùng service trong cùng cửa sổ, kèm severity
+(🔴 CRITICAL / 🟡 WARNING) và câu mô tả tác động. Đây là bằng chứng trực tiếp cho yêu cầu
+"cảnh báo có ý nghĩa, không spam": alert được **gộp theo service** chứ không bắn rời từng
+rule, và `alerter.py` áp cooldown 600s + fingerprint-dedup nên cùng một sự cố kéo dài
+không kêu lại mỗi 30 giây.
 
 > Lưu ý đọc log: phần mô tả in trong `run-case_cart_failure.log` và
 > `run-case_image_slow.log` là mô tả **trước khi** chẩn đoán được nguyên nhân FAIL. File
