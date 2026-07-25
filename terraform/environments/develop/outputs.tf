@@ -185,11 +185,6 @@ output "msk_connect_role_arn" {
   value       = aws_iam_role.msk_connect.arn
 }
 
-output "debezium_credentials_secret_arn" {
-  description = "ARN của Secret Manager lưu Debezium DB credentials"
-  value       = aws_secretsmanager_secret.debezium_credentials.arn
-}
-
 # ============ Cost Guard Automation Outputs ============
 
 output "cost_guard_sns_topic_80_arn" {

@@ -11,3 +11,6 @@ opentelemetry-sdk
 opentelemetry-exporter-otlp-proto-grpc
 opentelemetry-distro
 opentelemetry-instrumentation
+grpcio
+grpcio-health-checking
+boto3

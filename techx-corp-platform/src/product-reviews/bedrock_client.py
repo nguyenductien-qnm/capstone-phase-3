@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 def create_bedrock_runtime_client(*, region_name: str, config=None):
     role_arn = os.environ.get("BEDROCK_AWS_ROLE_ARN")
-    if role_arn:
+    if role_arn and role_arn != "<your-role-arn>":
         session_name = os.environ.get("BEDROCK_AWS_ROLE_SESSION_NAME", "product-reviews-bedrock")
         assume_role_kwargs = {
             "RoleArn": role_arn,

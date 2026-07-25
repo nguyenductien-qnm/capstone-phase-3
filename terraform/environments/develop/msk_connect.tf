@@ -1,3 +1,11 @@
+data "aws_secretsmanager_secret_version" "msk_credentials" {
+  secret_id = module.msk.msk_secret_arn
+}
+
+data "aws_secretsmanager_secret_version" "rds_credentials" {
+  secret_id = "${var.project_name}-${var.environment}-rds-secret"
+}
+
 # 1. S3 bucket for MSK Connect Plugins
 resource "aws_s3_bucket" "msk_plugins" {
   bucket = "${var.project_name}-${var.environment}-msk-plugins"
@@ -47,7 +55,7 @@ resource "aws_security_group_rule" "rds_ingress_msk_connect" {
 resource "aws_security_group_rule" "msk_ingress_msk_connect" {
   type                     = "ingress"
   from_port                = 9092
-  to_port                  = 9096
+  to_port                  = 9098
   protocol                 = "tcp"
   source_security_group_id = aws_security_group.msk_connect.id
   security_group_id        = module.msk.msk_security_group_id
@@ -97,17 +105,29 @@ resource "aws_iam_role_policy" "msk_connect" {
         Resource = "*"
       },
       {
-        Effect = "Allow"
-        Action = ["secretsmanager:GetSecretValue"]
-        Resource = [
-          aws_secretsmanager_secret.debezium_credentials.arn,
-          module.msk.msk_secret_arn
-        ]
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
+        Resource = [module.msk.msk_secret_arn]
       },
       {
         Effect   = "Allow"
         Action   = ["kms:Decrypt"]
         Resource = [module.msk.kms_key_arn]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "kafka-cluster:Connect",
+          "kafka-cluster:AlterCluster",
+          "kafka-cluster:DescribeCluster",
+          "kafka-cluster:CreateTopic",
+          "kafka-cluster:DescribeTopic",
+          "kafka-cluster:WriteData",
+          "kafka-cluster:ReadData",
+          "kafka-cluster:AlterGroup",
+          "kafka-cluster:DescribeGroup"
+        ]
+        Resource = "*"
       }
     ]
   })
@@ -143,35 +163,43 @@ resource "aws_mskconnect_connector" "debezium_postgres" {
   // Debezium connects via the native PostgreSQL pgoutput logical decoding plugin
   // listens for change events on dbz_publication
   connector_configuration = {
-    "connector.class"                = "io.debezium.connector.postgresql.PostgresConnector"
-    "tasks.max"                      = "1"
-    "database.hostname"              = module.rds.db_primary_address
-    "database.port"                  = "5432"
-    "database.user"                  = postgresql_role.debezium_user.name
-    "database.password"              = random_password.debezium_password.result
-    "database.dbname"                = module.rds.db_name
-    "topic.prefix"                   = "fulfillment"
-    "table.include.list"             = "checkout.outbox"
-    "plugin.name"                    = "pgoutput"
-    "publication.name"               = postgresql_publication.dbz_publication.name
-    "publication.autocreate.mode"    = "filtered"
-    "tombstones.on.delete"           = "false"
-    "decimal.handling.mode"          = "double"
+    "connector.class"             = "io.debezium.connector.postgresql.PostgresConnector"
+    "tasks.max"                   = "1"
+    "database.hostname"           = module.rds.db_primary_address
+    "database.port"               = "5432"
+    "database.user"               = module.rds.db_username
+    "database.password"           = jsondecode(data.aws_secretsmanager_secret_version.rds_credentials.secret_string)["password"]
+    "database.dbname"             = module.rds.db_name
+    "topic.prefix"                = "fulfillment"
+    "table.include.list"          = "checkout.outbox"
+    "plugin.name"                 = "pgoutput"
+    "publication.name"            = "dbz_publication"
+    "publication.autocreate.mode" = "all_tables"
+    "tombstones.on.delete"        = "false"
+    "decimal.handling.mode"       = "double"
+
+    # Configure Debezium to use 'order_id' as the message key 
+    # instead of checkout.outbox auto-increased primary key 
+    "message.key.columns" = "checkout.outbox:order_id"
+
+    # The message key is then serialized as a plain string
     "key.converter"                  = "org.apache.kafka.connect.storage.StringConverter"
     "value.converter"                = "org.apache.kafka.connect.json.JsonConverter"
     "value.converter.schemas.enable" = "false"
-    "transforms"                     = "reroute"
+
+    # Kafka Connect requires a comma-seperated list of active transformation
+    "transforms"                  = "extractKey,reroute"
+    "transforms.extractKey.type"  = "org.apache.kafka.connect.transforms.ExtractField$Key"
+    "transforms.extractKey.field" = "order_id"
+
     "transforms.reroute.type"        = "org.apache.kafka.connect.transforms.RegexRouter"
     "transforms.reroute.regex"       = ".*"
     "transforms.reroute.replacement" = "domain.checkout.orders"
-    "kafka.security.protocol"        = "SASL_SSL"
-    "kafka.sasl.mechanism"           = "SCRAM-SHA-512"
-    "kafka.sasl.jaas.config"         = "org.apache.kafka.common.security.scram.ScramLoginModule required username=\"${jsondecode(data.aws_secretsmanager_secret_version.msk_credentials.secret_string)["username"]}\" password=\"${jsondecode(data.aws_secretsmanager_secret_version.msk_credentials.secret_string)["password"]}\";"
   }
 
   kafka_cluster {
     apache_kafka_cluster {
-      bootstrap_servers = module.msk.bootstrap_brokers_sasl_scram
+      bootstrap_servers = module.msk.bootstrap_brokers_sasl_iam
 
       vpc {
         subnets         = values(module.vpc.private_mq_subnet_ids)
@@ -181,7 +209,7 @@ resource "aws_mskconnect_connector" "debezium_postgres" {
   }
 
   kafka_cluster_client_authentication {
-    authentication_type = "NONE"
+    authentication_type = "IAM"
   }
 
   kafka_cluster_encryption_in_transit {
@@ -195,5 +223,21 @@ resource "aws_mskconnect_connector" "debezium_postgres" {
     }
   }
 
+  worker_configuration {
+    arn      = aws_mskconnect_worker_configuration.debezium.arn
+    revision = aws_mskconnect_worker_configuration.debezium.latest_revision
+  }
+
   service_execution_role_arn = aws_iam_role.msk_connect.arn
+}
+
+# 6. Worker Configuration for MSK Connect SASL/SCRAM authentication
+resource "aws_mskconnect_worker_configuration" "debezium" {
+  name = "${var.project_name}-${var.environment}-debezium-worker-config"
+
+  properties_file_content = <<-EOT
+    key.converter=org.apache.kafka.connect.storage.StringConverter
+    value.converter=org.apache.kafka.connect.json.JsonConverter
+    value.converter.schemas.enable=false
+  EOT
 }

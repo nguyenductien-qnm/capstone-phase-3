@@ -48,9 +48,18 @@ async function startConsumer() {
     await consumerInstance.subscribe({ topic, fromBeginning: true });
     logger.info({ topic, groupId }, `Payment Kafka consumer subscribed to topic '${topic}' under consumer group '${groupId}'.`);
 
+    // consumer.js calls charge.js when a Kafka message arrives
     await consumerInstance.run({
       eachMessage: async ({ topic, partition, message }) => {
+        // 1. Convert Kafka message buffer to string & parse JSON
         const payloadStr = message.value ? message.value.toString() : '';
+        let payload = {};
+        try {
+          payload = JSON.parse(payloadStr);
+        } catch (error) {
+          logger.warn({ err: error }, "Failed to parse JSON message payload");
+        }
+
         logger.info({
           topic,
           partition,
@@ -60,17 +69,26 @@ async function startConsumer() {
           groupId,
         }, `Payment consumer group '${groupId}' consumed message from topic '${topic}'.`);
 
+        // 2. Extract order_id & user_id 
+        const orderId = message.key ? message.key.toString() : (payload.order_id || payload.orderId);
+        const userId = payload.user_id || payload.userId || (payload.order_metadata ? JSON.parse(payload.order_metadata).user_id : '');
+        logger.info({ orderId, userId }, "Extracted orderId and userId in Payment consumer");
+        
+        // 3. 
+        // When consuming from domain.checkout.orders
         // Publish fulfillment event to domain.fulfillment.events
-        try {
-          const orderId = message.key ? message.key.toString() : null;
+        try { 
           const eventPayload = {
             eventType: 'PAYMENT_COMPLETED',
             source: 'payment',
-            timestamp: new Date().toISOString(),
             orderId: orderId,
-            details: payloadStr,
+            userId: userId,
+            timestamp: new Date().toISOString(),
           };
+
+          // Publish to domain.fulfillment.events topic
           await publishFulfillmentEvent(eventPayload, fulfillmentTopic);
+          
         } catch (pubErr) {
           logger.error({ err: pubErr }, `Failed to publish fulfillment event to topic '${fulfillmentTopic}'`);
         }

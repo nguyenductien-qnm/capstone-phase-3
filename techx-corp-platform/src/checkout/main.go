@@ -14,7 +14,6 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -27,7 +26,6 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/IBM/sarama"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	otelhooks "github.com/open-feature/go-sdk-contrib/hooks/open-telemetry/pkg"
@@ -50,7 +48,6 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
 	pb "github.com/open-telemetry/techx-corp/src/checkout/genproto/oteldemo"
-	"github.com/open-telemetry/techx-corp/src/checkout/kafka"
 	"github.com/open-telemetry/techx-corp/src/checkout/money"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -150,7 +147,6 @@ type checkout struct {
 	paymentSvcAddr        string
 	kafkaBrokerSvcAddr    string
 	pb.UnimplementedCheckoutServiceServer
-	orderEventPublisher     OrderEventPublisher
 	shippingSvcClient       pb.ShippingServiceClient
 	productCatalogSvcClient pb.ProductCatalogServiceClient
 	cartSvcClient           pb.CartServiceClient
@@ -263,21 +259,8 @@ func main() {
 	svc.paymentSvcClient = pb.NewPaymentServiceClient(c)
 	defer c.Close()
 
-	// Initialize Kafka Broker so checkout will become Producer 
+	// Initialize Kafka Broker address if set
 	svc.kafkaBrokerSvcAddr = os.Getenv("KAFKA_ADDR")
-	if svc.kafkaBrokerSvcAddr != "" {
-		brokers := strings.Split(svc.kafkaBrokerSvcAddr, ",")
-		producer, producerErr := kafka.CreateKafkaProducer(brokers, logger)
-		svc.orderEventPublisher = newKafkaOrderEventPublisher(producer, kafkaPublishTimeout())
-		if producerErr != nil {
-			logger.Error(producerErr.Error())
-		}
-		defer func() {
-			if closeErr := svc.orderEventPublisher.Close(); closeErr != nil {
-				logger.Error(fmt.Sprintf("failed to close Kafka publisher: %v", closeErr))
-			}
-		}()
-	}
 
 	logger.Info(fmt.Sprintf("service config: %+v", svc))
 
@@ -369,11 +352,10 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 
 	// In-memory validation
 	if err := validator.ValidateCreditCard(req.CreditCard); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid shipping address: %v", err)
-	}
-
-	if err := validator.ValidateAddress(req.Address); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid payment information: %v", err)
+	}
+	if err := validator.ValidateAddress(req.Address); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid shipping address: %v", err)
 	}
 
 	// 36.75$
@@ -433,9 +415,9 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 
 		_, err = tx.Exec(ctx, `
 			INSERT INTO checkout.outbox 
-			(aggregate_id, event_type, order_id) 
-			VALUES ($1, $2, $3)`,
-			orderID.String(), "ORDER_PLACED", orderID.String(),
+			(aggregate_id, event_type, order_id, user_id) 
+			VALUES ($1, $2, $3, $4)`,
+			orderID.String(), "ORDER_PLACED", orderID.String(), req.UserId,
 		)
 		if err != nil {
 			tx.Rollback(ctx)
@@ -457,12 +439,6 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		ShippingCost:       prep.shippingCostLocalized,
 		ShippingAddress:    req.Address,
 		Items:              prep.orderItems,
-	}
-
-	if cs.orderEventPublisher != nil {
-		if pubErr := cs.orderEventPublisher.Publish(ctx, orderResult); pubErr != nil {
-			logger.Warn(fmt.Sprintf("checkout order event publish failed: %v", pubErr))
-		}
 	}
 
 	shippingCostFloat, _ := strconv.ParseFloat(fmt.Sprintf("%d.%02d", prep.shippingCostLocalized.GetUnits(), prep.shippingCostLocalized.GetNanos()/1000000000), 64)
@@ -824,48 +800,6 @@ func (cs *checkout) shipOrder(ctx context.Context, address *pb.Address, items []
 	return shipResp.TrackingID, nil
 }
 
-func (cs *checkout) publishKafkaQueueProblems(ctx context.Context, result *pb.OrderResult, ffValue int) {
-	logger.Info("Warning: FeatureFlag 'kafkaQueueProblems' is activated, overloading queue now.")
-	for i := 0; i < ffValue; i++ {
-		go func(i int) {
-			incidentCtx := context.WithoutCancel(ctx)
-			if err := cs.orderEventPublisher.PublishIncident(incidentCtx, result); err != nil {
-				logger.Error(fmt.Sprintf("kafkaQueueProblems publish %d failed: %v", i, err))
-			}
-		}(i)
-	}
-	logger.Info(fmt.Sprintf("Done with #%d messages for overload simulation.", ffValue))
-}
-
-func createProducerSpan(ctx context.Context, msg *sarama.ProducerMessage) trace.Span {
-	spanTracer := tracer
-	if spanTracer == nil {
-		spanTracer = otel.Tracer("checkout")
-	}
-	spanContext, span := spanTracer.Start(
-		ctx,
-		fmt.Sprintf("%s publish", msg.Topic),
-		trace.WithSpanKind(trace.SpanKindProducer),
-		trace.WithAttributes(
-			semconv.PeerService("kafka"),
-			semconv.NetworkTransportTCP,
-			semconv.MessagingSystemKafka,
-			semconv.MessagingDestinationName(msg.Topic),
-			semconv.MessagingOperationPublish,
-			semconv.MessagingKafkaDestinationPartition(int(msg.Partition)),
-		),
-	)
-
-	carrier := propagation.MapCarrier{}
-	propagator := otel.GetTextMapPropagator()
-	propagator.Inject(spanContext, carrier)
-
-	for key, value := range carrier {
-		msg.Headers = append(msg.Headers, sarama.RecordHeader{Key: []byte(key), Value: []byte(value)})
-	}
-
-	return span
-}
 
 func (cs *checkout) isFeatureFlagEnabled(ctx context.Context, featureFlagName string) bool {
 	client := openfeature.NewClient("checkout")

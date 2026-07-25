@@ -32,8 +32,9 @@ from grpc_health.v1 import health_pb2_grpc
 from database import fetch_product_reviews, fetch_product_reviews_from_db, fetch_avg_product_review_score_from_db, fetch_reviews_fingerprint
 from bedrock_client import create_bedrock_runtime_client
 from guardrails import (
-    sanitize_json_for_llm, leaks_system_prompt, redact_pii, sanitize_text, validate_citations,
     apply_guardrail_input, apply_guardrail_output,
+    sanitize_text, sanitize_json_for_llm, leaks_system_prompt, validate_citations,
+    redact_pii,
 )
 
 from openfeature import api

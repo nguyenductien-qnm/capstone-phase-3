@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package techx.mlguard.v1;
+option go_package = "github.com/nguyenductien-qnm/capstone-phase-3/techx-corp-platform/pb";
+
+// Service MLGuard defines the centralized policy engine for trust & safety.
+service MLGuardService {
+    // CheckInput applies jailbreak, PII detection, and prompt injection rules
+    // to user inputs before sending to the LLM.
+    rpc CheckInput (CheckInputRequest) returns (CheckInputResponse);
+
+    // CheckOutput validates LLM generated responses, evaluating grounding (hallucinations),
+    // output leaks, and returning sanitized/blocked text.
+    rpc CheckOutput (CheckOutputRequest) returns (CheckOutputResponse);
+
+    // SanitizeReviews processes an untrusted JSON blob of product reviews,
+    // redacting PII and stripping malicious injections.
+    rpc SanitizeReviews (SanitizeReviewsRequest) returns (SanitizeReviewsResponse);
+}
+
+message CheckInputRequest {
+    string text = 1;
+}
+
+message CheckInputResponse {
+    bool blocked = 1;
+    string sanitized_text = 2;
+    string reason = 3;
+}
+
+message CheckOutputRequest {
+    string answer = 1;
+    string grounding_source = 2;
+    string query = 3;
+}
+
+message CheckOutputResponse {
+    bool blocked = 1;
+    string sanitized_text = 2;
+    string reason = 3;
+}
+
+message SanitizeReviewsRequest {
+    string json_payload = 1;
+}
+
+message SanitizeReviewsResponse {
+    string sanitized_json = 1;
+}
