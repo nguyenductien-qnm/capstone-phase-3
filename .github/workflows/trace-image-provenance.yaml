@@ -215,13 +215,24 @@ jobs:
           RUN_EVENT="$(jq -r '.event // "unknown"' <<<"$RUN_JSON")"
           RUN_TITLE="$(jq -r '.displayTitle // "unknown"' <<<"$RUN_JSON")"
           RUN_HEAD_SHA="$(jq -r '.headSha // "unknown"' <<<"$RUN_JSON")"
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            "repos/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}" > run-detail.json
+          RUN_WORKFLOW_NAME="$(jq -r '.name // "unknown"' run-detail.json)"
+          RUN_WORKFLOW_PATH="$(jq -r '.path // "unknown"' run-detail.json)"
+          RUN_NUMBER="$(jq -r '.run_number // "unknown"' run-detail.json)"
+          RUN_ACTOR="$(jq -r '.actor.login // "unknown"' run-detail.json)"
+          RUN_TRIGGERING_ACTOR="$(jq -r '.triggering_actor.login // "unknown"' run-detail.json)"
           pass_line "app-build run" "run=$RUN_ID conclusion=success"
           echo "| Build/scan/sign run | [run ${RUN_ID}](${RUN_URL}) conclusion=success |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Build workflow/action | \`${RUN_WORKFLOW_NAME}\` (\`${RUN_WORKFLOW_PATH}\`) #${RUN_NUMBER} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Build run trigger | \`${RUN_EVENT}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Build run actor | \`${RUN_ACTOR}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Build run triggering actor | \`${RUN_TRIGGERING_ACTOR}\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Build run title | \`${RUN_TITLE}\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Build run head SHA | \`${RUN_HEAD_SHA}\` |" >> "$GITHUB_STEP_SUMMARY"
           if [ "$RUN_EVENT" = "workflow_dispatch" ]; then
-            pass_line "run trigger" "workflow_dispatch (manual run)"
+            pass_line "run trigger" "workflow_dispatch (manual run by $RUN_TRIGGERING_ACTOR in $RUN_WORKFLOW_PATH)"
             echo "| Build run note | Manual workflow_dispatch run. This can rebuild the full repository snapshot at the source commit; it does not mean the traced PR changed every service. |" >> "$GITHUB_STEP_SUMMARY"
           else
             pass_line "run trigger" "$RUN_EVENT"
