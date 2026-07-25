@@ -6,6 +6,8 @@ using Microsoft.Extensions.Logging;
 using Oteldemo;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
+using System.Text.Json;
+using System.Threading.Tasks;
 
 namespace Accounting;
 
@@ -43,6 +45,7 @@ internal class Consumer : IDisposable
     private IConsumer<string, byte[]> _consumer;
     private bool _isListening;
     private DBContext? _dbContext;
+    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
     private static readonly ActivitySource MyActivitySource = new("Accounting.Consumer");
 
     public Consumer(ILogger<Consumer> logger)
@@ -75,7 +78,7 @@ internal class Consumer : IDisposable
                 {
                     using var activity = MyActivitySource.StartActivity("order-consumed",  ActivityKind.Internal);
                     var consumeResult = _consumer.Consume();
-                    ProcessMessage(consumeResult.Message);
+                    ProcessMessage(consumeResult.Message).GetAwaiter().GetResult();
                 }
                 catch (ConsumeException e)
                 {
@@ -96,7 +99,7 @@ internal class Consumer : IDisposable
 
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, OrderFulfillmentJoinState> _pendingJoins = new();
 
-    private void ProcessMessage(Message<string, byte[]> message)
+    private async Task ProcessMessage(Message<string, byte[]> message)
     {
         try
         {
@@ -189,21 +192,30 @@ internal class Consumer : IDisposable
             // Kafka Streams Join condition: both Payment and Shipping events must be received for orderId
             if (joinState.HasPaymentEvent && joinState.HasShippingEvent)
             {
-                if (_logger.IsEnabled(LogLevel.Information))
+                _logger.LogInformation("Accounting Stream Join completed successfully for order {OrderId}. Both payment and shipping fulfillment events received.", orderId);
+                
+                if (_dbContext != null)
                 {
-                    _logger.LogInformation("Accounting Stream Join completed successfully for order {OrderId}. Both payment and shipping fulfillment events received.", orderId);
-                }
-                _pendingJoins.TryRemove(orderId, out _);
+                    // 1. Claim check: Query checkout.orders using orderId to get JSON metadata
+                    var rawJson = await _dbContext.Database                                                                                              
+                        .SqlQueryRaw<string>("SELECT order_metadata::text FROM checkout.orders WHERE order_id = {0}", orderId)                           
+                        .FirstOrDefaultAsync();
 
-                if (joinState.ParsedOrder != null)
-                {
-                    Log.OrderReceivedMessage(_logger, joinState.ParsedOrder);
-
-                    if (_dbContext != null)
-                    {
-                        PersistOrder(joinState.ParsedOrder);
+                    if (!string.IsNullOrEmpty(rawJson))                                                                                                  
+                    {                                                                                                                                    
+                        // 2. Deserialize JSON string into C# DTO object                                                                                
+                        var orderData = JsonSerializer.Deserialize<CheckoutOrderMetadata>(
+                            rawJson, JsonOptions
+                        );                                                                                                     
+              
+                        if (orderData != null)
+                        {
+                            // 3. Write order details to accounting database tables
+                            PersistOrderFromMetadata(orderId, orderData);
+                        }
                     }
                 }
+                _pendingJoins.TryRemove(orderId, out _);
             }
         }
         catch (Exception ex)
@@ -219,6 +231,34 @@ internal class OrderFulfillmentJoinState
     public bool HasShippingEvent { get; set; }
     public OrderResult? ParsedOrder { get; set; }
 }
+
+    private void PersistOrderFromMetadata(string orderId, CheckoutOrderMetadata metadata)
+    // Handles transient database retry logic (IsLikelyTransientDbFailure). 
+    // If PostgreSQL disconnects during writing, it disposes the poisoned DbContext, recreates a fresh instance, and retries writing.
+    {
+        try
+        {
+            WriteOrderGraphFromMetadata(
+                orderId, // from kafka event 
+                metadata // from checkout.orders (claim check)
+            );
+        }
+        catch (Exception ex) when (IsLikelyTransientDbFailure(ex))
+        {
+            _logger.LogWarning(ex, "Transient DB failure persisting order {OrderId}; recreating DbContext and retrying once", orderId);
+            try
+            {
+                _dbContext?.Dispose();
+            }
+            catch
+            {
+                // ignore dispose errors on a broken context
+            }
+
+            _dbContext = new DBContext();
+            WriteOrderGraphFromMetadata(orderId, metadata);
+        }
+    }
 
     /// <summary>
     /// CDO-TBD1: write path with EF retry strategy; if the context is poisoned
@@ -249,11 +289,14 @@ internal class OrderFulfillmentJoinState
 
     private void WriteOrderGraph(OrderResult order)
     {
+        // 1. Create Order entity
         var orderEntity = new OrderEntity
         {
             Id = order.OrderId
         };
         _dbContext!.Add(orderEntity);
+
+        // 2. Map and add each purchased item
         foreach (var item in order.Items)
         {
             var orderItem = new OrderItemEntity
@@ -269,6 +312,7 @@ internal class OrderFulfillmentJoinState
             _dbContext.Add(orderItem);
         }
 
+        // Map and add shipping information
         var shipping = new ShippingEntity
         {
             ShippingTrackingId = order.ShippingTrackingId,
@@ -283,6 +327,55 @@ internal class OrderFulfillmentJoinState
             OrderId = order.OrderId
         };
         _dbContext.Add(shipping);
+
+        // 4. Commit all INSERTs to PostgreSQL in one atomic transaction
+        _dbContext.SaveChanges();
+    }
+
+    private void WriteOrderGraphFromMetadata(string orderId, CheckoutOrderMetadata metadata)
+    {
+        // 1. Create Order entity
+        var orderEntity = new OrderEntity
+        {
+            Id = orderId
+        };
+        _dbContext!.Add(orderEntity);
+
+        // 2. Map items from orderItems JSON array
+        if (metadata.OrderItems != null)
+        {
+            foreach (var item in metadata.OrderItems)
+            {
+                var orderItem = new OrderItemEntity
+                {
+                    OrderId = orderId,
+                    ProductId = item.Item?.ProductId ?? "",
+                    Quantity = item.Item?.Quantity ?? 1,
+                    ItemCostCurrencyCode = item.Cost?.CurrencyCode ?? "USD",
+                    ItemCostUnits = item.Cost?.Units ?? 0,
+                    ItemCostNanos = item.Cost?.Nanos ?? 0
+                };
+                _dbContext.Add(orderItem);
+            }
+        }
+
+        // 3. Map shipping details
+        var shipping = new ShippingEntity
+        {
+            OrderId = orderId,
+            ShippingTrackingId = orderId,
+            ShippingCostCurrencyCode = metadata.ShippingCostLocalized?.CurrencyCode ?? "USD",
+            ShippingCostUnits = metadata.ShippingCostLocalized?.Units ?? 0,
+            ShippingCostNanos = metadata.ShippingCostLocalized?.Nanos ?? 0,
+            StreetAddress = metadata.Address?.StreetAddress ?? "",
+            City = metadata.Address?.City ?? "",
+            State = metadata.Address?.State ?? "",
+            Country = metadata.Address?.Country ?? "",
+            ZipCode = metadata.Address?.ZipCode ?? ""
+        };
+        _dbContext.Add(shipping);
+
+        // 4. Commit all INSERTs to PostgreSQL under 'accounting' schema
         _dbContext.SaveChanges();
     }
 
@@ -355,4 +448,42 @@ internal class OrderFulfillmentJoinState
         _isListening = false;
         _consumer?.Dispose();
     }
+}
+
+public class CheckoutOrderMetadata
+{
+    public string UserId { get; set; } = "";
+    public string UserCurrency { get; set; } = "";
+    public MetadataAddress? Address { get; set; }
+    public List<MetadataOrderItem>? OrderItems { get; set; }
+    public MetadataMoney? ShippingCostLocalized { get; set; }
+    public MetadataMoney? Total { get; set; }
+}
+
+public class MetadataOrderItem
+{
+    public MetadataCartItem? Item { get; set; }
+    public MetadataMoney? Cost { get; set; }
+}
+
+public class MetadataCartItem
+{
+    public string ProductId { get; set; } = "";
+    public int Quantity { get; set; }
+}
+
+public class MetadataMoney
+{
+    public string CurrencyCode { get; set; } = "USD";
+    public long Units { get; set; }
+    public int Nanos { get; set; }
+}
+
+public class MetadataAddress
+{
+    public string StreetAddress { get; set; } = "";
+    public string City { get; set; } = "";
+    public string State { get; set; } = "";
+    public string Country { get; set; } = "";
+    public string ZipCode { get; set; } = "";
 }

@@ -163,24 +163,35 @@ resource "aws_mskconnect_connector" "debezium_postgres" {
   // Debezium connects via the native PostgreSQL pgoutput logical decoding plugin
   // listens for change events on dbz_publication
   connector_configuration = {
-    "connector.class"                = "io.debezium.connector.postgresql.PostgresConnector"
-    "tasks.max"                      = "1"
-    "database.hostname"              = module.rds.db_primary_address
-    "database.port"                  = "5432"
-    "database.user"                  = module.rds.db_username
-    "database.password"              = jsondecode(data.aws_secretsmanager_secret_version.rds_credentials.secret_string)["password"]
-    "database.dbname"                = module.rds.db_name
-    "topic.prefix"                   = "fulfillment"
-    "table.include.list"             = "checkout.outbox"
-    "plugin.name"                    = "pgoutput"
-    "publication.name"               = "dbz_publication"
-    "publication.autocreate.mode"    = "all_tables"
-    "tombstones.on.delete"           = "false"
-    "decimal.handling.mode"          = "double"
+    "connector.class"             = "io.debezium.connector.postgresql.PostgresConnector"
+    "tasks.max"                   = "1"
+    "database.hostname"           = module.rds.db_primary_address
+    "database.port"               = "5432"
+    "database.user"               = module.rds.db_username
+    "database.password"           = jsondecode(data.aws_secretsmanager_secret_version.rds_credentials.secret_string)["password"]
+    "database.dbname"             = module.rds.db_name
+    "topic.prefix"                = "fulfillment"
+    "table.include.list"          = "checkout.outbox"
+    "plugin.name"                 = "pgoutput"
+    "publication.name"            = "dbz_publication"
+    "publication.autocreate.mode" = "all_tables"
+    "tombstones.on.delete"        = "false"
+    "decimal.handling.mode"       = "double"
+
+    # Configure Debezium to use 'order_id' as the message key 
+    # instead of checkout.outbox auto-increased primary key 
+    "message.key.columns" = "checkout.outbox:order_id"
+
+    # The message key is then serialized as a plain string
     "key.converter"                  = "org.apache.kafka.connect.storage.StringConverter"
     "value.converter"                = "org.apache.kafka.connect.json.JsonConverter"
     "value.converter.schemas.enable" = "false"
-    "transforms"                     = "reroute"
+
+    # Kafka Connect requires a comma-seperated list of active transformation
+    "transforms"                  = "extractKey,reroute"
+    "transforms.extractKey.type"  = "org.apache.kafka.connect.transforms.ExtractField$Key"
+    "transforms.extractKey.field" = "order_id"
+
     "transforms.reroute.type"        = "org.apache.kafka.connect.transforms.RegexRouter"
     "transforms.reroute.regex"       = ".*"
     "transforms.reroute.replacement" = "domain.checkout.orders"

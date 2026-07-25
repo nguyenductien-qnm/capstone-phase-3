@@ -114,6 +114,9 @@ builder.Services.AddGrpcHealthChecks()
 
 builder.Services.AddSingleton<HealthServiceImpl>();
 
+// Register kafka consumer
+builder.Services.AddHostedService<ConsumerService>();
+
 var app = builder.Build();
 
 // Register OTel Redis instrumentation for all connections in the pool.

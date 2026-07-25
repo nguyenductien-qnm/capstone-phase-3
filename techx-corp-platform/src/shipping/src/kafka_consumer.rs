@@ -70,9 +70,9 @@ pub fn start_kafka_consumer() {
                 Ok(m) => {
                     let payload = match m.payload_view::<str>() {
                         Some(Ok(s)) => s,
-                        Some(Err(_)) => "<invalid utf-8>",
-                        None => "",
+                        _ => "{}",
                     };
+
                     info!(
                         "Shipping consumer group '{}' processed message: topic={}, partition={}, offset={}, payload_len={}",
                         group_id,
@@ -82,25 +82,36 @@ pub fn start_kafka_consumer() {
                         payload.len()
                     );
 
-                    // Publish fulfillment event to domain.fulfillment.events
-                    let key = m.key().map(|k| String::from_utf8_lossy(k).to_string()).unwrap_or_default();
+                    // 1. Parse JSON payload to extract user_id 
+                    let parsed_json: serde_json::Value = serde_json::from_str(payload)
+                        .unwrap_or_else(|_| serde_json::json!({}));
+                    
+                    let user_id = parsed_json                                                                                                        
+                        .get("user_id")                                                                                                              
+                        .or_else(|| parsed_json.get("userId"))                                                                                       
+                        .and_then(|v| v.as_str())                                                                                                    
+                        .unwrap_or("");                                                                                                              
+                                                                                                                                             
+                    let order_id = m.key()                                                                                                           
+                        .map(|k| String::from_utf8_lossy(k).to_string())                                                                             
+                        .unwrap_or_default();
+
+                    info!("Shipping consumed message for orderId: {}, userId: {}", order_id, user_id);
+
+                    // 2. Build fulfillment payload containing userId
                     let record_payload = serde_json::json!({
                         "eventType": "SHIPPING_COMPLETED",
                         "source": "shipping",
-                        "key": key,
-                        "details": payload
+                        "orderId": order_id,
+                        "userId": user_id,
                     }).to_string();
+
+                    // 3. Publish to domain.fulfillment.events
                     let record = FutureRecord::to(&fulfillment_topic)
                         .payload(&record_payload)
-                        .key(&key);
-                    match producer.send(record, Duration::from_secs(5)).await {
-                        Ok((partition, offset)) => {
-                            info!("Shipping service published fulfillment event to topic '{}' (partition {}, offset {})", fulfillment_topic, partition, offset);
-                        }
-                        Err((err, _)) => {
-                            error!("Failed to publish fulfillment event to topic '{}': {:?}", fulfillment_topic, err);
-                        }
-                    }
+                        .key(&order_id);
+
+                    let _ = producer.send(record, Duration::from_secs(5)).await;
                 }
                 Err(err) => {
                     error!("Kafka consumer error: {:?}", err);
