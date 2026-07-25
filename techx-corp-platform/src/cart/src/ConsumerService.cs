@@ -23,75 +23,85 @@ public class ConsumerService : BackgroundService
         _logger = logger;                                                                                                                
     }                                                                                                                                    
                                                                                                                                          
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)                                                          
-    {                                                                                                                                    
-        var kafkaAddr = Environment.GetEnvironmentVariable("KAFKA_ADDR");                                                                
-        if (string.IsNullOrEmpty(kafkaAddr)) return;                                                                                     
-                                                                                                                                         
-        var config = new ConsumerConfig                                                                                                  
-        {                                                                                                                                
-            BootstrapServers = kafkaAddr,                                                                                                
-            GroupId = "cart-fulfillment-consumer", // Independent consumer group                                                         
-            AutoOffsetReset = AutoOffsetReset.Earliest,                                                                                  
-            EnableAutoCommit = true,
-            SecurityProtocol = SecurityProtocol.SaslSsl,
-            SaslMechanism = SaslMechanism.ScramSha512,
-            SaslUsername = Environment.GetEnvironmentVariable("KAFKA_USER") ?? "msk_user",
-            SaslPassword = Environment.GetEnvironmentVariable("KAFKA_PASSWORD") ?? ""
-        };                                                                                                
-                                                                                                                                         
-        using var consumer = new ConsumerBuilder<string, string>(config).Build();                                                        
-        consumer.Subscribe("domain.fulfillment.events");                                                                                 
-                                                                                                                                         
-        while (!stoppingToken.IsCancellationRequested)                                                                                   
-        {                                                                                                                                
-            try                                                                                                                          
-            {                                                                                                                            
-                var consumeResult = consumer.Consume(stoppingToken);                                                                     
-                if (consumeResult?.Message?.Value == null) continue;                                                                     
-                                                                                                                                         
-                var eventData = JsonSerializer.Deserialize<FulfillmentEvent>(consumeResult.Message.Value, JsonOptions);                               
-                if (eventData == null || string.IsNullOrEmpty(eventData.OrderId)) continue;                                              
-                                                                                                                                         
-                // 1. Maintain Stream Join state per orderId                                                                             
-                var joinState = _pendingJoins.GetOrAdd(
-                    eventData.OrderId, 
-                    id => new JoinState { OrderId = id, UserId = eventData.UserId }
-                );
+    protected override Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        var kafkaAddr = Environment.GetEnvironmentVariable("KAFKA_ADDR");
+        if (string.IsNullOrEmpty(kafkaAddr)) return Task.CompletedTask;
 
-                if (!string.IsNullOrEmpty(eventData.UserId))
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                var config = new ConsumerConfig
                 {
-                    joinState.UserId = eventData.UserId;
-                }
-                                                                                                                                         
-                if (eventData.EventType == "PAYMENT_COMPLETED")  joinState.HasPayment = true;                                            
-                if (eventData.EventType == "SHIPPING_COMPLETED") joinState.HasShipping = true;                                           
-                                                                                                                                         
-                // 2. Once BOTH Payment & Shipping succeed, empty the cart directly!                                                     
-                if (joinState.HasPayment && joinState.HasShipping)                                                                       
-                {                                                                                                                        
-                    _logger.LogInformation(
-                        "Payment and Shipping completed for Order {OrderId}. Clearing cart for user {UserId}...",     
-                        eventData.OrderId, joinState.UserId
-                    );                                                                                                      
-                                                                                                                                         
-                    var targetUserId = !string.IsNullOrEmpty(joinState.UserId) ? joinState.UserId : eventData.UserId;
-                    if (!string.IsNullOrEmpty(targetUserId))
-                    {
-                        await _cartStore.EmptyCartAsync(targetUserId);
-                        _logger.LogInformation("Successfully cleared cart for user {UserId} (Order {OrderId})", targetUserId, eventData.OrderId);
-                    }
+                    BootstrapServers = kafkaAddr,
+                    GroupId = "cart-fulfillment-consumer",
+                    AutoOffsetReset = AutoOffsetReset.Earliest,
+                    EnableAutoCommit = true,
+                    SecurityProtocol = SecurityProtocol.SaslSsl,
+                    SaslMechanism = SaslMechanism.ScramSha512,
+                    SaslUsername = Environment.GetEnvironmentVariable("KAFKA_USER") ?? "msk_user",
+                    SaslPassword = Environment.GetEnvironmentVariable("KAFKA_PASSWORD") ?? ""
+                };
 
-                    _pendingJoins.TryRemove(eventData.OrderId, out _);                                                                   
-                }                                                                                                                        
-            }                                                                                                                            
-            catch (OperationCanceledException) { break; }                                                                                
-            catch (Exception ex)                                                                                                         
-            {                                                                                                                            
-                _logger.LogError(ex, "Error processing fulfillment event in CartService consumer");                                      
-            }                                                                                                                            
-        }                                                                                                                                
-    }                                                                                                                                    
+                using var consumer = new ConsumerBuilder<string, string>(config).Build();
+                consumer.Subscribe("domain.fulfillment.events");
+
+                while (!stoppingToken.IsCancellationRequested)
+                {
+                    try
+                    {
+                        var consumeResult = consumer.Consume(TimeSpan.FromMilliseconds(500));
+                        if (consumeResult?.Message?.Value == null) continue;
+
+                        var eventData = JsonSerializer.Deserialize<FulfillmentEvent>(consumeResult.Message.Value, JsonOptions);
+                        if (eventData == null || string.IsNullOrEmpty(eventData.OrderId)) continue;
+
+                        var joinState = _pendingJoins.GetOrAdd(
+                            eventData.OrderId,
+                            id => new JoinState { OrderId = id, UserId = eventData.UserId }
+                        );
+
+                        if (!string.IsNullOrEmpty(eventData.UserId))
+                        {
+                            joinState.UserId = eventData.UserId;
+                        }
+
+                        if (eventData.EventType == "PAYMENT_COMPLETED") joinState.HasPayment = true;
+                        if (eventData.EventType == "SHIPPING_COMPLETED") joinState.HasShipping = true;
+
+                        if (joinState.HasPayment && joinState.HasShipping)
+                        {
+                            _logger.LogInformation(
+                                "Payment and Shipping completed for Order {OrderId}. Clearing cart for user {UserId}...",
+                                eventData.OrderId, joinState.UserId
+                            );
+
+                            var targetUserId = !string.IsNullOrEmpty(joinState.UserId) ? joinState.UserId : eventData.UserId;
+                            if (!string.IsNullOrEmpty(targetUserId))
+                            {
+                                _cartStore.EmptyCartAsync(targetUserId).GetAwaiter().GetResult();
+                                _logger.LogInformation("Successfully cleared cart for user {UserId} (Order {OrderId})", targetUserId, eventData.OrderId);
+                            }
+
+                            _pendingJoins.TryRemove(eventData.OrderId, out _);
+                        }
+                    }
+                    catch (OperationCanceledException) { break; }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error processing fulfillment event in CartService consumer");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Kafka consumer background task failed");
+            }
+        }, stoppingToken);
+
+        return Task.CompletedTask;
+    }
 }                                                                                                                                        
                                                                                                                                          
 public class FulfillmentEvent                                                                                                            
