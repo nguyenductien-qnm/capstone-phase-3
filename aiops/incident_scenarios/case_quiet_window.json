@@ -1,0 +1,20 @@
+{
+  "id": "case-quiet-window-001",
+  "type": "healthy_load",
+  "description": "MANDATE-07 #7b 'giai doan binh thuong' (normal period): the mandate's precision figure is only meaningful if the labeled set contains a stretch with NO injected fault — precision = correct fires / total fires, so a detector that alerts constantly must be punished for it. This case injects nothing at all and simply observes the running stack for 5 minutes under its ordinary load-generator traffic. Any alert raised in this window is a false positive and drags precision down. Kept separate from MANDATE-15's case_healthy_load.json, which deliberately drives ELEVATED load to prove 'busy is not broken'; this one is the plain baseline.",
+  "service": null,
+  "monitored_rule_ids": [
+    "latency-p95-high",
+    "grpc-error-rate-high",
+    "error-budget-burn-fast-standard",
+    "error-budget-burn-fast-checkout",
+    "error-budget-burn-slow-standard",
+    "error-budget-burn-slow-checkout",
+    "memory-saturation-high",
+    "kafka-consumer-lag-high"
+  ],
+  "expect_fire": false,
+  "inject": null,
+  "duration_seconds": 300,
+  "settle_seconds": 0
+}

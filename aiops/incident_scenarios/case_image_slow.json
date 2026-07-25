@@ -1,0 +1,16 @@
+{
+  "id": "case-image-slow-001",
+  "type": "real",
+  "description": "MANDATE-07 #7b BLIND-SPOT case #2 (latency signal): inject imageSlowLoad=5sec via flagd so image-provider serves images with a 5s delay, and show latency-p95-high does NOT fire. Measuring this case found the reason, and it is the same shape as case_cart_failure: image-provider publishes no http_server_request_duration_seconds series at all — its only timing data in Prometheus is collector-generated traces_span_metrics_duration_milliseconds, plus target_info. latency-p95-high reads http_server_request_duration_seconds_bucket, so for this service it evaluates over an empty series and can never breach the 1s SLO threshold however slow the service gets. Expected verdict is FAIL until image-provider emits server-side HTTP metrics or a latency rule is added over traces_span_metrics_*. Kept in the set so the coverage hole stays measured rather than assumed away.",
+  "service": null,
+  "expected_rule_ids": ["latency-p95-high"],
+  "expect_fire": true,
+  "inject": {
+    "type": "flagd",
+    "flag": "imageSlowLoad",
+    "on_variant": "5sec",
+    "off_variant": "off"
+  },
+  "duration_seconds": 300,
+  "settle_seconds": 120
+}

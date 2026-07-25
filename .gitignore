@@ -35,6 +35,10 @@ tfplan
 
 # Ignore temporary logs
 *.log
+# ...except run logs under report/, which ARE the deliverable: the AI mandates
+# are graded on "bằng chứng chạy thật" (AI_MANDATE_EVIDENCE.md muc 3), and that
+# evidence is the captured stdout of the run.
+!report/**/*.log
 
 # Ignore local reports
 vinh/jira_week2_report.md

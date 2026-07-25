@@ -53,7 +53,12 @@ def _set_flag(flagd_file, flag, variant):
         cfg = json.load(f)
     cfg["flags"][flag]["defaultVariant"] = variant
     with open(flagd_file, "w", encoding="utf-8") as f:
-        json.dump(cfg, f, indent=2)
+        # ensure_ascii=False / trailing newline: this rewrites a tracked file, and
+        # without them every injection escapes the non-ASCII already in the flag
+        # descriptions and drops the final newline, so `git diff` shows unrelated
+        # churn after each run. Found while capturing the #7b evidence.
+        json.dump(cfg, f, indent=2, ensure_ascii=False)
+        f.write("\n")
     print(f"  [inject] flagd {flag} -> {variant}", flush=True)
 
 
