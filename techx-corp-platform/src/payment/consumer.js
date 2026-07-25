@@ -60,6 +60,7 @@ async function startConsumer() {
           logger.warn({ err: error }, "Failed to parse JSON message payload");
         }
 
+        const dataObj = payload.after || payload.before || payload;
         const rawKey = message.key ? message.key.toString() : '';
         const orderId = dataObj.order_id || dataObj.orderId || dataObj.aggregate_id || (rawKey.includes('Struct') ? '' : rawKey);
         
