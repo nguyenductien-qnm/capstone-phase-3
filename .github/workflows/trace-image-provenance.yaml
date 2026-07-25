@@ -186,6 +186,21 @@ jobs:
           pass_line "app-build run" "run=$RUN_ID conclusion=success"
           echo "| Build/scan/sign run | [run ${RUN_ID}](${RUN_URL}) conclusion=success |" >> "$GITHUB_STEP_SUMMARY"
 
+          gh run view "$RUN_ID" \
+            --repo "$GITHUB_REPOSITORY" \
+            --json jobs > run-jobs.json
+
+          PASSED_JOBS="$(
+            jq -r '
+              [.jobs[]? | select(.conclusion == "success") | .name]
+              | unique
+              | join("<br>")
+            ' run-jobs.json
+          )"
+          [ -n "$PASSED_JOBS" ] || fail "build run $RUN_ID is successful, but no successful jobs were returned by GitHub API"
+          pass_line "passed jobs" "$(jq -r '[.jobs[]? | select(.conclusion == "success") | .name] | unique | join(", ")' run-jobs.json)"
+          echo "| Scan/build/sign jobs passed | ${PASSED_JOBS} |" >> "$GITHUB_STEP_SUMMARY"
+
           echo "== Pull request and reviewer =="
           gh api \
             -H "Accept: application/vnd.github+json" \
