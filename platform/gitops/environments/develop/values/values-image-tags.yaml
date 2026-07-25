@@ -39,7 +39,7 @@ components:
       tag: 1.0-ml-guard-6beefa4
   payment:
     imageOverride:
-      tag: 1.0-payment-18ab2f7
+      tag: 1.0-payment-03a92c8
   product-catalog:
     imageOverride:
       tag: 1.0-product-catalog-6beefa4
