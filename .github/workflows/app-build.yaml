@@ -291,6 +291,8 @@ jobs:
     permissions:
       contents: read
       id-token: write # OIDC cho AWS + Cosign keyless (Fulcio)
+      attestations: write # GitHub Artifact Attestations (SLSA provenance)
+      artifact-metadata: write # Required by actions/attest to store provenance metadata
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.detect.outputs.matrix) }}
@@ -434,6 +436,18 @@ jobs:
             "$REF"
           echo "✅ SBOM attested $REF ($(jq '.packages | length' sbom.spdx.json) packages)"
 
+      # P3 extra: GitHub-native SLSA provenance. Do NOT push this attestation to ECR:
+      # the image repo is IMMUTABLE and the cosign SBOM already owns the .att tag.
+      # GitHub stores this provenance in the repository attestations API; verify with:
+      #   gh attestation verify oci://<registry>/<repo>@sha256:<digest> -R <repo>
+      - name: SLSA provenance attestation (GitHub)
+        if: github.event_name != 'pull_request'
+        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
+        with:
+          subject-name: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: false
+
   # ------------------------------------------------------------------ #
   # MANDATE-10 P2: build 2 image aiops trong CHÍNH workflow này.        #
   #                                                                     #
@@ -517,6 +531,8 @@ jobs:
     permissions:
       contents: read
       id-token: write # OIDC cho AWS + Cosign keyless (Fulcio)
+      attestations: write # GitHub Artifact Attestations (SLSA provenance)
+      artifact-metadata: write # Required by actions/attest to store provenance metadata
     strategy:
       fail-fast: false
       matrix:
@@ -634,6 +650,16 @@ jobs:
             --fulcio-url https://fulcio.sigstore.dev \
             "$REF"
           echo "✅ SBOM attested $REF ($(jq '.packages | length' sbom.spdx.json) packages)"
+
+      # P3 extra: GitHub-native SLSA provenance. Keep it in GitHub attestations API,
+      # not ECR, to avoid colliding with existing cosign SBOM .att tags on immutable ECR.
+      - name: SLSA provenance attestation (GitHub)
+        if: github.event_name != 'pull_request'
+        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
+        with:
+          subject-name: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: false
 
   # ------------------------------------------------------------------ #
   # CDO-142: bump tag vào Git -> ArgoCD selfHeal sync.                  #
