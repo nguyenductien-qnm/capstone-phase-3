@@ -83,7 +83,7 @@ pub fn start_kafka_consumer() {
                     );
 
                     // 1. Parse JSON payload to extract user_id 
-                    let parsed_json: serde_json::Value = serde_json::from_str(payload_str)
+                    let parsed_json: serde_json::Value = serde_json::from_str(payload)
                         .unwrap_or_else(|_| serde_json::json!({}));
                     
                     let user_id = parsed_json                                                                                                        
@@ -109,7 +109,7 @@ pub fn start_kafka_consumer() {
                     // 3. Publish to domain.fulfillment.events
                     let record = FutureRecord::to(&fulfillment_topic)
                         .payload(&record_payload)
-                        .key(&key);
+                        .key(&order_id);
 
                     let _ = producer.send(record, Duration::from_secs(5)).await;
                 }

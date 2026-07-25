@@ -51,6 +51,15 @@ async function startConsumer() {
     // consumer.js calls charge.js when a Kafka message arrives
     await consumerInstance.run({
       eachMessage: async ({ topic, partition, message }) => {
+        // 1. Convert Kafka message buffer to string & parse JSON
+        const payloadStr = message.value ? message.value.toString() : '';
+        let payload = {};
+        try {
+          payload = JSON.parse(payloadStr);
+        } catch (error) {
+          logger.warn({ err: error }, "Failed to parse JSON message payload");
+        }
+
         logger.info({
           topic,
           partition,
@@ -59,15 +68,6 @@ async function startConsumer() {
           payloadLength: payloadStr.length,
           groupId,
         }, `Payment consumer group '${groupId}' consumed message from topic '${topic}'.`);
-
-        // 1. Convert Kafka message buffer to string & parse JSON
-        const payloadStr = message.value ? message.value.toString() : '';
-        let payload = {};
-        try {
-          payload = JSON.parse(payloadStr)
-        } catch (error) {
-          logger.warn({ err: error }, "Failed to parse JSON message payload");
-        }
 
         // 2. Extract order_id & user_id 
         const orderId = message.key ? message.key.toString() : payload.order_id
