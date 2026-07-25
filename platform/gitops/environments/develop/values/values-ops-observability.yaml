@@ -124,8 +124,6 @@ grafana:
       operator: Equal
       value: observability
       effect: NoSchedule
-  plugins:
-    - grafana-opensearch-datasource
   resources:
     requests:
       cpu: 100m
