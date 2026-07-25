@@ -100,3 +100,6 @@ CVE-2026-56000  # xvfb
 # product-catalog / checkout — gRPC Go vulnerability
 GHSA-hrxh-6v49-42gf
 
+# zlib1g — will_not_fix in debian/ubuntu base image
+CVE-2023-45853
+
