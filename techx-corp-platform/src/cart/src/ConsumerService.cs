@@ -33,8 +33,12 @@ public class ConsumerService : BackgroundService
             BootstrapServers = kafkaAddr,                                                                                                
             GroupId = "cart-fulfillment-consumer", // Independent consumer group                                                         
             AutoOffsetReset = AutoOffsetReset.Earliest,                                                                                  
-            EnableAutoCommit = true                                                                                                      
-        };                                                                                                                               
+            EnableAutoCommit = true,
+            SecurityProtocol = SecurityProtocol.SaslPlaintext,
+            SaslMechanism = SaslMechanism.ScramSha512,
+            SaslUsername = Environment.GetEnvironmentVariable("KAFKA_USER") ?? "msk_user",
+            SaslPassword = Environment.GetEnvironmentVariable("KAFKA_PASSWORD") ?? ""
+        };                                                                                                
                                                                                                                                          
         using var consumer = new ConsumerBuilder<string, string>(config).Build();                                                        
         consumer.Subscribe("domain.fulfillment.events");                                                                                 
