@@ -6,6 +6,8 @@ using Microsoft.Extensions.Logging;
 using Oteldemo;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
+using System.Text.Json;
+using System.Threading.Tasks;
 
 namespace Accounting;
 
@@ -75,7 +77,7 @@ internal class Consumer : IDisposable
                 {
                     using var activity = MyActivitySource.StartActivity("order-consumed",  ActivityKind.Internal);
                     var consumeResult = _consumer.Consume();
-                    ProcessMessage(consumeResult.Message);
+                    ProcessMessage(consumeResult.Message).GetAwaiter().GetResult();
                 }
                 catch (ConsumeException e)
                 {
@@ -96,7 +98,7 @@ internal class Consumer : IDisposable
 
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, OrderFulfillmentJoinState> _pendingJoins = new();
 
-    private void ProcessMessage(Message<string, byte[]> message)
+    private async Task ProcessMessage(Message<string, byte[]> message)
     {
         try
         {
