@@ -3,7 +3,7 @@
 components:
   accounting:
     imageOverride:
-      tag: 1.0-accounting-ea2651f
+      tag: 1.0-accounting-68ba928
   ad:
     imageOverride:
       tag: 1.0-ad-3b42e61
