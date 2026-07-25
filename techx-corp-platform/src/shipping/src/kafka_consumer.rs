@@ -141,9 +141,9 @@ pub fn start_kafka_consumer() {
                         }).to_string();
 
                         // 3. Publish to domain.fulfillment.events
-                        let record = FutureRecord::to(&fulfillment_topic)
-                            .payload(&record_payload)
-                            .key(&order_id);
+                        let record = FutureRecord::<str, str>::to(&fulfillment_topic)
+                            .payload(record_payload.as_str())
+                            .key(order_id);
 
                         match producer.send(record, Duration::from_secs(5)).await {
                             Ok(delivery) => info!("Shipping published fulfillment event successfully: {:?}", delivery),
