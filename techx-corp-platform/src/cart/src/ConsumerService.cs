@@ -1,10 +1,14 @@
 using Confluent.Kafka;                                                                                                                   
 using Microsoft.Extensions.Hosting;                                                                                                      
 using Microsoft.Extensions.Logging;                                                                                                      
+using System;
 using System.Collections.Concurrent;                                                                                                     
-using System.Text.Json;                                                                                                                  
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+using cart.cartstore;
                                                                                                                                          
-namespace CartService;                                                                                                                   
+namespace cart.services;                                                                                                                   
                                                                                                                                          
 public class ConsumerService : BackgroundService                                                                              
 {
