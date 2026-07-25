@@ -60,4 +60,4 @@ components:
       tag: 1.0-shopping-copilot-f97cf36
   email:
     imageOverride:
-      tag: 1.0-email-f97cf36
+      tag: 1.0-email-be6928c
