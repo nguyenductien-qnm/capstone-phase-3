@@ -3,61 +3,61 @@
 components:
   accounting:
     imageOverride:
-      tag: 1.0-accounting-a670121
+      tag: 1.0-accounting-f97cf36
   ad:
     imageOverride:
-      tag: 1.0-ad-a670121
+      tag: 1.0-ad-f97cf36
   cart:
     imageOverride:
-      tag: 1.0-cart-a670121
+      tag: 1.0-cart-f97cf36
   checkout:
     imageOverride:
-      tag: 1.0-checkout-a670121
+      tag: 1.0-checkout-f97cf36
   currency:
     imageOverride:
-      tag: 1.0-currency-a670121
+      tag: 1.0-currency-f97cf36
   fraud-detection:
     imageOverride:
-      tag: 1.0-fraud-detection-a670121
+      tag: 1.0-fraud-detection-f97cf36
   frontend:
     imageOverride:
-      tag: 1.0-frontend-a670121
+      tag: 1.0-frontend-f97cf36
   frontend-proxy:
     imageOverride:
-      tag: 1.0-frontend-proxy-a670121
+      tag: 1.0-frontend-proxy-f97cf36
   image-provider:
     imageOverride:
-      tag: 1.0-image-provider-a670121
+      tag: 1.0-image-provider-f97cf36
   llm:
     imageOverride:
-      tag: 1.0-llm-a670121
+      tag: 1.0-llm-f97cf36
   load-generator:
     imageOverride:
-      tag: 1.0-load-generator-a670121
+      tag: 1.0-load-generator-f97cf36
   ml-guard:
     imageOverride:
-      tag: 1.0-ml-guard-a670121
+      tag: 1.0-ml-guard-f97cf36
   payment:
     imageOverride:
-      tag: 1.0-payment-a670121
+      tag: 1.0-payment-f97cf36
   product-catalog:
     imageOverride:
-      tag: 1.0-product-catalog-a670121
+      tag: 1.0-product-catalog-f97cf36
   product-reviews:
     imageOverride:
-      tag: 1.0-product-reviews-a670121
+      tag: 1.0-product-reviews-f97cf36
   quote:
     imageOverride:
-      tag: 1.0-quote-a670121
+      tag: 1.0-quote-f97cf36
   recommendation:
     imageOverride:
-      tag: 1.0-recommendation-a670121
+      tag: 1.0-recommendation-f97cf36
   shipping:
     imageOverride:
-      tag: 1.0-shipping-a670121
+      tag: 1.0-shipping-f97cf36
   shopping-copilot:
     imageOverride:
-      tag: 1.0-shopping-copilot-a670121
+      tag: 1.0-shopping-copilot-f97cf36
   email:
     imageOverride:
-      tag: 1.0-email-a670121
+      tag: 1.0-email-f97cf36
