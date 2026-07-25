@@ -45,6 +45,7 @@ internal class Consumer : IDisposable
     private IConsumer<string, byte[]> _consumer;
     private bool _isListening;
     private DBContext? _dbContext;
+    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
     private static readonly ActivitySource MyActivitySource = new("Accounting.Consumer");
 
     public Consumer(ILogger<Consumer> logger)
@@ -193,22 +194,25 @@ internal class Consumer : IDisposable
             {
                 _logger.LogInformation("Accounting Stream Join completed successfully for order {OrderId}. Both payment and shipping fulfillment events received.", orderId);
                 
-                // 1. Claim check: Query checkout.orders using orderId to get JSON metadata
-                var rawJson = await _dbContext.Database                                                                                              
-                    .SqlQueryRaw<string>("SELECT order_metadata::text FROM checkout.orders WHERE order_id = {0}", orderId)                           
-                    .FirstOrDefaultAsync();
+                if (_dbContext != null)
+                {
+                    // 1. Claim check: Query checkout.orders using orderId to get JSON metadata
+                    var rawJson = await _dbContext.Database                                                                                              
+                        .SqlQueryRaw<string>("SELECT order_metadata::text FROM checkout.orders WHERE order_id = {0}", orderId)                           
+                        .FirstOrDefaultAsync();
 
-                if (!string.IsNullOrEmpty(rawJson))                                                                                                  
-                {                                                                                                                                    
-                    // 2. Deserialize JSON string into C# DTO object                                                                                
-                    var orderData = JsonSerializer.Deserialize<CheckoutOrderMetadata>(
-                        rawJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
-                    );                                                                                                     
-          
-                    if (orderData != null)
-                    {
-                        // 3. Write order details to accounting database tables
-                        PersistOrderFromMetadata(orderId, orderData);
+                    if (!string.IsNullOrEmpty(rawJson))                                                                                                  
+                    {                                                                                                                                    
+                        // 2. Deserialize JSON string into C# DTO object                                                                                
+                        var orderData = JsonSerializer.Deserialize<CheckoutOrderMetadata>(
+                            rawJson, JsonOptions
+                        );                                                                                                     
+              
+                        if (orderData != null)
+                        {
+                            // 3. Write order details to accounting database tables
+                            PersistOrderFromMetadata(orderId, orderData);
+                        }
                     }
                 }
                 _pendingJoins.TryRemove(orderId, out _);
