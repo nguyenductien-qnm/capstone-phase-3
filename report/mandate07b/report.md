@@ -77,7 +77,11 @@ số cộng toàn bộ, không phải số của ca chạy tốt nhất:
 | `case_image_slow` | image-provider · p95 latency | **FAIL** | — | điểm mù instrumentation, xem 4.5 |
 | `case_quiet_window` | — (không bơm gì) | **FAIL** | 20.6s | nhưng là cảnh báo ĐÚNG, xem 4.7 |
 
-Log đầy đủ: `run-case_*.log`. Số máy sinh (không gõ tay): `<scenario>.result.json`.
+Log đầy đủ: `run-case_*.log`. Số máy sinh (không gõ tay):
+`aiops/incident_scenarios/<scenario>.result.json` — **chỉ một bản, nằm đúng chỗ harness
+ghi ra**. Trước đây thư mục này có bản sao và nó đã lệch thật sau khi chấm lại
+(`case_quiet_window` giữ `correct_fires: 1` cũ trong khi bản gốc đã là `0`); bỏ bản sao
+để không còn hai nguồn số mâu thuẫn nhau.
 Dữ liệu thô để mentor tự chấm lại: `alerter_history.jsonl` (16 alert của cả phiên).
 **Nội dung cảnh báo detector thực sự phát ra: `detector-run.log`** — 42 khối
 `GROUPED ALERT`, mỗi khối gộp các rule cùng service trong cùng cửa sổ, kèm severity
