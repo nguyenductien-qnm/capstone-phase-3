@@ -2,7 +2,7 @@ name: Trace Image Provenance
 
 # Manual evidence workflow for Mandate 10. It starts from a running pod and a
 # claimed image digest, then reconstructs the supply-chain trail:
-# pod -> runtime digest -> SLSA provenance -> signature -> SBOM -> build run -> PR reviewer.
+# pod -> runtime digest -> SLSA provenance -> signature -> SBOM -> promote attest -> build run -> PR reviewer.
 
 on:
   workflow_dispatch:
@@ -37,8 +37,11 @@ env:
   CLUSTER_NAME: ${{ vars.EKS_CLUSTER_NAME || 'ecommerce-dev-eks' }}
   ECR_REGISTRY: ${{ vars.ECR_REGISTRY || '804372444787.dkr.ecr.us-east-1.amazonaws.com' }}
   ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY || 'ecommerce-dev-techx-corp' }}
+  ATTEST_REPOSITORY: ${{ vars.ECR_ATTEST_REPOSITORY || 'ecommerce-dev-techx-corp-attest' }}
   BUILD_IDENTITY: https://github.com/${{ github.repository }}/.github/workflows/app-build.yaml@refs/heads/develop
+  ATTEST_IDENTITY: https://github.com/${{ github.repository }}/.github/workflows/app-attest.yaml@refs/heads/develop
   OIDC_ISSUER: https://token.actions.githubusercontent.com
+  PROMOTED_DEVELOP_TYPE: https://github.com/nguyenductien-qnm/capstone-phase-3/promoted-develop/v1
   APP_BUILD_WORKFLOW: app-build.yaml
 
 jobs:
@@ -171,35 +174,88 @@ jobs:
           pass_line "sbom attestation" "type=spdxjson"
           echo "| SBOM | PASS \`spdxjson\` attestation verified |" >> "$GITHUB_STEP_SUMMARY"
 
+          echo "== Promoted-develop attestation =="
+          ATTEST_REPO="${ECR_REGISTRY}/${ATTEST_REPOSITORY}"
+          COSIGN_REPOSITORY="$ATTEST_REPO" cosign verify-attestation \
+            --type "$PROMOTED_DEVELOP_TYPE" \
+            --certificate-identity "$ATTEST_IDENTITY" \
+            --certificate-oidc-issuer "$OIDC_ISSUER" \
+            "$IMAGE_REF" > promoted-develop-attestation.json
+
+          PROMOTE_JSON="$(
+            jq -ecs '
+              [.[] | .payload | @base64d | fromjson | .predicate]
+              | map(select(.environment == "develop"))
+              | .[0] // empty
+            ' promoted-develop-attestation.json
+          )"
+          [ -n "$PROMOTE_JSON" ] || fail "promoted-develop attestation exists but no develop predicate was found"
+
+          PROMOTED_SERVICE="$(jq -r '.service // "unknown"' <<<"$PROMOTE_JSON")"
+          PROMOTED_TAG="$(jq -r '.tag // "unknown"' <<<"$PROMOTE_JSON")"
+          PROMOTED_DIGEST="$(jq -r '.digest // "unknown"' <<<"$PROMOTE_JSON")"
+          PROMOTED_BY="$(jq -r '.attestedBy // "unknown"' <<<"$PROMOTE_JSON")"
+          if [ "$PROMOTED_DIGEST" != "unknown" ] && [ "${PROMOTED_DIGEST,,}" != "${DIGEST,,}" ]; then
+            fail "promoted-develop digest mismatch. attestation=$PROMOTED_DIGEST runtime=$DIGEST"
+          fi
+          pass_line "promote attestation" "service=$PROMOTED_SERVICE tag=$PROMOTED_TAG"
+          echo "| Promoted from develop | PASS service=\`${PROMOTED_SERVICE}\`, tag=\`${PROMOTED_TAG}\`, attestedBy=${PROMOTED_BY} |" >> "$GITHUB_STEP_SUMMARY"
           echo "== GitHub Actions build run =="
           gh run list \
             --repo "$GITHUB_REPOSITORY" \
             --commit "$COMMIT" \
             --workflow "$APP_BUILD_WORKFLOW" \
             --limit 20 \
-            --json databaseId,status,conclusion,createdAt,url,displayTitle,headSha > runs.json
+            --json databaseId,status,conclusion,createdAt,url,displayTitle,event,headSha > runs.json
 
           RUN_JSON="$(jq -c '[.[] | select(.conclusion == "success")][0] // empty' runs.json)"
           [ -n "$RUN_JSON" ] || fail "no successful $APP_BUILD_WORKFLOW run found for commit $COMMIT"
           RUN_ID="$(jq -r '.databaseId' <<<"$RUN_JSON")"
           RUN_URL="$(jq -r '.url' <<<"$RUN_JSON")"
+          RUN_EVENT="$(jq -r '.event // "unknown"' <<<"$RUN_JSON")"
+          RUN_TITLE="$(jq -r '.displayTitle // "unknown"' <<<"$RUN_JSON")"
+          RUN_HEAD_SHA="$(jq -r '.headSha // "unknown"' <<<"$RUN_JSON")"
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            "repos/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}" > run-detail.json
+          RUN_WORKFLOW_NAME="$(jq -r '.name // "unknown"' run-detail.json)"
+          RUN_WORKFLOW_PATH="$(jq -r '.path // "unknown"' run-detail.json)"
+          RUN_NUMBER="$(jq -r '.run_number // "unknown"' run-detail.json)"
+          RUN_ACTOR="$(jq -r '.actor.login // "unknown"' run-detail.json)"
+          RUN_TRIGGERING_ACTOR="$(jq -r '.triggering_actor.login // "unknown"' run-detail.json)"
           pass_line "app-build run" "run=$RUN_ID conclusion=success"
           echo "| Build/scan/sign run | [run ${RUN_ID}](${RUN_URL}) conclusion=success |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Build workflow/action | \`${RUN_WORKFLOW_NAME}\` (\`${RUN_WORKFLOW_PATH}\`) #${RUN_NUMBER} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Build run trigger | \`${RUN_EVENT}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Build run actor | \`${RUN_ACTOR}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Build run triggering actor | \`${RUN_TRIGGERING_ACTOR}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Build run title | \`${RUN_TITLE}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Build run head SHA | \`${RUN_HEAD_SHA}\` |" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$RUN_EVENT" = "workflow_dispatch" ]; then
+            pass_line "run trigger" "workflow_dispatch (manual run by $RUN_TRIGGERING_ACTOR in $RUN_WORKFLOW_PATH)"
+            echo "| Build run note | Manual workflow_dispatch run. This can rebuild the full repository snapshot at the source commit; it does not mean the traced PR changed every service. |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            pass_line "run trigger" "$RUN_EVENT"
+          fi
 
           gh run view "$RUN_ID" \
             --repo "$GITHUB_REPOSITORY" \
             --json jobs > run-jobs.json
 
-          PASSED_JOBS="$(
-            jq -r '
-              [.jobs[]? | select(.conclusion == "success") | .name]
-              | unique
-              | join("<br>")
+          TRACE_SERVICE="$PROMOTED_SERVICE"
+          if [ -z "$TRACE_SERVICE" ] || [ "$TRACE_SERVICE" = "unknown" ]; then
+            TRACE_SERVICE="$CONTAINER"
+          fi
+          SERVICE_BUILD_JOB="Build ${TRACE_SERVICE}"
+          SERVICE_JOB_CONCLUSION="$(
+            jq -r --arg name "$SERVICE_BUILD_JOB" '
+              [.jobs[]? | select(.name == $name)][0].conclusion // empty
             ' run-jobs.json
           )"
-          [ -n "$PASSED_JOBS" ] || fail "build run $RUN_ID is successful, but no successful jobs were returned by GitHub API"
-          pass_line "passed jobs" "$(jq -r '[.jobs[]? | select(.conclusion == "success") | .name] | unique | join(", ")' run-jobs.json)"
-          echo "| Scan/build/sign jobs passed | ${PASSED_JOBS} |" >> "$GITHUB_STEP_SUMMARY"
+          [ -n "$SERVICE_JOB_CONCLUSION" ] || fail "build run $RUN_ID did not include expected traced-service job: $SERVICE_BUILD_JOB"
+          [ "$SERVICE_JOB_CONCLUSION" = "success" ] || fail "$SERVICE_BUILD_JOB conclusion=$SERVICE_JOB_CONCLUSION"
+          pass_line "service build job" "$SERVICE_BUILD_JOB conclusion=success"
+          echo "| Traced service build/scan/sign job | \`${SERVICE_BUILD_JOB}\` conclusion=success |" >> "$GITHUB_STEP_SUMMARY"
 
           echo "== Pull request and reviewer =="
           gh api \
@@ -218,13 +274,16 @@ jobs:
 
           REVIEWERS="$(jq -r '[.reviews[]? | select(.state == "APPROVED") | .author.login] | unique | join(", ")' pr-view.json)"
           [ -n "$REVIEWERS" ] || fail "PR #$PR_NUMBER found, but no APPROVED review in API response"
-          pass_line "merged PR" "#$PR_NUMBER approvedBy=$REVIEWERS"
-          echo "| Pull request | [#${PR_NUMBER} ${PR_TITLE}](${PR_URL}) |" >> "$GITHUB_STEP_SUMMARY"
+          pass_line "source PR" "#$PR_NUMBER approvedBy=$REVIEWERS"
+          echo "| Source merge commit PR | [#${PR_NUMBER} ${PR_TITLE}](${PR_URL}) |" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$RUN_EVENT" = "workflow_dispatch" ]; then
+            echo "| PR trace note | Changed files may not belong to the traced service when app-build was run as a manual full rebuild. The PR is the source merge commit for the repository snapshot used to build this image. |" >> "$GITHUB_STEP_SUMMARY"
+          fi
           echo "| Approved by | \`${REVIEWERS}\` |" >> "$GITHUB_STEP_SUMMARY"
 
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "### Result" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "PASS: pod runtime digest traced to SLSA provenance, cosign signature, SBOM, successful app-build run, and approved PR." >> "$GITHUB_STEP_SUMMARY"
+          echo "PASS: pod runtime digest traced to SLSA provenance, cosign signature, SBOM, promoted-develop attestation, successful app-build run, and approved PR." >> "$GITHUB_STEP_SUMMARY"
 
 

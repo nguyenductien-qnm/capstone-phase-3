@@ -31,6 +31,10 @@ opentelemetry-collector:
   config:
     connectors:
       spanmetrics:
+        metrics_flush_interval: 60s
+        # Remove inactive resources before per-series eviction so the
+        # exporter never emits empty OTLP metrics.
+        metrics_expiration: 25m
         series_expiration: 30m
         aggregation_cardinality_limit: 50000
         resource_metrics_key_attributes:
@@ -183,11 +187,9 @@ opensearch:
 
 components:
   load-generator:
-    # Disabled for the Mandate-19 load test: the OTel Demo load-generator pumps
-    # background traffic into the app, so the baseline is not zero and every
-    # mCPU/rps denominator is wrong (master plan section 4, "Nhieu 2"). We drive
-    # load from a dedicated Locust runner instead. Re-enable after the test.
-    enabled: false
+    # Continuous low background traffic keeps Develop telemetry active.
+    # HTTP-only Locust autostarts 10 users at 1 user/s from chart defaults.
+    enabled: true
     schedulingRules:
       nodeSelector:
         workload-tier: observability
