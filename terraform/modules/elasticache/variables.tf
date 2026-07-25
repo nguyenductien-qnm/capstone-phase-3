@@ -41,3 +41,15 @@ variable "eks_node_security_group_id" {
   type        = string
   description = "EKS node security group ID to allow access to Valkey"
 }
+
+variable "snapshot_retention_limit" {
+  type        = number
+  description = "So ngay giu ban snapshot ElastiCache Valkey (0 = tat snapshot)"
+  default     = 0
+}
+
+variable "snapshot_window" {
+  type        = string
+  description = "Khung gio UTC thuc hien snapshot tu dong hang ngay"
+  default     = null
+}

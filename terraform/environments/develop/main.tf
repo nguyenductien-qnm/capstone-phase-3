@@ -128,6 +128,9 @@ module "elasticache" {
   node_type                  = var.valkey_node_type
   num_cache_clusters         = var.valkey_num_cache_clusters
   eks_node_security_group_id = module.eks.cluster_security_group_id
+
+  snapshot_retention_limit   = 7
+  snapshot_window            = "03:00-04:00"
 }
 
 # IRSA cho external-dns: quyền ghi record trong ĐÚNG hosted zone của subdomain.

@@ -5,6 +5,7 @@ provider "registry.terraform.io/cyrilgdn/postgresql" {
   version     = "1.21.0"
   constraints = "~> 1.21.0"
   hashes = [
+    "h1:Jiy9o0rCL6SIcYAkptqQfpYikMWSNG0q/cmleVrGT+I=",
     "h1:v7X6z6j8Uo07+QJPuO3EVM8N1uy6t2k+1GiRGioOPGc=",
     "zh:17e3d204dabc116276c763bb0cd159aa315789d3b0bcd3b8aede935509960ab6",
     "zh:1a7e5ac1921afdb3b12a49714c5f446a7604bfa1eb7bd9c123d607f8cbda45e4",
@@ -120,6 +121,7 @@ provider "registry.terraform.io/mongey/kafka" {
   constraints = "~> 0.7.0"
   hashes = [
     "h1:Mg9O6C8oN+FlRdnJTf7Rg5C8/go07nqspXfWugWi++U=",
+    "h1:odIH0SB6YJhrs3D4WIkgPgHCAjwLLEzl7KFnK77dJXo=",
     "zh:2032d7625d7ce6f00d89a479db715468dc127a8347160ebdad8bcf433235254b",
     "zh:4e7bbe0759ebb79337b26399d062dcece727503a738f63af255509a159079da3",
     "zh:525af3406910de7cb989676eb87552ce729eaedbd771ae8d04d619f7a930fc63",
