@@ -197,8 +197,8 @@ internal class Consumer : IDisposable
                 if (_dbContext != null)
                 {
                     // 1. Claim check: Query checkout.orders using orderId to get JSON metadata
-                    var rawJson = await _dbContext.Database                                                                                              
-                        .SqlQueryRaw<string>("SELECT order_metadata::text FROM checkout.orders WHERE order_id = {0}", orderId)                           
+                    var rawJson = await _dbContext.Database
+                        .SqlQuery<string>($"SELECT order_metadata::text AS \"Value\" FROM checkout.orders WHERE order_id = {orderId}")
                         .FirstOrDefaultAsync();
 
                     if (!string.IsNullOrEmpty(rawJson))                                                                                                  
