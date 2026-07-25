@@ -117,9 +117,18 @@ pub fn start_kafka_consumer() {
                             .unwrap_or_default();
                         let user_id = user_id_owned.as_str();                                                                                                              
                                                                                                                                                  
-                        let order_id = m.key()                                                                                                           
-                            .map(|k| String::from_utf8_lossy(k).to_string())                                                                             
-                            .unwrap_or_default();
+                        let order_id_owned = data_obj
+                            .get("order_id")
+                            .or_else(|| data_obj.get("orderId"))
+                            .or_else(|| data_obj.get("aggregate_id"))
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string())
+                            .unwrap_or_else(|| {
+                                m.key()
+                                    .map(|k| String::from_utf8_lossy(k).to_string())
+                                    .unwrap_or_default()
+                            });
+                        let order_id = order_id_owned.as_str();
 
                         info!("Shipping consumed message for orderId: {}, userId: {}", order_id, user_id);
 
