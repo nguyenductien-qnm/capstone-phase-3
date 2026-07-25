@@ -17,6 +17,8 @@ FROM docker.io/library/ruby:3.4.9-alpine3.22@sha256:2f1913c4f4880a5d3f6d0b314029
 # Patch OS packages from the base image.
 RUN apk upgrade --no-cache
 
+ENV BUNDLE_DEPLOYMENT=1
+
 COPY --from=builder /usr/local/bundle/ /usr/local/bundle/
 
 WORKDIR /email_server
