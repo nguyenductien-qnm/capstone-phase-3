@@ -31,6 +31,11 @@ opentelemetry-collector:
   config:
     connectors:
       spanmetrics:
+        metrics_flush_interval: 60s
+        # Remove inactive resources before per-series eviction so the
+        # exporter never emits empty OTLP metrics.
+        metrics_expiration: 25m
+        series_expiration: 30m
         aggregation_cardinality_limit: 50000
         resource_metrics_key_attributes:
           - service.name
