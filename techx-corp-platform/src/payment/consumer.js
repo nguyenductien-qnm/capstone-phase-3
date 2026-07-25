@@ -70,9 +70,9 @@ async function startConsumer() {
         }, `Payment consumer group '${groupId}' consumed message from topic '${topic}'.`);
 
         // 2. Extract order_id & user_id 
-        const orderId = message.key ? message.key.toString() : payload.order_id
-        const userId = payload.user_id 
-        logger.info({ orderId, userId }, "Extracted orderId and userId in Payment consumer")
+        const orderId = message.key ? message.key.toString() : (payload.order_id || payload.orderId);
+        const userId = payload.user_id || payload.userId || (payload.order_metadata ? JSON.parse(payload.order_metadata).user_id : '');
+        logger.info({ orderId, userId }, "Extracted orderId and userId in Payment consumer");
         
         // 3. 
         // When consuming from domain.checkout.orders
