@@ -47,20 +47,35 @@ phải trạng thái nền:
   `incident_scenarios/README.md` (bỏ `frontend-proxy` vì target `flagd-ui` build lỗi).
 - `/api/cart`: **1217 request / 2 lỗi (0.16%)** — luồng không bị bơm sự cố chạy sạch.
 - `/api/checkout`: **399 request / 180 lỗi (45%)** — luồng bị bơm `paymentFailure`, cộng
-  thêm phần lỗi do `email` restart-loop (mục 4.6). Đây là **xác nhận độc lập từ phía
+  thêm phần lỗi do `email` restart-loop (mục 4.7). Đây là **xác nhận độc lập từ phía
   client** cho cùng sự cố mà detector bắt được từ phía metric server-side: hai nguồn dữ
   liệu khác nhau, cùng một kết luận.
 - `Failures 2%` ở thanh trên là tỉ lệ trên **toàn bộ** request của phiên (gồm cả các cửa sổ
   cố ý bơm lỗi) — không đọc nó thành "hệ thống nền hỏng 2%".
 
-### 4.2 Kết quả từng ca
+### 4.2 Số đo TRÊN TOÀN BỘ BỘ CÓ NHÃN
+
+Mandate ghi rõ precision/recall/lead-time phải đo trên **một bộ sự cố có nhãn**
+(K sự cố + giai đoạn bình thường) và **"KHÔNG phải per-service"**. Nên con số nộp là
+số cộng toàn bộ, không phải số của ca chạy tốt nhất:
+
+| Chỉ số | Công thức mandate | Giá trị |
+|---|---|---|
+| **K** | số sự cố thật có nhãn | **3** |
+| **recall** | bắt được / K | **1/3 = 0.333** |
+| **precision** | lần kêu đúng / tổng lần kêu | **1/6 = 0.167** |
+| **lead-time** | từ lúc sự cố bắt đầu tới lúc kêu | **88.9s** (ca bắt được) |
+
+Đây là số thật, không phải số đẹp. Đọc nó cùng mục 4.4 và 4.7 mới đúng nghĩa.
+
+### 4.3 Kết quả từng ca
 
 | Ca | Service / tín hiệu | Kết quả | Lead-time | Ghi chú |
 |---|---|---|---|---|
-| `case_real_incident` | checkout · gRPC error rate | **PASS** | **88.9s** | recall 1.0, precision 0.5 |
-| `case_cart_failure` | cart · gRPC error rate | **FAIL** | — | điểm mù instrumentation, xem 4.4 |
-| `case_image_slow` | image-provider · p95 latency | **FAIL** | — | điểm mù instrumentation, xem 4.4 |
-| `case_quiet_window` | — (không bơm gì) | **FAIL** | 20.6s | nhưng là cảnh báo ĐÚNG, xem 4.6 |
+| `case_real_incident` | checkout · gRPC error rate | **PASS** | **88.9s** | ca duy nhất bắt được |
+| `case_cart_failure` | cart · gRPC error rate | **FAIL** | — | điểm mù instrumentation, xem 4.5 |
+| `case_image_slow` | image-provider · p95 latency | **FAIL** | — | điểm mù instrumentation, xem 4.5 |
+| `case_quiet_window` | — (không bơm gì) | **FAIL** | 20.6s | nhưng là cảnh báo ĐÚNG, xem 4.7 |
 
 Log đầy đủ: `run-case_*.log`. Số máy sinh (không gõ tay): `<scenario>.result.json`.
 Dữ liệu thô để mentor tự chấm lại: `alerter_history.jsonl` (16 alert của cả phiên).
@@ -74,9 +89,9 @@ không kêu lại mỗi 30 giây.
 > Lưu ý đọc log: phần mô tả in trong `run-case_cart_failure.log` và
 > `run-case_image_slow.log` là mô tả **trước khi** chẩn đoán được nguyên nhân FAIL. File
 > kịch bản trong `aiops/incident_scenarios/` sau đó đã được cập nhật với kết luận ở mục
-> 4.4(a). Số đo trong log không đổi, chỉ phần mô tả là cũ hơn.
+> 4.5(a). Số đo trong log không đổi, chỉ phần mô tả là cũ hơn.
 
-### 4.3 Ca chính — detector kêu đúng, e2e
+### 4.4 Ca chính — detector kêu đúng, e2e
 
 ![Tỉ lệ lỗi gRPC theo thời gian, các cửa sổ bơm sự cố và thời điểm alert](image/error-ratio-timeline.png)
 
@@ -106,7 +121,7 @@ Ba điểm cần đọc đúng ở ảnh này:
   biểu đồ trên vì UI đang ở `Medium res.` còn script lấy `step=30s` — khác bước lấy mẫu,
   không phải khác dữ liệu.
 - **Đoạn cao từ 16:15Z trở đi (~0.70) KHÔNG phải sự cố bơm vào** — đó là `email`
-  restart-loop, xem mục 4.6. Nêu ra để không bị hiểu nhầm thành lần bơm thứ hai.
+  restart-loop, xem mục 4.7. Nêu ra để không bị hiểu nhầm thành lần bơm thứ hai.
 
 
 ```
@@ -119,6 +134,10 @@ SCENARIO: case-real-incident-001 [real]
   VERDICT (real): PASS — real incident fired within window
 ======================================================================
 ```
+
+> Đây là output của **riêng ca này** (K=1), không phải số nộp. Số nộp là số cộng trên
+> toàn bộ bộ có nhãn ở mục 4.2 — `K=3 · recall 0.333 · precision 0.167`. Mandate yêu cầu
+> đo trên cả bộ, nên lấy số của ca chạy tốt nhất mà nộp là sai.
 
 Chuỗi nhân quả đã kiểm chứng từng khâu, không suy đoán:
 
@@ -133,7 +152,7 @@ Chuỗi nhân quả đã kiểm chứng từng khâu, không suy đoán:
 Alert này lặp lại ổn định **4 lần** trong phiên đo (22:54:29, 23:04:59, 23:15:05,
 23:25:24) mỗi khi sự cố được bơm lại — không phải may mắn một lần.
 
-### 4.4 Ba phát hiện thật do chính phép đo tìm ra
+### 4.5 Ba phát hiện thật do chính phép đo tìm ra
 
 Đây là phần đáng giá nhất của `#7b`: đo trên bộ có nhãn phát hiện được những thứ mà đọc
 code không thấy. Không cái nào được giấu đi để làm đẹp số.
@@ -165,18 +184,29 @@ rule chạy được trên **service thứ hai**, không phải chỉ tinh chỉ
 (Ca này không giữ lại trong bộ có nhãn: lần bơm lặp lại sau đó không tạo ra lỗi nào —
 `ratio=0.0000` — nên nó không phải một sự cố có nhãn đáng tin.)
 
-### 4.5 Về con số precision — đọc cho đúng
+### 4.6 Về `precision = 0.167` — đọc cho đúng, không phải bào chữa
 
-precision = 0.5 ở ca chính không có nghĩa detector kêu bậy một nửa. Lần kêu "sai" thứ hai
-là `latency-p95-high svc=cart` — hệ quả thật của chính sự cố đó (payment hỏng ⇒ checkout
-chậm ⇒ cart chậm theo). Công thức mandate chỉ tính đúng những rule đã khai trước trong
-nhãn của ca đó, nên cảnh báo đúng về **ảnh hưởng lan sang service khác** vẫn bị tính là
-sai. Tương tự, `dns-resolution-error` kêu nhiều lần trong phiên là **cảnh báo đúng** về một
-sự cố có thật khác: `email` restart-loop 23 lần, checkout không gọi nổi
-(`dial ... http://email:6060/send_order_confirmation`). Nêu ra để con số được đọc đúng,
-không phải để bào chữa.
+Toàn bộ 6 lần kêu trong 4 cửa sổ, và bản chất từng lần:
 
-### 4.6 Cửa sổ "yên tĩnh" hoá ra không yên tĩnh — và đó là điểm cộng
+| # | Thời điểm | Alert | Có phải cảnh báo sai không? |
+|---|---|---|---|
+| 1 | 22:53:26 | `latency-p95-high` svc=cart | **Không** — hệ quả thật của sự cố đang bơm (payment hỏng ⇒ checkout chậm ⇒ cart chậm) |
+| 2 | 22:54:29 | `grpc-error-rate-high` svc=checkout | **Không** — đây là lần kêu duy nhất được tính "đúng" |
+| 3 | 23:00:49 | `dns-resolution-error` svc=log | **Không** — `email` chết thật, checkout không phân giải nổi |
+| 4 | 23:15:05 | `grpc-error-rate-high` svc=checkout | **Không** — vẫn là hậu quả `email` chết |
+| 5 | 23:15:38 | `grpc-error-rate-high` svc=product-catalog | **Không** — sự cố product-catalog bơm trước đó, alert tới muộn (xem 4.5c) |
+| 6 | 23:35:27 | `grpc-error-rate-high` svc=checkout | **Không** — `email` vẫn chết |
+
+**5/6 lần bị tính là "sai" thực chất là cảnh báo đúng về sự cố có thật** — chỉ không phải
+sự cố mang nhãn của đúng cửa sổ đó. Công thức mandate chỉ tính đúng những rule đã khai
+trước trong nhãn, nên cảnh báo đúng về sự cố *khác* vẫn bị trừ điểm.
+
+Điều đó **không làm con số 0.167 sai** — nó đúng theo công thức và tôi nộp nguyên. Nó chỉ
+ra một chuyện khác: **bộ có nhãn của đợt này bị nhiễm bởi một sự cố thật không do mình
+bơm** (`email` restart-loop). Muốn precision phản ánh đúng chất lượng detector thì phải đo
+lại trên môi trường sạch — ghi ở 4.7 là việc còn thiếu.
+
+### 4.7 Cửa sổ "yên tĩnh" hoá ra không yên tĩnh — và đó là điểm cộng
 
 Ca `case_quiet_window` không bơm gì, kỳ vọng detector im lặng. Kết quả **FAIL**: sau 20.6s
 detector kêu `grpc-error-rate-high svc=checkout`, CRITICAL. Điều tra thì đây **không phải
@@ -264,13 +294,13 @@ code.
     thay vì `run` — xem aiops/incident_scenarios/README.md)
 
 3. Bằng chứng chạy thật:
-   - Ca chính PASS: recall 1.0, lead-time 88.9s, precision 0.5
+   - Bộ có nhãn: K=3, recall 0.333, precision 0.167, lead-time 88.9s
      (report/mandate07b/run-case_real_incident.log)
    - Chuỗi nhân quả kiểm chứng từng khâu: flagd OFREP -> payment lỗi thật ->
      checkout gRPC code=13 ratio 0.9576 -> alert CRITICAL. Alert lặp ổn định 4 lần.
    - Log + result.json + alerter_history.jsonl thô: report/mandate07b/
    - 3 phát hiện thật do phép đo tìm ra (2 điểm mù instrumentation, 1 false positive
-     đã sửa, 1 bài học về độ dài cửa sổ chấm): report/mandate07b/report.md muc 4.4
+     đã sửa, 1 bài học về độ dài cửa sổ chấm): report/mandate07b/report.md muc 4.5
 
 4. ADR: docs/ai/05_adrs.md#adr-012 (+ addendum 2026-07-24 và 2026-07-25)
 ```

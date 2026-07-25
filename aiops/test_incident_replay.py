@@ -119,6 +119,29 @@ def test_verdict_healthy_load_passes_when_silent():
     assert ok is True
 
 
+def test_alert_in_no_fire_window_is_not_counted_as_a_correct_fire(tmp_path):
+    """An alert during a window that should stay silent is a false positive.
+
+    It used to land in correct_fires because the watch set matched, which
+    reported precision 1.0 for a window whose whole point was to catch
+    over-alerting. Found when the #7b set-level numbers were recomputed.
+    """
+    history = tmp_path / "alerter_history.jsonl"
+    _write_jsonl(history, [
+        {"ts": 1000.0, "rule_id": "grpc-error-rate-high", "service": "checkout"},
+    ])
+    events = [{
+        "label": "quiet-window", "service": None,
+        "expected_rule_ids": ["grpc-error-rate-high"],
+        "expect_fire": False, "t_start": 900.0, "t_end": 1100.0,
+    }]
+    score = ir.score_events(events, str(history), settle_seconds=0)
+    assert score["per_event"][0]["fired"] is True
+    assert score["metrics"]["total_fires_observed"] == 1
+    assert score["metrics"]["correct_fires"] == 0
+    assert score["metrics"]["precision"] == 0.0
+
+
 def test_verdict_real_incident_passes_when_fired():
     per_event = [{"label": "incident", "expect_fire": True, "fired": True}]
     ok, _ = ir.verdict_for_type("real", per_event)

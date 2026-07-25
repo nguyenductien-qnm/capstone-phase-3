@@ -58,9 +58,9 @@
     "metrics": {
       "K_incidents": 0,
       "recall": null,
-      "precision": 1.0,
+      "precision": 0.0,
       "total_fires_observed": 1,
-      "correct_fires": 1
+      "correct_fires": 0
     },
     "raw_alerts_in_window": [
       {
