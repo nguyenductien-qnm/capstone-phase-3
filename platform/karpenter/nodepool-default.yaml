@@ -16,12 +16,12 @@ spec:
         - key: karpenter.sh/capacity-type
           operator: In
           values: ["on-demand"]
-        - key: karpenter.k8s.aws/instance-category
+        - key: karpenter.k8s.aws/instance-family
           operator: In
-          values: ["c", "m", "t"]
-        - key: karpenter.k8s.aws/instance-cpu
+          values: ["m6a", "c6a", "c7i"]
+        - key: karpenter.k8s.aws/instance-size
           operator: In
-          values: ["2", "4"]
+          values: ["large", "xlarge"]
         - key: karpenter.k8s.aws/instance-generation
           operator: Gt
           values: ["2"]
@@ -36,7 +36,10 @@ spec:
         name: default
       terminationGracePeriod: 24h
   limits:
-    cpu: "8"  # Sized conservative for dev overflow
+    cpu: "16"
+    memory: 64Gi
   disruption:
-    consolidationPolicy: WhenEmpty
+    consolidationPolicy: WhenEmptyOrUnderutilized
     consolidateAfter: 5m
+    budgets:
+      - nodes: "1"
