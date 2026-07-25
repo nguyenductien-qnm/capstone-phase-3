@@ -31,7 +31,6 @@ opentelemetry-collector:
   config:
     connectors:
       spanmetrics:
-        series_expiration: 30m
         aggregation_cardinality_limit: 50000
         resource_metrics_key_attributes:
           - service.name
