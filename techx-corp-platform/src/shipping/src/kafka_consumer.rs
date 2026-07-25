@@ -86,18 +86,19 @@ pub fn start_kafka_consumer() {
                     let parsed_json: serde_json::Value = serde_json::from_str(payload)
                         .unwrap_or_else(|_| serde_json::json!({}));
                     
-                    let user_id = parsed_json
+                    let user_id_owned = parsed_json
                         .get("user_id")
                         .or_else(|| parsed_json.get("userId"))
                         .and_then(|v| v.as_str())
+                        .map(|s| s.to_string())
                         .or_else(|| {
                             parsed_json.get("order_metadata")
                                 .and_then(|v| v.as_str())
                                 .and_then(|meta_str| serde_json::from_str::<serde_json::Value>(meta_str).ok())
                                 .and_then(|meta_obj| meta_obj.get("user_id").and_then(|u| u.as_str()).map(|s| s.to_string()))
-                                .as_deref()
                         })
-                        .unwrap_or("");                                                                                                              
+                        .unwrap_or_default();
+                    let user_id = user_id_owned.as_str();                                                                                                              
                                                                                                                                              
                     let order_id = m.key()                                                                                                           
                         .map(|k| String::from_utf8_lossy(k).to_string())                                                                             
