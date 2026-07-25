@@ -206,29 +206,45 @@ jobs:
             --commit "$COMMIT" \
             --workflow "$APP_BUILD_WORKFLOW" \
             --limit 20 \
-            --json databaseId,status,conclusion,createdAt,url,displayTitle,headSha > runs.json
+            --json databaseId,status,conclusion,createdAt,url,displayTitle,event,headSha > runs.json
 
           RUN_JSON="$(jq -c '[.[] | select(.conclusion == "success")][0] // empty' runs.json)"
           [ -n "$RUN_JSON" ] || fail "no successful $APP_BUILD_WORKFLOW run found for commit $COMMIT"
           RUN_ID="$(jq -r '.databaseId' <<<"$RUN_JSON")"
           RUN_URL="$(jq -r '.url' <<<"$RUN_JSON")"
+          RUN_EVENT="$(jq -r '.event // "unknown"' <<<"$RUN_JSON")"
+          RUN_TITLE="$(jq -r '.displayTitle // "unknown"' <<<"$RUN_JSON")"
+          RUN_HEAD_SHA="$(jq -r '.headSha // "unknown"' <<<"$RUN_JSON")"
           pass_line "app-build run" "run=$RUN_ID conclusion=success"
           echo "| Build/scan/sign run | [run ${RUN_ID}](${RUN_URL}) conclusion=success |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Build run trigger | \`${RUN_EVENT}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Build run title | \`${RUN_TITLE}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Build run head SHA | \`${RUN_HEAD_SHA}\` |" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$RUN_EVENT" = "workflow_dispatch" ]; then
+            pass_line "run trigger" "workflow_dispatch (manual run)"
+            echo "| Build run note | Manual workflow_dispatch run. This can rebuild the full repository snapshot at the source commit; it does not mean the traced PR changed every service. |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            pass_line "run trigger" "$RUN_EVENT"
+          fi
 
           gh run view "$RUN_ID" \
             --repo "$GITHUB_REPOSITORY" \
             --json jobs > run-jobs.json
 
-          PASSED_JOBS="$(
-            jq -r '
-              [.jobs[]? | select(.conclusion == "success") | .name]
-              | unique
-              | join("<br>")
+          TRACE_SERVICE="$PROMOTED_SERVICE"
+          if [ -z "$TRACE_SERVICE" ] || [ "$TRACE_SERVICE" = "unknown" ]; then
+            TRACE_SERVICE="$CONTAINER"
+          fi
+          SERVICE_BUILD_JOB="Build ${TRACE_SERVICE}"
+          SERVICE_JOB_CONCLUSION="$(
+            jq -r --arg name "$SERVICE_BUILD_JOB" '
+              [.jobs[]? | select(.name == $name)][0].conclusion // empty
             ' run-jobs.json
           )"
-          [ -n "$PASSED_JOBS" ] || fail "build run $RUN_ID is successful, but no successful jobs were returned by GitHub API"
-          pass_line "passed jobs" "$(jq -r '[.jobs[]? | select(.conclusion == "success") | .name] | unique | join(", ")' run-jobs.json)"
-          echo "| Scan/build/sign jobs passed | ${PASSED_JOBS} |" >> "$GITHUB_STEP_SUMMARY"
+          [ -n "$SERVICE_JOB_CONCLUSION" ] || fail "build run $RUN_ID did not include expected traced-service job: $SERVICE_BUILD_JOB"
+          [ "$SERVICE_JOB_CONCLUSION" = "success" ] || fail "$SERVICE_BUILD_JOB conclusion=$SERVICE_JOB_CONCLUSION"
+          pass_line "service build job" "$SERVICE_BUILD_JOB conclusion=success"
+          echo "| Traced service build/scan/sign job | \`${SERVICE_BUILD_JOB}\` conclusion=success |" >> "$GITHUB_STEP_SUMMARY"
 
           echo "== Pull request and reviewer =="
           gh api \
@@ -247,8 +263,11 @@ jobs:
 
           REVIEWERS="$(jq -r '[.reviews[]? | select(.state == "APPROVED") | .author.login] | unique | join(", ")' pr-view.json)"
           [ -n "$REVIEWERS" ] || fail "PR #$PR_NUMBER found, but no APPROVED review in API response"
-          pass_line "merged PR" "#$PR_NUMBER approvedBy=$REVIEWERS"
-          echo "| Pull request | [#${PR_NUMBER} ${PR_TITLE}](${PR_URL}) |" >> "$GITHUB_STEP_SUMMARY"
+          pass_line "source PR" "#$PR_NUMBER approvedBy=$REVIEWERS"
+          echo "| Source merge commit PR | [#${PR_NUMBER} ${PR_TITLE}](${PR_URL}) |" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$RUN_EVENT" = "workflow_dispatch" ]; then
+            echo "| PR trace note | Changed files may not belong to the traced service when app-build was run as a manual full rebuild. The PR is the source merge commit for the repository snapshot used to build this image. |" >> "$GITHUB_STEP_SUMMARY"
+          fi
           echo "| Approved by | \`${REVIEWERS}\` |" >> "$GITHUB_STEP_SUMMARY"
 
           echo "" >> "$GITHUB_STEP_SUMMARY"
