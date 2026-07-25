@@ -41,3 +41,17 @@ variable "eks_node_security_group_id" {
   type        = string
   description = "EKS node security group ID to allow access to Valkey"
 }
+
+# --- Mandate 20: DR Backup & Restore ---
+
+variable "snapshot_retention_limit" {
+  type        = number
+  description = "Số ngày giữ snapshot tự động của Valkey. 0 = tắt snapshot (mặc định, giữ nguyên hành vi cũ). Đặt > 0 để cart có backup."
+  default     = 0
+}
+
+variable "snapshot_window" {
+  type        = string
+  description = "Cửa sổ (UTC) ElastiCache tạo snapshot hằng ngày, dạng hh:mm-hh:mm. Chọn giờ thấp điểm."
+  default     = "03:00-04:00"
+}
