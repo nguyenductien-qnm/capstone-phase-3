@@ -43,7 +43,7 @@ resource "aws_eks_addon" "ebs_csi" {
   addon_version = data.aws_eks_addon_version.ebs_csi.version
 
   resolve_conflicts_on_create = "OVERWRITE"
-  resolve_conflicts_on_update = "PRESERVE"
+  resolve_conflicts_on_update = "OVERWRITE"
 
   depends_on = [
     aws_eks_node_group.this,
