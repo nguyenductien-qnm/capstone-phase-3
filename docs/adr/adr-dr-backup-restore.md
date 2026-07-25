@@ -31,7 +31,7 @@ The platform requires a comprehensive Disaster Recovery (DR) and backup protecti
 ## 3. Decision Drivers & Architecture Choices
 
 ### 3.1 Point-in-Time Restore (PITR) to Isolated Environment
-- **Decision:** All database drills must perform PITR to a newly provisioned, isolated RDS instance named `<instance-name>-drill`.
+- **Decision:** All database drills must perform PITR to a newly provisioned, isolated RDS instance named `<instance-name>-drill-temp`.
 - **Rationale:** Restoring directly over live production or develop instances risks catastrophic data loss. Restoring to isolated target instances ensures live workloads are unaffected and allows verification prior to traffic cutover.
 
 ### 3.2 Backup Anti-Deletion Guardrails (CDO-247)
@@ -50,7 +50,7 @@ Drills are conducted exclusively in `develop` environment (`ecommerce-dev-postgr
 
 1. **Seeding ($T_0$):** Synthetic records are inserted and MD5 state checksum computed.
 2. **Simulation ($T_1$):** `DROP SCHEMA drill_m20 CASCADE` simulates corruption/loss.
-3. **Restore:** `aws rds restore-db-instance-to-point-in-time` restores DB to $T_0$ into `ecommerce-dev-postgres-primary-drill`.
+3. **Restore:** `aws rds restore-db-instance-to-point-in-time` restores DB to $T_0$ into `ecommerce-dev-postgres-primary-drill-temp`.
 4. **Validation:** Row count and MD5 checksum on restored target must match $T_0$ baseline 100%.
 
 ---

@@ -123,8 +123,8 @@ variable "deletion_protection" {
 
 variable "copy_tags_to_snapshot" {
   type        = bool
-  description = "Sao chép tag của instance sang snapshot/PITR để AWS Backup và tra cứu theo tag hoạt động đúng"
-  default     = true
+  description = "Sao chép tag của instance sang snapshot/PITR để AWS Backup và tra cứu theo tag hoạt động đúng. Default false = giữ hành vi AWS cũ, không rò rỉ diff sang env chưa bật; bật rõ ràng ở từng env."
+  default     = false
 }
 
 variable "skip_final_snapshot" {

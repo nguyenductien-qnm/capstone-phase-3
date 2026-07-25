@@ -52,6 +52,6 @@ variable "snapshot_retention_limit" {
 
 variable "snapshot_window" {
   type        = string
-  description = "Cửa sổ (UTC) ElastiCache tạo snapshot hằng ngày, dạng hh:mm-hh:mm. Chọn giờ thấp điểm."
-  default     = "03:00-04:00"
+  description = "Cửa sổ (UTC) ElastiCache tạo snapshot hằng ngày, dạng hh:mm-hh:mm. null = để AWS giữ cửa sổ hiện tại (không rò rỉ diff sang env chưa bật snapshot). Đặt rõ khi bật retention."
+  default     = null
 }

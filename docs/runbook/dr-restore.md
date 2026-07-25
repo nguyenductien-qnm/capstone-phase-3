@@ -2,7 +2,7 @@
 
 > **Mandate 20 (CDO-248 / CDO-264)**  
 > **Target Environment:** `develop` (`ecommerce-dev-postgres-primary`)  
-> **Isolated Restore Target:** `ecommerce-dev-postgres-primary-drill`  
+> **Isolated Restore Target:** `ecommerce-dev-postgres-primary-drill-temp`  
 > **Target Store:** RDS PostgreSQL (`accounting` database)
 
 ---
@@ -12,7 +12,7 @@
 This runbook outlines the step-by-step procedure for conducting a Point-in-Time Restore (PITR) drill for PostgreSQL on AWS RDS without disrupting live customer operations or overwriting production/develop databases.
 
 ### Core Guardrails
-- **Isolation:** Restore target MUST be created as a separate DB instance with `-drill` suffix.
+- **Isolation:** Restore target MUST be created as a separate DB instance with `-drill-temp` suffix.
 - **Safety:** NEVER overwrite live RDS primary instances (`ecommerce-dev-postgres-primary`).
 - **Measurement:** Record RTO (Recovery Time Objective) from data loss detection to query verification, and RPO (Recovery Point Objective) against the target timestamp $T_0$.
 
@@ -70,7 +70,7 @@ Restore the database to timestamp $T_0$ (prior to $T_1$) into a newly provisione
 ```bash
 aws rds restore-db-instance-to-point-in-time \
   --source-db-instance-identifier ecommerce-dev-postgres-primary \
-  --target-db-instance-identifier ecommerce-dev-postgres-primary-drill \
+  --target-db-instance-identifier ecommerce-dev-postgres-primary-drill-temp \
   --restore-time "2026-07-25T16:00:00Z" \
   --no-multi-az \
   --publicly-accessible \
@@ -81,7 +81,7 @@ Wait until the restored DB instance becomes `available`:
 
 ```bash
 aws rds wait db-instance-available \
-  --db-instance-identifier ecommerce-dev-postgres-primary-drill \
+  --db-instance-identifier ecommerce-dev-postgres-primary-drill-temp \
   --region us-east-1
 ```
 
@@ -92,11 +92,11 @@ aws rds wait db-instance-available \
 Retrieve endpoint of the drill instance:
 ```bash
 DRILL_ENDPOINT=$(aws rds describe-db-instances \
-  --db-instance-identifier ecommerce-dev-postgres-primary-drill \
+  --db-instance-identifier ecommerce-dev-postgres-primary-drill-temp \
   --query 'DBInstances[0].Endpoint.Address' --output text --region us-east-1)
 ```
 
-Connect to `ecommerce-dev-postgres-primary-drill` and execute two-way integrity verification:
+Connect to `ecommerce-dev-postgres-primary-drill-temp` and execute two-way integrity verification:
 
 ```bash
 # 1. Verify schema and table presence
@@ -120,7 +120,7 @@ $$\text{RTO} = T_{\text{end\_rto}} - T_{\text{start\_rto}}$$
 Clean up the temporary restore instance using the safety-guarded script:
 
 ```bash
-./scripts/dr/destroy-drill-env.sh ecommerce-dev-postgres-primary-drill us-east-1
+./scripts/dr/destroy-drill-env.sh ecommerce-dev-postgres-primary-drill-temp us-east-1
 ```
 
 ---
@@ -131,4 +131,4 @@ Clean up the temporary restore instance using the safety-guarded script:
 - [ ] Command log of `simulate-data-loss.sh` showing $T_1$ drop event.
 - [ ] AWS CLI output of `restore-db-instance-to-point-in-time`.
 - [ ] Verification query output matching $T_0$ row count and hash on drill instance.
-- [ ] Cleanup log showing deletion of `ecommerce-dev-postgres-primary-drill`.
+- [ ] Cleanup log showing deletion of `ecommerce-dev-postgres-primary-drill-temp`.
