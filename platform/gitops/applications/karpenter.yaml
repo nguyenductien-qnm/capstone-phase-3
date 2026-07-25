@@ -27,6 +27,14 @@ spec:
           create: true
           name: karpenter
           annotations: {}  # Bỏ trống vì dùng Pod Identity Association ở IAM
+        # Cluster dùng prometheus-community/prometheus (classic scrape config qua
+        # pod annotation), KHÔNG có Prometheus Operator/ServiceMonitor CRD (đã xác
+        # nhận: `kubectl get crd servicemonitors.monitoring.coreos.com` -> NotFound).
+        # Không bật settings serviceMonitor.enabled ở chart này vì sẽ tạo resource
+        # kind lạ, ArgoCD sync fail.
+        podAnnotations:
+          prometheus.io/scrape: "true"
+          prometheus.io/port: "8080"
         controller:
           env:
             - name: AWS_REGION
