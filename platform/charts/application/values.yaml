@@ -656,6 +656,19 @@ components:
       env: true
     service:
       port: 8080
+    # M17 deploy-safety: dependency luồng ra tiền — readiness gate (không đẩy traffic vào pod chưa listening khi node churn)
+    # + preStop sleep native (K8s>=1.29, khỏi cần shell → an toàn cho mọi image) + grace. Fix rớt request khi Karpenter consolidate.
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep:
+          seconds: 5
+    readinessProbe:
+      tcpSocket: { port: 8080 }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
     env:
@@ -700,6 +713,18 @@ components:
       env: true
     service:
       port: 8080
+    # M17 deploy-safety: dependency luồng ra tiền — readiness gate + preStop sleep native + grace 30s. Fix rớt request khi drain/Karpenter consolidate.
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep:
+          seconds: 5
+    readinessProbe:
+      tcpSocket: { port: 8080 }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
     env:
@@ -1219,6 +1244,18 @@ components:
       env: true
     service:
       port: 8080
+    # M17 deploy-safety: dependency luồng ra tiền — readiness gate + preStop sleep native + grace 30s. Fix rớt request khi drain/Karpenter consolidate.
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep:
+          seconds: 5
+    readinessProbe:
+      tcpSocket: { port: 8080 }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
     env:
@@ -1470,6 +1507,18 @@ components:
       env: true
     service:
       port: 8080
+    # M17 deploy-safety: dependency luồng ra tiền (shipping→quote) — readiness gate + preStop sleep native + grace 30s. Fix rớt request khi drain/Karpenter consolidate.
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep:
+          seconds: 5
+    readinessProbe:
+      tcpSocket: { port: 8080 }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
     env:
@@ -1638,6 +1687,18 @@ components:
       env: true
     service:
       port: 8080
+    # M17 deploy-safety: dependency luồng ra tiền — readiness gate + preStop sleep native + grace 30s. Fix rớt request khi drain/Karpenter consolidate.
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep:
+          seconds: 5
+    readinessProbe:
+      tcpSocket: { port: 8080 }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
     env:
