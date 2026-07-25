@@ -3,61 +3,61 @@
 components:
   accounting:
     imageOverride:
-      tag: 1.0-accounting-029513b
+      tag: 1.0-accounting-3b42e61
   ad:
     imageOverride:
-      tag: 1.0-ad-029513b
+      tag: 1.0-ad-3b42e61
   cart:
     imageOverride:
-      tag: 1.0-cart-029513b
+      tag: 1.0-cart-3b42e61
   checkout:
     imageOverride:
-      tag: 1.0-checkout-029513b
+      tag: 1.0-checkout-3b42e61
   currency:
     imageOverride:
-      tag: 1.0-currency-029513b
+      tag: 1.0-currency-3b42e61
   fraud-detection:
     imageOverride:
-      tag: 1.0-fraud-detection-029513b
+      tag: 1.0-fraud-detection-3b42e61
   frontend:
     imageOverride:
-      tag: 1.0-frontend-029513b
+      tag: 1.0-frontend-3b42e61
   frontend-proxy:
     imageOverride:
-      tag: 1.0-frontend-proxy-029513b
+      tag: 1.0-frontend-proxy-3b42e61
   image-provider:
     imageOverride:
-      tag: 1.0-image-provider-029513b
+      tag: 1.0-image-provider-3b42e61
   llm:
     imageOverride:
-      tag: 1.0-llm-029513b
+      tag: 1.0-llm-3b42e61
   load-generator:
     imageOverride:
-      tag: 1.0-load-generator-029513b
+      tag: 1.0-load-generator-3b42e61
   ml-guard:
     imageOverride:
-      tag: 1.0-ml-guard-029513b
+      tag: 1.0-ml-guard-3b42e61
   payment:
     imageOverride:
-      tag: 1.0-payment-029513b
+      tag: 1.0-payment-3b42e61
   product-catalog:
     imageOverride:
-      tag: 1.0-product-catalog-029513b
+      tag: 1.0-product-catalog-3b42e61
   product-reviews:
     imageOverride:
-      tag: 1.0-product-reviews-029513b
+      tag: 1.0-product-reviews-3b42e61
   quote:
     imageOverride:
-      tag: 1.0-quote-029513b
+      tag: 1.0-quote-3b42e61
   recommendation:
     imageOverride:
-      tag: 1.0-recommendation-029513b
+      tag: 1.0-recommendation-3b42e61
   shipping:
     imageOverride:
-      tag: 1.0-shipping-029513b
+      tag: 1.0-shipping-3b42e61
   shopping-copilot:
     imageOverride:
-      tag: 1.0-shopping-copilot-029513b
+      tag: 1.0-shopping-copilot-3b42e61
   email:
     imageOverride:
-      tag: 1.0-email-029513b
+      tag: 1.0-email-3b42e61
