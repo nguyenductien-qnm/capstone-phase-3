@@ -34,9 +34,24 @@ tâm của BTC (`122.248.223.194.sslip.io`), đội không bơm được sự c�
 cho toàn quyền điều khiển flagd nên mới đo được precision/recall/lead-time. Ghi rõ ở đây
 thay vì để mentor tự phát hiện. Chi tiết cách dựng lại: `aiops/incident_scenarios/README.md`.
 
-Traffic nền: load-generator (Locust) 15 user, ~1.7–5 req/s, kèm script đẩy riêng cho luồng
+Traffic nền: load-generator (Locust) 15 user, ~1.5–5 req/s, kèm script đẩy riêng cho luồng
 checkout vì luồng này thưa (~0.06 req/s) — mọi rule metric đều dùng cửa sổ trượt
 `rate(...[5m])`, traffic thưa thì lỗi không bao giờ chi phối nổi cửa sổ đó.
+
+![Locust: 15 user, 1.5 RPS, /api/checkout 399 request với 180 lỗi](image/locust-traffic.png)
+
+Ảnh chụp sau khi chạy xong toàn bộ kịch bản, nên các con số là **cộng dồn cả phiên**, không
+phải trạng thái nền:
+
+- `Host: http://frontend:8080` — xác nhận đúng override đã ghi ở
+  `incident_scenarios/README.md` (bỏ `frontend-proxy` vì target `flagd-ui` build lỗi).
+- `/api/cart`: **1217 request / 2 lỗi (0.16%)** — luồng không bị bơm sự cố chạy sạch.
+- `/api/checkout`: **399 request / 180 lỗi (45%)** — luồng bị bơm `paymentFailure`, cộng
+  thêm phần lỗi do `email` restart-loop (mục 4.6). Đây là **xác nhận độc lập từ phía
+  client** cho cùng sự cố mà detector bắt được từ phía metric server-side: hai nguồn dữ
+  liệu khác nhau, cùng một kết luận.
+- `Failures 2%` ở thanh trên là tỉ lệ trên **toàn bộ** request của phiên (gồm cả các cửa sổ
+  cố ý bơm lỗi) — không đọc nó thành "hệ thống nền hỏng 2%".
 
 ### 4.2 Kết quả từng ca
 

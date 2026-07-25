@@ -22,3 +22,4 @@
 {"ts": 1784998933.760294, "rule_id": "dns-resolution-error", "service": "log", "severity": "warning", "fingerprint": "log:5949996"}
 {"ts": 1784999189.022642, "rule_id": "grpc-error-rate-high", "service": "checkout", "severity": "critical", "fingerprint": "checkout:5949997"}
 {"ts": 1784999540.098353, "rule_id": "dns-resolution-error", "service": "log", "severity": "warning", "fingerprint": "log:5949998"}
+{"ts": 1784999792.541898, "rule_id": "grpc-error-rate-high", "service": "checkout", "severity": "critical", "fingerprint": "checkout:5949999"}
