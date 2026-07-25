@@ -20,8 +20,8 @@
 | 2 | Masking-resistance | Fix winsorize `detector.py` (commit `4f48465`) + test `test_dynamic_detection_not_masked_by_prior_spike` | ✅ đã fix + unit test pass |
 | 3 | Độ lệch theo chính service | Đã có sẵn từ #7a (`metric_history` khoá `rule_id:service`, ADR-012) | ✅ không cần đổi |
 | 4 | Chạy liên tục + trunk | `Deployment` ArgoCD-managed, đã merge. Trunk = `develop` (định nghĩa ở ADR-012 addendum) | ✅ |
-| 5 | Incident summary | Grouped alert (K3) của `alerter.py` — mức MVP, không phải tường thuật root-cause (ghi rõ ở ADR-015, không overclaim) | ✅ mức MVP |
-| 6 | MTTD before/after | Before: `report/flagd1/postmortem-INC-01.md` (~2 phút, thủ công, EKS thật 14/07). After: `docs/ai/evals/measure_detection_pipeline.py` (mean 19.6s/max 35.4s, compose). Caveat khác môi trường ghi rõ ADR-015 | ✅ có số, có caveat |
+| 5 | Incident summary | Grouped alert (K3) của `alerter.py` — mức MVP, không phải tường thuật root-cause (ghi rõ ở ADR-016, không overclaim) | ✅ mức MVP |
+| 6 | MTTD before/after | Before: `report/flagd1/postmortem-INC-01.md` (~2 phút, thủ công, EKS thật 14/07). After: `docs/ai/evals/measure_detection_pipeline.py` (mean 19.6s/max 35.4s, compose). Caveat khác môi trường ghi rõ ADR-016 | ✅ có số, có caveat |
 | 7 | Bộ kịch bản ẩn | `aiops/incident_scenarios/case_masking.json` + `case_healthy_load.json` tự dựng để self-validate trước ngày chấm | Code ✅ / chạy sống PENDING |
 
 ## 3. Fix quan trọng nhất: bug masking thật
@@ -52,7 +52,7 @@ quan sát được thay vì tự inject — xem `aiops/incident_scenarios/README
 
 ## 5. Link ADR
 
-`docs/ai/05_adrs.md` — **ADR-015** (đầy đủ 6 quyết định + alternatives + consequences cho mandate này).
+`docs/ai/05_adrs.md` — **ADR-016** (đầy đủ 6 quyết định + alternatives + consequences cho mandate này).
 
 ## 6. Nội dung dán vào Jira ticket `AI MANDATE #15`
 
@@ -67,7 +67,7 @@ quan sát được thay vì tự inject — xem `aiops/incident_scenarios/README
    cho ngày BTC tự bơm)
 
 3. Bằng chứng chạy thật: <điền sau khi chạy — xem mục 4 report.md>
-   MTTD before/after: ~2 phút (thủ công, INC-01) -> mean 19.6s (tự động) — xem ADR-015 mục 5.
+   MTTD before/after: ~2 phút (thủ công, INC-01) -> mean 19.6s (tự động) — xem ADR-016 mục 5.
 
 4. ADR: docs/ai/05_adrs.md#adr-015
 ```

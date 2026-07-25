@@ -8,7 +8,7 @@
 > `slack | discord | stdout` (`provider` tự nhận diện từ URL webhook, kênh team đang
 > dùng = Discord). Phần "Mẫu Alert" (payload Slack Block Kit / Discord embed) bên dưới
 > khớp đúng code thật, không lỗi thời. (Nhân tiện khi rà lại tài liệu này cho
-> MANDATE-15 — xem `05_adrs.md` ADR-015 phần "incident summary".)
+> MANDATE-15 — xem `05_adrs.md` ADR-016 phần "incident summary".)
 
 ## 1. Mục tiêu (Objective)
 
