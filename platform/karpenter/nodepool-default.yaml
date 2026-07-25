@@ -36,6 +36,10 @@ spec:
         group: karpenter.k8s.aws
         kind: EC2NodeClass
         name: default
+      # Ép recycle định kỳ để node kéo AMI mới (AL2023 patch OS/kernel) — không có
+      # cái này, node sống lâu chạy AMI cũ vô thời hạn trừ khi consolidation tình
+      # cờ trigger. Pattern khớp TF3 (168h).
+      expireAfter: 168h
       terminationGracePeriod: 24h
   limits:
     cpu: "16"
