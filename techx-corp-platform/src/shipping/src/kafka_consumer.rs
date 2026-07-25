@@ -46,7 +46,17 @@ pub fn start_kafka_consumer() {
         }
     };
 
-    let producer: FutureProducer = match config.create() {
+    let mut producer_config = ClientConfig::new();
+    producer_config.set("bootstrap.servers", &kafka_addr);
+    if !kafka_user.is_empty() && !kafka_password.is_empty() {
+        producer_config
+            .set("security.protocol", "sasl_ssl")
+            .set("sasl.mechanisms", "SCRAM-SHA-512")
+            .set("sasl.username", &kafka_user)
+            .set("sasl.password", &kafka_password);
+    }
+
+    let producer: FutureProducer = match producer_config.create() {
         Ok(p) => p,
         Err(err) => {
             error!("Failed to create Shipping Kafka producer: {:?}", err);
@@ -64,68 +74,78 @@ pub fn start_kafka_consumer() {
         topic, group_id, fulfillment_topic
     );
 
-    tokio::spawn(async move {
-        loop {
-            match consumer.recv().await {
-                Ok(m) => {
-                    let payload = match m.payload_view::<str>() {
-                        Some(Ok(s)) => s,
-                        _ => "{}",
-                    };
+    std::thread::spawn(move || {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("Failed to build Tokio runtime for Shipping Kafka consumer");
 
-                    info!(
-                        "Shipping consumer group '{}' processed message: topic={}, partition={}, offset={}, payload_len={}",
-                        group_id,
-                        m.topic(),
-                        m.partition(),
-                        m.offset(),
-                        payload.len()
-                    );
+        rt.block_on(async move {
+            loop {
+                match consumer.recv().await {
+                    Ok(m) => {
+                        let payload = match m.payload_view::<str>() {
+                            Some(Ok(s)) => s,
+                            _ => "{}",
+                        };
 
-                    // 1. Parse JSON payload to extract user_id 
-                    let parsed_json: serde_json::Value = serde_json::from_str(payload)
-                        .unwrap_or_else(|_| serde_json::json!({}));
-                    
-                    let data_obj = parsed_json.get("after").or_else(|| parsed_json.get("before")).unwrap_or(&parsed_json);
-                    let user_id_owned = data_obj
-                        .get("user_id")
-                        .or_else(|| data_obj.get("userId"))
-                        .and_then(|v| v.as_str())
-                        .map(|s| s.to_string())
-                        .or_else(|| {
-                            data_obj.get("order_metadata")
-                                .and_then(|v| v.as_str())
-                                .and_then(|meta_str| serde_json::from_str::<serde_json::Value>(meta_str).ok())
-                                .and_then(|meta_obj| meta_obj.get("user_id").and_then(|u| u.as_str()).map(|s| s.to_string()))
-                        })
-                        .unwrap_or_default();
-                    let user_id = user_id_owned.as_str();                                                                                                              
-                                                                                                                                             
-                    let order_id = m.key()                                                                                                           
-                        .map(|k| String::from_utf8_lossy(k).to_string())                                                                             
-                        .unwrap_or_default();
+                        info!(
+                            "Shipping consumer group '{}' processed message: topic={}, partition={}, offset={}, payload_len={}",
+                            group_id,
+                            m.topic(),
+                            m.partition(),
+                            m.offset(),
+                            payload.len()
+                        );
 
-                    info!("Shipping consumed message for orderId: {}, userId: {}", order_id, user_id);
+                        // 1. Parse JSON payload to extract user_id 
+                        let parsed_json: serde_json::Value = serde_json::from_str(payload)
+                            .unwrap_or_else(|_| serde_json::json!({}));
+                        
+                        let data_obj = parsed_json.get("after").or_else(|| parsed_json.get("before")).unwrap_or(&parsed_json);
+                        let user_id_owned = data_obj
+                            .get("user_id")
+                            .or_else(|| data_obj.get("userId"))
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string())
+                            .or_else(|| {
+                                data_obj.get("order_metadata")
+                                    .and_then(|v| v.as_str())
+                                    .and_then(|meta_str| serde_json::from_str::<serde_json::Value>(meta_str).ok())
+                                    .and_then(|meta_obj| meta_obj.get("user_id").and_then(|u| u.as_str()).map(|s| s.to_string()))
+                            })
+                            .unwrap_or_default();
+                        let user_id = user_id_owned.as_str();                                                                                                              
+                                                                                                                                                 
+                        let order_id = m.key()                                                                                                           
+                            .map(|k| String::from_utf8_lossy(k).to_string())                                                                             
+                            .unwrap_or_default();
 
-                    // 2. Build fulfillment payload containing userId
-                    let record_payload = serde_json::json!({
-                        "eventType": "SHIPPING_COMPLETED",
-                        "source": "shipping",
-                        "orderId": order_id,
-                        "userId": user_id,
-                    }).to_string();
+                        info!("Shipping consumed message for orderId: {}, userId: {}", order_id, user_id);
 
-                    // 3. Publish to domain.fulfillment.events
-                    let record = FutureRecord::to(&fulfillment_topic)
-                        .payload(&record_payload)
-                        .key(&order_id);
+                        // 2. Build fulfillment payload containing userId
+                        let record_payload = serde_json::json!({
+                            "eventType": "SHIPPING_COMPLETED",
+                            "source": "shipping",
+                            "orderId": order_id,
+                            "userId": user_id,
+                        }).to_string();
 
-                    let _ = producer.send(record, Duration::from_secs(5)).await;
-                }
-                Err(err) => {
-                    error!("Kafka consumer error: {:?}", err);
+                        // 3. Publish to domain.fulfillment.events
+                        let record = FutureRecord::to(&fulfillment_topic)
+                            .payload(&record_payload)
+                            .key(&order_id);
+
+                        match producer.send(record, Duration::from_secs(5)).await {
+                            Ok(delivery) => info!("Shipping published fulfillment event successfully: {:?}", delivery),
+                            Err((err, _)) => error!("Shipping failed to publish fulfillment event: {:?}", err),
+                        }
+                    }
+                    Err(err) => {
+                        error!("Kafka consumer error: {:?}", err);
+                    }
                 }
             }
-        }
+        });
     });
 }
