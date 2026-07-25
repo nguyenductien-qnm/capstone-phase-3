@@ -1,7 +1,7 @@
 # Copyright The OpenTelemetry Authors
 # SPDX-License-Identifier: Apache-2.0
 
-FROM envoyproxy/envoy-contrib:v1.34-latest
+FROM envoyproxy/envoy-contrib:v1.34-latest@sha256:05c87a454c3bb0f28f87b552596476405ab971cc64e6d9ca892e2e05619013ac
 
 # apt-get upgrade: vá CVE ở package hệ thống của base image (vd CVE-2026-45447
 # libssl3). Base image tag không đổi nhưng repo ubuntu đã có bản vá.

@@ -7,6 +7,7 @@ gem "pony",     "~> 1.13"
 gem "puma",     "~> 7.2.1"
 gem "sinatra",  "~> 4.2"
 gem "rackup",   "~> 2.2"
+gem "ruby-kafka", "~> 1.5.0"
 
 # Gem dưới đây pin để lấy bản vá CVE. erb/zlib là DEFAULT GEM của Ruby: bản đi kèm
 # interpreter không gỡ được, nhưng khai báo trong Gemfile thì bundler nạp bản mới từ

@@ -60,7 +60,11 @@ class TestFallbackRetry(unittest.TestCase):
 
         # Mock guardrails
         self.patcher1 = patch('product_reviews_server.apply_guardrail_input', return_value=(False, "Tóm tắt review"))
-        self.patcher2 = patch('product_reviews_server.apply_guardrail_output', return_value=(False, "Summary output"))
+        # Output guardrail passthrough: real apply_guardrail_output trả (blocked, sanitized_text);
+        # trên answer grounded nó giữ nguyên text. Mock passthrough để test cô lập fallback/retry/CB,
+        # không để sentinel tĩnh ghi đè summary (output guard luôn chạy vì tool_results_raw luôn truthy).
+        self.patcher2 = patch('product_reviews_server.apply_guardrail_output',
+                              side_effect=lambda client, answer, source, query: (False, answer))
         self.patcher1.start()
         self.patcher2.start()
 

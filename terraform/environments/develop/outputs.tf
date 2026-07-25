@@ -165,6 +165,26 @@ output "msk_secret_arn" {
   value       = module.msk.msk_secret_arn
 }
 
+output "msk_connect_connector_arn" {
+  description = "ARN của MSK Connect Debezium Postgres connector"
+  value       = aws_mskconnect_connector.debezium_postgres.arn
+}
+
+output "msk_connect_connector_name" {
+  description = "Name của MSK Connect Debezium Postgres connector"
+  value       = aws_mskconnect_connector.debezium_postgres.name
+}
+
+output "msk_connect_custom_plugin_arn" {
+  description = "ARN của MSK Connect Debezium custom plugin"
+  value       = aws_mskconnect_custom_plugin.debezium.arn
+}
+
+output "msk_connect_role_arn" {
+  description = "ARN của IAM role cho MSK Connect"
+  value       = aws_iam_role.msk_connect.arn
+}
+
 # ============ Cost Guard Automation Outputs ============
 
 output "cost_guard_sns_topic_80_arn" {

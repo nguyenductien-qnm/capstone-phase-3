@@ -22,27 +22,37 @@ try:
 except ImportError:
     pass
 
-ML_GUARD_URL = os.environ.get("ML_GUARD_URL", "http://ml-guard:8090/v1/grounding")
+import grpc
+import sys
+import os
+
+try:
+    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src/ml-guard')))
+    import ml_guard_pb2
+    import ml_guard_pb2_grpc
+except ImportError:
+    pass
+
+ML_GUARD_URL = os.environ.get("ML_GUARD_URL", "localhost:8090").replace("http://", "")
 
 def run_ml_guard():
     print("Running ML Guard T1 latency...")
     lat = []
+    
+    try:
+        channel = grpc.insecure_channel(ML_GUARD_URL)
+        stub = ml_guard_pb2_grpc.MLGuardServiceStub(channel)
+    except Exception as e:
+        print(f"Failed to setup gRPC: {e}")
+        return []
+
     for ans, exp, cat in cases.GROUNDING_CASES:
-        payload = {
-            "source": cases.GROUNDING_SOURCE,
-            "answer": ans
-        }
         t0 = time.time()
         try:
-            req = urllib.request.Request(
-                ML_GUARD_URL,
-                data=json.dumps(payload).encode("utf-8"),
-                headers={"Content-Type": "application/json"}
-            )
-            resp = urllib.request.urlopen(req, timeout=5)
-            if resp.getcode() == 200:
-                dt = (time.time() - t0) * 1000
-                lat.append(dt)
+            req = ml_guard_pb2.CheckOutputRequest(answer=ans, grounding_source=cases.GROUNDING_SOURCE, query="test")
+            resp = stub.CheckOutput(req, timeout=5.0)
+            dt = (time.time() - t0) * 1000
+            lat.append(dt)
         except Exception as e:
             print(f"Error calling ML Guard: {e}")
     if lat:

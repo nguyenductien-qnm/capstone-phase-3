@@ -77,6 +77,7 @@ resource "aws_msk_cluster" "this" {
   client_authentication {
     sasl {
       scram = true
+      iam   = true
     }
   }
 

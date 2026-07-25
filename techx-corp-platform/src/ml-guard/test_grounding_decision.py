@@ -15,16 +15,30 @@ def main():
         (0.35, 0.60, 0.05, "judge", "repro: fabrication clears entail floor but neutral dominates"),
         (0.10, 0.85, 0.05, "judge", "neutral dominant, low entail"),
     ]
+    
+    # Test `_grounding_decision_sync` and `VietnameseMDeBERTaGrounding`
+    validator = server.VietnameseMDeBERTaGrounding()
+    
     for entail, neutral, contra, expected, note in cases:
-        server.nli_scores = lambda *a, **k: (entail, neutral, contra)
-        result = server.grounding_decision("source", "answer")
-        assert result["action"] == expected, (
-            f"{note}: got {result['action']!r}, want {expected!r} "
+        server._nli_scores_sync = lambda *a, **k: (entail, neutral, contra)
+        
+        # Test old raw decision (it returns string action now)
+        action = server._grounding_decision_sync("source", "answer")
+        assert action == expected, (
+            f"{note}: got {action!r}, want {expected!r} "
             f"(entail={entail} neutral={neutral} contra={contra})"
         )
+        
+        # Test new validator
+        metadata = {"grounding_source": "source"}
+        res = validator.validate("answer", metadata=metadata)
+        if expected == "block":
+            assert isinstance(res, server.FailResult), f"{note}: expected FailResult, got {type(res)}"
+        else:
+            assert isinstance(res, server.PassResult), f"{note}: expected PassResult, got {type(res)}"
+            assert res.metadata["action"] == expected, f"{note}: expected PassResult action {expected}, got {res.metadata['action']}"
 
     print("grounding_decision self-check: OK (4 cases)")
-
 
 if __name__ == "__main__":
     main()

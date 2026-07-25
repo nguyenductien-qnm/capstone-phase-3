@@ -2,21 +2,23 @@ GEM
   remote: https://rubygems.org/
   specs:
     base64 (0.2.0)
-    bigdecimal (3.2.2)
+    bigdecimal (3.2.3)
     cgi (0.5.2)
     date (3.4.1)
+    digest-crc (0.7.0)
+      rake (>= 12.0.0, < 14.0.0)
     erb (4.0.4.1)
       cgi (>= 0.3.3)
-    google-protobuf (4.33.0-aarch64-linux-musl)
+    google-protobuf (4.33.6-aarch64-linux-musl)
       bigdecimal
       rake (>= 13)
-    google-protobuf (4.33.0-arm64-darwin)
+    google-protobuf (4.33.6-arm64-darwin)
       bigdecimal
       rake (>= 13)
-    google-protobuf (4.33.0-x86_64-darwin)
+    google-protobuf (4.33.6-x86_64-darwin)
       bigdecimal
       rake (>= 13)
-    google-protobuf (4.33.0-x86_64-linux-musl)
+    google-protobuf (4.33.6-x86_64-linux-musl)
       bigdecimal
       rake (>= 13)
     googleapis-common-protos-types (1.20.0)
@@ -273,7 +275,9 @@ GEM
       rack (>= 3.0.0)
     rackup (2.2.1)
       rack (>= 3)
-    rake (13.3.0)
+    rake (13.3.1)
+    ruby-kafka (1.5.0)
+      digest-crc
     ruby2_keywords (0.0.5)
     sinatra (4.2.1)
       logger (>= 1.6.0)
@@ -313,6 +317,7 @@ DEPENDENCIES
   rack (~> 3.2.6)
   rack-session (~> 2.1.2)
   rackup (~> 2.2)
+  ruby-kafka (~> 1.5.0)
   sinatra (~> 4.2)
   zlib (~> 3.2.3)
 

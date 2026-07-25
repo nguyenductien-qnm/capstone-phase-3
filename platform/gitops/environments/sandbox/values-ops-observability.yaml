@@ -99,6 +99,8 @@ grafana:
       operator: Equal
       value: observability
       effect: NoSchedule
+  podLabels:
+    egress-internet: "true"
   plugins:
     - grafana-opensearch-datasource
   resources:
