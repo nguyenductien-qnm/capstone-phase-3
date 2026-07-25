@@ -56,8 +56,8 @@ public class ConsumerService : BackgroundService
                 // 1. Maintain Stream Join state per orderId                                                                             
                 var joinState = _pendingJoins.GetOrAdd(
                     eventData.OrderId, 
-                    id => new JoinState { OrderId = id, UserId = eventData.UserId  
-                });
+                    id => new JoinState { OrderId = id, UserId = eventData.UserId }
+                );
 
                 if (!string.IsNullOrEmpty(eventData.UserId))
                 {
@@ -75,11 +75,13 @@ public class ConsumerService : BackgroundService
                         eventData.OrderId, joinState.UserId
                     );                                                                                                      
                                                                                                                                          
-                    if (!string.IsNullOrEmpty(joinState.UserId))
+                    var targetUserId = !string.IsNullOrEmpty(joinState.UserId) ? joinState.UserId : eventData.UserId;
+                    if (!string.IsNullOrEmpty(targetUserId))
                     {
-                        await _cartStore.EmptyCartAsync(joinState.UserId);
-                    }                                                                  
-                                                                                                                                         
+                        await _cartStore.EmptyCartAsync(targetUserId);
+                        _logger.LogInformation("Successfully cleared cart for user {UserId} (Order {OrderId})", targetUserId, eventData.OrderId);
+                    }
+
                     _pendingJoins.TryRemove(eventData.OrderId, out _);                                                                   
                 }                                                                                                                        
             }                                                                                                                            
