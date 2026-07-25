@@ -432,9 +432,9 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 
 		_, err = tx.Exec(ctx, `
 			INSERT INTO checkout.outbox 
-			(aggregate_id, event_type, order_id) 
-			VALUES ($1, $2, $3)`,
-			orderID.String(), "ORDER_PLACED", orderID.String(),
+			(aggregate_id, event_type, order_id, user_id) 
+			VALUES ($1, $2, $3, $4)`,
+			orderID.String(), "ORDER_PLACED", orderID.String(), req.UserId,
 		)
 		if err != nil {
 			tx.Rollback(ctx)
@@ -457,12 +457,6 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		ShippingAddress:    req.Address,
 		Items:              prep.orderItems,
 	}
-
-	// if cs.orderEventPublisher != nil {
-	// 	if pubErr := cs.orderEventPublisher.Publish(ctx, orderResult); pubErr != nil {
-	// 		logger.Warn(fmt.Sprintf("checkout order event publish failed: %v", pubErr))
-	// 	}
-	// }
 
 	shippingCostFloat, _ := strconv.ParseFloat(fmt.Sprintf("%d.%02d", prep.shippingCostLocalized.GetUnits(), prep.shippingCostLocalized.GetNanos()/1000000000), 64)
 	totalPriceFloat, _ := strconv.ParseFloat(fmt.Sprintf("%d.%02d", total.GetUnits(), total.GetNanos()/1000000000), 64)
