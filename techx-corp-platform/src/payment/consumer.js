@@ -60,19 +60,18 @@ async function startConsumer() {
           logger.warn({ err: error }, "Failed to parse JSON message payload");
         }
 
-        logger.info({
-          topic,
-          partition,
-          offset: message.offset,
-          key: message.key ? message.key.toString() : null,
-          payloadLength: payloadStr.length,
-          groupId,
-        }, `Payment consumer group '${groupId}' consumed message from topic '${topic}'.`);
-
-        // 2. Extract order_id & user_id 
-        const orderId = message.key ? message.key.toString() : (payload.order_id || payload.orderId);
-        const userId = payload.user_id || payload.userId || (payload.order_metadata ? JSON.parse(payload.order_metadata).user_id : '');
-        logger.info({ orderId, userId }, "Extracted orderId and userId in Payment consumer");
+        const dataObj = payload.after || payload.before || payload;
+        const rawKey = message.key ? message.key.toString() : '';
+        const orderId = dataObj.order_id || dataObj.orderId || dataObj.aggregate_id || (rawKey.includes('Struct') ? '' : rawKey);
+        
+        let userId = dataObj.user_id || dataObj.userId || payload.user_id || '';
+        if (!userId && dataObj.order_metadata) {
+          try {
+            const meta = typeof dataObj.order_metadata === 'string' ? JSON.parse(dataObj.order_metadata) : dataObj.order_metadata;
+            userId = meta.user_id || meta.userId || '';
+          } catch (e) {}
+        }
+        logger.info({ orderId, userId, payloadKeys: Object.keys(payload) }, "Extracted orderId and userId in Payment consumer");
         
         // 3. 
         // When consuming from domain.checkout.orders

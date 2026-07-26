@@ -10,6 +10,21 @@ resource "aws_vpc" "this" {
   }
 }
 
+# CKV2_AWS_12: AWS luôn tạo sẵn một default security group cho mỗi VPC, và mặc định nó
+# cho phép mọi traffic giữa các resource cùng gắn nó. Không resource nào của mình dùng SG
+# này, nhưng nó vẫn tồn tại — ai lỡ tạo ENI mà quên chỉ định SG thì rơi đúng vào đây.
+# Khai resource này KHÔNG tạo SG mới: Terraform nhận adopt SG có sẵn rồi xoá sạch rule.
+# Để trống ingress/egress nghĩa là chặn hết cả hai chiều.
+resource "aws_default_security_group" "this" {
+  vpc_id = aws_vpc.this.id
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-default-sg-locked"
+    Environment = var.environment
+    Project     = var.project_name
+  }
+}
+
 resource "aws_internet_gateway" "this" {
   vpc_id = aws_vpc.this.id
 

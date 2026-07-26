@@ -68,6 +68,11 @@ resource "aws_msk_cluster" "this" {
   }
 
   encryption_info {
+    # AVD-AWS-0179: MSK vốn đã mã hoá at-rest bằng key AWS quản lý kể cả khi không khai,
+    # nhưng khai tường minh thì đọc được trong Git và scanner không phải đoán. Dùng
+    # alias/aws/kafka (key mặc định của service) nên không phát sinh phí KMS.
+    encryption_at_rest_kms_key_arn = data.aws_kms_alias.msk_managed.target_key_arn
+
     encryption_in_transit {
       client_broker = "TLS"
       in_cluster    = true
@@ -119,10 +124,56 @@ resource "aws_cloudwatch_log_group" "msk" {
   }
 }
 
+# Account hiện tại — dùng để dựng key policy tường minh cho KMS key bên dưới.
+data "aws_caller_identity" "current" {}
+
+# Key mặc định AWS cấp sẵn cho MSK. Tham chiếu qua alias để khai encryption at-rest
+# tường minh mà không phải tạo CMK riêng (CMK tốn ~$1/key/tháng).
+data "aws_kms_alias" "msk_managed" {
+  name = "alias/aws/kafka"
+}
+
 # KMS Key cho Secrets Manager để lưu msk credentials (bắt buộc cho MSK SCRAM)
 resource "aws_kms_key" "msk" {
   description             = "KMS Key cho MSK Secrets Manager"
   deletion_window_in_days = 7
+
+  # CKV_AWS_7: xoay vòng hằng năm. AWS tự sinh material mới và giữ lại bản cũ để giải mã
+  # dữ liệu đã mã hoá trước đó, nên bật là an toàn, không cần thao tác gì thêm.
+  enable_key_rotation = true
+
+  # CKV2_AWS_64: khai policy tường minh thay vì để AWS gán policy mặc định ngầm. Nội dung
+  # tương đương mặc định (root account toàn quyền, Secrets Manager được dùng key qua
+  # grant), nhưng viết ra thì đọc được trong Git và diff được khi ai đó nới quyền.
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "EnableIAMUserPermissions"
+        Effect    = "Allow"
+        Principal = { AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root" }
+        Action    = "kms:*"
+        Resource  = "*"
+      },
+      {
+        Sid       = "AllowSecretsManagerUse"
+        Effect    = "Allow"
+        Principal = { Service = "secretsmanager.amazonaws.com" }
+        Action = [
+          "kms:Decrypt",
+          "kms:GenerateDataKey",
+          "kms:CreateGrant",
+          "kms:DescribeKey",
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "kms:CallerAccount" = data.aws_caller_identity.current.account_id
+          }
+        }
+      },
+    ]
+  })
 
   tags = {
     Name        = "${var.project_name}-${var.environment}-msk-kms-key"

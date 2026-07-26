@@ -297,7 +297,7 @@ components:
     terminationGracePeriodSeconds: 30
     lifecycle:
       preStop:
-        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
+        sleep: { seconds: 5 }   # M17: sleep native (K8s>=1.29) thay exec /bin/sh — image distroless không có shell → exec fail (FailedPreStopHook).
     deploymentStrategy:
       type: RollingUpdate
       rollingUpdate:
@@ -414,6 +414,8 @@ components:
         drop:
           - ALL
       readOnlyRootFilesystem: true
+
+  # Dedicated gRPC API for Frontend & Checkout
   cart:
     enabled: true
     imageOverride:
@@ -440,7 +442,7 @@ components:
     terminationGracePeriodSeconds: 30
     lifecycle:
       preStop:
-        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
+        sleep: { seconds: 5 }   # M17: sleep native (K8s>=1.29) thay exec /bin/sh — image distroless không có shell → exec fail (FailedPreStopHook).
     deploymentStrategy:
       type: RollingUpdate
       rollingUpdate:
@@ -449,6 +451,7 @@ components:
     startupProbe: # .NET + chờ valkey, JIT warmup lâu hơn
       grpc: { port: 8080, service: "readiness" }
       periodSeconds: 5
+      timeoutSeconds: 5
       failureThreshold: 30
     readinessProbe:
       grpc: { port: 8080, service: "readiness" }
@@ -468,6 +471,12 @@ components:
         value: "8080"
       - name: ASPNETCORE_URLS
         value: http://*:$(CART_PORT)
+      - name: ENABLE_KAFKA_CONSUMER
+        value: "false"
+      - name: CART_MAX_CONCURRENT_REQUESTS
+        value: "128"
+      - name: CART_MAX_QUEUED_REQUESTS
+        value: "256"
       - name: VALKEY_ADDR
         valueFrom:
           secretKeyRef:
@@ -538,6 +547,77 @@ components:
             cpu: 50m
             memory: 32Mi
 
+  # Dedicated background MSK Kafka Worker
+  cart-consumer-worker:
+    enabled: true
+    imageOverride:
+      tag: "1.1-cart-ae89fa2" # Same image as cart API
+    securityContext:
+      allowPrivilegeEscalation: false
+      runAsNonRoot: true
+      runAsUser: 1000
+      capabilities:
+        drop:
+          - ALL
+      readOnlyRootFilesystem: true
+    useDefault:
+      env: true
+    # Note: No `service:` field defined -> Helm will NOT expose inbound ports/K8s Service
+    podDisruptionBudget:
+      maxUnavailable: 1
+    topologySpread: true
+    terminationGracePeriodSeconds: 30
+    deploymentStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 0
+        maxSurge: 1
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: techx-corp
+    env:
+      - name: ENABLE_KAFKA_CONSUMER
+        value: "true"                  # Enable Kafka Consumer in Worker pods
+      - name: VALKEY_ADDR
+        valueFrom:
+          secretKeyRef:
+            name: valkey-secret
+            key: address
+      - name: VALKEY_TLS
+        value: "true"
+      - name: VALKEY_AUTH_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: valkey-secret
+            key: auth_token
+      - name: KAFKA_ADDR
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: brokers_sasl_scram
+      - name: KAFKA_USER
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: username
+      - name: KAFKA_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: password
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://$(OTEL_COLLECTOR_NAME):4317
+    resources:
+      requests:
+        cpu: 100m
+        memory: 64Mi
+      limits:
+        cpu: 300m
+        memory: 128Mi
+    hpa:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 4
+
   checkout:
     enabled: true
     imageOverride:
@@ -554,7 +634,7 @@ components:
     terminationGracePeriodSeconds: 30
     lifecycle:
       preStop:
-        exec: { command: ["/bin/sh", "-c", "sleep 5"] } # CDO-29: chờ endpoint propagate, không rơi request
+        sleep: { seconds: 5 }   # CDO-29: chờ endpoint propagate, không rơi request. M17: sleep native (K8s>=1.29) — image distroless không có /bin/sh nên exec fail (FailedPreStopHook).
     deploymentStrategy: # CDO-29: rollout không hạ pod cũ trước khi pod mới Ready
       type: RollingUpdate
       rollingUpdate:
@@ -671,6 +751,19 @@ components:
       env: true
     service:
       port: 8080
+    # M17 deploy-safety: dependency luồng ra tiền — readiness gate (không đẩy traffic vào pod chưa listening khi node churn)
+    # + preStop sleep native (K8s>=1.29, khỏi cần shell → an toàn cho mọi image) + grace. Fix rớt request khi Karpenter consolidate.
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep:
+          seconds: 5
+    readinessProbe:
+      tcpSocket: { port: 8080 }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
     env:
@@ -692,6 +785,13 @@ components:
     topologySpread: true   # M17-R2: trải pod ra ≥2 AZ (money-path)
     podDisruptionBudget:   # M17-R2: drain-az/rollout không hạ cả 2 pod cùng lúc
       maxUnavailable: 1
+    # CDO-29 pattern (khớp cart/checkout): chờ endpoint propagate trước khi container
+    # tắt, tránh checkout (caller đồng bộ) nhận connection reset khi Karpenter
+    # consolidate/drift evict pod này giữa lúc có traffic.
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
     hpa:
       enabled: true
       minReplicas: 2       # M17-R2: HA, mất 1 AZ vẫn còn pod
@@ -715,6 +815,18 @@ components:
       env: true
     service:
       port: 8080
+    # M17 deploy-safety: dependency luồng ra tiền — readiness gate + preStop sleep native + grace 30s. Fix rớt request khi drain/Karpenter consolidate.
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep:
+          seconds: 5
+    readinessProbe:
+      tcpSocket: { port: 8080 }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
     env:
@@ -876,7 +988,7 @@ components:
     terminationGracePeriodSeconds: 30
     lifecycle:
       preStop:
-        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
+        sleep: { seconds: 5 }   # M17: sleep native (K8s>=1.29) thay exec /bin/sh — image distroless không có shell → exec fail (FailedPreStopHook).
     deploymentStrategy:
       type: RollingUpdate
       rollingUpdate:
@@ -994,7 +1106,7 @@ components:
     terminationGracePeriodSeconds: 30
     lifecycle:
       preStop:
-        exec: { command: ["/bin/sh", "-c", "sleep 5"] } # cực quan trọng cho Envoy: drain kết nối trước khi tắt
+        sleep: { seconds: 5 }   # cực quan trọng cho Envoy: drain kết nối trước khi tắt. M17: sleep native (K8s>=1.29) thay exec — không phụ thuộc shell trong image.
     deploymentStrategy: # CDO-29: zero-downtime khi rollout Envoy cho Mandate 01
       type: RollingUpdate
       rollingUpdate:
@@ -1228,12 +1340,31 @@ components:
     topologySpread: true   # M17-R2: trải pod ra ≥2 AZ
     podDisruptionBudget:   # M17-R2: drain-az/rollout không hạ cả 2 pod cùng lúc
       maxUnavailable: 1
+    # CDO-29 pattern (khớp cart/checkout): chờ endpoint propagate trước khi container
+    # tắt, tránh checkout (caller đồng bộ) nhận connection reset khi Karpenter
+    # consolidate/drift evict pod này giữa lúc có traffic.
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
     imageOverride:
       tag: "1.0-payment-ae89fa2" # incident 2026-07-16: tag tran bi ECR lifecycle xoa, image rebuild tu source
     useDefault:
       env: true
     service:
       port: 8080
+    # M17 deploy-safety: dependency luồng ra tiền — readiness gate + preStop sleep native + grace 30s. Fix rớt request khi drain/Karpenter consolidate.
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep:
+          seconds: 5
+    readinessProbe:
+      tcpSocket: { port: 8080 }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
     env:
@@ -1331,7 +1462,7 @@ components:
     terminationGracePeriodSeconds: 30
     lifecycle:
       preStop:
-        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
+        sleep: { seconds: 5 }   # M17: sleep native (K8s>=1.29) thay exec /bin/sh — image distroless không có shell → exec fail (FailedPreStopHook).
     deploymentStrategy:
       type: RollingUpdate
       rollingUpdate:
@@ -1411,7 +1542,7 @@ components:
     terminationGracePeriodSeconds: 30
     lifecycle:
       preStop:
-        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
+        sleep: { seconds: 5 }   # M17: sleep native (K8s>=1.29) thay exec /bin/sh — image distroless không có shell → exec fail (FailedPreStopHook).
     deploymentStrategy:
       type: RollingUpdate
       rollingUpdate:
@@ -1485,6 +1616,18 @@ components:
       env: true
     service:
       port: 8080
+    # M17 deploy-safety: dependency luồng ra tiền (shipping→quote) — readiness gate + preStop sleep native + grace 30s. Fix rớt request khi drain/Karpenter consolidate.
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep:
+          seconds: 5
+    readinessProbe:
+      tcpSocket: { port: 8080 }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
     env:
@@ -1649,10 +1792,29 @@ components:
     topologySpread: true   # M17-R2: trải pod ra ≥2 AZ
     podDisruptionBudget:   # M17-R2: drain-az/rollout không hạ cả 2 pod cùng lúc
       maxUnavailable: 1
+    # CDO-29 pattern (khớp cart/checkout): chờ endpoint propagate trước khi container
+    # tắt, tránh checkout (caller đồng bộ) nhận connection reset khi Karpenter
+    # consolidate/drift evict pod này giữa lúc có traffic.
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
     useDefault:
       env: true
     service:
       port: 8080
+    # M17 deploy-safety: dependency luồng ra tiền — readiness gate + preStop sleep native + grace 30s. Fix rớt request khi drain/Karpenter consolidate.
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep:
+          seconds: 5
+    readinessProbe:
+      tcpSocket: { port: 8080 }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
     env:

@@ -163,7 +163,11 @@ Tránh dùng `list(string)` nếu các phần tử mang ý nghĩa khác biệt. 
 
 ### 1. Nguyên tắc Least Privilege & Tách Role
 
-- KHÔNG gán policy `AdministratorAccess`.
+- KHÔNG gán policy `AdministratorAccess` — **trừ role bootstrap, và phải ghi rõ lý do kèm biện pháp thu hẹp blast radius**.
+  Ngoại lệ duy nhất hiện tại là `aws_iam_role.github_terraform` ([bootstrap/develop/main.tf](../bootstrap/develop/main.tf)):
+  root module này dựng VPC, EKS, IAM, RDS, ElastiCache, MSK và audit stack nên tập API cần thiết trải khắp gần như mọi service.
+  Blast radius được giới hạn bằng **account riêng** cộng **trust policy khoá theo đúng GitHub Environment OIDC subject** của repo.
+  Khi đo được tập API thực tế thì thay bằng policy hẹp hơn. Mọi ngoại lệ mới phải khai trong `.checkov.yaml` kèm lý do và ngày review.
 - Phân biệt rõ `task_role_arn` (quyền cho ứng dụng gọi AWS API - VD: S3, DynamoDB) và `execution_role_arn` (quyền cho ECS Agent kéo Image từ ECR và ghi log CloudWatch). KHÔNG dùng chung 1 Role.
 
 ### 2. Không cấu hình Security Group mở toàn mạng (`0.0.0.0/0`)
