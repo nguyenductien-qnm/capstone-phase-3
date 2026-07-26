@@ -94,11 +94,16 @@ jobs:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
           config-file: ./.github/codeql/codeql-config.yml
-          # `default` chứ KHÔNG phải security-extended. Docs GitHub: default là "highly
-          # precise, return few false positive"; security-extended thêm query "slightly
-          # lower precision and severity". Đây là gate CHẶN MERGE nên độ chính xác quan
-          # trọng hơn độ phủ — false positive nghĩa là cả team không merge được.
-          queries: default
+          # KHÔNG khai `queries:` — bỏ trống nghĩa là dùng suite mặc định, đúng thứ mình
+          # muốn. Spec của init/action.yml: queries là "Comma-separated list of ADDITIONAL
+          # queries to run", tức nó nhận query/suite BỔ SUNG chứ không nhận tên suite mặc
+          # định; viết `queries: default` làm CodeQL đi tìm một pack tên "default" và chết
+          # với "Query pack default cannot be found" (run 30202248243, cả 8 ngôn ngữ).
+          #
+          # Cũng KHÔNG dùng security-extended: docs GitHub mô tả suite mặc định là "highly
+          # precise, return few false positive", còn security-extended thêm query "slightly
+          # lower precision". Đây là gate CHẶN MERGE nên độ chính xác quan trọng hơn độ
+          # phủ — false positive nghĩa là cả team không merge được.
 
       # Chỉ Go cần bước này. Các ngôn ngữ dùng build-mode `none` mà chạy autobuild là
       # thừa và có thể xung đột.
