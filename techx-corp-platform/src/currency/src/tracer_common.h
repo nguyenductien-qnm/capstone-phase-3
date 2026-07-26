@@ -7,7 +7,7 @@
 #include "opentelemetry/context/propagation/text_map_propagator.h"
 #include "opentelemetry/exporters/ostream/span_exporter_factory.h"
 #include "opentelemetry/nostd/shared_ptr.h"
-#include "opentelemetry/sdk/trace/batch_processor_factory.h"
+#include "opentelemetry/sdk/trace/batch_span_processor_factory.h"
 #include "opentelemetry/sdk/trace/tracer_context.h"
 #include "opentelemetry/sdk/trace/tracer_context_factory.h"
 #include "opentelemetry/sdk/trace/tracer_provider_factory.h"
