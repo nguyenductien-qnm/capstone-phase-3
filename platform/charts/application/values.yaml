@@ -414,6 +414,8 @@ components:
         drop:
           - ALL
       readOnlyRootFilesystem: true
+
+  # Dedicated gRPC API for Frontend & Checkout
   cart:
     enabled: true
     imageOverride:
@@ -469,6 +471,12 @@ components:
         value: "8080"
       - name: ASPNETCORE_URLS
         value: http://*:$(CART_PORT)
+      - name: ENABLE_KAFKA_CONSUMER
+        value: "false"
+      - name: CART_MAX_CONCURRENT_REQUESTS
+        value: "128"
+      - name: CART_MAX_QUEUED_REQUESTS
+        value: "256"
       - name: VALKEY_ADDR
         valueFrom:
           secretKeyRef:
@@ -538,6 +546,76 @@ components:
           limits:
             cpu: 50m
             memory: 32Mi
+
+  # Dedicated background MSK Kafka Worker
+  cart-consumer-worker:
+    enabled: true 
+    imageOverride:
+      tag: "1.1-cart-ae89fa2" # Same image as cart API
+    securityContext:
+      allowPrivilegeEscalation: false
+      runAsNonRoot: true
+      runAsUser: 1000
+      capabilities:
+        drop:
+          - ALL
+      useDefault:
+        env: true
+    # Note: No `service:` field defined -> Helm will NOT expose inbound ports/K8s Service
+    podDisruptionBudget:
+      maxUnavailable: 1
+    topologySpread: true
+    terminationGracePeriodSeconds: 30
+    deploymentStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 0
+        maxSurge: 1
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: techx-corp
+    env:
+      - name: ENABLE_KAFKA_CONSUMER
+        value: "true"                  # Enable Kafka Consumer in Worker pods
+      - name: VALKEY_ADDR
+        valueFrom:
+          secretKeyRef:
+            name: valkey-secret
+            key: address
+      - name: VALKEY_TLS
+        value: "true"
+      - name: VALKEY_AUTH_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: valkey-secret
+            key: auth_token
+      - name: KAFKA_ADDR
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: brokers_sasl_scram
+      - name: KAFKA_USER
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: username
+      - name: KAFKA_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: password
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://$(OTEL_COLLECTOR_NAME):4317
+    resources:
+      requests:
+        cpu: 100m
+        memory: 64Mi
+      limits:
+        cpu: 300m
+        memory: 128Mi
+    hpa:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 4
 
   checkout:
     enabled: true
