@@ -559,8 +559,8 @@ components:
       capabilities:
         drop:
           - ALL
-      useDefault:
-        env: true
+    useDefault:
+      env: true
     # Note: No `service:` field defined -> Helm will NOT expose inbound ports/K8s Service
     podDisruptionBudget:
       maxUnavailable: 1
