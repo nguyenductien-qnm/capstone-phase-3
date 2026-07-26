@@ -23,7 +23,9 @@ namespace
     // OTLP export must not run on a Currency RPC thread. The batch processor
     // decouples request latency from collector/OpenSearch availability and drops
     // telemetry when its bounded queue is exhausted.
-    auto processor = logs_sdk::BatchLogRecordProcessorFactory::Create(std::move(exporter));
+    logs_sdk::BatchLogRecordProcessorOptions processorOptions;
+    auto processor = logs_sdk::BatchLogRecordProcessorFactory::Create(
+        std::move(exporter), processorOptions);
     std::vector<std::unique_ptr<logs_sdk::LogRecordProcessor>> processors;
     processors.push_back(std::move(processor));
     auto context = logs_sdk::LoggerContextFactory::Create(std::move(processors));
