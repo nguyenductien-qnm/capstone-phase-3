@@ -33,12 +33,12 @@ spec:
         - key: karpenter.k8s.aws/instance-generation
           operator: Gt
           values: ["2"]
-        # us-east-1a tạm loại: subnet fragment, ipamd không xin nổi prefix /28 liên tục
-        # cho ENI mới (InsufficientCidrBlocks, xác nhận CloudTrail). Xem comment chi tiết
-        # ở nodepool-default.yaml. Mở lại sau khi có subnet 1a sạch thay thế.
+        # 27/07/2026: mở lại us-east-1a — chẩn đoán "1a fragment" (f90d230) đo lại đã
+        # đảo ngược: 1a còn 12/16 khối /28, 1b/1c mới là bên cạn (1/16 và 2/16) và đang
+        # sinh lỗi InsufficientCidrBlocks thật. Chi tiết + số đo: nodepool-default.yaml.
         - key: topology.kubernetes.io/zone
           operator: In
-          values: ["us-east-1b", "us-east-1c"]
+          values: ["us-east-1a", "us-east-1b", "us-east-1c"]
       nodeClassRef:
         group: karpenter.k8s.aws
         kind: EC2NodeClass
