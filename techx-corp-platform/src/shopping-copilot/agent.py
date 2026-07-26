@@ -586,6 +586,8 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
                 tool_name=name, arguments_json=json.dumps(args), succeeded=ok,
                 started_at_unix=int(started), duration_ms=dur_ms,
             ))
+            logger.info("audit tool_call tool=%s args=%s succeeded=%s duration_ms=%s",
+                        name, redact_pii(json.dumps(args)), ok, dur_ms)
             # Trace UI: show WHAT the AI operated with (which tool + key argument).
             _arg_hint = args.get("query") or args.get("category") or args.get("product_id") or args.get("to_code") or args.get("amount") or ""
             if _arg_hint and not isinstance(_arg_hint, str):

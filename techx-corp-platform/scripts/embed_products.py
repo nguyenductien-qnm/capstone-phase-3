@@ -89,6 +89,10 @@ def main():
             embedding vector(1024)
         );
     """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS product_embeddings_v2_hnsw_idx 
+        ON catalog.product_embeddings_v2 USING hnsw (embedding vector_cosine_ops);
+    """)
 
     logger.info("Fetching products from catalog.products...")
     cursor.execute("SELECT id, name, description, categories FROM catalog.products")
