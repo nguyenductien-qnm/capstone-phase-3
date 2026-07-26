@@ -1,5 +1,6 @@
 data "aws_partition" "current" {}
 data "aws_caller_identity" "current" {}
+data "aws_region" "current" {}
 
 locals {
   cost_guard_name = "${var.project_name}-${var.environment}-cost-guard"
@@ -58,6 +59,43 @@ data "aws_iam_policy_document" "budget_alarms_kms" {
       test     = "StringEquals"
       variable = "aws:SourceAccount"
       values   = [data.aws_caller_identity.current.account_id]
+    }
+  }
+
+  # Statement BẮT BUỘC, không phải tuỳ chọn. Docs KMS (services-sns) nói rõ SNS KHÔNG
+  # dùng credential của bên gọi để thao tác với key — chính service principal
+  # sns.amazonaws.com phải có kms:GenerateDataKey*/kms:Decrypt trong key policy, nếu
+  # không thì SNS không mã hoá nổi message dù Budgets đã được cấp quyền publish.
+  #
+  # Bản đầu của PR này THIẾU statement này, chỉ có 2 statement trong khi tiền lệ
+  # pipeline_health (detection-routing/sns.tf) có 3. Thiếu nó là tái lập đúng lớp lỗi
+  # "hỏng im lặng" mà PR đang đi sửa.
+  #
+  # Liệt kê CẢ HAI topic ARN vì key này dùng chung cho ngưỡng 80% và 95%. Thêm topic mới
+  # dùng key này thì phải thêm ARN vào đây, nếu không topic đó publish fail.
+  statement {
+    sid    = "AllowSNSTopicEncryption"
+    effect = "Allow"
+
+    actions = [
+      "kms:Decrypt",
+      "kms:GenerateDataKey*",
+    ]
+
+    principals {
+      type        = "Service"
+      identifiers = ["sns.amazonaws.com"]
+    }
+
+    resources = ["*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "kms:EncryptionContext:aws:sns:topicArn"
+      values = [
+        "arn:${data.aws_partition.current.partition}:sns:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:${local.cost_guard_name}-budget-alarms-80",
+        "arn:${data.aws_partition.current.partition}:sns:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:${local.cost_guard_name}-budget-alarms-95",
+      ]
     }
   }
 }

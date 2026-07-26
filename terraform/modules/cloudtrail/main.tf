@@ -271,6 +271,42 @@ data "aws_iam_policy_document" "mandate_12_audit_tamper_kms" {
     # Đây là điểm KHÁC key pipeline_health (module detection-routing), nơi publisher là
     # cloudwatch.amazonaws.com nên siết được bằng SourceAccount.
   }
+
+  # Statement BẮT BUỘC, không phải tuỳ chọn. Docs KMS (services-sns) nói rõ SNS KHÔNG
+  # dùng credential của bên gọi để thao tác với key — chính service principal
+  # sns.amazonaws.com phải có kms:GenerateDataKey*/kms:Decrypt trong key policy, nếu
+  # không thì SNS không mã hoá nổi message dù publisher đã được cấp quyền.
+  #
+  # Bản đầu của PR này THIẾU statement này, chỉ có 2 statement trong khi tiền lệ
+  # pipeline_health (detection-routing/sns.tf) có 3. Thiếu nó là tái lập đúng lớp lỗi
+  # "hỏng im lặng" mà PR đang đi sửa, chỉ đổi nguyên nhân từ EventBridge sang SNS.
+  #
+  # Siết bằng EncryptionContext thay vì aws:SourceAccount: đây là cách duy nhất còn lại
+  # để giới hạn key theo đúng một topic, và nó KHÔNG nằm trong danh sách AWS cấm dùng với
+  # EventBridge-to-encrypted-topics (danh sách đó chỉ gồm aws:SourceAccount/SourceArn/
+  # SourceOrgID). Cùng cách làm với pipeline_health.
+  statement {
+    sid    = "AllowSNSTopicEncryption"
+    effect = "Allow"
+
+    actions = [
+      "kms:Decrypt",
+      "kms:GenerateDataKey*",
+    ]
+
+    principals {
+      type        = "Service"
+      identifiers = ["sns.amazonaws.com"]
+    }
+
+    resources = ["*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "kms:EncryptionContext:aws:sns:topicArn"
+      values   = ["arn:${data.aws_partition.current.partition}:sns:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:${local.m12_alert_name}"]
+    }
+  }
 }
 
 resource "aws_kms_key" "mandate_12_audit_tamper" {
