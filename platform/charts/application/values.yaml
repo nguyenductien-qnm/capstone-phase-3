@@ -693,6 +693,13 @@ components:
     topologySpread: true   # M17-R2: trải pod ra ≥2 AZ (money-path)
     podDisruptionBudget:   # M17-R2: drain-az/rollout không hạ cả 2 pod cùng lúc
       maxUnavailable: 1
+    # CDO-29 pattern (khớp cart/checkout): chờ endpoint propagate trước khi container
+    # tắt, tránh checkout (caller đồng bộ) nhận connection reset khi Karpenter
+    # consolidate/drift evict pod này giữa lúc có traffic.
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
     hpa:
       enabled: true
       minReplicas: 2       # M17-R2: HA, mất 1 AZ vẫn còn pod
@@ -1229,6 +1236,13 @@ components:
     topologySpread: true   # M17-R2: trải pod ra ≥2 AZ
     podDisruptionBudget:   # M17-R2: drain-az/rollout không hạ cả 2 pod cùng lúc
       maxUnavailable: 1
+    # CDO-29 pattern (khớp cart/checkout): chờ endpoint propagate trước khi container
+    # tắt, tránh checkout (caller đồng bộ) nhận connection reset khi Karpenter
+    # consolidate/drift evict pod này giữa lúc có traffic.
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
     imageOverride:
       tag: "1.0-payment-ae89fa2" # incident 2026-07-16: tag tran bi ECR lifecycle xoa, image rebuild tu source
     useDefault:
@@ -1650,6 +1664,13 @@ components:
     topologySpread: true   # M17-R2: trải pod ra ≥2 AZ
     podDisruptionBudget:   # M17-R2: drain-az/rollout không hạ cả 2 pod cùng lúc
       maxUnavailable: 1
+    # CDO-29 pattern (khớp cart/checkout): chờ endpoint propagate trước khi container
+    # tắt, tránh checkout (caller đồng bộ) nhận connection reset khi Karpenter
+    # consolidate/drift evict pod này giữa lúc có traffic.
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
     useDefault:
       env: true
     service:
