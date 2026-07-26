@@ -194,7 +194,12 @@ def score_events(events, alerter_history_path, settle_seconds=30):
         candidates.sort(key=lambda ia: ia[1]["ts"])
         fired = bool(candidates)
         first = candidates[0][1] if candidates else None
-        if candidates:
+        # Only an event that SHOULD fire can contribute a correct fire. On a
+        # no-fire window (healthy_load) the watch set is what we look for false
+        # positives with, so a match there is precisely a wrong alert — counting
+        # it as correct inflated precision on exactly the case built to catch
+        # over-alerting.
+        if candidates and ev.get("expect_fire", True):
             matched_alert_indices.add(candidates[0][0])
         per_event.append({
             "label": ev.get("label"),
