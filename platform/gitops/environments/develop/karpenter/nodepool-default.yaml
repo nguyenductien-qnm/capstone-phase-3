@@ -15,7 +15,8 @@ spec:
           values: ["linux"]
         - key: karpenter.sh/capacity-type
           operator: In
-          values: ["on-demand"]
+          # MANDATE-13: uu tien spot, fallback on-demand khi khong du capacity.
+          values: ["spot", "on-demand"]
         - key: karpenter.k8s.aws/instance-category
           operator: In
           values: ["c", "m", "t"]
@@ -26,17 +27,28 @@ spec:
           operator: Gt
           values: ["2"]
         # CDO-217/226 (M17-R2): buộc NodePool cân nhắc ≥2 AZ để mất trọn 1 AZ vẫn còn node.
-        # Exists + minValues (Karpenter v1) — không hardcode tên AZ (subnet chọn theo tag).
+        # minValues bỏ: mỗi NodeClaim launch chỉ pin 1 AZ cụ thể, minValues>=2 trên key
+        # zone reject 100% mọi launch thật (đã xác nhận bằng A/B test 2 NodePool trên
+        # sandbox). Việc trải AZ để lại cho pod topologySpreadConstraint (zone, maxSkew=1).
         - key: topology.kubernetes.io/zone
-          operator: Exists
-          minValues: 2
+          operator: In
+          values: ["us-east-1a", "us-east-1b"]
       nodeClassRef:
         group: karpenter.k8s.aws
         kind: EC2NodeClass
         name: default
       terminationGracePeriod: 24h
   limits:
-    cpu: "8"
+    # MANDATE-13: Capacity planning ceiling. Tính dựa trên:
+    # (Tổng maxReplicas HPA * Request CPU) + 15% System Overhead + 30% Buffer an toàn.
+    cpu: "32"
   disruption:
-    consolidationPolicy: WhenEmpty
+    # MANDATE-13: WhenEmpty chi xoa node da 0 pod, khong co "co xuong that".
+    consolidationPolicy: WhenEmptyOrUnderutilized
+    # 5m là chuẩn Production (tránh node churn). Load test đã được kéo dài pha cuối
+    # để đủ thời gian demo tính năng scale-down.
     consolidateAfter: 5m
+    # MANDATE-13: giới hạn tối đa 1 node bị drain đồng thời — tránh evict hàng loạt
+    # pod cùng lúc khi consolidate hoặc spot interruption, bảo vệ SLO checkout ≥ 99%.
+    budgets:
+      - nodes: "1"

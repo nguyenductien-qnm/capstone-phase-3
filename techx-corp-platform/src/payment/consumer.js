@@ -48,29 +48,46 @@ async function startConsumer() {
     await consumerInstance.subscribe({ topic, fromBeginning: true });
     logger.info({ topic, groupId }, `Payment Kafka consumer subscribed to topic '${topic}' under consumer group '${groupId}'.`);
 
+    // consumer.js calls charge.js when a Kafka message arrives
     await consumerInstance.run({
       eachMessage: async ({ topic, partition, message }) => {
+        // 1. Convert Kafka message buffer to string & parse JSON
         const payloadStr = message.value ? message.value.toString() : '';
-        logger.info({
-          topic,
-          partition,
-          offset: message.offset,
-          key: message.key ? message.key.toString() : null,
-          payloadLength: payloadStr.length,
-          groupId,
-        }, `Payment consumer group '${groupId}' consumed message from topic '${topic}'.`);
-
-        // Publish fulfillment event to domain.fulfillment.events
+        let payload = {};
         try {
-          const orderId = message.key ? message.key.toString() : null;
+          payload = JSON.parse(payloadStr);
+        } catch (error) {
+          logger.warn({ err: error }, "Failed to parse JSON message payload");
+        }
+
+        const dataObj = payload.after || payload.before || payload;
+        const rawKey = message.key ? message.key.toString() : '';
+        const orderId = dataObj.order_id || dataObj.orderId || dataObj.aggregate_id || (rawKey.includes('Struct') ? '' : rawKey);
+        
+        let userId = dataObj.user_id || dataObj.userId || payload.user_id || '';
+        if (!userId && dataObj.order_metadata) {
+          try {
+            const meta = typeof dataObj.order_metadata === 'string' ? JSON.parse(dataObj.order_metadata) : dataObj.order_metadata;
+            userId = meta.user_id || meta.userId || '';
+          } catch (e) {}
+        }
+        logger.info({ orderId, userId, payloadKeys: Object.keys(payload) }, "Extracted orderId and userId in Payment consumer");
+        
+        // 3. 
+        // When consuming from domain.checkout.orders
+        // Publish fulfillment event to domain.fulfillment.events
+        try { 
           const eventPayload = {
             eventType: 'PAYMENT_COMPLETED',
             source: 'payment',
-            timestamp: new Date().toISOString(),
             orderId: orderId,
-            details: payloadStr,
+            userId: userId,
+            timestamp: new Date().toISOString(),
           };
+
+          // Publish to domain.fulfillment.events topic
           await publishFulfillmentEvent(eventPayload, fulfillmentTopic);
+          
         } catch (pubErr) {
           logger.error({ err: pubErr }, `Failed to publish fulfillment event to topic '${fulfillmentTopic}'`);
         }

@@ -14,13 +14,16 @@ CREATE TABLE checkout.orders (
 );
 
 -- Control which fields downstream services can consume
+-- Do not include user sensitive credentials/payment data here
+-- Keep Kafka message lightweight
 CREATE TABLE checkout.outbox (
 	id BIGSERIAL PRIMARY KEY, -- Auto-increment
 	aggregate_id TEXT NOT NULL, -- order_id
 	event_type TEXT NOT NULL, -- 'ORDER_PLACED', 'ORDER_COMPLETED',
 	
 	order_id TEXT,
-
+	user_id TEXT NOT NULL,
+	
 	processed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 

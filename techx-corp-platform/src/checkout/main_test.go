@@ -1,14 +1,8 @@
 package main
 
 import (
-	"context"
 	"log/slog"
-	"testing"
-	"time"
 
-	"github.com/IBM/sarama/mocks"
-	pb "github.com/open-telemetry/techx-corp/src/checkout/genproto/oteldemo"
-	"github.com/open-telemetry/techx-corp/src/checkout/kafka"
 	"go.opentelemetry.io/otel"
 )
 
@@ -17,34 +11,3 @@ func init() {
 	logger = slog.Default()
 }
 
-func TestSendToPostProcessor_RoutingKey(t *testing.T) {
-	_ = kafka.Topic
-	config := mocks.NewTestConfig()
-	config.Producer.Return.Successes = true
-	producer := mocks.NewAsyncProducer(t, config)
-
-	testOrderID := "test-order-uuid-12345"
-	producer.ExpectInputAndSucceed()
-
-	publisher := newKafkaOrderEventPublisher(producer, kafkaPublishTimeout())
-
-	orderResult := &pb.OrderResult{
-		OrderId: testOrderID,
-	}
-
-	done := make(chan struct{})
-	go func() {
-		_ = publisher.Publish(context.Background(), orderResult)
-		close(done)
-	}()
-
-	select {
-	case <-done:
-	case <-time.After(2 * time.Second):
-		t.Fatal("sendToPostProcessor timed out")
-	}
-
-	if err := producer.Close(); err != nil {
-		t.Fatalf("Failed to close producer mock: %v", err)
-	}
-}

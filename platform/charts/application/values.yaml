@@ -123,7 +123,7 @@ networkPolicy:
         consumers: [cart, product-reviews]
       - name: msk              # Kafka (KAFKA_ADDR; 9092 plaintext / 9094 TLS / 9096 SASL)
         ports: [9092, 9094, 9096]
-        consumers: [accounting, checkout, email, fraud-detection, payment, shipping]
+        consumers: [accounting, cart, checkout, email, fraud-detection, payment, shipping]
       - name: rds              # Postgres (DB_CONNECTION_STRING)
         ports: [5432]
         consumers: [accounting, checkout, product-catalog, product-reviews]
@@ -414,6 +414,8 @@ components:
         drop:
           - ALL
       readOnlyRootFilesystem: true
+
+  # Dedicated gRPC API for Frontend & Checkout
   cart:
     enabled: true
     imageOverride:
@@ -449,6 +451,7 @@ components:
     startupProbe: # .NET + chờ valkey, JIT warmup lâu hơn
       grpc: { port: 8080, service: "readiness" }
       periodSeconds: 5
+      timeoutSeconds: 5
       failureThreshold: 30
     readinessProbe:
       grpc: { port: 8080, service: "readiness" }
@@ -468,6 +471,12 @@ components:
         value: "8080"
       - name: ASPNETCORE_URLS
         value: http://*:$(CART_PORT)
+      - name: ENABLE_KAFKA_CONSUMER
+        value: "false"
+      - name: CART_MAX_CONCURRENT_REQUESTS
+        value: "128"
+      - name: CART_MAX_QUEUED_REQUESTS
+        value: "256"
       - name: VALKEY_ADDR
         valueFrom:
           secretKeyRef:
@@ -484,6 +493,21 @@ components:
         value: flagd
       - name: FLAGD_PORT
         value: "8013"
+      - name: KAFKA_ADDR
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: brokers_sasl_scram
+      - name: KAFKA_USER
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: username
+      - name: KAFKA_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: password
       - name: OTEL_EXPORTER_OTLP_ENDPOINT
         value: http://$(OTEL_COLLECTOR_NAME):4317
     resources:
@@ -522,6 +546,77 @@ components:
           limits:
             cpu: 50m
             memory: 32Mi
+
+  # Dedicated background MSK Kafka Worker
+  cart-consumer-worker:
+    enabled: true
+    imageOverride:
+      tag: "1.1-cart-ae89fa2" # Same image as cart API
+    securityContext:
+      allowPrivilegeEscalation: false
+      runAsNonRoot: true
+      runAsUser: 1000
+      capabilities:
+        drop:
+          - ALL
+      readOnlyRootFilesystem: true
+    useDefault:
+      env: true
+    # Note: No `service:` field defined -> Helm will NOT expose inbound ports/K8s Service
+    podDisruptionBudget:
+      maxUnavailable: 1
+    topologySpread: true
+    terminationGracePeriodSeconds: 30
+    deploymentStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 0
+        maxSurge: 1
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: techx-corp
+    env:
+      - name: ENABLE_KAFKA_CONSUMER
+        value: "true"                  # Enable Kafka Consumer in Worker pods
+      - name: VALKEY_ADDR
+        valueFrom:
+          secretKeyRef:
+            name: valkey-secret
+            key: address
+      - name: VALKEY_TLS
+        value: "true"
+      - name: VALKEY_AUTH_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: valkey-secret
+            key: auth_token
+      - name: KAFKA_ADDR
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: brokers_sasl_scram
+      - name: KAFKA_USER
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: username
+      - name: KAFKA_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: password
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://$(OTEL_COLLECTOR_NAME):4317
+    resources:
+      requests:
+        cpu: 100m
+        memory: 64Mi
+      limits:
+        cpu: 300m
+        memory: 128Mi
+    hpa:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 4
 
   checkout:
     enabled: true
@@ -690,6 +785,13 @@ components:
     topologySpread: true   # M17-R2: trải pod ra ≥2 AZ (money-path)
     podDisruptionBudget:   # M17-R2: drain-az/rollout không hạ cả 2 pod cùng lúc
       maxUnavailable: 1
+    # CDO-29 pattern (khớp cart/checkout): chờ endpoint propagate trước khi container
+    # tắt, tránh checkout (caller đồng bộ) nhận connection reset khi Karpenter
+    # consolidate/drift evict pod này giữa lúc có traffic.
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
     hpa:
       enabled: true
       minReplicas: 2       # M17-R2: HA, mất 1 AZ vẫn còn pod
@@ -1238,6 +1340,13 @@ components:
     topologySpread: true   # M17-R2: trải pod ra ≥2 AZ
     podDisruptionBudget:   # M17-R2: drain-az/rollout không hạ cả 2 pod cùng lúc
       maxUnavailable: 1
+    # CDO-29 pattern (khớp cart/checkout): chờ endpoint propagate trước khi container
+    # tắt, tránh checkout (caller đồng bộ) nhận connection reset khi Karpenter
+    # consolidate/drift evict pod này giữa lúc có traffic.
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
     imageOverride:
       tag: "1.0-payment-ae89fa2" # incident 2026-07-16: tag tran bi ECR lifecycle xoa, image rebuild tu source
     useDefault:
@@ -1683,6 +1792,13 @@ components:
     topologySpread: true   # M17-R2: trải pod ra ≥2 AZ
     podDisruptionBudget:   # M17-R2: drain-az/rollout không hạ cả 2 pod cùng lúc
       maxUnavailable: 1
+    # CDO-29 pattern (khớp cart/checkout): chờ endpoint propagate trước khi container
+    # tắt, tránh checkout (caller đồng bộ) nhận connection reset khi Karpenter
+    # consolidate/drift evict pod này giữa lúc có traffic.
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
     useDefault:
       env: true
     service:

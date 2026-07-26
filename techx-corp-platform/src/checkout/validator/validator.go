@@ -1,5 +1,8 @@
 package validator
 
+
+//! This is called Layered Defense (or Fail-Fast Defense)
+
 // Validates credit card formats:
 // using the Luhn Algorithm, checks expiration dates,
 // and validates shipping address formatting without making any network calls.

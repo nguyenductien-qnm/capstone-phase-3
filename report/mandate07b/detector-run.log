@@ -1,0 +1,182 @@
+# AIOps detector — stdout of the run the #7b numbers were measured from.
+# Started with: PROM_URL/OPENSEARCH_URL pointed at the docker-compose stack,
+# ALERTER_HISTORY_FILE=report/mandate07b/alerter_history.jsonl, --dry-run
+# (provider=stdout, so alerts print here instead of hitting the Discord webhook).
+#
+# 161 repeated 'K8s API query error (rule=oom-detected): (401)' blocks were
+# stripped for readability. They are a local artifact — this laptop has no live
+# cluster credential — and they are exactly the degradation described in the
+# report: the k8s_status rule logs and returns empty instead of killing the cycle.
+#
+2026-07-25 22:50:16,264 ERROR root exec: process returned 255. aws: [ERROR]: Error when retrieving token from sso: Token has expired and refresh failed
+2026-07-25 22:50:16,267 INFO aiops.detector AIOps detector starting | provider=stdout | 16 rules | poll=30s
+===== GROUPED ALERT =====
+🔴 [GROUPED ALERT] service=log | 2 rule(s) triggered | detected: 2026-07-25 22:50:19 (gio VN)
+  🔴 [CRITICAL] db-pool-exhaustion
+     DB connection pool cạn (INC-1/S01 tái diễn) — checkout có thể timeout
+  🟡 [WARNING] dns-resolution-error
+     Lỗi phân giải DNS / NXDOMAIN (S02) — service không gọi được dependency
+=========================
+
+2026-07-25 22:50:19,869 INFO aiops.alerter dispatched grouped alert fingerprint=log:5949982 rules=2 severity=critical
+2026-07-25 22:50:19,875 INFO aiops.detector cycle complete: 1 grouped alert message(s) dispatched
+===== GROUPED ALERT =====
+🟡 [GROUPED ALERT] service=cart | 1 rule(s) triggered | detected: 2026-07-25 22:53:27 (gio VN)
+  🟡 [WARNING] latency-p95-high
+     p95 latency TĂNG BẤT THƯỜNG so với 15 phút gần đây (chưa vượt SLO 1s — cảnh báo sớm)
+=========================
+
+2026-07-25 22:53:27,268 INFO aiops.alerter dispatched grouped alert fingerprint=cart:5949982 rules=1 severity=warning
+2026-07-25 22:53:27,270 INFO aiops.detector cycle complete: 1 grouped alert message(s) dispatched
+===== GROUPED ALERT =====
+🔴 [GROUPED ALERT] service=checkout | 1 rule(s) triggered | detected: 2026-07-25 22:54:29 (gio VN)
+  🔴 [CRITICAL] grpc-error-rate-high
+     Tỉ lệ lỗi gRPC > 5% — lỗi tầng RPC (KHÔNG hiện qua HTTP 5xx, vd productCatalogFailure)
+=========================
+
+2026-07-25 22:54:29,372 INFO aiops.alerter dispatched grouped alert fingerprint=checkout:5949982 rules=1 severity=critical
+2026-07-25 22:54:29,373 INFO aiops.detector cycle complete: 1 grouped alert message(s) dispatched
+===== GROUPED ALERT =====
+🟡 [GROUPED ALERT] service=log | 1 rule(s) triggered | detected: 2026-07-25 23:00:50 (gio VN)
+  🟡 [WARNING] dns-resolution-error
+     Lỗi phân giải DNS / NXDOMAIN (S02) — service không gọi được dependency
+=========================
+
+2026-07-25 23:00:50,054 INFO aiops.alerter dispatched grouped alert fingerprint=log:5949984 rules=1 severity=warning
+2026-07-25 23:00:50,055 INFO aiops.detector cycle complete: 1 grouped alert message(s) dispatched
+===== GROUPED ALERT =====
+🔴 [GROUPED ALERT] service=checkout | 1 rule(s) triggered | detected: 2026-07-25 23:04:59 (gio VN)
+  🔴 [CRITICAL] grpc-error-rate-high
+     Tỉ lệ lỗi gRPC > 5% — lỗi tầng RPC (KHÔNG hiện qua HTTP 5xx, vd productCatalogFailure)
+=========================
+
+2026-07-25 23:04:59,346 INFO aiops.alerter dispatched grouped alert fingerprint=checkout:5949984 rules=1 severity=critical
+2026-07-25 23:04:59,347 INFO aiops.detector cycle complete: 1 grouped alert message(s) dispatched
+===== GROUPED ALERT =====
+🟡 [GROUPED ALERT] service=log | 1 rule(s) triggered | detected: 2026-07-25 23:10:51 (gio VN)
+  🟡 [WARNING] dns-resolution-error
+     Lỗi phân giải DNS / NXDOMAIN (S02) — service không gọi được dependency
+=========================
+
+2026-07-25 23:10:51,350 INFO aiops.alerter dispatched grouped alert fingerprint=log:5949986 rules=1 severity=warning
+2026-07-25 23:10:51,352 INFO aiops.detector cycle complete: 1 grouped alert message(s) dispatched
+===== GROUPED ALERT =====
+🟡 [GROUPED ALERT] service=cart | 1 rule(s) triggered | detected: 2026-07-25 23:11:22 (gio VN)
+  🟡 [WARNING] latency-p95-high
+     p95 latency TĂNG BẤT THƯỜNG so với 15 phút gần đây (chưa vượt SLO 1s — cảnh báo sớm)
+=========================
+
+2026-07-25 23:11:22,699 INFO aiops.alerter dispatched grouped alert fingerprint=cart:5949986 rules=1 severity=warning
+2026-07-25 23:11:22,701 INFO aiops.detector cycle complete: 1 grouped alert message(s) dispatched
+===== GROUPED ALERT =====
+🔴 [GROUPED ALERT] service=checkout | 1 rule(s) triggered | detected: 2026-07-25 23:15:05 (gio VN)
+  🔴 [CRITICAL] grpc-error-rate-high
+     Tỉ lệ lỗi gRPC > 5% — lỗi tầng RPC (KHÔNG hiện qua HTTP 5xx, vd productCatalogFailure)
+=========================
+
+2026-07-25 23:15:05,929 INFO aiops.alerter dispatched grouped alert fingerprint=checkout:5949987 rules=1 severity=critical
+2026-07-25 23:15:05,930 INFO aiops.detector cycle complete: 1 grouped alert message(s) dispatched
+===== GROUPED ALERT =====
+🔴 [GROUPED ALERT] service=product-catalog | 1 rule(s) triggered | detected: 2026-07-25 23:15:38 (gio VN)
+  🔴 [CRITICAL] grpc-error-rate-high
+     Tỉ lệ lỗi gRPC TĂNG BẤT THƯỜNG so với baseline (chưa vượt 5% — cảnh báo sớm)
+=========================
+
+2026-07-25 23:15:38,850 INFO aiops.alerter dispatched grouped alert fingerprint=product-catalog:5949987 rules=1 severity=critical
+2026-07-25 23:15:38,852 INFO aiops.detector cycle complete: 1 grouped alert message(s) dispatched
+===== GROUPED ALERT =====
+🟡 [GROUPED ALERT] service=log | 1 rule(s) triggered | detected: 2026-07-25 23:21:03 (gio VN)
+  🟡 [WARNING] dns-resolution-error
+     Lỗi phân giải DNS / NXDOMAIN (S02) — service không gọi được dependency
+=========================
+
+2026-07-25 23:21:03,334 INFO aiops.alerter dispatched grouped alert fingerprint=log:5949988 rules=1 severity=warning
+2026-07-25 23:21:03,338 INFO aiops.detector cycle complete: 1 grouped alert message(s) dispatched
+===== GROUPED ALERT =====
+🔴 [GROUPED ALERT] service=checkout | 1 rule(s) triggered | detected: 2026-07-25 23:25:24 (gio VN)
+  🔴 [CRITICAL] grpc-error-rate-high
+     Tỉ lệ lỗi gRPC > 5% — lỗi tầng RPC (KHÔNG hiện qua HTTP 5xx, vd productCatalogFailure)
+=========================
+
+2026-07-25 23:25:24,241 INFO aiops.alerter dispatched grouped alert fingerprint=checkout:5949989 rules=1 severity=critical
+2026-07-25 23:25:24,242 INFO aiops.detector cycle complete: 1 grouped alert message(s) dispatched
+===== GROUPED ALERT =====
+🟡 [GROUPED ALERT] service=log | 1 rule(s) triggered | detected: 2026-07-25 23:31:14 (gio VN)
+  🟡 [WARNING] dns-resolution-error
+     Lỗi phân giải DNS / NXDOMAIN (S02) — service không gọi được dependency
+=========================
+
+2026-07-25 23:31:14,482 INFO aiops.alerter dispatched grouped alert fingerprint=log:5949990 rules=1 severity=warning
+2026-07-25 23:31:14,484 INFO aiops.detector cycle complete: 1 grouped alert message(s) dispatched
+===== GROUPED ALERT =====
+🔴 [GROUPED ALERT] service=checkout | 1 rule(s) triggered | detected: 2026-07-25 23:35:27 (gio VN)
+  🔴 [CRITICAL] grpc-error-rate-high
+     Tỉ lệ lỗi gRPC > 5% — lỗi tầng RPC (KHÔNG hiện qua HTTP 5xx, vd productCatalogFailure)
+=========================
+
+2026-07-25 23:35:27,304 INFO aiops.alerter dispatched grouped alert fingerprint=checkout:5949991 rules=1 severity=critical
+2026-07-25 23:35:27,305 INFO aiops.detector cycle complete: 1 grouped alert message(s) dispatched
+===== GROUPED ALERT =====
+🟡 [GROUPED ALERT] service=log | 1 rule(s) triggered | detected: 2026-07-25 23:41:43 (gio VN)
+  🟡 [WARNING] dns-resolution-error
+     Lỗi phân giải DNS / NXDOMAIN (S02) — service không gọi được dependency
+=========================
+
+2026-07-25 23:41:43,445 INFO aiops.alerter dispatched grouped alert fingerprint=log:5949992 rules=1 severity=warning
+2026-07-25 23:41:43,449 INFO aiops.detector cycle complete: 1 grouped alert message(s) dispatched
+===== GROUPED ALERT =====
+🔴 [GROUPED ALERT] service=checkout | 1 rule(s) triggered | detected: 2026-07-25 23:45:52 (gio VN)
+  🔴 [CRITICAL] grpc-error-rate-high
+     Tỉ lệ lỗi gRPC > 5% — lỗi tầng RPC (KHÔNG hiện qua HTTP 5xx, vd productCatalogFailure)
+=========================
+
+2026-07-25 23:45:52,622 INFO aiops.alerter dispatched grouped alert fingerprint=checkout:5949993 rules=1 severity=critical
+2026-07-25 23:45:52,624 INFO aiops.detector cycle complete: 1 grouped alert message(s) dispatched
+===== GROUPED ALERT =====
+🟡 [GROUPED ALERT] service=log | 1 rule(s) triggered | detected: 2026-07-25 23:51:48 (gio VN)
+  🟡 [WARNING] dns-resolution-error
+     Lỗi phân giải DNS / NXDOMAIN (S02) — service không gọi được dependency
+=========================
+
+2026-07-25 23:51:48,432 INFO aiops.alerter dispatched grouped alert fingerprint=log:5949994 rules=1 severity=warning
+2026-07-25 23:51:48,435 INFO aiops.detector cycle complete: 1 grouped alert message(s) dispatched
+===== GROUPED ALERT =====
+🔴 [GROUPED ALERT] service=checkout | 1 rule(s) triggered | detected: 2026-07-25 23:55:56 (gio VN)
+  🔴 [CRITICAL] grpc-error-rate-high
+     Tỉ lệ lỗi gRPC > 5% — lỗi tầng RPC (KHÔNG hiện qua HTTP 5xx, vd productCatalogFailure)
+=========================
+
+2026-07-25 23:55:56,436 INFO aiops.alerter dispatched grouped alert fingerprint=checkout:5949995 rules=1 severity=critical
+2026-07-25 23:55:56,437 INFO aiops.detector cycle complete: 1 grouped alert message(s) dispatched
+===== GROUPED ALERT =====
+🔴 [GROUPED ALERT] service=product-catalog | 1 rule(s) triggered | detected: 2026-07-26 00:00:39 (gio VN)
+  🔴 [CRITICAL] grpc-error-rate-high
+     Tỉ lệ lỗi gRPC TĂNG BẤT THƯỜNG so với baseline (chưa vượt 5% — cảnh báo sớm)
+=========================
+
+2026-07-26 00:00:39,855 INFO aiops.alerter dispatched grouped alert fingerprint=product-catalog:5949996 rules=1 severity=critical
+2026-07-26 00:00:39,858 INFO aiops.detector cycle complete: 1 grouped alert message(s) dispatched
+===== GROUPED ALERT =====
+🟡 [GROUPED ALERT] service=log | 1 rule(s) triggered | detected: 2026-07-26 00:02:13 (gio VN)
+  🟡 [WARNING] dns-resolution-error
+     Lỗi phân giải DNS / NXDOMAIN (S02) — service không gọi được dependency
+=========================
+
+2026-07-26 00:02:13,812 INFO aiops.alerter dispatched grouped alert fingerprint=log:5949996 rules=1 severity=warning
+2026-07-26 00:02:13,816 INFO aiops.detector cycle complete: 1 grouped alert message(s) dispatched
+===== GROUPED ALERT =====
+🔴 [GROUPED ALERT] service=checkout | 1 rule(s) triggered | detected: 2026-07-26 00:06:29 (gio VN)
+  🔴 [CRITICAL] grpc-error-rate-high
+     Tỉ lệ lỗi gRPC > 5% — lỗi tầng RPC (KHÔNG hiện qua HTTP 5xx, vd productCatalogFailure)
+=========================
+
+2026-07-26 00:06:29,046 INFO aiops.alerter dispatched grouped alert fingerprint=checkout:5949997 rules=1 severity=critical
+2026-07-26 00:06:29,048 INFO aiops.detector cycle complete: 1 grouped alert message(s) dispatched
+===== GROUPED ALERT =====
+🟡 [GROUPED ALERT] service=log | 1 rule(s) triggered | detected: 2026-07-26 00:12:20 (gio VN)
+  🟡 [WARNING] dns-resolution-error
+     Lỗi phân giải DNS / NXDOMAIN (S02) — service không gọi được dependency
+=========================
+
+2026-07-26 00:12:20,119 INFO aiops.alerter dispatched grouped alert fingerprint=log:5949998 rules=1 severity=warning
+2026-07-26 00:12:20,122 INFO aiops.detector cycle complete: 1 grouped alert message(s) dispatched

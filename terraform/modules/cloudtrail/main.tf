@@ -232,6 +232,11 @@ resource "aws_sns_topic" "mandate_12_audit_tamper" {
 
   name = local.m12_alert_name
 
+  # CKV_AWS_26: mã hoá at-rest bằng key SNS mặc định. Topic mang cảnh báo can thiệp
+  # CloudTrail nên nội dung chỉ là metadata sự kiện, không có bí mật; key mặc định đủ
+  # và không phát sinh phí KMS.
+  kms_master_key_id = "alias/aws/sns"
+
   lifecycle {
     precondition {
       condition     = trimspace(var.mandate_12_alert_email) != ""

@@ -15,6 +15,11 @@ const transactionsCounter = meter.createCounter('app.payment.transactions');
 
 const LOYALTY_LEVEL = ['platinum', 'gold', 'silver', 'bronze'];
 
+
+//! Microservice best practice dictates that 
+//! a service should never blindly trust incoming messages from external event buses or upstream callers. 
+//! That's why I include some checkout validation checks here
+
 /** Return random element from given array */
 function random(arr) {
   const index = Math.floor(Math.random() * arr.length);
