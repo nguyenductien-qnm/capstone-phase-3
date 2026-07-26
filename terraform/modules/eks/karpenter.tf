@@ -162,6 +162,23 @@ data "aws_iam_policy_document" "karpenter_controller" {
       values   = ["ec2.amazonaws.com"]
     }
   }
+
+  # MANDATE-13: cho phep controller poll SQS interruption queue duoi (chi khi
+  # enable_karpenter_interruption_queue=true o environment nay).
+  dynamic "statement" {
+    for_each = var.enable_karpenter_interruption_queue ? [1] : []
+    content {
+      sid    = "InterruptionQueue"
+      effect = "Allow"
+      actions = [
+        "sqs:DeleteMessage",
+        "sqs:GetQueueAttributes",
+        "sqs:GetQueueUrl",
+        "sqs:ReceiveMessage",
+      ]
+      resources = [aws_sqs_queue.karpenter_interruption[0].arn]
+    }
+  }
 }
 
 resource "aws_iam_role_policy" "karpenter_controller" {
@@ -181,4 +198,88 @@ resource "aws_ec2_tag" "karpenter_cluster_security_group_discovery" {
   resource_id = aws_eks_cluster.this.vpc_config[0].cluster_security_group_id
   key         = "karpenter.sh/discovery"
   value       = local.cluster_name
+}
+
+# MANDATE-13: AWS chi bao truoc 2 phut khi thu hoi 1 spot instance (Spot
+# Interruption Warning). Khong co gi chu dong doc canh bao nay thi Kubernetes
+# chi phat hien node mat qua kubelet heartbeat timeout (~40s) + pod-eviction-
+# timeout (~5 phut) -- lau hon nhieu so voi cua so 2 phut that, request tren
+# node coi nhu rot. EventBridge day 3 loai canh bao lien quan vao SQS; Karpenter
+# (settings.interruptionQueue) poll queue nay de chu dong cordon+drain truoc.
+#
+# Gate boi enable_karpenter_interruption_queue: shared module nay dung chung
+# boi develop + sandbox, resource nay chi can cho environment dang lam
+# MANDATE-13 (develop) — khong duoc tao moi trong plan cua environment khac
+# (environment-isolation-execution-guide §Case T3).
+resource "aws_sqs_queue" "karpenter_interruption" {
+  count                     = var.enable_karpenter_interruption_queue ? 1 : 0
+  name                      = "${local.cluster_name}-karpenter-interruption"
+  message_retention_seconds = 300 # su kien chi con y nghia trong vai phut
+  sqs_managed_sse_enabled   = true
+
+  tags = {
+    Name = "${local.cluster_name}-karpenter-interruption"
+  }
+}
+
+data "aws_iam_policy_document" "karpenter_interruption_queue" {
+  count = var.enable_karpenter_interruption_queue ? 1 : 0
+
+  statement {
+    sid     = "AllowEventBridgeRules"
+    effect  = "Allow"
+    actions = ["sqs:SendMessage"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["events.amazonaws.com"]
+    }
+
+    resources = [aws_sqs_queue.karpenter_interruption[0].arn]
+
+    condition {
+      test     = "ArnEquals"
+      variable = "aws:SourceArn"
+      values   = [aws_cloudwatch_event_rule.karpenter_interruption[0].arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
+  }
+}
+
+resource "aws_sqs_queue_policy" "karpenter_interruption" {
+  count     = var.enable_karpenter_interruption_queue ? 1 : 0
+  queue_url = aws_sqs_queue.karpenter_interruption[0].id
+  policy    = data.aws_iam_policy_document.karpenter_interruption_queue[0].json
+}
+
+resource "aws_cloudwatch_event_rule" "karpenter_interruption" {
+  count       = var.enable_karpenter_interruption_queue ? 1 : 0
+  name        = "${local.cluster_name}-karpenter-interruption"
+  description = "Karpenter spot interruption: Spot Interruption Warning + Rebalance Recommendation + Instance State-change"
+  event_pattern = jsonencode({
+    source = ["aws.ec2"]
+    detail-type = [
+      "EC2 Spot Interruption Warning",
+      "EC2 Instance Rebalance Recommendation",
+      "EC2 Instance State-change Notification",
+    ]
+  })
+
+  tags = {
+    Name = "${local.cluster_name}-karpenter-interruption"
+  }
+}
+
+resource "aws_cloudwatch_event_target" "karpenter_interruption" {
+  count     = var.enable_karpenter_interruption_queue ? 1 : 0
+  rule      = aws_cloudwatch_event_rule.karpenter_interruption[0].name
+  target_id = "karpenter-interruption-queue"
+  arn       = aws_sqs_queue.karpenter_interruption[0].arn
+
+  depends_on = [aws_sqs_queue_policy.karpenter_interruption]
 }

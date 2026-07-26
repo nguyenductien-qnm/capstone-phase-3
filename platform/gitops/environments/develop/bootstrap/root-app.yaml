@@ -11,8 +11,8 @@ spec:
     path: platform/gitops/environments/develop/applications
     directory:
       recurse: true
-      # Karpenter is intentionally dormant during the first Develop phase.
-      exclude: '{karpenter-crd.yaml,karpenter.yaml,karpenter-nodepool.yaml}'
+      # MANDATE-13: Karpenter kích hoạt làm autoscaler chính (spot + consolidation).
+      # Trước đây dormant (exclude karpenter-*.yaml) từ 2026-07-19; đã qua checkpoint verify.
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd

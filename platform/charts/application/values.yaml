@@ -1229,6 +1229,13 @@ components:
     topologySpread: true   # M17-R2: trải pod ra ≥2 AZ
     podDisruptionBudget:   # M17-R2: drain-az/rollout không hạ cả 2 pod cùng lúc
       maxUnavailable: 1
+    # MANDATE-13: preStop cho Envoy/kube-proxy gỡ pod IP khỏi endpoint trước
+    # SIGTERM — payment trên luồng tiền checkout, cần graceful drain khi Karpenter
+    # cordon+drain do spot interruption.
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
     imageOverride:
       tag: "1.0-payment-ae89fa2" # incident 2026-07-16: tag tran bi ECR lifecycle xoa, image rebuild tu source
     useDefault:
