@@ -208,6 +208,9 @@
         "cart": {
           "$ref": "#/definitions/Component"
         },
+        "cart-consumer-worker": {
+          "$ref": "#/definitions/Component"
+        },
         "checkout": {
           "$ref": "#/definitions/Component"
         },
