@@ -15,7 +15,8 @@ spec:
           values: ["linux"]
         - key: karpenter.sh/capacity-type
           operator: In
-          values: ["on-demand"]
+          # MANDATE-13: uu tien spot, fallback on-demand khi khong du capacity.
+          values: ["spot", "on-demand"]
         - key: karpenter.k8s.aws/instance-category
           operator: In
           values: ["c", "m", "t"]
@@ -38,7 +39,16 @@ spec:
         name: default
       terminationGracePeriod: 24h
   limits:
-    cpu: "8"
+    # MANDATE-13: Capacity planning ceiling. Tính dựa trên:
+    # (Tổng maxReplicas HPA * Request CPU) + 15% System Overhead + 30% Buffer an toàn.
+    cpu: "32"
   disruption:
-    consolidationPolicy: WhenEmpty
+    # MANDATE-13: WhenEmpty chi xoa node da 0 pod, khong co "co xuong that".
+    consolidationPolicy: WhenEmptyOrUnderutilized
+    # 5m là chuẩn Production (tránh node churn). Load test đã được kéo dài pha cuối
+    # để đủ thời gian demo tính năng scale-down.
     consolidateAfter: 5m
+    # MANDATE-13: giới hạn tối đa 1 node bị drain đồng thời — tránh evict hàng loạt
+    # pod cùng lúc khi consolidate hoặc spot interruption, bảo vệ SLO checkout ≥ 99%.
+    budgets:
+      - nodes: "1"
