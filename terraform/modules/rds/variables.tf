@@ -132,3 +132,9 @@ variable "skip_final_snapshot" {
   description = "Bỏ qua final snapshot khi destroy. Default true (giữ hành vi cũ cho môi trường tạm). Đặt false ở env cần giữ bản chụp cuối trước khi xoá."
   default     = true
 }
+
+variable "enable_aws_backup_tag" {
+  type        = bool
+  description = "Gắn tag Backup=true lên Primary DB để AWS Backup Selection (chọn resource theo tag) đưa instance vào backup plan. Default false; chỉ bật ở env có backup vault."
+  default     = false
+}

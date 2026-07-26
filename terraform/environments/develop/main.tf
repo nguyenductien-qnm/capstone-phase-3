@@ -123,6 +123,10 @@ module "rds" {
   # skip_final_snapshot giữ true: drill dựa vào PITR + AWS Backup, không vào final snapshot.
   deletion_protection   = true
   copy_tags_to_snapshot = true
+
+  # Backup Selection của module backup chọn resource theo tag Backup=true;
+  # không gắn tag thì backup plan chạy nhưng không backup instance nào.
+  enable_aws_backup_tag = true
 }
 
 module "elasticache" {
@@ -282,6 +286,10 @@ module "backup" {
 
   project_name = var.project_name
   environment  = var.environment
+
+  # Mandate 20 (CDO-259): vault mã hoá bằng KMS key có guardrail chống xoá của
+  # backup_protection thay vì key riêng không được bảo vệ.
+  kms_key_arn = module.backup_protection.kms_key_arn
 }
 
 # Mandate 20 (CDO-247): Bảo vệ backup — KMS key riêng + IAM Policy Explicit Deny chống xoá backup

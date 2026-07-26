@@ -65,7 +65,13 @@ Simulate a data corruption / accidental drop event at timestamp $T_1$ ($T_1 > T_
 
 ### Step 3: Trigger Point-in-Time Restore (PITR) to Isolated Target
 
-Restore the database to timestamp $T_0$ (prior to $T_1$) into a newly provisioned, isolated instance:
+Retrieve the isolated drill Security Group (CDO-269 — allows port 5432 only from the Admin/Runner IP, never from EKS workloads):
+
+```bash
+DRILL_SG_ID=$(terraform -chdir=terraform/environments/develop output -raw db_drill_security_group_id)
+```
+
+Restore the database to timestamp $T_0$ (prior to $T_1$) into a newly provisioned, isolated instance. The `db_drill` Security Group MUST be attached — without it the instance falls back to the default SG and the verification step cannot connect:
 
 ```bash
 aws rds restore-db-instance-to-point-in-time \
@@ -74,6 +80,7 @@ aws rds restore-db-instance-to-point-in-time \
   --restore-time "2026-07-25T16:00:00Z" \
   --no-multi-az \
   --publicly-accessible \
+  --vpc-security-group-ids "$DRILL_SG_ID" \
   --region us-east-1
 ```
 

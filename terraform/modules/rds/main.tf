@@ -127,11 +127,16 @@ resource "aws_db_instance" "this" {
 
   vpc_security_group_ids = [aws_security_group.db.id]
 
-  tags = {
-    Name        = "${var.project_name}-${var.environment}-postgres-primary"
-    Environment = var.environment
-    Project     = var.project_name
-  }
+  tags = merge(
+    {
+      Name        = "${var.project_name}-${var.environment}-postgres-primary"
+      Environment = var.environment
+      Project     = var.project_name
+    },
+    # AWS Backup Selection chọn resource theo tag Backup=true (kết hợp copy_tags_to_snapshot
+    # để snapshot thừa hưởng tag). Chỉ gắn cho Primary — replica không cần backup.
+    var.enable_aws_backup_tag ? { Backup = "true" } : {}
+  )
 
   lifecycle {
     ignore_changes = [password]
