@@ -306,3 +306,8 @@ output "cost_guard_log_group_name" {
   value       = try(module.cost_guard_automation[0].cloudwatch_log_group_name, null)
 }
 
+output "msk_connect_connector_arn" {
+  description = "ARN of the MSK Connect Debezium Postgres connector"
+  value       = aws_mskconnect_connector.debezium_postgres.arn
+}
+

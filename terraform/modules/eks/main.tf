@@ -258,11 +258,12 @@ resource "aws_eks_node_group" "this" {
   depends_on = [aws_iam_role_policy_attachment.node]
 
   # Instance type changes replace an EKS managed node group. Create the replacement first so
-  # workloads move to healthy nodes before EKS drains and removes the previous group. Scheduled
-  # actions own runtime desired capacity, while Terraform keeps the configured 2-node baseline.
+  # workloads move to healthy nodes before EKS drains and removes the previous group.
+  # desired_size is no longer ignored (MANDATE-13): Terraform fully owns it now, so
+  # node_scaling.desired_size in tfvars is what actually runs — no manual AWS
+  # CLI/console scale needed to bring the primary group back down.
   lifecycle {
     create_before_destroy = true
-    ignore_changes        = [scaling_config[0].desired_size]
   }
 
   tags = {
@@ -359,10 +360,18 @@ resource "aws_eks_addon" "core" {
   addon_name    = each.value
   addon_version = data.aws_eks_addon_version.core[each.key].version
 
-  # M17-R3: chỉ vpc-cni + khi bật cờ mới enforce NetworkPolicy; addon khác giữ nguyên.
-  configuration_values = (each.value == "vpc-cni" && var.enable_network_policy) ? jsonencode({
-    enableNetworkPolicy = "true"
-  }) : null
+  # M17-R3/P2a: chỉ cấu hình vpc-cni khi bật cờ tương ứng; addon khác giữ nguyên.
+  configuration_values = (each.value == "vpc-cni" && (var.enable_network_policy || var.enable_vpc_cni_prefix_delegation)) ? jsonencode(merge(
+    var.enable_network_policy ? {
+      enableNetworkPolicy = "true"
+    } : {},
+    var.enable_vpc_cni_prefix_delegation ? {
+      env = {
+        ENABLE_PREFIX_DELEGATION = "true"
+        WARM_PREFIX_TARGET       = tostring(var.vpc_cni_warm_prefix_target)
+      }
+    } : {}
+  )) : null
 
   resolve_conflicts_on_create = "OVERWRITE"
   resolve_conflicts_on_update = "PRESERVE"

@@ -87,7 +87,9 @@ module "eks" {
   access_entries = merge(var.eks_access_entries, local.github_terraform_access_entry)
 
   # M17-R3: bật enforce NetworkPolicy CHỈ cho cluster này (ecommerce-dev-eks). develop giữ default false.
-  enable_network_policy = true
+  enable_network_policy            = true
+  enable_vpc_cni_prefix_delegation = true
+  vpc_cni_warm_prefix_target       = 1
 }
 
 module "rds" {
@@ -324,4 +326,3 @@ module "cost_guard_automation" {
   lambda_memory                 = var.lambda_memory
   cloudwatch_log_retention_days = var.cloudwatch_log_retention_days
 }
-

@@ -65,9 +65,12 @@ fn init_logger_provider() {
 
     let otel_layer = OpenTelemetryTracingBridge::new(&logger_provider);
     let filter_otel = EnvFilter::new("info");
-    let otel_layer = otel_layer.with_filter(filter_otel);
-
-    tracing_subscriber::registry().with(otel_layer).init();
+    let fmt_layer = tracing_subscriber::fmt::layer();
+    tracing_subscriber::registry()
+        .with(filter_otel)
+        .with(fmt_layer)
+        .with(otel_layer)
+        .init();
 }
 
 pub fn init_otel() -> Result<()> {

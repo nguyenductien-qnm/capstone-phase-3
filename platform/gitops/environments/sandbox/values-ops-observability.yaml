@@ -5,10 +5,20 @@ observabilityStorage:
   enabled: true
 
 opentelemetry-collector:
+  # Danh sách này REPLACE toàn bộ tolerations của chart (Helm không merge list),
+  # nên phải liệt kê đủ cả 2 taint DaemonSet cần tolerate, không chỉ thêm mới.
+  # techx.io/capacity=spot: thiếu cái này thì node spot của Karpenter (ad,
+  # product-reviews) không có collector cục bộ -> otel-collector Service dùng
+  # internalTrafficPolicy: Local nên mất hẳn endpoint (không phải chậm), OTLP
+  # export từ pod trên node đó luôn fail.
   tolerations:
     - key: dedicated
       operator: Equal
       value: observability
+      effect: NoSchedule
+    - key: techx.io/capacity
+      operator: Equal
+      value: spot
       effect: NoSchedule
   resources:
     requests:
@@ -30,11 +40,15 @@ opentelemetry-collector:
           exporters: [opensearch]
 
 telemetryRetention:
-  # OpenSearch is already 85% full, but policy activation can delete old
-  # application-log indices. Keep this explicit safety gate off until the
-  # owner approves the retention window and a recoverable backup exists.
-  enabled: false
-  minIndexAge: 3d
+  # 2026-07-26: disk lên 91% (flood-stage, index otel-logs bị block ghi), chặn
+  # collector's opensearch exporter -> currency's blocking OTLP export nghẽn theo
+  # -> checkout DeadlineExceeded/500 (xác nhận qua log thật). Owner approved bật
+  # gate này để giải phóng đĩa. 7d (không phải 3d mặc định): giữ log gần nhất lâu
+  # hơn, đủ giải phóng ~1.6GB (otel-logs-07-16/17/18, đưa disk usage ~91% -> ~73%).
+  # Không có backup/snapshot cho index bị xóa (đã xác nhận _snapshot rỗng) -- mất
+  # là mất luôn, chấp nhận đánh đổi vì chưa có backup khả dụng.
+  enabled: true
+  minIndexAge: 7d
 
 jaeger:
   jaeger:
@@ -99,6 +113,8 @@ grafana:
       operator: Equal
       value: observability
       effect: NoSchedule
+  podLabels:
+    egress-internet: "true"
   plugins:
     - grafana-opensearch-datasource
   resources:

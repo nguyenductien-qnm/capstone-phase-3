@@ -1,0 +1,12 @@
+
+======================================================================
+SCENARIO: case-quiet-window-001 [healthy_load]
+MANDATE-07 #7b 'giai doan binh thuong' (normal period): the mandate's precision figure is only meaningful if the labeled set contains a stretch with NO injected fault — precision = correct fires / total fires, so a detector that alerts constantly must be punished for it. This case injects nothing at all and simply observes the running stack for 5 minutes under its ordinary load-generator traffic. Any alert raised in this window is a false positive and drags precision down. Kept separate from MANDATE-15's case_healthy_load.json, which deliberately drives ELEVATED load to prove 'busy is not broken'; this one is the plain baseline.
+----------------------------------------------------------------------
+  [case-quiet-window-001] expect_fire=False -> FIRED (lead_time=20.6s) MISMATCH
+----------------------------------------------------------------------
+  K incidents = 0 | recall = None | precision = 1.0 (correct=1/total=1)
+  VERDICT (healthy_load): FAIL — false alarm(s): ['case-quiet-window-001']
+======================================================================
+
+  result written to aiops/incident_scenarios/case_quiet_window.result.json
