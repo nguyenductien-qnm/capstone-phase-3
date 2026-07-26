@@ -85,13 +85,9 @@ components:
         cpu: 50m    # dùng 33m = 66%, giữ nguyên
       limits:
         cpu: 250m   # throttle 29.1%@100m — dùng chung nhiều flow
-    # Sandbox-only mitigation: OpenSearch (đích logs pipeline) đầy 91% disk, index
-    # otel-logs bị block ghi (flood-stage watermark) -> collector's opensearch
-    # exporter fail liên tục -> hàng đợi export logs nghẽn -> currency's blocking
-    # C++ OTLP exporter chờ hàng đợi -> ConvertCurrency RPC bị treo theo -> checkout
-    # nhận DeadlineExceeded -> 500 (xác nhận qua log thật, không phải suy đoán).
-    # Tắt logs/metrics export, giữ traces. Đây là env override đầy đủ (Helm replace
-    # nguyên list "env", không merge) -- phải lặp lại đủ 4 biến gốc từ values.yaml.
+    # Currency keeps OTLP logs, metrics, and traces enabled. The service uses
+    # bounded asynchronous processors so an unhealthy collector cannot block RPCs.
+    # This is a full Helm env override, so retain every base environment variable.
     env:
       - name: CURRENCY_PORT
         value: "8080"
@@ -101,10 +97,6 @@ components:
         value: "{{ .Chart.AppVersion }}"
       - name: IPV6_ENABLED
         value: "false"
-      - name: OTEL_LOGS_EXPORTER
-        value: "none"
-      - name: OTEL_METRICS_EXPORTER
-        value: "none"
   cart:
     resources:
       requests:
