@@ -66,10 +66,14 @@ def _product_to_dict(product) -> dict:
 def search_products(query: str, category: str | None = None) -> str:
     """Intent 1 — natural-language product search via ProductCatalogService."""
     try:
+        # Model hay gọi tool với query rỗng và chỉ đặt category. Catalog cần chữ để
+        # embed (Titan từ chối chuỗi rỗng: "expected minLength: 1"), nên lấy category
+        # làm câu truy vấn — nếu không, semantic search âm thầm rơi về keyword.
+        effective_query = (query or "").strip() or (category or "").strip()
         with grpc.insecure_channel(PRODUCT_CATALOG_ADDR) as channel:
             stub = demo_pb2_grpc.ProductCatalogServiceStub(channel)
             response = stub.SearchProducts(
-                demo_pb2.SearchProductsRequest(query=query), timeout=_RPC_TIMEOUT
+                demo_pb2.SearchProductsRequest(query=effective_query), timeout=_RPC_TIMEOUT
             )
         products = [_product_to_dict(p) for p in response.results]
         if category:

@@ -910,7 +910,10 @@ services:
     deploy:
       resources:
         limits:
-          memory: 200M
+          # 200M → 512M (local, 26/07): collector chạm 171/200MiB rồi memory_limiter
+          # từ chối dữ liệu ("data refused due to high memory usage") làm rơi span —
+          # trong đó có span product-catalog mà eval MANDATE-14 dùng làm bằng chứng.
+          memory: 512M
     restart: unless-stopped
     command: [ "--config=/etc/otelcol-config.yml", "--config=/etc/otelcol-config-extras.yml" ]
     user: 0:0

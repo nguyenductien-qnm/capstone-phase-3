@@ -26,13 +26,23 @@ JAEGER_BASE_URL = os.environ.get("JAEGER_BASE_URL", "http://localhost:32772")
 EVAL_PRODUCT_ID = os.environ.get("EVAL_PRODUCT_ID", "OLJCESPC7Z")
 
 # USD / 1M token — Bedrock on-demand us-east-1, model lấy từ span gen_ai.request.model.
-# Hệ thống chạy Nova chứ không phải Sonnet, bảng giá cũ ($3/$15) sai ~50 lần.
+# Tra ngày 26/07/2026: https://aws.amazon.com/bedrock/pricing/ , đối chiếu
+# caylent.com/blog/amazon-bedrock-pricing-explained (Nova Lite 0.06/0.24,
+# Micro 0.035/0.14) và getmaxim.ai/bifrost (Nova Pro 0.80/3.20;
+# Titan Embed v2 0.02, chỉ tính token vào).
+# Bảng cũ dùng giá Sonnet ($3/$15) trong khi hệ thống chạy Nova → sai ~50 lần.
 PRICING = {
     "amazon.nova-pro-v1:0": (0.80, 3.20),
     "amazon.nova-lite-v1:0": (0.06, 0.24),
     "amazon.nova-micro-v1:0": (0.035, 0.14),
+    "amazon.titan-embed-text-v2:0": (0.02, 0.0),
 }
 DEFAULT_PRICE = (0.06, 0.24)
+
+# Span sinh chi phí: bedrock_converse (LLM) và bedrock_embed (Titan, do
+# product-catalog phát ra mỗi lần semantic search). Thiếu cái sau thì mọi lệnh
+# gọi Titan đều vô hình và tổng chi phí bị báo thiếu một cách hệ thống.
+COST_SPANS = ("bedrock_converse", "bedrock_embed")
 
 # ---------------------------------------------------------
 # Built-in Cases Fallbacks
@@ -167,21 +177,27 @@ def extract_trace_and_tokens(data, trace_id_from_resp=""):
     in_tokens = 0
     out_tokens = 0
     usd_cost = 0.0
+    embed_tokens = 0   # tách riêng phần Titan để báo cáo LLM vs embedding
+    embed_cost = 0.0
 
     if jaeger_client and trace_id and JAEGER_BASE_URL:
         trace_json = jaeger_client.fetch_trace(trace_id, JAEGER_BASE_URL)
         if trace_json:
             spans = jaeger_client.summarize_spans(trace_json)
             for s in spans:
-                if s["name"] == "bedrock_converse":
+                if s["name"] in COST_SPANS:
                     ti = int(s["attributes"].get("gen_ai.usage.input_tokens", 0) or 0)
                     to = int(s["attributes"].get("gen_ai.usage.output_tokens", 0) or 0)
                     p_in, p_out = PRICING.get(s["attributes"].get("gen_ai.request.model", ""), DEFAULT_PRICE)
                     in_tokens += ti
                     out_tokens += to
-                    usd_cost += ti / 1_000_000.0 * p_in + to / 1_000_000.0 * p_out
+                    cost = ti / 1_000_000.0 * p_in + to / 1_000_000.0 * p_out
+                    usd_cost += cost
+                    if s["name"] == "bedrock_embed":
+                        embed_tokens += ti
+                        embed_cost += cost
 
-    return trace_id, spans, in_tokens, out_tokens, usd_cost
+    return trace_id, spans, in_tokens, out_tokens, usd_cost, embed_tokens, embed_cost
 
 def calculate_percentiles(values):
     if not values:
@@ -233,9 +249,11 @@ def main():
             # "an toàn" thì mọi case đều xanh khi dịch vụ chết.
             passed = False
             reason = f"Request failed: {err}"
-            in_tokens, out_tokens, usd_cost = 0, 0, 0.0
+            in_tokens, out_tokens, usd_cost, embed_tokens, embed_cost = 0, 0, 0.0, 0, 0.0
+            spans = []
         else:
-            trace_id, spans, in_tokens, out_tokens, usd_cost = extract_trace_and_tokens(data)
+            (trace_id, spans, in_tokens, out_tokens, usd_cost,
+             embed_tokens, embed_cost) = extract_trace_and_tokens(data)
             costs.append(usd_cost)
             passed, reason = validator(test_data, data, spans)
             
@@ -250,11 +268,13 @@ def main():
             "category": category,
             "input": test_data,
             "latency": latency,
-            "tokens": {"input": in_tokens, "output": out_tokens},
+            "tokens": {"input": in_tokens, "output": out_tokens, "embedding": embed_tokens},
             "usd_cost": usd_cost,
+            "embed_cost": embed_cost,
             "passed": passed,
             "reason": reason,
-            "response": data
+            "response": data,
+            "spans": spans,   # trace_audit.py đọc lại từ đây, không bắn thêm request
         }
         
         results.append(result_obj)

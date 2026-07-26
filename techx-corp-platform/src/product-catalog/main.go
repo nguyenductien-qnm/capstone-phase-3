@@ -585,7 +585,17 @@ func getBedrockCredentials(ctx context.Context, region string) (string, string, 
 	return creds.AccessKeyId, creds.SecretAccessKey, creds.SessionToken, nil
 }
 
+const titanEmbedModel = "amazon.titan-embed-text-v2:0"
+
 func embedQuery(ctx context.Context, text string) ([]float64, error) {
+	// Span riêng cho lệnh gọi Titan: trước đây hàm này không phát span nào nên mọi
+	// chi phí embedding của semantic search đều vô hình với eval MANDATE-14 —
+	// không latency, không token, không tiền. Tên bedrock_embed để harness gộp
+	// cùng bedrock_converse khi tính cost.
+	ctx, span := otel.Tracer("product-catalog").Start(ctx, "bedrock_embed")
+	defer span.End()
+	span.SetAttributes(attribute.String("gen_ai.request.model", titanEmbedModel))
+
 	reqBody := map[string]interface{}{
 		"inputText":  text,
 		"dimensions": 1024,
@@ -620,15 +630,24 @@ func embedQuery(ctx context.Context, text string) ([]float64, error) {
 
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("aws error %d: %s", resp.StatusCode, string(respBody))
+		err := fmt.Errorf("aws error %d: %s", resp.StatusCode, string(respBody))
+		// Ghi lỗi vào span: container distroless không xuất log ra docker logs, nên
+		// không đánh dấu ở đây thì semantic search âm thầm rơi về keyword mà không
+		// ai biết vì sao — đúng kiểu false-green mà mandate muốn tránh.
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, err
 	}
 
 	var parsedResp struct {
-		Embedding []float64 `json:"embedding"`
+		Embedding           []float64 `json:"embedding"`
+		InputTextTokenCount int       `json:"inputTextTokenCount"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&parsedResp); err != nil {
 		return nil, fmt.Errorf("parse resp failed: %w", err)
 	}
+	// Titan trả sẵn số token đã tính tiền — dùng số thật, không ước lượng.
+	span.SetAttributes(attribute.Int("gen_ai.usage.input_tokens", parsedResp.InputTextTokenCount))
 	return parsedResp.Embedding, nil
 }
 
@@ -652,8 +671,8 @@ func searchProductsFromDBSemantic(ctx context.Context, query string) ([]*pb.Prod
 	// Format embedding as pgvector literal
 	vecLiteral := formatVector(embedding)
 	q := productSelectSQL(
-		"WHERE p.embedding IS NOT NULL",
-		"ORDER BY p.embedding <=> $1::vector LIMIT 10",
+		"JOIN catalog.product_embeddings_v2 v2 ON p.id = v2.product_id WHERE v2.embedding IS NOT NULL",
+		"ORDER BY v2.embedding <=> $1::vector LIMIT 10",
 	)
 	var products []*pb.Product
 	err = withDBRetry(ctx, "searchProductsSemantic", func() error {
@@ -840,9 +859,14 @@ func (p *productCatalog) SearchProducts(ctx context.Context, req *pb.SearchProdu
 	var err error
 	searchMode := "keyword"
 
+	// Copilot đôi khi gọi search_products với query rỗng (chỉ lọc category phía client).
+	// Titan từ chối inputText rỗng ("expected minLength: 1") nên semantic hỏng rồi âm
+	// thầm rơi về keyword — bỏ hẳn lần gọi Bedrock chắc chắn lỗi đó.
+	embedText := strings.TrimSpace(req.Query)
+
 	// Try semantic search first if enabled
-	if os.Getenv("SEMANTIC_SEARCH_ENABLED") == "true" {
-		result, err = searchProductsFromDBSemantic(ctx, req.Query)
+	if os.Getenv("SEMANTIC_SEARCH_ENABLED") == "true" && embedText != "" {
+		result, err = searchProductsFromDBSemantic(ctx, embedText)
 		if err == nil && len(result) > 0 {
 			searchMode = "semantic"
 		} else {
