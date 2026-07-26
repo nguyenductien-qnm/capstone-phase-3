@@ -1,5 +1,13 @@
 # Đối chiếu repo với DIRECTIVE #10 — audit 23/07/2026
 
+> [!IMPORTANT]
+> **Đây là bản audit LỊCH SỬ, chụp trạng thái ngày 23/07/2026 — không phải trạng thái hiện
+> tại.** Mọi mục ghi "THIẾU" hoặc "MỘT PHẦN" bên dưới đều đã được vá xong sau đó (SAST, IaC
+> gate, pin SHA/digest, `provenance.sh`). Giữ file lại vì nó cho thấy quá trình tự audit ra
+> lỗ rồi vá từng cái — thuộc trụ **Auditability**.
+>
+> **Trạng thái hiện tại: xem [README.md](README.md)** — 6/6 yêu cầu đạt.
+
 Chấm theo **kết quả**, không theo có-làm-hay-không. Mỗi dòng dưới đây đều tra từ repo/cụm thật.
 
 ## Bảng tổng

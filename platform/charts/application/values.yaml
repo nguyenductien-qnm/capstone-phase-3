@@ -297,7 +297,7 @@ components:
     terminationGracePeriodSeconds: 30
     lifecycle:
       preStop:
-        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
+        sleep: { seconds: 5 }   # M17: sleep native (K8s>=1.29) thay exec /bin/sh — image distroless không có shell → exec fail (FailedPreStopHook).
     deploymentStrategy:
       type: RollingUpdate
       rollingUpdate:
@@ -442,7 +442,7 @@ components:
     terminationGracePeriodSeconds: 30
     lifecycle:
       preStop:
-        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
+        sleep: { seconds: 5 }   # M17: sleep native (K8s>=1.29) thay exec /bin/sh — image distroless không có shell → exec fail (FailedPreStopHook).
     deploymentStrategy:
       type: RollingUpdate
       rollingUpdate:
@@ -634,7 +634,7 @@ components:
     terminationGracePeriodSeconds: 30
     lifecycle:
       preStop:
-        exec: { command: ["/bin/sh", "-c", "sleep 5"] } # CDO-29: chờ endpoint propagate, không rơi request
+        sleep: { seconds: 5 }   # CDO-29: chờ endpoint propagate, không rơi request. M17: sleep native (K8s>=1.29) — image distroless không có /bin/sh nên exec fail (FailedPreStopHook).
     deploymentStrategy: # CDO-29: rollout không hạ pod cũ trước khi pod mới Ready
       type: RollingUpdate
       rollingUpdate:
@@ -751,6 +751,19 @@ components:
       env: true
     service:
       port: 8080
+    # M17 deploy-safety: dependency luồng ra tiền — readiness gate (không đẩy traffic vào pod chưa listening khi node churn)
+    # + preStop sleep native (K8s>=1.29, khỏi cần shell → an toàn cho mọi image) + grace. Fix rớt request khi Karpenter consolidate.
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep:
+          seconds: 5
+    readinessProbe:
+      tcpSocket: { port: 8080 }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
     env:
@@ -802,6 +815,18 @@ components:
       env: true
     service:
       port: 8080
+    # M17 deploy-safety: dependency luồng ra tiền — readiness gate + preStop sleep native + grace 30s. Fix rớt request khi drain/Karpenter consolidate.
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep:
+          seconds: 5
+    readinessProbe:
+      tcpSocket: { port: 8080 }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
     env:
@@ -963,7 +988,7 @@ components:
     terminationGracePeriodSeconds: 30
     lifecycle:
       preStop:
-        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
+        sleep: { seconds: 5 }   # M17: sleep native (K8s>=1.29) thay exec /bin/sh — image distroless không có shell → exec fail (FailedPreStopHook).
     deploymentStrategy:
       type: RollingUpdate
       rollingUpdate:
@@ -1081,7 +1106,7 @@ components:
     terminationGracePeriodSeconds: 30
     lifecycle:
       preStop:
-        exec: { command: ["/bin/sh", "-c", "sleep 5"] } # cực quan trọng cho Envoy: drain kết nối trước khi tắt
+        sleep: { seconds: 5 }   # cực quan trọng cho Envoy: drain kết nối trước khi tắt. M17: sleep native (K8s>=1.29) thay exec — không phụ thuộc shell trong image.
     deploymentStrategy: # CDO-29: zero-downtime khi rollout Envoy cho Mandate 01
       type: RollingUpdate
       rollingUpdate:
@@ -1328,6 +1353,18 @@ components:
       env: true
     service:
       port: 8080
+    # M17 deploy-safety: dependency luồng ra tiền — readiness gate + preStop sleep native + grace 30s. Fix rớt request khi drain/Karpenter consolidate.
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep:
+          seconds: 5
+    readinessProbe:
+      tcpSocket: { port: 8080 }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
     env:
@@ -1425,7 +1462,7 @@ components:
     terminationGracePeriodSeconds: 30
     lifecycle:
       preStop:
-        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
+        sleep: { seconds: 5 }   # M17: sleep native (K8s>=1.29) thay exec /bin/sh — image distroless không có shell → exec fail (FailedPreStopHook).
     deploymentStrategy:
       type: RollingUpdate
       rollingUpdate:
@@ -1505,7 +1542,7 @@ components:
     terminationGracePeriodSeconds: 30
     lifecycle:
       preStop:
-        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
+        sleep: { seconds: 5 }   # M17: sleep native (K8s>=1.29) thay exec /bin/sh — image distroless không có shell → exec fail (FailedPreStopHook).
     deploymentStrategy:
       type: RollingUpdate
       rollingUpdate:
@@ -1579,6 +1616,18 @@ components:
       env: true
     service:
       port: 8080
+    # M17 deploy-safety: dependency luồng ra tiền (shipping→quote) — readiness gate + preStop sleep native + grace 30s. Fix rớt request khi drain/Karpenter consolidate.
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep:
+          seconds: 5
+    readinessProbe:
+      tcpSocket: { port: 8080 }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
     env:
@@ -1754,6 +1803,18 @@ components:
       env: true
     service:
       port: 8080
+    # M17 deploy-safety: dependency luồng ra tiền — readiness gate + preStop sleep native + grace 30s. Fix rớt request khi drain/Karpenter consolidate.
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep:
+          seconds: 5
+    readinessProbe:
+      tcpSocket: { port: 8080 }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
     env:

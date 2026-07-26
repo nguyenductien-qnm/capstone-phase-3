@@ -505,7 +505,7 @@ không tốn thêm tiền.
 ### Sau khi chốt
 
 Chốt ba câu này thì làm được ngay: tạo `.checkov.yaml` với skip có lý do, sửa nhóm 3A,
-bật gate, và cập nhật `AUDIT-DIRECTIVE-10.md` cho hết lỗi thời.
+bật gate, và cập nhật `AUDIT-DIRECTIVE-10-lich-su-23-07.md` cho hết lỗi thời.
 
 Hoặc nếu muốn **ưu tiên SAST trước** thì làm CodeQL — cái đó **không cần chốt gì**.
 

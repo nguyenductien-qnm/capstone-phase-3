@@ -35,9 +35,15 @@ có test thay vì liệt kê tay, nên thêm service mới không phải sửa r
 `Block force pushes` bịt đường vòng: không thể force-push đè lên nhánh để né cổng.
 
 > [!WARNING]
-> Ô **`Require code scanning results` chưa bật** — khớp với kết luận **SAST còn thiếu**.
-> Grep 10 công cụ (`codeql semgrep sonar snyk bandit gosec njsscan horusec opengrep`) trên
-> cả 13 workflow đều ra 0 kết quả. Khi thêm CodeQL thì đây chính là ô cần tick để nó thành
-> cổng chặn thật chứ không chỉ chạy cho có.
+> Ô **`Require code scanning results` chưa bật** — khớp với kết luận **SAST còn thiếu** tại
+> thời điểm chụp. Grep 10 công cụ (`codeql semgrep sonar snyk bandit gosec njsscan horusec
+> opengrep`) trên cả 13 workflow đều ra 0 kết quả.
+
+> [!NOTE]
+> **Cập nhật 26/07:** câu "đây chính là ô cần tick để SAST thành cổng chặn" ở bản trước
+> **không đúng**. Thực tế chỉ cần thêm `SAST (codeql)` vào danh sách required check là đủ
+> chặn merge — xem [23](23-ruleset-4-checks-co-sast.md). Ô `Require code scanning results`
+> vẫn cố ý để trống, lý do ghi trong ảnh 23.
 
 Xem cổng này chặn thật: [18](18-pr410-approved-checks-passed.md)
+Xem cổng này sau khi thêm SAST: [23](23-ruleset-4-checks-co-sast.md)
