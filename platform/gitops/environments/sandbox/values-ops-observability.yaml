@@ -5,10 +5,20 @@ observabilityStorage:
   enabled: true
 
 opentelemetry-collector:
+  # Danh sách này REPLACE toàn bộ tolerations của chart (Helm không merge list),
+  # nên phải liệt kê đủ cả 2 taint DaemonSet cần tolerate, không chỉ thêm mới.
+  # techx.io/capacity=spot: thiếu cái này thì node spot của Karpenter (ad,
+  # product-reviews) không có collector cục bộ -> otel-collector Service dùng
+  # internalTrafficPolicy: Local nên mất hẳn endpoint (không phải chậm), OTLP
+  # export từ pod trên node đó luôn fail.
   tolerations:
     - key: dedicated
       operator: Equal
       value: observability
+      effect: NoSchedule
+    - key: techx.io/capacity
+      operator: Equal
+      value: spot
       effect: NoSchedule
   resources:
     requests:
