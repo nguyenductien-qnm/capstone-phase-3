@@ -87,6 +87,10 @@ module "eks" {
 
   # M17-R3: bật enforce NetworkPolicy cho cluster develop (ecommerce-develop-dev-eks).
   enable_network_policy = true
+
+  # MANDATE-13: SQS interruption queue + EventBridge rule chỉ bật ở develop —
+  # environment đang làm mandate này, không ảnh hưởng sandbox dùng chung module.
+  enable_karpenter_interruption_queue = true
 }
 
 module "rds" {
@@ -273,6 +277,13 @@ module "external_secrets_irsa" {
   ]
 }
 
+module "backup" {
+  source = "../../modules/backup"
+
+  project_name = var.project_name
+  environment  = var.environment
+}
+
 # Mandate 20 (CDO-247): Bảo vệ backup — KMS key riêng + IAM Policy Explicit Deny chống xoá backup
 module "backup_protection" {
   source = "../../modules/backup_protection"
@@ -282,6 +293,4 @@ module "backup_protection" {
   operator_role_names = var.audit_operator_role_names
   enable_kms_key      = true
 }
-
-
 

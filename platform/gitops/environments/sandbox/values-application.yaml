@@ -4,7 +4,34 @@
 # BẮT BUỘC đi cùng image frontend-proxy có YC4 load-shed (>= tag a0a954f — prod đã nhận
 # qua PR promote 22/07): ngưỡng shed browse 80rps/homepage 100rps được tune theo sizing
 # này; có shed mà không có sizing (hoặc ngược lại) là lệch điểm gãy.
+default:
+  # Karpenter Phase 1: ưu tiên khác host nhưng không ép tạo một node cho mỗi replica.
+  # Zone spread là hard requirement để critical replicas thực sự chạy trên >=2 AZ.
+  topologySpreadWhenUnsatisfiable: ScheduleAnyway
+  topologySpreadZoneWhenUnsatisfiable: DoNotSchedule
+  topologySpreadZoneMinDomains: 2
+
 components:
+  # Karpenter spot pilot: 2 service ngoài money-path (không cart/checkout/payment/
+  # currency/shipping/frontend), ad có sẵn circuit breaker + graceful fallback
+  # (M17-R1) nên chịu gián đoạn spot tốt. Toleration khớp taint NodePool `spot`
+  # (platform/karpenter/nodepool-spot.yaml).
+  ad:
+    schedulingRules:
+      tolerations:
+        - key: techx.io/capacity
+          value: spot
+          effect: NoSchedule
+      nodeSelector:
+        techx.io/capacity: spot
+  product-reviews:
+    schedulingRules:
+      tolerations:
+        - key: techx.io/capacity
+          value: spot
+          effect: NoSchedule
+      nodeSelector:
+        techx.io/capacity: spot
   frontend:
     # Next.js SSR là nút thắt user-facing: 200m limit bóp cổ (throttle 9.3% khi kịch
     # HPA max 6). Nới limit nâng trần bằng hiệu suất, không thêm node; giữ requests
@@ -58,6 +85,18 @@ components:
         cpu: 50m    # dùng 33m = 66%, giữ nguyên
       limits:
         cpu: 250m   # throttle 29.1%@100m — dùng chung nhiều flow
+    # Currency keeps OTLP logs, metrics, and traces enabled. The service uses
+    # bounded asynchronous processors so an unhealthy collector cannot block RPCs.
+    # This is a full Helm env override, so retain every base environment variable.
+    env:
+      - name: CURRENCY_PORT
+        value: "8080"
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://$(OTEL_COLLECTOR_NAME):4317
+      - name: VERSION
+        value: "{{ .Chart.AppVersion }}"
+      - name: IPV6_ENABLED
+        value: "false"
   cart:
     resources:
       requests:

@@ -1,0 +1,55 @@
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: spot
+  namespace: kube-system
+spec:
+  weight: 20
+  template:
+    metadata:
+      labels:
+        techx.io/capacity: spot
+    spec:
+      taints:
+        - key: techx.io/capacity
+          value: spot
+          effect: NoSchedule
+      requirements:
+        - key: kubernetes.io/arch
+          operator: In
+          values: ["amd64"]
+        - key: kubernetes.io/os
+          operator: In
+          values: ["linux"]
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["spot"]
+        - key: karpenter.k8s.aws/instance-family
+          operator: In
+          values: ["m6a", "c6a", "c7i"]
+        - key: karpenter.k8s.aws/instance-size
+          operator: In
+          values: ["large", "xlarge"]
+        - key: karpenter.k8s.aws/instance-generation
+          operator: Gt
+          values: ["2"]
+        # us-east-1a tạm loại: subnet fragment, ipamd không xin nổi prefix /28 liên tục
+        # cho ENI mới (InsufficientCidrBlocks, xác nhận CloudTrail). Xem comment chi tiết
+        # ở nodepool-default.yaml. Mở lại sau khi có subnet 1a sạch thay thế.
+        - key: topology.kubernetes.io/zone
+          operator: In
+          values: ["us-east-1b", "us-east-1c"]
+      nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
+        name: default
+      expireAfter: 168h
+      terminationGracePeriod: 24h
+  limits:
+    cpu: "8"
+    memory: 32Gi
+  disruption:
+    consolidationPolicy: WhenEmptyOrUnderutilized
+    consolidateAfter: 1m
+    budgets:
+      - nodes: "1"

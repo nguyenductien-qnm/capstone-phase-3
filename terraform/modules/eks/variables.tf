@@ -233,3 +233,30 @@ variable "enable_network_policy" {
   type        = bool
   default     = false
 }
+
+# MANDATE-13: SQS interruption queue + EventBridge rule cho Karpenter spot
+# interruption handling. Mặc định false để KHÔNG tự tạo resource mới trong
+# environment khác dùng chung module này (vd sandbox) — chỉ set true ở
+# environment đang làm Mandate-13 (develop). Module cung cấp capability;
+# environment root quyết định policy (environment-isolation-execution-guide §Case T3).
+variable "enable_karpenter_interruption_queue" {
+  description = "Tạo SQS interruption queue + EventBridge rule cho Karpenter spot interruption handling."
+  type        = bool
+  default     = false
+}
+variable "enable_vpc_cni_prefix_delegation" {
+  description = "Enable AWS VPC CNI prefix delegation to increase pod density on worker nodes."
+  type        = bool
+  default     = false
+}
+
+variable "vpc_cni_warm_prefix_target" {
+  description = "WARM_PREFIX_TARGET value for AWS VPC CNI when prefix delegation is enabled."
+  type        = number
+  default     = 1
+
+  validation {
+    condition     = var.vpc_cni_warm_prefix_target >= 1
+    error_message = "vpc_cni_warm_prefix_target must be at least 1."
+  }
+}

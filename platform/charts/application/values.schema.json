@@ -208,6 +208,9 @@
         "cart": {
           "$ref": "#/definitions/Component"
         },
+        "cart-consumer-worker": {
+          "$ref": "#/definitions/Component"
+        },
         "checkout": {
           "$ref": "#/definitions/Component"
         },
@@ -382,11 +385,26 @@
         "topologySpread": {
           "type": "boolean"
         },
+        "topologySpreadWhenUnsatisfiable": {
+          "type": "string",
+          "enum": [
+            "DoNotSchedule",
+            "ScheduleAnyway"
+          ]
+        },
         "topologySpreadZoneMaxSkew": {
           "type": "integer"
         },
         "topologySpreadZoneWhenUnsatisfiable": {
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "DoNotSchedule",
+            "ScheduleAnyway"
+          ]
+        },
+        "topologySpreadZoneMinDomains": {
+          "type": "integer",
+          "minimum": 1
         },
         "automountServiceAccountToken": {
           "type": "boolean"
@@ -513,6 +531,24 @@
         },
         "automountServiceAccountToken": {
           "type": "boolean"
+        },
+        "topologySpreadWhenUnsatisfiable": {
+          "type": "string",
+          "enum": [
+            "DoNotSchedule",
+            "ScheduleAnyway"
+          ]
+        },
+        "topologySpreadZoneWhenUnsatisfiable": {
+          "type": "string",
+          "enum": [
+            "DoNotSchedule",
+            "ScheduleAnyway"
+          ]
+        },
+        "topologySpreadZoneMinDomains": {
+          "type": "integer",
+          "minimum": 1
         },
         "hpa": {
           "type": "object"
