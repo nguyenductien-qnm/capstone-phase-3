@@ -1,0 +1,70 @@
+# CodeQL config — giới hạn phạm vi quét và khai finding BỎ QUA CÓ CHỦ Ý.
+#
+# Vì sao cần file này: CodeQL mặc định quét TOÀN repo. Đếm thật thì repo có 115 file .py,
+# trong đó 54 file là test hoặc protobuf sinh tự động — quét chúng chỉ tạo nhiễu, vì
+# generated code không sửa được và test code không chạy trên production.
+#
+# QUY TẮC: chỉ thêm vào đây khi (a) code sinh tự động không sửa được, (b) code không chạy
+# trên production (test/POC), hoặc (c) đã xác minh là false positive. Không thêm chỉ vì CI
+# đỏ. Mỗi entry phải có lý do + ngày review.
+# Tới hạn review: chạy lại CodeQL, cái nào đã sửa được thì XOÁ dòng ở đây.
+#
+# Trước khi thêm bất cứ dòng nào: đã thử FIX THẬT chưa?
+#
+# Cùng kỷ luật với .trivyignore (CVE) và .checkov.yaml (IaC misconfig) — bộ ba file skip
+# của repo. Đối chiếu: docs/cdo09/evidence-mandate-10/README.md yêu cầu #2.
+#
+# LƯU Ý QUAN TRỌNG: `paths-ignore` ở đây giới hạn cái CodeQL ĐỌC, KHÔNG giới hạn job CHẠY.
+# Tuyệt đối không chuyển các mục này thành `paths:` filter ở cấp `on:` của workflow —
+# required status check mà job không chạy thì PR treo vĩnh viễn ở trạng thái Expected
+# (bài học đã ghi trong platform-ci.yaml, job unit-test).
+
+paths-ignore:
+  # ----------------------------------------------------------------------
+  # Code sinh tự động — không sửa được, sửa cũng bị ghi đè lần generate sau
+  # Review: 2026-10-26
+  # ----------------------------------------------------------------------
+  - "**/*_pb2.py"          # protobuf Python (product-reviews, recommendation, copilot-poc)
+  - "**/*_pb2_grpc.py"     # gRPC stub Python
+  - "**/*.pb.go"           # protobuf Go
+  - "**/genproto/**"       # thư mục sinh protobuf Go (product-catalog, checkout)
+  - "**/node_modules/**"   # dependency, không phải code của mình
+  - "**/vendor/**"         # dependency Go vendored
+
+  # ----------------------------------------------------------------------
+  # Code KHÔNG chạy trên production
+  # Review: 2026-10-26
+  # ----------------------------------------------------------------------
+  - "copilot-poc/**"       # proof-of-concept, không có Dockerfile, không deploy
+  - "test_benign.py"       # 4 script thử nghiệm ở gốc repo, chạy tay khi debug
+  - "test_production.py"
+  - "test_ui.py"
+  - "test_grpc_mock.py"
+  - "flag-simulation-test/**"
+
+  # ----------------------------------------------------------------------
+  # Không phải mã nguồn
+  # Review: 2026-10-26
+  # ----------------------------------------------------------------------
+  - "docs/**"
+  - "scratchpad/**"
+  - "report/**"
+  - "jira/**"
+  - "onboarding/**"
+
+# KHÔNG ignore những thứ sau, dù trông giống "phụ" — chúng là code chạy thật:
+#   aiops/**        có Dockerfile, được app-build build + Trivy quét + cosign ký, chạy
+#                   trên cluster prod. Bỏ quét là tái lập đúng "shadow path" mà
+#                   MANDATE-10 đã bịt (xem evidence ảnh 11).
+#   scripts/**      audit_workloads.py và resolve_conflicts.py chạy trong CI.
+#   techx-corp-platform/src/**/tests/**  test của service thật — vẫn nên quét vì lỗ hổng
+#                   trong test có thể lộ credential hoặc pattern sai lan sang code chính.
+
+# query-filters: chưa có entry nào.
+# Đây là chỗ khai BỎ QUA từng query cụ thể sau khi chạy lần đầu và xác minh false positive.
+# Khuôn mẫu:
+#
+# query-filters:
+#   - exclude:
+#       id: js/incomplete-sanitization
+#       # Lý do: <giải thích cụ thể, dẫn file:line>. Review: 2026-10-26

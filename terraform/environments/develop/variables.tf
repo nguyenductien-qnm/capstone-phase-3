@@ -463,3 +463,9 @@ variable "cloudwatch_log_retention_days" {
   description = "CloudWatch Logs retention (days) cho Cost Guard Lambda"
   default     = 14
 }
+
+variable "bastion_or_runner_ip" {
+  type        = string
+  description = "IP cua may Admin hoac Runner phuc vu verify drill"
+  default     = "127.0.0.1"
+}

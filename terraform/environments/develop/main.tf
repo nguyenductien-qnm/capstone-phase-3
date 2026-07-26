@@ -267,4 +267,11 @@ module "external_secrets_irsa" {
   ]
 }
 
+module "backup" {
+  source = "../../modules/backup"
+
+  project_name = var.project_name
+  environment  = var.environment
+}
+
 
