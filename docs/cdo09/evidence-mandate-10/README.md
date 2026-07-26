@@ -16,22 +16,29 @@
 
 ---
 
-## 📊 Tổng quan — 5/6 đạt, yêu cầu #2 chỉ còn hở SAST
+## 📊 Tổng quan — 6/6 đạt (vế SAST và IaC gate vá xong 26/07)
 
 | # | Yêu cầu | Kết quả | Bằng chứng | Đọc tiếp |
 |---|---|---|---|---|
-| 1 | Cổng chặn thật | ✅ **ĐẠT** | 4 ảnh + `gh api` | [↓](#1--cổng-chặn-thật) |
-| 2 | Quét chặn HIGH/CRITICAL | 🟡 **3/4 vế** — hở SAST | code workflow | [↓](#2--quét-trước-khi-ra-cluster-chặn-trên-highcritical) |
+| 1 | Cổng chặn thật | ✅ **ĐẠT** | 5 ảnh + `gh api` | [↓](#1--cổng-chặn-thật) |
+| 2 | Quét chặn HIGH/CRITICAL | ✅ **ĐẠT** — đủ 4/4 vế | 2 ảnh + code workflow | [↓](#2--quét-trước-khi-ra-cluster-chặn-trên-highcritical) |
 | 3 | Bất biến + ký + admission enforce | ✅ **ĐẠT** | 14 ảnh + logs | [↓](#3--bất-biến--xác-thực-nguồn-gốc) |
 | 4 | Không phụ thuộc thứ trôi | ✅ **ĐẠT** | grep 2 lệnh | [↓](#4--không-phụ-thuộc-thứ-trôi) |
 | 5 | Truy ngược được | ✅ **ĐẠT** | 2 ảnh, 8 mắt xích | [↓](#5--truy-ngược-được) |
-| 6 | Chỉ đụng cái gì đổi | ✅ **ĐẠT** | code workflow | [↓](#6--chỉ-đụng-cái-gì-đổi) |
+| 6 | Chỉ đụng cái gì đổi | ✅ **ĐẠT** | 1 ảnh + code workflow | [↓](#6--chỉ-đụng-cái-gì-đổi) |
+
+Hai vế cuối của yêu cầu #2 được vá ngày 26/07 bằng hai PR:
+
+| PR | Vá gì | Bằng chứng |
+|---|---|---|
+| [#428](https://github.com/nguyenductien-qnm/capstone-phase-3/pull/428) | Thêm CodeQL quét 8 ngôn ngữ, rồi đưa `SAST (codeql)` vào required check | ảnh [21](screenshots/21-codeql-8-ngon-ngu-pass.md) + [23](screenshots/23-ruleset-4-checks-co-sast.md) |
+| [#429](https://github.com/nguyenductien-qnm/capstone-phase-3/pull/429) | Bật IaC gate: Trivy `exit-code:"1"`, Checkov `soft_fail:false` | [IAC-GATE.md](IAC-GATE.md) |
 
 **Ba phép thử kiểm chứng được** (mục "Phải nộp" của directive):
 
 | Phép thử | Yêu cầu | Trạng thái |
 |---|---|---|
-| PR có CI đỏ → bị chặn merge | #1 | 🟡 cơ chế ĐẠT, **thiếu ảnh PR đỏ** |
+| PR có CI đỏ → bị chặn merge | #1 | 🟡 cơ chế ĐẠT (4 required check, xem ảnh [23](screenshots/23-ruleset-4-checks-co-sast.md)), **thiếu ảnh PR đỏ** |
 | Deploy image chưa ký → admission từ chối | #3 | ✅ **ĐẠT** |
 | Chỉ vào pod → truy ngược full provenance | #5 | ✅ **ĐẠT** |
 
@@ -130,7 +137,7 @@ không phải sửa ruleset.
 | Image CVE scan | ✅ **chặn thật** | [app-build.yaml:485](../../../.github/workflows/app-build.yaml#L485) |
 | Secret scan | ✅ **chặn thật** | [platform-ci.yaml:27](../../../.github/workflows/platform-ci.yaml#L27) + trong required checks |
 | IaC misconfig scan | ✅ **chặn thật** | [infra-cd.yaml](../../../.github/workflows/infra-cd.yaml) — `exit-code: "1"` + `soft_fail: false` |
-| SAST | 🔴 **KHÔNG CÓ** | grep 10 công cụ / 13 workflow = 0 |
+| SAST | ✅ **chặn thật** (26/07) | [codeql.yaml](../../../.github/workflows/codeql.yaml) — 8 ngôn ngữ + `SAST (codeql)` trong required checks |
 
 ### Vế ĐẠT — image CVE scan
 
@@ -184,12 +191,30 @@ phát sinh vẫn đỏ.
 
 Chi tiết 136 finding phân 4 nhóm + những gì đã sửa: [IAC-GATE.md](IAC-GATE.md).
 
-### Vế HỞ — SAST không tồn tại
+### Vế ĐẠT — SAST (vá 26/07, PR #428)
+
+Trước ngày này repo không có SAST nào:
 
 ```bash
 grep -rilE "codeql|semgrep|sonar|snyk|bandit|gosec|njsscan|horusec|opengrep" .github/
-# (không kết quả)
+# (không kết quả)   <-- trạng thái TRƯỚC 26/07
 ```
+
+Nay có `.github/workflows/codeql.yaml` quét 8 ngôn ngữ, và `SAST (codeql)` nằm trong
+required status checks:
+
+```bash
+gh api repos/nguyenductien-qnm/capstone-phase-3/rulesets/18604771 \
+  | python3 -c "import json,sys; [print(' ',c['context']) for r in json.load(sys.stdin)['rules'] if r['type']=='required_status_checks' for c in r['parameters']['required_status_checks']]"
+#   Secret scan (gitleaks)
+#   Helm lint + render (deploy gate)
+#   Unit tests
+#   SAST (codeql)          <-- mới
+```
+
+Bằng chứng ảnh: [21](screenshots/21-codeql-8-ngon-ngu-pass.md) CodeQL pass đủ 8 ngôn ngữ
+(43s–1m58s mỗi ngôn ngữ, không finding) và [23](screenshots/23-ruleset-4-checks-co-sast.md)
+ruleset đủ 4 check.
 
 > [!CAUTION]
 > **Bẫy đã mắc, ghi lại để không tái phạm.** Từng kết luận *"gitleaks thỏa vế secret nên #2
@@ -198,22 +223,29 @@ grep -rilE "codeql|semgrep|sonar|snyk|bandit|gosec|njsscan|horusec|opengrep" .gi
 > injection, path traversal, hay crypto yếu. Đó là việc của SAST.
 > Lần grep đầu chỉ dùng 3 từ khóa nên tưởng có; grep rộng 10 công cụ mới thấy hở nguyên.
 
-Ảnh [17](screenshots/17-ruleset-3-required-checks.md) cũng cho thấy ô
-`Require code scanning results` **chưa tick** — khớp với kết luận này.
+> [!CAUTION]
+> **Bẫy thứ hai, trả giá thật ngày 26/07.** Thêm `SAST (codeql)` vào ruleset **trước khi**
+> `codeql.yaml` có trên develop làm 4 PR đang mở kẹt cứng ở trạng thái `Expected` — GitHub
+> chờ một check mà không PR nào sinh ra được. Thứ tự đúng: **merge workflow trước, thêm vào
+> ruleset sau**. Chi tiết trong ảnh [23](screenshots/23-ruleset-4-checks-co-sast.md).
 
 ### Kết luận
 
-🟡 **ĐẠT 3/4 vế** — chỉ còn hở **SAST**. Trước 26/07 hở 2 vế; IaC gate đã bật xong.
+✅ **ĐẠT đủ 4/4 vế.** Trước 26/07 hở 2 vế (IaC gate không chặn + không có SAST); cả hai đã
+vá trong ngày bằng PR #429 và #428.
 
-**Việc còn lại duy nhất của cả MANDATE-10:**
-
-| Việc | Thời gian | Cần quyết gì? |
+| Vế | Công cụ | Chặn ở đâu |
 |---|---|---|
-| Thêm SAST — khuyên **CodeQL** (repo đa ngôn ngữ Go/Python/.NET/Java/JS/Ruby/Rust, job tên cố định nên thêm được vào required checks) | ~30' | ❌ **làm được ngay** |
+| Image CVE | Trivy image | tầng build — `exit-code:"1"` trước bước Push |
+| IaC misconfig | Trivy config + Checkov | tầng CI — `soft_fail:false` |
+| Secret | gitleaks | tầng merge — required check |
+| **SAST** | **CodeQL 8 ngôn ngữ** | **tầng merge — required check** |
 
-Sau khi thêm CodeQL thì tick nốt ô `Require code scanning results` trong ruleset — thấy ở
-ảnh [17](screenshots/17-ruleset-3-required-checks.md) — để nó thành cổng chặn thật chứ
-không chỉ chạy cho có.
+> [!NOTE]
+> Ô `Require code scanning results` trong ruleset **cố ý để trống**. Bản trước của tài liệu
+> này khuyên tick nó — **lời khuyên đó không đúng**: chỉ cần `SAST (codeql)` trong required
+> checks là đã chặn merge. Ba lý do giữ nguyên ô trống ghi trong ảnh
+> [23](screenshots/23-ruleset-4-checks-co-sast.md).
 
 ---
 
@@ -654,5 +686,5 @@ logs/                  output đo đạc và trạng thái cụm
 |---|---|
 | [screenshots/INDEX.md](screenshots/INDEX.md) | Bảng tra nhanh 20 ảnh |
 | `screenshots/NN-*.md` | Chú thích chi tiết từng ảnh (nằm cạnh ảnh) |
-| [AUDIT-DIRECTIVE-10.md](AUDIT-DIRECTIVE-10.md) | Bản tự kiểm gốc, nguồn của các YC |
+| [AUDIT-DIRECTIVE-10-lich-su-23-07.md](AUDIT-DIRECTIVE-10-lich-su-23-07.md) | Bản tự kiểm gốc 23/07 (LỊCH SỬ — mọi mục THIẾU đã vá xong) |
 | [IAC-GATE.md](IAC-GATE.md) | Yêu cầu #2 vế IaC — hiện trạng, 136 finding phân 4 nhóm, 3 câu cần chốt, kế hoạch bật gate |
