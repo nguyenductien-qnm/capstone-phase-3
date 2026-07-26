@@ -1,0 +1,190 @@
+# Copyright The OpenTelemetry Authors
+# SPDX-License-Identifier: Apache-2.0
+
+---
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: techx-corp
+    folder: karpenter
+    interval: 1m
+    rules:
+      - uid: karpenter-unschedulable-001
+        title: KarpenterUnschedulablePods
+        condition: threshold
+        data:
+          - refId: pending
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: webstore-metrics
+            model:
+              editorMode: code
+              expr: 'karpenter_scheduler_unschedulable_pods_count{controller="provisioner"} > 0'
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: pending
+          - refId: threshold
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - threshold
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: pending
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: threshold
+              type: threshold
+        noDataState: OK
+        execErrState: Error
+        for: 5m
+        keepFiringFor: 5m
+        annotations:
+          summary: Karpenter cannot schedule one or more pods
+          description: >-
+            Pod Pending kéo dài >=5m dù NodePool Ready. Check pod events,
+            NodePool limits, instance-type requirements, topology constraints,
+            và log controller karpenter (namespace kube-system) trước khi nới
+            NodePool.
+        labels:
+          severity: warning
+          team_name: platform
+        isPaused: false
+        notification_settings:
+          receiver: grafana-default-email
+
+      - uid: karpenter-capacity-high-002
+        title: KarpenterNodePoolCapacityHigh
+        condition: threshold
+        data:
+          - refId: utilization
+            relativeTimeRange:
+              from: 1800
+              to: 0
+            datasourceUid: webstore-metrics
+            model:
+              editorMode: code
+              expr: |
+                (
+                  karpenter_nodepools_usage{resource_type=~"cpu|memory"}
+                  / on(nodepool, resource_type)
+                  karpenter_nodepools_limit{resource_type=~"cpu|memory"}
+                ) > 0.80
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: utilization
+          - refId: threshold
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - threshold
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: utilization
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: threshold
+              type: threshold
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        keepFiringFor: 5m
+        annotations:
+          summary: Karpenter NodePool vượt 80% limit đã cấu hình
+          description: >-
+            NodePool {{ $labels.nodepool }} ({{ $labels.resource_type }}) đang
+            dùng >80% limit. Review workload thật vs request trước khi nới
+            limits (nodepool-default.yaml / nodepool-spot.yaml).
+        labels:
+          severity: warning
+          team_name: platform
+        isPaused: false
+        notification_settings:
+          receiver: grafana-default-email
+
+      - uid: karpenter-state-sync-003
+        title: KarpenterClusterStateNotSynced
+        condition: threshold
+        data:
+          - refId: sync_state
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: webstore-metrics
+            model:
+              editorMode: code
+              expr: 'karpenter_cluster_state_synced == bool 0'
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: sync_state
+          - refId: threshold
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - threshold
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: sync_state
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: threshold
+              type: threshold
+        noDataState: Alerting
+        execErrState: Error
+        for: 5m
+        keepFiringFor: 5m
+        annotations:
+          summary: Karpenter cluster-state không sync được
+          description: >-
+            Karpenter controller mất sync >5m. Check controller pod
+            (kube-system), API server access, interruption queue permission
+            (SQS), và log lỗi gần nhất.
+        labels:
+          severity: critical
+          team_name: platform
+        isPaused: false
+        notification_settings:
+          receiver: grafana-default-email
