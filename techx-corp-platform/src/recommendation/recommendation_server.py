@@ -107,58 +107,33 @@ def _get_ai_recommendations(input_product_ids, max_results=5):
                 register_vector(connection)
                 with connection.cursor() as cursor:
                     placeholders = ','.join(['%s'] * len(input_product_ids))
-                    try:
-                        # Try dedicated product_embeddings_v2 table first (ADR-008 standard)
-                        cursor.execute(f"""
-                            SELECT AVG(embedding) as avg_embedding
-                            FROM catalog.product_embeddings_v2
-                            WHERE product_id IN ({placeholders}) AND embedding IS NOT NULL
-                        """, input_product_ids)
-                        avg_embedding = cursor.fetchone()[0]
-
-                        if avg_embedding is not None:
-                            embedding_str = str(list(avg_embedding))
-                            cursor.execute("""
-                                SELECT product_id
-                                FROM catalog.product_embeddings_v2
-                                WHERE product_id != ALL(%s) AND embedding IS NOT NULL
-                                ORDER BY embedding <=> %s::vector
-                                LIMIT %s
-                            """, (input_product_ids, embedding_str, max_results))
-                            results = [row[0] for row in cursor.fetchall()]
-                            if results:
-                                span.set_attribute("app.ai_recommendations.count", len(results))
-                                return results
-                    except Exception as err:
-                        logger.warning(f"Query on catalog.product_embeddings_v2 failed: {err}. Attempting fallback to catalog.products...")
-                        connection.rollback()
-
-                    # Fallback attempt on catalog.products
-                    try:
-                        cursor.execute(f"""
-                            SELECT AVG(embedding) as avg_embedding
-                            FROM catalog.products
-                            WHERE id IN ({placeholders}) AND embedding IS NOT NULL
-                        """, input_product_ids)
-                        avg_embedding = cursor.fetchone()[0]
-                        if avg_embedding is not None:
-                            embedding_str = str(list(avg_embedding))
-                            cursor.execute("""
-                                SELECT id
-                                FROM catalog.products
-                                WHERE id != ALL(%s) AND embedding IS NOT NULL
-                                ORDER BY embedding <=> %s::vector
-                                LIMIT %s
-                            """, (input_product_ids, embedding_str, max_results))
-                            results = [row[0] for row in cursor.fetchall()]
-                            if results:
-                                span.set_attribute("app.ai_recommendations.count", len(results))
-                                return results
-                    except Exception as err:
-                        logger.warning(f"Query on catalog.products failed: {err}")
-                        connection.rollback()
-
+                cursor.execute(f"""
+                    SELECT AVG(embedding) as avg_embedding
+                    FROM catalog.products
+                    WHERE id IN ({placeholders}) AND embedding IS NOT NULL
+                """, input_product_ids)
+                
+                avg_embedding = cursor.fetchone()[0]
+                if avg_embedding is None:
                     return _get_random_recommendations(input_product_ids, max_results)
+                
+                # PostgreSQL requires vector types to be cast properly or converted to string format
+                # The python list is casted to string format e.g. '[0.1, 0.2, ...]'
+                embedding_str = str(list(avg_embedding))
+                cursor.execute("""
+                    SELECT id
+                    FROM catalog.products
+                    WHERE id != ALL(%s) AND embedding IS NOT NULL
+                    ORDER BY embedding <=> %s::vector
+                    LIMIT %s
+                """, (input_product_ids, embedding_str, max_results))
+                
+                results = [row[0] for row in cursor.fetchall()]
+                span.set_attribute("app.ai_recommendations.count", len(results))
+                # Fallback to random if no results
+                if not results:
+                    return _get_random_recommendations(input_product_ids, max_results)
+                return results
         except Exception as e:
             logger.error(f"Error in AI recommendations: {e}")
             return _get_random_recommendations(input_product_ids, max_results)
