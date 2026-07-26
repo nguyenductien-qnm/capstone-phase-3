@@ -564,6 +564,57 @@ thật trên EKS từ trước tới giờ** — đã fix trong PR này (`aiops/
 deployment.yaml`, thêm `emptyDir`), chờ merge + ArgoCD sync rồi mới chạy được kịch bản
 để lấy số thật. Ảnh/log + số đo sẽ đính kèm bổ sung vào ticket `AI MANDATE #7b` khi có.
 
+### Addendum 2026-07-25 — `#7b`: đã chạy thật, có số đo, và 4 phát hiện kèm theo
+
+Báo cáo đầy đủ + log thô: `report/mandate07b/`. Tóm tắt quyết định và kết quả:
+
+**Quyết định 1 — đo trên docker-compose local, không phải EKS.** flagd trên EKS đồng bộ từ
+server trung tâm của BTC, đội không bơm được sự cố có nhãn ở đó (đã xác minh: patch
+ConfigMap `flagd-config` không có tác dụng, flagd đọc từ `sslip.io`). Compose cho toàn
+quyền điều khiển flagd nên mới đo được. Đánh đổi: số đo không phải từ cụm production.
+Ghi rõ trong báo cáo thay vì để mentor tự phát hiện. Để dựng được stack đo phải đặt
+`CATALOG_SCHEMA_PHASE=read_new` cho `product-catalog` (`init.sql` đã ở schema hậu-contract,
+mặc định `dual_read` sinh `COALESCE(image_url, p.picture)` và chết vì cột `picture` không
+còn tồn tại).
+
+**Kết quả ca chính:** `case_real_incident` (bơm `paymentFailure=100%`) → **PASS**,
+recall 1.0, **lead-time 88.9s**, precision 0.5. Chuỗi nhân quả kiểm chứng từng khâu, không
+suy đoán: flagd OFREP trả `variant=100%` → `payment` log `Payment request failed. Invalid
+token.` → checkout `rpc_grpc_status_code=13` đạt 0.846 req/s so với code=0 0.037 req/s
+(tỉ lệ 0.9576, ngưỡng 0.05) → alert CRITICAL. Lặp ổn định 4 lần trong phiên đo.
+
+**Phát hiện 1 — hai điểm mù instrumentation, không phải lỗi ngưỡng.** `cart` không xuất
+series `rpc_server_duration_milliseconds` nào; `image-provider` không xuất
+`http_server_request_duration_seconds`. Mà `grpc-error-rate-high` là tỉ số trên metric
+thứ nhất, `latency-p95-high` đọc metric thứ hai — nên với 2 service này rule chạy trên
+series rỗng và không bao giờ kêu được, dù service hỏng nặng đến đâu. Nới ngưỡng vô ích.
+Giữ 2 ca FAIL (`case_cart_failure`, `case_image_slow`) trong bộ có nhãn để lỗ hổng còn
+nhìn thấy được. Đường sửa: service xuất metric server-side, hoặc thêm rule đọc
+`traces_span_metrics_*` (collector đã sinh sẵn cho cả 2 service).
+
+**Phát hiện 2 — `db-pool-exhaustion` là false positive thật, đã sửa.** Cụm khớp
+`"connection pool"` + `min_count: 1` bắt luôn log khởi động lành tính của cart
+(`Valkey connection pool initialized`) và kêu CRITICAL. Đây đúng là loại lỗi mà chỉ số
+precision của `#7b` sinh ra để lộ. Đã thay bằng các cụm chỉ đúng trạng thái cạn kiệt;
+kiểm chứng lại trên OpenSearch: 0 log khớp, mà vẫn giữ 3 cụm đặc hiệu cũ nên không giảm
+recall.
+
+**Phát hiện 3 — cửa sổ chấm phải dài hơn cửa sổ `rate`, không phải dài hơn chu kỳ poll.**
+Một ca bơm lỗi lên `product-catalog` chấm FAIL, rồi alert đúng của nó tới **sau khi cửa sổ
+chấm đã đóng** (23:15:38). Rule là tỉ số của hai `rate(...[5m])`, phải chờ phần lớn cửa sổ
+5 phút được lấp bởi traffic lỗi thì tỉ số mới vượt ngưỡng. Đã ghi vào
+`incident_scenarios/README.md` như một ràng buộc khi đặt `settle_seconds`.
+
+**Phát hiện 4 — cửa sổ "yên tĩnh" không yên tĩnh, và detector đúng.** Ca
+`case_quiet_window` không bơm gì, kỳ vọng im lặng, nhưng detector kêu
+`grpc-error-rate-high svc=checkout` sau 20.6s. Điều tra: checkout đang lỗi thật (code
+13/4/1/14, tỉ lệ ~0.5) vì service `email` **restart-loop 65 lần** khiến checkout không gọi
+nổi nó. Đây là cảnh báo ĐÚNG về một sự cố có thật không ai để ý — đúng tinh thần `#7`
+("sự cố tự lộ ra thay vì đợi người soi"). Hệ quả cho phép đo: đợt này **không có baseline
+sạch**, nên con số precision phải đọc là "trong điều kiện có nhiễu nền thật". Muốn baseline
+sạch phải rebuild image `email` (image local cũ hơn Dockerfile đã sửa trên `develop`) rồi
+chạy lại — ghi ra đây là việc còn thiếu, không lấp liếm bằng cách bỏ ca này khỏi bộ.
+
 ---
 
 # ADR-013: Closed-loop Auto-remediation — dry-run → blast-radius → verify → rollback → CB (TF1-72)

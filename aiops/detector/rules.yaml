@@ -187,9 +187,18 @@ rules:
     summary: "DB connection pool cạn (INC-1/S01 tái diễn) — checkout có thể timeout"
     match_phrases:
       - "too many clients"
-      - "connection pool"
       - "pool timeout"
       - "remaining connection slots"
+      # MANDATE-07 #7b, do that 25/07: cum "connection pool" tran khong cho phep phan
+      # biet CAN KIET voi KHOI TAO BINH THUONG - no khop luon log startup lanh tinh cua
+      # cart ("Valkey connection pool initialized", "Initializing Valkey connection
+      # pool") va voi min_count 1 thi 1 dong log du de keu CRITICAL. Do la false
+      # positive that, chinh chi so precision cua #7b lam lo ra. Thay bang cac cum chi
+      # dung trang thai can kiet; 3 cum con lai o tren van giu nguyen vi chung da du
+      # dac hieu (Postgres/driver chi in ra khi that su het slot).
+      - "connection pool exhausted"
+      - "connection pool timeout"
+      - "unable to acquire connection"
     # Review K2 (recall dominates - miss = zero): min_count 3->1, keo dai window de bu FP.
     window_minutes: 10
     min_count: 1

@@ -123,7 +123,7 @@ networkPolicy:
         consumers: [cart, product-reviews]
       - name: msk              # Kafka (KAFKA_ADDR; 9092 plaintext / 9094 TLS / 9096 SASL)
         ports: [9092, 9094, 9096]
-        consumers: [accounting, checkout, email, fraud-detection, payment, shipping]
+        consumers: [accounting, cart, checkout, email, fraud-detection, payment, shipping]
       - name: rds              # Postgres (DB_CONNECTION_STRING)
         ports: [5432]
         consumers: [accounting, checkout, product-catalog, product-reviews]
@@ -449,6 +449,7 @@ components:
     startupProbe: # .NET + chờ valkey, JIT warmup lâu hơn
       grpc: { port: 8080, service: "readiness" }
       periodSeconds: 5
+      timeoutSeconds: 5
       failureThreshold: 30
     readinessProbe:
       grpc: { port: 8080, service: "readiness" }
@@ -484,6 +485,21 @@ components:
         value: flagd
       - name: FLAGD_PORT
         value: "8013"
+      - name: KAFKA_ADDR
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: brokers_sasl_scram
+      - name: KAFKA_USER
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: username
+      - name: KAFKA_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: password
       - name: OTEL_EXPORTER_OTLP_ENDPOINT
         value: http://$(OTEL_COLLECTOR_NAME):4317
     resources:
@@ -2274,6 +2290,8 @@ grafana:
       root_url: "%(protocol)s://%(domain)s:%(http_port)s/grafana"
       serve_from_sub_path: true
   adminPassword: admin
+  podLabels:
+    egress-internet: "true"
   plugins:
     - grafana-opensearch-datasource
   sidecar:

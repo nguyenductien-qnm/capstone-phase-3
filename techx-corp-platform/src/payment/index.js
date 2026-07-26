@@ -79,6 +79,7 @@ server.bindAsync(address, grpc.ServerCredentials.createInsecure(), (err, port) =
   }
 
   logger.info(`payment gRPC server started on ${address}`)
+
   startConsumer().catch(consumerErr => {
     logger.error({ err: consumerErr }, "Error launching Payment Kafka consumer");
   });

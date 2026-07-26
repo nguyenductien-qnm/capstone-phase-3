@@ -53,7 +53,12 @@ def _set_flag(flagd_file, flag, variant):
         cfg = json.load(f)
     cfg["flags"][flag]["defaultVariant"] = variant
     with open(flagd_file, "w", encoding="utf-8") as f:
-        json.dump(cfg, f, indent=2)
+        # ensure_ascii=False / trailing newline: this rewrites a tracked file, and
+        # without them every injection escapes the non-ASCII already in the flag
+        # descriptions and drops the final newline, so `git diff` shows unrelated
+        # churn after each run. Found while capturing the #7b evidence.
+        json.dump(cfg, f, indent=2, ensure_ascii=False)
+        f.write("\n")
     print(f"  [inject] flagd {flag} -> {variant}", flush=True)
 
 
@@ -189,7 +194,12 @@ def score_events(events, alerter_history_path, settle_seconds=30):
         candidates.sort(key=lambda ia: ia[1]["ts"])
         fired = bool(candidates)
         first = candidates[0][1] if candidates else None
-        if candidates:
+        # Only an event that SHOULD fire can contribute a correct fire. On a
+        # no-fire window (healthy_load) the watch set is what we look for false
+        # positives with, so a match there is precisely a wrong alert — counting
+        # it as correct inflated precision on exactly the case built to catch
+        # over-alerting.
+        if candidates and ev.get("expect_fire", True):
             matched_alert_indices.add(candidates[0][0])
         per_event.append({
             "label": ev.get("label"),

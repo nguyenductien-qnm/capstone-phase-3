@@ -359,10 +359,18 @@ resource "aws_eks_addon" "core" {
   addon_name    = each.value
   addon_version = data.aws_eks_addon_version.core[each.key].version
 
-  # M17-R3: chỉ vpc-cni + khi bật cờ mới enforce NetworkPolicy; addon khác giữ nguyên.
-  configuration_values = (each.value == "vpc-cni" && var.enable_network_policy) ? jsonencode({
-    enableNetworkPolicy = "true"
-  }) : null
+  # M17-R3/P2a: chỉ cấu hình vpc-cni khi bật cờ tương ứng; addon khác giữ nguyên.
+  configuration_values = (each.value == "vpc-cni" && (var.enable_network_policy || var.enable_vpc_cni_prefix_delegation)) ? jsonencode(merge(
+    var.enable_network_policy ? {
+      enableNetworkPolicy = "true"
+    } : {},
+    var.enable_vpc_cni_prefix_delegation ? {
+      env = {
+        ENABLE_PREFIX_DELEGATION = "true"
+        WARM_PREFIX_TARGET       = tostring(var.vpc_cni_warm_prefix_target)
+      }
+    } : {}
+  )) : null
 
   resolve_conflicts_on_create = "OVERWRITE"
   resolve_conflicts_on_update = "PRESERVE"

@@ -1,0 +1,15 @@
+  [inject] flagd cartFailure -> on
+  [inject] flagd cartFailure -> off
+  [inject] settling 120s before scoring...
+
+======================================================================
+SCENARIO: case-cart-failure-001 [real]
+MANDATE-07 #7b service-expansion case #2: inject cartFailure=on via flagd. The cart service starts erroring on gRPC calls, so grpc-error-rate-high must fire for service_name=cart. Chosen deliberately on a DIFFERENT service and a DIFFERENT signal path than case_real_incident (checkout / payment-driven) so the labeled set covers more than one service, as #7b requires. Same rate(...[5m]) caveat as the other cases: if live traffic is thin, raise duration_seconds until the fault dominates the trailing 5-minute window before trusting a 'did not fire' result.
+----------------------------------------------------------------------
+  [case-cart-failure-001] expect_fire=True -> silent (lead_time=n/a) MISMATCH
+----------------------------------------------------------------------
+  K incidents = 1 | recall = 0.0 | precision = 0.0 (correct=0/total=1)
+  VERDICT (real): FAIL — real incident NOT caught
+======================================================================
+
+  result written to aiops/incident_scenarios/case_cart_failure.result.json

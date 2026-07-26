@@ -15,6 +15,24 @@ from alerter import Alerter, _fingerprint, _time_bucket
 
 
 # ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+@pytest.fixture(autouse=True)
+def _isolate_alert_history(tmp_path, monkeypatch):
+    """Send every test's alert history to a temp file.
+
+    `Alerter.flush()` appends each dispatched alert to the path returned by
+    `alerter._history_path()`, which defaults to
+    `aiops/detector/alerter_history.jsonl` — a file that is committed. Without
+    this, running the suite appended real rows to that tracked file and left
+    the working tree dirty. Autouse so a new test that flushes cannot
+    reintroduce the leak by forgetting to opt in.
+    """
+    monkeypatch.setenv("ALERTER_HISTORY_FILE",
+                       str(tmp_path / "alerter_history.jsonl"))
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 def _make_alerter(cooldown=0, bucket=300):

@@ -233,3 +233,20 @@ variable "enable_network_policy" {
   type        = bool
   default     = false
 }
+
+variable "enable_vpc_cni_prefix_delegation" {
+  description = "Enable AWS VPC CNI prefix delegation to increase pod density on worker nodes."
+  type        = bool
+  default     = false
+}
+
+variable "vpc_cni_warm_prefix_target" {
+  description = "WARM_PREFIX_TARGET value for AWS VPC CNI when prefix delegation is enabled."
+  type        = number
+  default     = 1
+
+  validation {
+    condition     = var.vpc_cni_warm_prefix_target >= 1
+    error_message = "vpc_cni_warm_prefix_target must be at least 1."
+  }
+}
