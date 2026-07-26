@@ -28,7 +28,7 @@ public class ConsumerService : BackgroundService
         var kafkaAddr = Environment.GetEnvironmentVariable("KAFKA_ADDR");
         if (string.IsNullOrEmpty(kafkaAddr)) return Task.CompletedTask;
 
-        _ = Task.Run(() =>
+        _ = Task.Run(async () =>
         {
             try
             {

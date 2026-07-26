@@ -114,10 +114,10 @@ builder.Services.AddGrpcHealthChecks()
 
 builder.Services.AddSingleton<HealthServiceImpl>();
 
-// If ENABLE_KAFKA_CONSUMER is set to "false", the background service is not registered, meaning the Kafka consumer worker won't run.
-// If it is missing or set to anything other than "false", the Kafka consumer starts automatically when the app launches.
-var enableConsumer = builder.Configuration["ENABLE_KAFKA_CONSUMER"]
-if (!string.Equals(enableConsumer, "false", StringComparision.OrdinalIgnoreCase)) {
+// If ENABLE_KAFKA_CONSUMER is set to "false", the background service is not registered, meaning the Kafka consumer worker won't run
+// If it is missing or set to anything other than "false", the Kafka consumer starts automatically when the app launches
+var enableConsumer = builder.Configuration["ENABLE_KAFKA_CONSUMER"];
+if (!string.Equals(enableConsumer, "false", StringComparison.OrdinalIgnoreCase)) {
     
     // builder.Services.AddHostedService<T>()
     // is an extension method in .NET Core 
