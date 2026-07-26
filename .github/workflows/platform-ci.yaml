@@ -367,6 +367,8 @@ jobs:
       contents: read
       # Cần để đọc kết quả job của workflow KHÁC (app-build) qua API.
       actions: read
+      # Cần để hỏi danh sách file PR đã đổi ở bước 0.
+      pull-requests: read
     steps:
       - name: Đọc kết quả quét ảnh của app-build
         env:
@@ -374,18 +376,60 @@ jobs:
           # SHA của code THẬT đang xét. Trên PR, github.sha là commit merge tạm
           # do GitHub dựng, không phải commit app-build chạy trên đó.
           TARGET_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          # Rỗng khi chạy trên push (không phải PR) — bước 0 tự bỏ qua khi đó.
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
 
+          # BƯỚC 0 — hỏi TRƯỚC: PR này có chạm đường dẫn nào kích hoạt app-build không?
+          #
+          # Vì sao phải hỏi trước thay vì cứ chờ: bản đầu của job này lao thẳng vào vòng
+          # chờ, nên PR KHÔNG chạm code service (ví dụ chỉ sửa platform-ci.yaml) vẫn ngồi
+          # đợi đủ 40 vòng rồi chết vì timeout — đo thật trên PR #435: chạy 614s = 10.2
+          # phút rồi bị giết. Check `cancelled` còn tệ hơn đỏ: nó không xanh không đỏ, PR
+          # treo lơ lửng. Đây là lỗi logic, không phải do concurrency.
+          #
+          # Danh sách dưới phải khớp `paths:` trong app-build.yaml. Lệch thì hệ quả nghiêng
+          # về phía AN TOÀN: khai thiếu -> job đi vào nhánh chờ và vẫn đọc được kết quả
+          # thật; khai thừa -> chờ một run không tồn tại rồi mới cho qua ở bước dưới.
+          CHANGED=""
+          if [ -n "${PR_NUMBER:-}" ]; then
+            CHANGED=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files?per_page=100" \
+                        --jq '.[].filename' 2>/dev/null || true)
+            if [ -n "$CHANGED" ] && ! printf '%s\n' "$CHANGED" | grep -qE \
+                 '^(techx-corp-platform/src/|aiops/|platform/charts/application/values\.yaml$|\.trivyignore$|\.github/workflows/app-build\.yaml$)'; then
+              echo "✅ PR không chạm đường dẫn nào kích hoạt app-build — không có ảnh để quét."
+              {
+                echo "### Cổng quét ảnh — không có ảnh nào cần quét"
+                echo ""
+                echo "PR này không đụng \`techx-corp-platform/src/\`, \`aiops/\`, \`.trivyignore\`"
+                echo "hay chart values, nên app-build không chạy và không image nào được dựng."
+                echo "Không có gì để quét là lý do hợp lệ để qua cổng, không phải lỗi."
+              } >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+          fi
+
           # Chờ app-build cho commit này xuất hiện và chạy xong. Nó khởi động cùng
           # lúc với workflow này nên thường chưa có kết quả ngay.
-          # 40 vòng × 15s = 10 phút, khớp timeout-minutes ở trên.
+          # Tách hai loại chờ: 8 vòng đầu (2 phút) là hạn CHỜ NÓ XUẤT HIỆN — quá hạn mà
+          # vẫn chưa có run nào thì kết luận app-build không được kích hoạt, cho qua luôn
+          # thay vì đợi hết 10 phút. Khi đã thấy run rồi thì chờ tiếp tới 40 vòng cho nó
+          # chạy xong.
           run_json=""
           for i in $(seq 1 40); do
             run_json=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${TARGET_SHA}&per_page=100" \
                         --jq '[.workflow_runs[] | select(.path == ".github/workflows/app-build.yaml")]
                               | sort_by(.run_number) | last // empty' 2>/dev/null || true)
-            [ -z "$run_json" ] && { echo "[$i/40] chưa thấy run app-build..."; sleep 15; continue; }
+            if [ -z "$run_json" ]; then
+              if [ "$i" -ge 8 ]; then
+                echo "Sau 2 phút vẫn không có run app-build -> nó không được kích hoạt."
+                break
+              fi
+              echo "[$i/8] chưa thấy run app-build..."
+              sleep 15
+              continue
+            fi
             status=$(printf '%s' "$run_json" | python3 -c "import json,sys;print(json.load(sys.stdin)['status'])")
             [ "$status" = "completed" ] && break
             echo "[$i/40] app-build đang chạy ($status)..."
