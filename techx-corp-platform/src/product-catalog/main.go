@@ -14,12 +14,14 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"sort"
@@ -394,14 +396,45 @@ func searchProductsFromDB(ctx context.Context, query string) ([]*pb.Product, err
 		products = parsed
 		return nil
 	})
-	return products, err
+	if err != nil {
+		return nil, err
+	}
+
+	logger.LogAttrs(
+		ctx,
+		slog.LevelInfo,
+		fmt.Sprintf("Found %d products from database", len(products)),
+		slog.Int("products", len(products)),
+	)
+
+	return products, nil
 }
 
-func signAWSV4(req *http.Request, body []byte, region, service string) {
-	accessKey := os.Getenv("AWS_ACCESS_KEY_ID")
-	secretKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
-	sessionToken := os.Getenv("AWS_SESSION_TOKEN")
+type awsCredentials struct {
+	AccessKeyId     string
+	SecretAccessKey string
+	SessionToken    string
+	Expiration      time.Time
+}
 
+var (
+	cachedBedrockCreds awsCredentials
+	cachedCredsMutex   sync.Mutex
+)
+
+type assumeRoleResponse struct {
+	XMLName          xml.Name `xml:"AssumeRoleResponse"`
+	AssumeRoleResult struct {
+		Credentials struct {
+			AccessKeyId     string `xml:"AccessKeyId"`
+			SecretAccessKey string `xml:"SecretAccessKey"`
+			SessionToken    string `xml:"SessionToken"`
+			Expiration      string `xml:"Expiration"`
+		} `xml:"Credentials"`
+	} `xml:"AssumeRoleResult"`
+}
+
+func signAWSV4WithCreds(req *http.Request, body []byte, region, service, accessKey, secretKey, sessionToken string) {
 	now := time.Now().UTC()
 	amzDate := now.Format("20060102T150405Z")
 	req.Header.Set("X-Amz-Date", amzDate)
@@ -465,6 +498,93 @@ func signAWSV4(req *http.Request, body []byte, region, service string) {
 	req.Header.Set("Authorization", authHeader)
 }
 
+func signAWSV4(req *http.Request, body []byte, region, service string) {
+	accessKey := os.Getenv("AWS_ACCESS_KEY_ID")
+	secretKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
+	sessionToken := os.Getenv("AWS_SESSION_TOKEN")
+	signAWSV4WithCreds(req, body, region, service, accessKey, secretKey, sessionToken)
+}
+
+func getBedrockCredentials(ctx context.Context, region string) (string, string, string, error) {
+	roleArn := os.Getenv("BEDROCK_AWS_ROLE_ARN")
+	if roleArn == "" || roleArn == "<your-role-arn>" {
+		return os.Getenv("AWS_ACCESS_KEY_ID"), os.Getenv("AWS_SECRET_ACCESS_KEY"), os.Getenv("AWS_SESSION_TOKEN"), nil
+	}
+
+	cachedCredsMutex.Lock()
+	if cachedBedrockCreds.AccessKeyId != "" && time.Now().Before(cachedBedrockCreds.Expiration.Add(-5*time.Minute)) {
+		ak, sk, st := cachedBedrockCreds.AccessKeyId, cachedBedrockCreds.SecretAccessKey, cachedBedrockCreds.SessionToken
+		cachedCredsMutex.Unlock()
+		return ak, sk, st, nil
+	}
+	cachedCredsMutex.Unlock()
+
+	externalId := os.Getenv("BEDROCK_AWS_EXTERNAL_ID")
+	sessionName := os.Getenv("BEDROCK_AWS_ROLE_SESSION_NAME")
+	if sessionName == "" {
+		sessionName = "product-catalog-bedrock"
+	}
+
+	formData := url.Values{}
+	formData.Set("Action", "AssumeRole")
+	formData.Set("Version", "2011-06-15")
+	formData.Set("RoleArn", roleArn)
+	formData.Set("RoleSessionName", sessionName)
+	if externalId != "" {
+		formData.Set("ExternalId", externalId)
+	}
+
+	bodyStr := formData.Encode()
+	bodyBytes := []byte(bodyStr)
+
+	stsUrl := fmt.Sprintf("https://sts.%s.amazonaws.com/", region)
+	req, err := http.NewRequestWithContext(ctx, "POST", stsUrl, bytes.NewReader(bodyBytes))
+	if err != nil {
+		return "", "", "", fmt.Errorf("failed to create sts request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	signAWSV4(req, bodyBytes, region, "sts")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", "", "", fmt.Errorf("sts assume-role request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", "", "", fmt.Errorf("failed to read sts response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return "", "", "", fmt.Errorf("sts assume-role error %d: %s", resp.StatusCode, string(respBytes))
+	}
+
+	var parsedXML assumeRoleResponse
+	if err := xml.Unmarshal(respBytes, &parsedXML); err != nil {
+		return "", "", "", fmt.Errorf("failed to parse sts xml response: %w", err)
+	}
+
+	creds := parsedXML.AssumeRoleResult.Credentials
+	if creds.AccessKeyId == "" {
+		return "", "", "", fmt.Errorf("sts assume-role returned empty credentials")
+	}
+
+	expTime, _ := time.Parse(time.RFC3339, creds.Expiration)
+
+	cachedCredsMutex.Lock()
+	cachedBedrockCreds = awsCredentials{
+		AccessKeyId:     creds.AccessKeyId,
+		SecretAccessKey: creds.SecretAccessKey,
+		SessionToken:    creds.SessionToken,
+		Expiration:      expTime,
+	}
+	cachedCredsMutex.Unlock()
+
+	return creds.AccessKeyId, creds.SecretAccessKey, creds.SessionToken, nil
+}
+
 func embedQuery(ctx context.Context, text string) ([]float64, error) {
 	reqBody := map[string]interface{}{
 		"inputText":  text,
@@ -484,8 +604,13 @@ func embedQuery(ctx context.Context, text string) ([]float64, error) {
 		return nil, fmt.Errorf("create req failed: %w", err)
 	}
 
+	accessKey, secretKey, sessionToken, err := getBedrockCredentials(ctx, region)
+	if err != nil {
+		return nil, fmt.Errorf("get bedrock creds failed: %w", err)
+	}
+
 	req.Header.Set("Content-Type", "application/json")
-	signAWSV4(req, bodyBytes, region, "bedrock")
+	signAWSV4WithCreds(req, bodyBytes, region, "bedrock", accessKey, secretKey, sessionToken)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
