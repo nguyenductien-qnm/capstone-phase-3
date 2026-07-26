@@ -1,10 +1,12 @@
 # MANDATE-10 — chú thích ảnh bằng chứng (23/07 → 26/07/2026)
 
-20 ảnh chụp trên **PROD** (account `804372444787`, cluster `ecommerce-dev-eks`, namespace
-`techx-tf1`). Xếp theo thời gian, nhóm theo yêu cầu của directive.
+23 ảnh: **01–14** chụp trên PROD (account `804372444787`, cluster `ecommerce-dev-eks`,
+namespace `techx-tf1`), **15–23** chụp trên GitHub (ruleset + Actions). Xếp theo thời gian,
+nhóm theo yêu cầu của directive.
 
-Đọc nhanh: ảnh **09 + 10** là cặp chứng minh admission chặn thật; ảnh **17** chứng minh
-CI đỏ không merge được; ảnh **20** chứng minh truy ngược full provenance.
+Đọc nhanh: ảnh **09 + 10** là cặp chứng minh admission chặn thật; ảnh **17 → 23** là dòng
+thời gian cổng chặn từ 3 lên 4 check; ảnh **20** chứng minh truy ngược full provenance;
+ảnh **21** chứng minh SAST chạy thật; ảnh **22** chứng minh không rebuild thừa.
 
 ## Bảng tra nhanh
 
@@ -30,16 +32,28 @@ CI đỏ không merge được; ảnh **20** chứng minh truy ngược full pro
 | 18 | [18-pr410-approved-checks-passed](18-pr410-approved-checks-passed.md) | 26/07 00:33 | #1 — cổng chạy thật |
 | 19 | [19-trace-provenance-run-success](19-trace-provenance-run-success.md) | 26/07 10:08 | #5 — workflow chạy |
 | 20 | [20-trace-provenance-8-mat-xich](20-trace-provenance-8-mat-xich.md) | 26/07 10:09 | #5 — **truy ngược** ⭐ |
+| 21 | [21-codeql-8-ngon-ngu-pass](21-codeql-8-ngon-ngu-pass.md) | 26/07 19:43 | #2 — **SAST chạy thật** ⭐ |
+| 22 | [22-pr413-build-skipped](22-pr413-build-skipped.md) | 26/07 19:49 | #6 — **không rebuild thừa** ⭐ |
+| 23 | [23-ruleset-4-checks-co-sast](23-ruleset-4-checks-co-sast.md) | 26/07 20:03 | #1+#2 — **SAST thành cổng chặn** ⭐ |
 
 ---
 
-## Những gì 20 ảnh này CHƯA phủ
+## Đã vá thêm ngày 26/07 (ảnh 21–23)
+
+Ba mục dưới đây trước còn ghi "chưa phủ", nay đã có ảnh:
+
+| Yêu cầu | Trước 26/07 | Nay |
+|---|---|---|
+| #2 — vế SAST | 0/13 workflow có SAST | ✅ [21](21-codeql-8-ngon-ngu-pass.md) CodeQL 8 ngôn ngữ pass + [23](23-ruleset-4-checks-co-sast.md) đã required |
+| #2 — vế IaC gate | `exit-code:"0"` + `soft_fail:true` | ✅ Đã bật chặn (PR #429 merged) — bằng chứng lệnh trong [IAC-GATE.md](../IAC-GATE.md) |
+| #6 — scoped build | chỉ có bằng chứng file | ✅ [22](22-pr413-build-skipped.md) workflow tự chứng minh trên chính nó |
+
+## Những gì 23 ảnh này VẪN CHƯA phủ
 
 Ghi rõ để không ai tưởng bộ ảnh là đủ:
 
 | Yêu cầu | Thiếu gì |
 |---|---|
-| #2 — quét chặn | **SAST chưa có** (0/13 workflow) và **IaC gate chưa chặn** (`exit-code:"0"` + `soft_fail:true`). Chưa có ảnh vì tính năng chưa làm |
-| #1 — cảnh PR đỏ | Ảnh 18 là PR **xanh** bị chặn vì out-of-date. Còn thiếu ảnh PR **cố tình đỏ** → nút merge xám vì check fail |
-| #4 — pin SHA/digest | Chưa có ảnh; bằng chứng đang ở dạng lệnh grep (`uses:@vX` = 0, 57/57 `FROM` có `@sha256:`) |
-| #6 — scoped build | Chưa có ảnh; bằng chứng ở `app-build.yaml` (`confirm_full` + `reason`, commit `5a367a3`) |
+| #1 — cảnh PR đỏ | Ảnh 18 là PR **xanh** bị chặn vì out-of-date. Còn thiếu ảnh PR **cố tình đỏ** → nút merge xám vì check fail. Đây là màn 1 trong mục "Phải nộp" của directive |
+| #2 — vế IaC gate | Đã bật thật nhưng **chưa có ảnh** job `Terraform fmt, validate, scan` pass ở chế độ chặn |
+| #4 — pin SHA/digest | Chưa có ảnh; bằng chứng đang ở dạng lệnh grep (`uses:@vX` = 0, 57/57 `FROM` có `@sha256:`). Chưa có job CI nào **gate** việc pin, nên chỉ chứng minh được "đang pin", không chứng minh được "không trôi lại được" |
