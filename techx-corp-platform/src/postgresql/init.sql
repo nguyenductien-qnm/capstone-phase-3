@@ -140,6 +140,11 @@ CREATE TABLE catalog.products (
     categories TEXT
 );
 
+-- Semantic search: pgvector extension + embedding column (ADR-008)
+CREATE EXTENSION IF NOT EXISTS vector;
+ALTER TABLE catalog.products ADD COLUMN IF NOT EXISTS embedding VECTOR(1024);
+CREATE INDEX IF NOT EXISTS idx_products_embedding ON catalog.products USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64);
+
 -- Product Catalog Service: grant permission to schema
 GRANT SELECT ON ALL TABLES IN SCHEMA catalog TO otelu;
 

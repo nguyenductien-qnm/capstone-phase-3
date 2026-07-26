@@ -23,6 +23,7 @@ user-scoped ``add_item``.
 import json
 import logging
 import os
+import urllib.request
 
 import grpc
 import demo_pb2
@@ -73,7 +74,7 @@ def search_products(query: str, category: str | None = None) -> str:
         products = [_product_to_dict(p) for p in response.results]
         if category:
             cat = category.lower()
-            products = [p for p in products if p.get("category", "").lower() == cat]
+            products = [p for p in products if cat in p.get("category", "").lower()]
         if not products:
             return json.dumps({
                 "status": "not_found", 
@@ -209,4 +210,68 @@ def list_recommendations(product_ids: list[str]) -> str:
         return _error_json(f"ListRecommendations failed: {e.code().name} – {e.details()}")
     except Exception as e:
         logger.error("list_recommendations error: %s", e)
+        return _error_json(str(e))
+
+
+def convert_currency(amount, from_code, to_code):
+    try:
+        CURRENCY_ADDR = os.environ.get("CURRENCY_ADDR", "currency:7001")
+        with grpc.insecure_channel(CURRENCY_ADDR) as channel:
+            stub = demo_pb2_grpc.CurrencyServiceStub(channel)
+            request = demo_pb2.CurrencyConversionRequest(
+                to_code=to_code,
+                **{"from": demo_pb2.Money(
+                    currency_code=from_code, 
+                    units=int(amount), 
+                    nanos=int((amount % 1) * 1e9)
+                )}
+            )
+            response = stub.Convert(request, timeout=_RPC_TIMEOUT)
+        return json.dumps({
+            "status": "ok",
+            "amount": _money_to_float(response),
+            "currency": to_code
+        })
+    except grpc.RpcError as e:
+        logger.error("Convert RPC failed: %s", e)
+        return _error_json(f"Convert failed: {e.code().name} – {e.details()}")
+    except Exception as e:
+        logger.error("convert_currency error: %s", e)
+        return _error_json(str(e))
+
+
+def get_shipping_quote(items, address):
+    try:
+        SHIPPING_ADDR = os.environ.get("SHIPPING_ADDR", "http://shipping:50050")
+        if not address:
+            address = {
+                "street_address": "1600 Amphitheatre Parkway",
+                "city": "Mountain View",
+                "state": "CA",
+                "country": "US",
+                "zip_code": "94043"
+            }
+        
+        url = f"{SHIPPING_ADDR}/get-quote"
+        payload = json.dumps({
+            "items": items,
+            "address": address
+        }).encode("utf-8")
+        
+        req = urllib.request.Request(
+            url, 
+            data=payload, 
+            headers={"Content-Type": "application/json"}
+        )
+        with urllib.request.urlopen(req, timeout=_RPC_TIMEOUT) as response:
+            res_body = response.read()
+            # Depending on how the shipping service replies, it might already be JSON.
+            # Easiest is to just decode it and parse it, then return JSON with our status.
+            res_json = json.loads(res_body.decode('utf-8'))
+            return json.dumps({
+                "status": "ok",
+                "quote": res_json
+            })
+    except Exception as e:
+        logger.error("get_shipping_quote error: %s", e)
         return _error_json(str(e))

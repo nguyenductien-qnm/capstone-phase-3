@@ -374,6 +374,8 @@ services:
       - FLAGD_PORT
       - FLAGD_UI_HOST
       - FLAGD_UI_PORT
+      - SHOPPING_COPILOT_HOST
+      - SHOPPING_COPILOT_PORT
     depends_on:
       frontend:
         condition: service_started
@@ -505,6 +507,13 @@ services:
     ports:
       - "${PRODUCT_CATALOG_PORT}"
     environment:
+      - CATALOG_SCHEMA_PHASE=read_new
+      - SEMANTIC_SEARCH_ENABLED=true
+      - AWS_REGION
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - AWS_SESSION_TOKEN
+      - AWS_SHARED_CREDENTIALS_FILE=/app/.aws/credentials
       - PRODUCT_CATALOG_PORT
       - FLAGD_HOST
       - FLAGD_PORT
@@ -515,6 +524,8 @@ services:
       - OTEL_SERVICE_NAME=product-catalog
       - OTEL_SEMCONV_STABILITY_OPT_IN=database
       - DB_CONNECTION_STRING=postgres://otelu:otelp@${POSTGRES_HOST}/${POSTGRES_DB}?sslmode=disable
+    volumes:
+      - ~/.aws:/app/.aws:ro
     depends_on:
       otel-collector:
         condition: service_started
@@ -556,6 +567,7 @@ services:
       - AWS_SECRET_ACCESS_KEY
       - AWS_SESSION_TOKEN
       - BEDROCK_AWS_ROLE_ARN
+      - BEDROCK_AWS_EXTERNAL_ID
       - LLM_JUDGE_MODEL
       - OPENAI_API_KEY
       - PRODUCT_CATALOG_ADDR
@@ -565,6 +577,9 @@ services:
       - LLM_PORT
       - ML_GUARD_URL=ml-guard:8090
       - LLM_LOCAL_ML_GUARD=true
+      - AWS_SHARED_CREDENTIALS_FILE=/app/.aws/credentials
+    volumes:
+      - ~/.aws:/app/.aws:ro
     depends_on:
       ml-guard:
         condition: service_healthy
@@ -627,6 +642,7 @@ services:
     environment:
       - RECOMMENDATION_PORT
       - PRODUCT_CATALOG_ADDR
+      - DB_CONNECTION_STRING=postgres://otelu:otelp@${POSTGRES_HOST}/${POSTGRES_DB}?sslmode=disable
       - FLAGD_HOST
       - FLAGD_PORT
       - OTEL_PYTHON_LOG_CORRELATION=true
@@ -723,6 +739,8 @@ services:
     restart: always
     environment:
       - FLAGD_UI_PORT
+      - SHOPPING_COPILOT_HOST
+      - SHOPPING_COPILOT_PORT
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://${OTEL_COLLECTOR_HOST}:${OTEL_COLLECTOR_PORT_HTTP}
       - OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE
       - OTEL_RESOURCE_ATTRIBUTES
@@ -1006,6 +1024,10 @@ services:
       - AWS_SECRET_ACCESS_KEY
       - AWS_SESSION_TOKEN
       - BEDROCK_AWS_ROLE_ARN
+      - BEDROCK_AWS_EXTERNAL_ID
+      - BEDROCK_GUARDRAIL_ID
+      - BEDROCK_GUARDRAIL_VERSION
+      - LLM_BEDROCK_GUARDRAIL
       - LLM_JUDGE_MODEL
       - LLM_INJECTION_JUDGE_MODEL
       - LLM_LOCAL_ML_GUARD=true
@@ -1032,9 +1054,18 @@ services:
       - ML_GUARD_URL=ml-guard:8090
       - LLM_LOCAL_ML_GUARD=true
       - PRODUCT_CATALOG_ADDR
+      - PRODUCT_REVIEWS_ADDR
+      - CART_ADDR
+      - RECOMMENDATION_ADDR
+      - CURRENCY_ADDR
+      - SHIPPING_ADDR
       - LLM_HOST
       - LLM_PORT
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - AWS_SESSION_TOKEN
       - BEDROCK_AWS_ROLE_ARN
+      - BEDROCK_AWS_EXTERNAL_ID
       - AWS_REGION
       - AWS_SHARED_CREDENTIALS_FILE=/app/.aws/credentials
       - OTEL_EXPORTER_OTLP_ENDPOINT
@@ -1046,5 +1077,9 @@ services:
       ml-guard:
         condition: service_healthy
       product-catalog:
+        condition: service_started
+      currency:
+        condition: service_started
+      shipping:
         condition: service_started
     logging: *logging

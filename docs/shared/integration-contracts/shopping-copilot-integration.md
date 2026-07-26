@@ -42,7 +42,7 @@ Dịch vụ `shopping-copilot` nhận các biến môi trường cấu hình k�
 
 ## 3. Ràng Buộc Tài Nguyên K8s (Kubernetes Resource Limits)
 
-Pod `shopping-copilot` giữ nguyên baseline — **CDO đã xác nhận (17/07/2026)** rằng bật Phase-2 Local ML Guard (`LLM_LOCAL_ML_GUARD=true`) không thay đổi resource của service này ("Local" = self-hosted pod `ml-guard` riêng, không phải in-process; service chỉ gọi HTTP, không load model):
+Pod `shopping-copilot` giữ nguyên baseline — **CDO đã xác nhận (17/07/2026)** rằng bật self-hosted ML Guard không thay đổi resource của service này ("Local" = self-hosted pod `ml-guard` riêng, không phải in-process; service chỉ gọi **gRPC** `pb/ml_guard.proto`, không load model — ADR-015):
 
 * **CPU Request / Limit**: `200m` / `1000m`
 * **Memory Request / Limit**: `256Mi` / `1024Mi`
@@ -51,11 +51,11 @@ Pod `shopping-copilot` giữ nguyên baseline — **CDO đã xác nhận (17/07/
 
 Toàn bộ model ML (ProtectAI DeBERTa ~738MB, mDeBERTa-xnli NLI, Presidio/SpaCy) load duy nhất trong pod `ml-guard`:
 
-* **Replicas**: 1 · **Port**: 8090 · **Service**: ClusterIP `ml-guard` (namespace `techx-tf1`)
-* **CPU Request / Limit**: `500m` / `1000m`
+* **Replicas**: 1 · **Port**: 8090 **gRPC** (`grpc.aio`, health qua `grpc_health_probe`) · **Service**: ClusterIP `ml-guard` (namespace `techx-tf1`)
+* **CPU Request / Limit**: `400m` / `2000m` (ADR-015 — burst cho inference trong ThreadPoolExecutor)
 * **Memory Request / Limit**: `1280Mi` / `1536Mi`
-* **readinessProbe**: `initialDelaySeconds: 90` — model load mất 25–90s; probe mặc định sẽ kill pod trước khi torch load xong
-* **Env chốt cho 2 service tiêu thụ**: `ML_GUARD_URL=ml-guard:8090` (không còn là giá trị ví dụ)
+* **readinessProbe**: gRPC health chỉ báo `SERVING` **sau khi model load xong** (`NOT_SERVING` lúc boot); model load ~25–90s
+* **Env chốt cho 2 service tiêu thụ**: `ML_GUARD_URL=ml-guard:8090` (gRPC target — không còn là giá trị ví dụ)
 * Guardrails **fail-open** khi ml-guard chưa sẵn sàng (PII vẫn mask bằng regex) — thứ tự khởi động không gây lỗi chuỗi.
 
 ---
@@ -157,7 +157,7 @@ Số đo thật 17/07 (bench local, fp32, 2 threads): RSS **1148MB**, grounding 
 | `LLM_JUDGE_MODEL` | `amazon.nova-micro-v1:0` | grounding judge (đo 4/4 VN) |
 | `LLM_INJECTION_JUDGE_MODEL` | `amazon.nova-lite-v1:0` | injection judge (đo 7/7 VN; Micro chỉ 4/7) |
 | `LLM_INJECTION_JUDGE` | `true` | tắt được để degrade về regex-only |
-| `LLM_BEDROCK_GUARDRAIL` | **`false`** (đổi từ §6) | option Standard-tier sau này |
+| `LLM_BEDROCK_GUARDRAIL` | **`true`** (flip ON 24/07, ADR-015) | layer-3 `crbxw41dbmxp` us-east-1; tắt lại đổi 1 dòng values về `"false"` |
 
 ### 7.3 IAM / region (quan trọng)
 - Judge chạy **`us-east-1`**. Ngày 22/07/2026, profile SSO CDO

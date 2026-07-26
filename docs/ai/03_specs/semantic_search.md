@@ -2,7 +2,7 @@
 
 > ✅ **[LOCKED-IN 14/07]** Dù Catalog hiện tại = 10 sản phẩm, Ban Kiến trúc sư quyết định **áp dụng chính thức pgvector trên Amazon RDS 16.14** để đáp ứng tiêu chuẩn Enterprise-grade và Well-Architected Framework (Operational Excellence). Từ bỏ giải pháp Dynamic Prompting vì phi thực tế ở scale lớn.
 
-> **Trạng thái:** Mockup / False Claim (Thực tế product-catalog vẫn đang dùng keyword search)
+> **Trạng thái:** ✅ Implemented (pgvector + Bedrock Titan embed, fallback keyword search)
 > **Trụ:** Performance Efficiency / Cost Optimization
 > **Ngày:** 2026-07-09  
 > **Tác giả:** Nhóm AI (AIO03) - TF1  
@@ -14,7 +14,7 @@
 
 ### 1.1 Thực trạng hiện tại
 
-Hàm `SearchProducts` trong Product Catalog service (`src/product-catalog/main.go:293`) sử dụng **keyword matching** đơn thuần:
+Trước khi triển khai, hàm `SearchProducts` trong Product Catalog service (`src/product-catalog/main.go`) sử dụng **keyword matching** đơn thuần:
 
 ```sql
 SELECT ... FROM catalog.products p

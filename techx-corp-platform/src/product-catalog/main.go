@@ -7,14 +7,22 @@ package main
 //go:generate protoc --go_out=./ --go-grpc_out=./ --proto_path=../../pb ../../pb/demo.proto
 
 import (
+	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
+	"sort"
 	"strings"
 	"sync"
 	"syscall"
@@ -389,6 +397,156 @@ func searchProductsFromDB(ctx context.Context, query string) ([]*pb.Product, err
 	return products, err
 }
 
+func signAWSV4(req *http.Request, body []byte, region, service string) {
+	accessKey := os.Getenv("AWS_ACCESS_KEY_ID")
+	secretKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
+	sessionToken := os.Getenv("AWS_SESSION_TOKEN")
+
+	now := time.Now().UTC()
+	amzDate := now.Format("20060102T150405Z")
+	req.Header.Set("X-Amz-Date", amzDate)
+	if sessionToken != "" {
+		req.Header.Set("X-Amz-Security-Token", sessionToken)
+	}
+	req.Header.Set("Host", req.URL.Host)
+
+	hash := sha256.New()
+	hash.Write(body)
+	payloadHash := hex.EncodeToString(hash.Sum(nil))
+
+	var headerKeys []string
+	for k := range req.Header {
+		headerKeys = append(headerKeys, strings.ToLower(k))
+	}
+	sort.Strings(headerKeys)
+
+	var signedHeaders []string
+	var canonicalHeaders string
+	for _, k := range headerKeys {
+		signedHeaders = append(signedHeaders, k)
+		val := req.Header.Get(k)
+		canonicalHeaders += k + ":" + strings.TrimSpace(val) + "\n"
+	}
+
+	canonicalURI := strings.ReplaceAll(req.URL.Path, ":", "%3A")
+
+	canonicalRequest := req.Method + "\n" + canonicalURI + "\n" + req.URL.RawQuery + "\n" + canonicalHeaders + "\n" + strings.Join(signedHeaders, ";") + "\n" + payloadHash
+
+	date := now.Format("20060102")
+	credentialScope := date + "/" + region + "/" + service + "/aws4_request"
+
+	hash = sha256.New()
+	hash.Write([]byte(canonicalRequest))
+	canonicalRequestHash := hex.EncodeToString(hash.Sum(nil))
+
+	stringToSign := "AWS4-HMAC-SHA256\n" + amzDate + "\n" + credentialScope + "\n" + canonicalRequestHash
+
+	mac := hmac.New(sha256.New, []byte("AWS4"+secretKey))
+	mac.Write([]byte(date))
+	kDate := mac.Sum(nil)
+
+	mac = hmac.New(sha256.New, kDate)
+	mac.Write([]byte(region))
+	kRegion := mac.Sum(nil)
+
+	mac = hmac.New(sha256.New, kRegion)
+	mac.Write([]byte(service))
+	kService := mac.Sum(nil)
+
+	mac = hmac.New(sha256.New, kService)
+	mac.Write([]byte("aws4_request"))
+	kSigning := mac.Sum(nil)
+
+	mac = hmac.New(sha256.New, kSigning)
+	mac.Write([]byte(stringToSign))
+	signature := hex.EncodeToString(mac.Sum(nil))
+
+	authHeader := "AWS4-HMAC-SHA256 Credential=" + accessKey + "/" + credentialScope + ", SignedHeaders=" + strings.Join(signedHeaders, ";") + ", Signature=" + signature
+	req.Header.Set("Authorization", authHeader)
+}
+
+func embedQuery(ctx context.Context, text string) ([]float64, error) {
+	reqBody := map[string]interface{}{
+		"inputText":  text,
+		"dimensions": 1024,
+		"normalize":  true,
+	}
+	bodyBytes, _ := json.Marshal(reqBody)
+
+	region := os.Getenv("AWS_REGION")
+	if region == "" {
+		region = "us-east-1"
+	}
+	url := fmt.Sprintf("https://bedrock-runtime.%s.amazonaws.com/model/amazon.titan-embed-text-v2:0/invoke", region)
+
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(bodyBytes))
+	if err != nil {
+		return nil, fmt.Errorf("create req failed: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	signAWSV4(req, bodyBytes, region, "bedrock")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("http req failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("aws error %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	var parsedResp struct {
+		Embedding []float64 `json:"embedding"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&parsedResp); err != nil {
+		return nil, fmt.Errorf("parse resp failed: %w", err)
+	}
+	return parsedResp.Embedding, nil
+}
+
+func formatVector(v []float64) string {
+	parts := make([]string, len(v))
+	for i, f := range v {
+		parts[i] = fmt.Sprintf("%g", f)
+	}
+	return "[" + strings.Join(parts, ",") + "]"
+}
+
+func searchProductsFromDBSemantic(ctx context.Context, query string) ([]*pb.Product, error) {
+	if db == nil {
+		return nil, fmt.Errorf("database connection not initialized")
+	}
+	// Embed the query using Bedrock Titan
+	embedding, err := embedQuery(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("embedding query failed: %w", err)
+	}
+	// Format embedding as pgvector literal
+	vecLiteral := formatVector(embedding)
+	q := productSelectSQL(
+		"WHERE p.embedding IS NOT NULL",
+		"ORDER BY p.embedding <=> $1::vector LIMIT 10",
+	)
+	var products []*pb.Product
+	err = withDBRetry(ctx, "searchProductsSemantic", func() error {
+		rows, qerr := db.QueryContext(ctx, q, vecLiteral)
+		if qerr != nil {
+			return fmt.Errorf("semantic search query failed: %w", qerr)
+		}
+		defer rows.Close()
+		parsed, perr := getProductsFromRows(ctx, rows)
+		if perr != nil {
+			return fmt.Errorf("failed to parse semantic results: %w", perr)
+		}
+		products = parsed
+		return nil
+	})
+	return products, err
+}
+
 func getProductFromDB(ctx context.Context, productID string) (*pb.Product, error) {
 	if db == nil {
 		return nil, fmt.Errorf("database connection not initialized")
@@ -553,7 +711,25 @@ func (p *productCatalog) GetProduct(ctx context.Context, req *pb.GetProductReque
 func (p *productCatalog) SearchProducts(ctx context.Context, req *pb.SearchProductsRequest) (*pb.SearchProductsResponse, error) {
 	span := trace.SpanFromContext(ctx)
 
-	result, err := searchProductsFromDB(ctx, req.Query)
+	var result []*pb.Product
+	var err error
+	searchMode := "keyword"
+
+	// Try semantic search first if enabled
+	if os.Getenv("SEMANTIC_SEARCH_ENABLED") == "true" {
+		result, err = searchProductsFromDBSemantic(ctx, req.Query)
+		if err == nil && len(result) > 0 {
+			searchMode = "semantic"
+		} else {
+			if err != nil {
+				logger.Warn(fmt.Sprintf("Semantic search failed, falling back to keyword: %v", err))
+			}
+			result, err = searchProductsFromDB(ctx, req.Query)
+		}
+	} else {
+		result, err = searchProductsFromDB(ctx, req.Query)
+	}
+
 	if err != nil {
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.Internal, "failed to search products: %v", err)
@@ -561,6 +737,7 @@ func (p *productCatalog) SearchProducts(ctx context.Context, req *pb.SearchProdu
 
 	span.SetAttributes(
 		attribute.Int("app.products_search.count", len(result)),
+		attribute.String("app.search.mode", searchMode),
 	)
 	return &pb.SearchProductsResponse{Results: result}, nil
 }
