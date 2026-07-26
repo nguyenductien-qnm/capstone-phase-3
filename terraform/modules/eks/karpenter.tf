@@ -188,6 +188,13 @@ resource "aws_eks_pod_identity_association" "karpenter_controller" {
   role_arn        = aws_iam_role.karpenter_controller.arn
 }
 
+# Spot capacity: AWS account cần AWSServiceRoleForEC2Spot tồn tại trước khi
+# CreateFleet với capacity-type=spot chạy được. Controller không tự tạo được
+# (thiếu iam:CreateServiceLinkedRole trong policy), nên khai báo tường minh ở đây.
+resource "aws_iam_service_linked_role" "spot" {
+  aws_service_name = "spot.amazonaws.com"
+}
+
 resource "aws_ec2_tag" "karpenter_cluster_security_group_discovery" {
   resource_id = aws_eks_cluster.this.vpc_config[0].cluster_security_group_id
   key         = "karpenter.sh/discovery"
