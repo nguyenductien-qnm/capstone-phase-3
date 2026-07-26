@@ -6,6 +6,9 @@ metadata:
 spec:
   weight: 20
   template:
+    metadata:
+      labels:
+        techx.io/capacity: spot
     spec:
       taints:
         - key: techx.io/capacity
