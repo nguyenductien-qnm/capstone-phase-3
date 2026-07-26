@@ -9,7 +9,7 @@ components:
       tag: 1.0-ad-6beefa4
   cart:
     imageOverride:
-      tag: 1.0-cart-4e872aa
+      tag: 1.0-cart-4986041
   checkout:
     imageOverride:
       tag: 1.0-checkout-6beefa4
