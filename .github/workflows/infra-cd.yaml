@@ -174,21 +174,27 @@ jobs:
           terraform -chdir="$TF_ROOT" init -backend=false -input=false
           terraform -chdir="$TF_ROOT" validate
 
-      - name: Trivy IaC scan
+      # MANDATE-10 #2: hai scan dưới đây là CỔNG CHẶN, không phải hậu kiểm. Finding được
+      # bỏ qua phải khai từng ID trong .trivyignore / .checkov.yaml kèm lý do và ngày
+      # review — KHÔNG tắt gate. Phân nhóm đầy đủ:
+      # docs/cdo09/evidence-mandate-10/IAC-GATE.md
+      - name: Trivy IaC scan (gate)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: config
           scan-ref: terraform
           severity: CRITICAL,HIGH
-          exit-code: "0"
+          exit-code: "1"
+          trivyignores: .trivyignore
           format: table
 
-      - name: Checkov scan
+      - name: Checkov scan (gate)
         uses: bridgecrewio/checkov-action@7b972723c44fb3d256283fac96fae5d7c1894bb7 # v12
         with:
           directory: terraform
           framework: terraform
-          soft_fail: true
+          config_file: .checkov.yaml
+          soft_fail: false
           quiet: true
 
   # ------------------------------------------------------------------ #

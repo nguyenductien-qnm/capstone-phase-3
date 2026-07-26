@@ -103,3 +103,45 @@ GHSA-hrxh-6v49-42gf
 # zlib1g — will_not_fix in debian/ubuntu base image
 CVE-2023-45853
 
+
+# ===========================================================================
+# IaC MISCONFIG (trivy config) — thêm 26/07/2026 khi bật IaC gate
+# ===========================================================================
+# Trivy dùng chung file này cho cả CVE (trivy image) lẫn misconfig (trivy config).
+# Phân nhóm đầy đủ 34 finding + lý do từng cái: docs/cdo09/evidence-mandate-10/IAC-GATE.md
+# Checkov có file skip riêng: .checkov.yaml (cùng quyết định, khác cú pháp).
+#
+# Đợt này đã SỬA THẬT thay vì skip: AVD-AWS-0179 (MSK encryption at-rest khai tường minh
+# bằng alias/aws/kafka). Chỉ phần còn lại nằm dưới đây.
+
+# Egress 0.0.0.0/0 — pod PHẢI gọi Rekor/Fulcio (Sigstore) để Kyverno verify chữ ký, cộng
+# ECR + Bedrock + Secrets Manager. Chặn egress = Kyverno chết = yêu cầu #3 sụp.
+# Review: 2026-10-26
+AVD-AWS-0104
+
+# EKS public endpoint + CIDR. Bật có chủ đích để GitHub Actions apply được; đã giới hạn
+# bằng public_access_cidrs kèm validation bắt buộc (modules/eks/main.tf:110-121).
+# Review: 2026-10-26
+AVD-AWS-0040
+AVD-AWS-0041
+
+# EKS secret encryption — thao tác MỘT CHIỀU trên cluster prod đang chạy, cần cửa sổ bảo
+# trì + backup etcd. Cùng quyết định với CKV_AWS_58. Review: 2026-10-26
+AVD-AWS-0039
+
+# Subnet public gán IP công khai — đúng bản chất subnet public (NAT/ALB nằm đó).
+# Review: 2026-10-26
+AVD-AWS-0164
+
+# S3 public access block trên bucket msk_plugins — hoãn cùng nhóm S3 theo quyết định
+# 26/07. Là finding đáng sửa nhất của nhóm S3, ưu tiên đợt sau. Review: 2026-10-26
+AVD-AWS-0086
+AVD-AWS-0087
+AVD-AWS-0091
+AVD-AWS-0093
+
+# S3 mã hoá bằng CMK — ~$1/key/tháng, ngoài ngân sách capstone. Review: 2026-10-26
+AVD-AWS-0132
+
+# WAF cho CloudFront — ~$5-10/tháng + phí per-request. Review: 2026-10-26
+AVD-AWS-0011
