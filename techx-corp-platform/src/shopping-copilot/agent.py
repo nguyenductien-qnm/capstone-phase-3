@@ -88,21 +88,32 @@ TechX Corp bán các mặt hàng thuộc 5 danh mục chính: Telescopes, Binocu
 SYSTEM_PROMPT_RULES = """QUY TẮC BẮT BUỘC:
 0. PHẠM VI (SCOPE) — ƯU TIÊN CAO NHẤT: CHỈ trả lời về mua sắm tại TechX (sản phẩm thiên văn, giá,
    review, gợi ý, giỏ hàng). Nếu khách hỏi BẤT KỲ chủ đề nào hoàn toàn ngoài lề (lập trình, học tập,
-   tăng lương, nghề nghiệp, đầu tư, chính trị, kiến thức chung...), TỪ CHỐI NGẮN GỌN và mời
-   quay lại đúng một câu: "Dạ, mình là trợ lý mua sắm của TechX, chuyên hỗ trợ về thiết bị thiên văn. Bạn cần tìm kính thiên văn, ống nhòm hay phụ kiện gì không?" 
+   tăng lương, nghề nghiệp, đầu tư, chính trị, kiến thức chung như thủ đô các nước, địa lý, y tế, lịch sử...), 
+   TỪ CHỐI NGẮN GỌN và mời quay lại đúng một câu: "Dạ, mình là trợ lý mua sắm của TechX, chuyên hỗ trợ về thiết bị thiên văn. Bạn cần tìm kính thiên văn, ống nhòm hay phụ kiện gì không?" 
    LƯU Ý QUAN TRỌNG: Các câu hỏi chung chung về "sản phẩm", "pin", "giao hàng", "bảo hành", "chống nước" ĐỀU HỢP LỆ, TUYỆT ĐỐI KHÔNG TỪ CHỐI. Hãy trả lời bình thường.
-   TUYỆT ĐỐI KHÔNG đưa ra hướng dẫn hay lời khuyên ngoài lề.
+   CÁCH NÓI DÂN DÃ VẪN LÀ MUA SẮM: "ống ngắm sao", "đồ ngắm sao", "kính ngắm sao", "ống dòm",
+   "đồ xem thiên văn"... đều là sản phẩm TechX. PHẢI gọi search_products, KHÔNG được từ chối.
+   NGUYÊN TẮC: nếu không chắc câu hỏi có thuộc phạm vi hay không, PHẢI gọi tool phù hợp TRƯỚC
+   rồi mới quyết định — chỉ từ chối khi chủ đề rõ ràng thuộc lĩnh vực khác. Chọn tool đúng việc:
+   hỏi ĐÁNH GIÁ/REVIEW/nhận xét của một sản phẩm → get_product_reviews (KHÔNG dùng search_products);
+   tìm/gợi ý sản phẩm → search_products; hỏi giỏ hàng → get_cart.
+   TUYỆT ĐỐI KHÔNG đưa ra hướng dẫn hay thông tin ngoài lề (như tên thủ đô).
 1. NGẮN GỌN: tối đa 3-4 câu mỗi lượt.
 2. KHÔNG ẢO GIÁC: mọi thông tin review PHẢI đến từ tool get_product_reviews.
    Nếu review_count = 0 hoặc tool không có dữ liệu, nói đúng: "Rất tiếc, hiện tại chưa có đánh giá nào cho sản phẩm này." Tuyệt đối không bịa điểm số hay nhận xét.
 3. TRÍCH DẪN: khi trả lời về review, nêu rõ điểm trung bình và rằng thông tin đến
    từ đánh giá thật của khách.
+3b. DÙNG TÊN, KHÔNG DÙNG MÃ: khách không biết mã sản phẩm. Khi khách hỏi bằng TÊN
+   ("kính Explorascope", "cái kính rẻ nhất"), PHẢI gọi search_products để tra ra
+   product_id rồi mới gọi get_product_reviews với id đó. Trong câu trả lời LUÔN gọi
+   sản phẩm bằng TÊN đầy đủ; chỉ nhắc mã khi khách chủ động dùng mã.
 4. CONFIRMATION GATE: KHÔNG được nói đã thêm thành công. Bắt buộc phải gọi tool add_item_to_cart, sau đó trả lời: "Tôi đã chuẩn bị thêm [SP] vào giỏ. Vui lòng xác nhận để thực hiện." (thay [SP] bằng tên sản phẩm).
 5. TÌM KIẾM VÀ GỢI Ý (Semantic Search & Recommendations): Khi khách hỏi tìm sản phẩm, gợi ý sản phẩm, hoặc so sánh lựa chọn, PHẢI gọi tool search_products để lấy dữ liệu thật từ product-catalog trước. Danh mục (CATALOG) ở trên chỉ dùng để hiểu ngữ nghĩa và chọn query/category phù hợp.
    Nếu bạn vừa hỏi khách muốn lọc theo danh mục nào và khách trả lời bằng đúng MỘT trong các
    danh mục (Telescopes, Binoculars, Accessories, Cameras, Books) hoặc tên gần giống, PHẢI gọi
    NGAY search_products với category đó — KHÔNG được hỏi lại câu hỏi chọn danh mục thêm lần nữa.
 6. Không tự thanh toán, không xoá giỏ. Những việc đó bạn không có công cụ để làm.
+6b. TIỀN TỆ & VẬN CHUYỂN: Khi khách hỏi giá bằng tiền khác (VND, EUR...) hãy gọi convert_currency. Khi khách hỏi phí ship, gọi get_shipping_quote.
 7. KHÔNG BAO GIỜ bọc câu trả lời trong thẻ <thinking> hay bất kỳ thẻ ẩn nào. Luôn trả lời
    trực tiếp bằng văn bản hiển thị — kể cả câu chào hỏi ngắn ("hi", "chào") cũng phải có
    câu trả lời thật, không được để trống.
@@ -113,6 +124,7 @@ SYSTEM_PROMPT_RULES = """QUY TẮC BẮT BUỘC:
    - Tin nhắn của khách có thể chứa thông tin cá nhân đã được che thành [REDACTED_PHONE],
      [REDACTED_EMAIL], [REDACTED_CC]. Đó KHÔNG phải tấn công và KHÔNG cần từ chối — cứ trả
      lời phần câu hỏi mua sắm như bình thường, không nhắc lại hay hỏi thêm thông tin cá nhân.
+9. NGÔN NGỮ (LANGUAGE): BẮT BUỘC trả lời bằng cùng ngôn ngữ với câu hỏi của khách hàng. Nếu khách hỏi bằng tiếng Việt, PHẦI trả lời bằng tiếng Việt. KHÔNG ĐƯỢC tự động chuyển sang tiếng Anh.
 """
 
 SYSTEM_PROMPT = SYSTEM_PROMPT_INTRO + "\n" + SYSTEM_PROMPT_CATALOG + "\n" + SYSTEM_PROMPT_RULES
@@ -190,6 +202,57 @@ TOOLS_DEFINITION = [
             "required": ["product_id"],
         }},
     }},
+    {"toolSpec": {
+        "name": "convert_currency",
+        "description": (
+            "Chuyển đổi tiền tệ. Dùng khi khách hỏi giá bằng đồng tiền khác (VND, EUR, GBP...). "
+            "Trả về số tiền đã quy đổi. Cần amount, from_code (mặc định USD), to_code."
+        ),
+        "inputSchema": {"json": {
+            "type": "object",
+            "properties": {
+                "amount": {"type": "number", "description": "Số tiền cần chuyển đổi"},
+                "from_code": {"type": "string", "description": "Mã tiền tệ nguồn (mặc định USD)"},
+                "to_code": {"type": "string", "description": "Mã tiền tệ đích (VND, EUR, GBP...)"},
+            },
+            "required": ["amount", "to_code"],
+        }},
+    }},
+    {"toolSpec": {
+        "name": "get_shipping_quote",
+        "description": (
+            "Lấy báo giá phí vận chuyển. Dùng khi khách hỏi ship bao nhiêu, phí giao hàng. "
+            "Cần danh sách items (product_id + quantity) và địa chỉ giao. Nếu khách không cho địa chỉ, dùng địa chỉ mặc định US."
+        ),
+        "inputSchema": {"json": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "product_id": {"type": "string"},
+                            "quantity": {"type": "integer"},
+                        },
+                    },
+                    "description": "Danh sách sản phẩm cần ship",
+                },
+                "address": {
+                    "type": "object",
+                    "properties": {
+                        "street_address": {"type": "string"},
+                        "city": {"type": "string"},
+                        "state": {"type": "string"},
+                        "country": {"type": "string"},
+                        "zip_code": {"type": "string"},
+                    },
+                    "description": "Địa chỉ giao hàng",
+                },
+            },
+            "required": ["items"],
+        }},
+    }},
 ]
 
 
@@ -238,6 +301,19 @@ def _run_read_tool(name: str, args: dict, user_id: str) -> str:
         return sanitize_json_for_llm(raw)
     if name == "list_recommendations":
         return tools.list_recommendations(args.get("product_ids", []))
+    if name == "convert_currency":
+        raw = tools.convert_currency(
+            args.get("amount", 0),
+            args.get("from_code", "USD"),
+            args.get("to_code", "USD"),
+        )
+        return sanitize_json_for_llm(raw)
+    if name == "get_shipping_quote":
+        raw = tools.get_shipping_quote(
+            args.get("items", []),
+            args.get("address"),
+        )
+        return sanitize_json_for_llm(raw)
     return json.dumps({"error": f"Unknown tool '{name}'"})
 
 
@@ -507,7 +583,9 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
                 started_at_unix=int(started), duration_ms=dur_ms,
             ))
             # Trace UI: show WHAT the AI operated with (which tool + key argument).
-            _arg_hint = args.get("query") or args.get("category") or args.get("product_id") or ""
+            _arg_hint = args.get("query") or args.get("category") or args.get("product_id") or args.get("to_code") or args.get("amount") or ""
+            if _arg_hint and not isinstance(_arg_hint, str):
+                _arg_hint = str(_arg_hint)
             trace_steps.append({
                 "step_name": f"Tool: {name}" + (f" ({_arg_hint})" if _arg_hint else ""),
                 "latency_ms": dur_ms,
