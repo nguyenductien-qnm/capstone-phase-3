@@ -118,9 +118,9 @@ builder.Services.AddSingleton<HealthServiceImpl>();
 // If it is missing or set to anything other than "false", the Kafka consumer starts automatically when the app launches
 var enableConsumer = builder.Configuration["ENABLE_KAFKA_CONSUMER"];
 if (!string.Equals(enableConsumer, "false", StringComparison.OrdinalIgnoreCase)) {
-    
+
     // builder.Services.AddHostedService<T>()
-    // is an extension method in .NET Core 
+    // is an extension method in .NET Core
     // used to register long-running background tasks in the Dependency Injection container
     builder.Services.AddHostedService<ConsumerService>();
 }
