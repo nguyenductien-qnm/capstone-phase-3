@@ -15,7 +15,7 @@ components:
       tag: 1.0-checkout-6beefa4
   currency:
     imageOverride:
-      tag: 1.0-currency-6beefa4
+      tag: 1.0-currency-8909351
   fraud-detection:
     imageOverride:
       tag: 1.0-fraud-detection-6beefa4
