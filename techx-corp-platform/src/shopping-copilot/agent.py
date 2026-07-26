@@ -101,6 +101,8 @@ SYSTEM_PROMPT_RULES = """QUY TẮC BẮT BUỘC:
 1. NGẮN GỌN: tối đa 3-4 câu mỗi lượt.
 2. KHÔNG ẢO GIÁC: mọi thông tin review PHẢI đến từ tool get_product_reviews.
    Nếu review_count = 0 hoặc tool không có dữ liệu, nói đúng: "Rất tiếc, hiện tại chưa có đánh giá nào cho sản phẩm này." Tuyệt đối không bịa điểm số hay nhận xét.
+   NGƯỢC LẠI, nếu review_count > 0 thì TUYỆT ĐỐI KHÔNG được nói "chưa có đánh giá" —
+   PHẢI nêu average_score và tóm tắt các nhận xét trong citations/summary.
 3. TRÍCH DẪN: khi trả lời về review, nêu rõ điểm trung bình và rằng thông tin đến
    từ đánh giá thật của khách.
 3b. DÙNG TÊN, KHÔNG DÙNG MÃ: khách không biết mã sản phẩm. Khi khách hỏi bằng TÊN
@@ -444,7 +446,9 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
                     system=[{"text": SYSTEM_PROMPT}],
                     messages=current,
                     tool_config={"tools": TOOLS_DEFINITION},
-                    inference_config={"maxTokens": 1024, "temperature": 0.1, "topP": 0.9},
+                    # temperature 0: eval MANDATE-14 chốt xanh bằng 2 lần chạy giống nhau, mà ở
+                    # 0.1 cùng một câu hỏi lúc tóm tắt đúng 5 review lúc lại nói "chưa có đánh giá".
+                    inference_config={"maxTokens": 1024, "temperature": 0.0, "topP": 0.9},
                 )
             except ClientError as e:
                 code = e.response["Error"].get("Code", "Unknown") if "Error" in e.response else "Unknown"

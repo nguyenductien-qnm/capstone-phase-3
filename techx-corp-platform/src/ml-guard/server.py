@@ -166,6 +166,34 @@ def _nli_scores_sync(premise, hypothesis):
     return probs[0].item(), probs[1].item(), probs[2].item()
 
 
+def _source_to_text(source):
+    """Tool result là JSON; mDeBERTa-XNLI được train trên câu tự nhiên nên dấu ngoặc,
+    khoá và escape sequence đẩy điểm contradiction lên và chặn oan câu trả lời có căn
+    cứ (đo 26/07: hỏi review theo TÊN sản phẩm → 2 tool → NLI contradiction).
+    Duỗi mỗi khối JSON thành dòng "khoá: giá trị" trước khi đưa vào NLI/judge."""
+    lines = []
+
+    def walk(node, prefix=""):
+        if isinstance(node, dict):
+            for k, v in node.items():
+                walk(v, f"{prefix}{k}: " if not prefix else f"{prefix}{k}: ")
+        elif isinstance(node, list):
+            for item in node:
+                walk(item, prefix)
+        elif node is not None and str(node) != "":
+            lines.append(f"{prefix}{node}".strip())
+
+    for block in (source or "").split("\n"):
+        block = block.strip()
+        if not block:
+            continue
+        try:
+            walk(json.loads(block))
+        except (json.JSONDecodeError, ValueError):
+            lines.append(block)
+    return "\n".join(lines) if lines else (source or "")
+
+
 def _grounding_decision_sync(source, answer):
     entail, neutral, contra = _nli_scores_sync(source[:6000], answer[:2000])
     if contra >= BLOCK_CONTRA:
@@ -436,7 +464,7 @@ class MLGuardServicer(ml_guard_pb2_grpc.MLGuardServiceServicer):
                 logger.info("CheckOutput: bypassed grounding for abstention")
                 return ml_guard_pb2.CheckOutputResponse(blocked=False, sanitized_text=masked, reason="pass (abstention)")
 
-            src = (request.grounding_source or "")[:GROUNDING_MAX_SOURCE_CHARS]
+            src = _source_to_text(request.grounding_source or "")[:GROUNDING_MAX_SOURCE_CHARS]
             
             # Layer 1: NLI grounding (mDeBERTa-XNLI, 1 lần trong executor)
             try:
