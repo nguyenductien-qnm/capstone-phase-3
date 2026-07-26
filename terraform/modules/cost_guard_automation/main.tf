@@ -13,6 +13,11 @@ locals {
 resource "aws_sns_topic" "budget_alarms_80" {
   name = "${local.cost_guard_name}-budget-alarms-80"
 
+  # CKV_AWS_26: mã hoá at-rest bằng key SNS mặc định của AWS. Chọn alias/aws/sns thay vì
+  # CMK riêng vì topic chỉ mang cảnh báo ngân sách, không chứa dữ liệu nhạy cảm — và key
+  # mặc định không phát sinh phí KMS.
+  kms_master_key_id = "alias/aws/sns"
+
   tags = merge(
     local.common_tags,
     {
@@ -23,6 +28,9 @@ resource "aws_sns_topic" "budget_alarms_80" {
 
 resource "aws_sns_topic" "budget_alarms_95" {
   name = "${local.cost_guard_name}-budget-alarms-95"
+
+  # CKV_AWS_26: xem chú thích ở budget_alarms_80.
+  kms_master_key_id = "alias/aws/sns"
 
   tags = merge(
     local.common_tags,
