@@ -110,4 +110,4 @@
 | Fidelity summary trên model thật vs `expected_summary_keywords` | creds |
 
 ## 4. Kế hoạch tiếp theo (Sau code freeze)
-Chạy 3 script đo trên EKS; eval fidelity + QA 34 case trên Nova thật; FP-run 24h chốt min_count/cooldown; backtest EWMA α; CI chạy pytest + eval mỗi PR. Triển khai nhánh `feat/TF1-57-59-68` lên môi trường prod.
+Chạy 3 script đo trên EKS; eval fidelity + QA 34 case trên Nova thật; FP-run 24h chốt min_count/cooldown; ~~backtest EWMA α~~ **(đã xong 27/07 — EWMA α=0.2 đo được là tệ hơn SMA đang chạy, đã bác; thay bằng cổng SLO cho tầng 3σ. Xem addendum 2026-07-27 của ADR-012)**; CI chạy pytest + eval mỗi PR. Triển khai nhánh `feat/TF1-57-59-68` lên môi trường prod.
