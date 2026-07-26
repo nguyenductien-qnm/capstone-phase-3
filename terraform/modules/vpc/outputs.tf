@@ -18,6 +18,11 @@ output "private_app_subnet_ids" {
   value       = { for k, v in aws_subnet.private_app : k => v.id }
 }
 
+output "private_node_subnet_ids" {
+  description = "Map ID của Private Node Subnets (Karpenter)"
+  value       = { for k, v in aws_subnet.private_node : k => v.id }
+}
+
 output "private_data_subnet_ids" {
   description = "Map ID của Private Data Subnets"
   value       = { for k, v in aws_subnet.private_data : k => v.id }
