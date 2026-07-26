@@ -38,6 +38,113 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ------------------------------------------------------------------ #
+  # MANDATE-10 #4: "GitHub Action pin theo commit SHA; base image pin   #
+  # theo digest. Không @latest, không @master, không tag trôi."         #
+  #                                                                    #
+  # Trước job này, bằng chứng cho #4 chỉ là hai lệnh grep chạy TAY —    #
+  # chứng minh được "hiện đang pin", KHÔNG chứng minh được "không trôi  #
+  # lại được". Ai thêm một action pin theo tag ngày mai thì không gì    #
+  # chặn lại.                                                          #
+  # Đây là chỗ biến một lần đo thành một cổng thường trực.              #
+  #                                                                    #
+  # Vì sao đặt trong platform-ci.yaml chứ không tách file: workflow này #
+  # KHÔNG có paths filter nên chạy trên mọi PR — điều kiện bắt buộc để  #
+  # một check được đưa vào required status checks mà không treo         #
+  # Expected. Bài học từ 26/07: thêm required check mà job không chạy   #
+  # trên PR nào đó = PR kẹt vĩnh viễn.                                  #
+  # ------------------------------------------------------------------ #
+  pin-guard:
+    name: Pin guard (action SHA + base image digest)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Action phải pin theo commit SHA
+        run: |
+          set -euo pipefail
+          # Chỉ xét `uses:` là KHOÁ YAML thật, tức đứng đầu dòng (sau khoảng trắng)
+          # hoặc sau `- `. Bỏ qua mọi dòng comment: chính file này có ví dụ minh hoạ
+          # trong comment, nếu quét cả comment thì gate tự bắt lỗi của chính nó.
+          # `uses: ./...` là workflow/action nội bộ trong repo — không có gì để trôi.
+          uses_lines() {
+            grep -rHn -E "^[[:space:]]*(-[[:space:]]+)?uses:" .github/workflows/*.yaml \
+              | grep -v "uses: \./"
+          }
+          bad=$(uses_lines | grep -E "@(v[0-9]|main|master|latest)" || true)
+          total=$(uses_lines | wc -l)
+          if [ -n "$bad" ]; then
+            echo "::error::Có action chưa pin theo commit SHA. Tag như @v4 di chuyển được:"
+            echo "$bad"
+            echo ""
+            echo "Sửa: thay @v4 bằng SHA đầy đủ 40 ký tự, ghi tag cũ vào comment cuối dòng."
+            echo "Lấy SHA: gh api repos/<owner>/<repo>/commits/<tag> --jq .sha"
+            exit 1
+          fi
+          echo "✅ $total/$total action pin theo commit SHA."
+
+      - name: Base image phải pin theo digest
+        run: |
+          set -euo pipefail
+          # Ba dạng FROM KHÔNG cần digest, và lý do:
+          #   FROM <stage>          tham chiếu stage đã khai trong CÙNG Dockerfile
+          #                         (`FROM base`, `FROM builder`) — không kéo gì từ registry.
+          #   FROM scratch          image rỗng do BuildKit dựng, không có digest.
+          #   FROM ${ARG}          giá trị thật nằm ở dòng ARG; bước dưới xét riêng.
+          stages=$(grep -rhoP '(?<=^FROM )\S+(?=\s+AS\s+\S+)|(?<= AS )\S+' \
+                     --include=Dockerfile -r . 2>/dev/null | sort -u || true)
+
+          bad=""
+          while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            file=${line%%:*}; rest=${line#*:}
+            ref=$(printf '%s' "$rest" | awk '{print $2}')
+            case "$ref" in
+              *@sha256:*) continue ;;
+              scratch)    continue ;;
+              '${'*|*'$'*) continue ;;   # ARG — bước sau lo
+            esac
+            # Trỏ tới stage nội bộ trong cùng file?
+            if printf '%s\n' "$stages" | grep -qx "$ref"; then continue; fi
+            bad="${bad}${line}"$'\n'
+          done < <(grep -rHn "^FROM " --include=Dockerfile -r . 2>/dev/null || true)
+
+          total=$(grep -rh "^FROM " --include=Dockerfile -r . 2>/dev/null | wc -l)
+          pinned=$(grep -rh "^FROM " --include=Dockerfile -r . 2>/dev/null | grep -c "@sha256:" || true)
+          if [ -n "$bad" ]; then
+            echo "::error::Có base image kéo từ registry mà chưa pin digest:"
+            printf '%s' "$bad"
+            echo ""
+            echo "Sửa: thêm @sha256:<digest> sau tag."
+            echo "Lấy digest: docker buildx imagetools inspect <image>:<tag> | grep Digest"
+            exit 1
+          fi
+          echo "✅ $pinned/$total dòng FROM pin digest; phần còn lại là stage nội bộ hoặc scratch."
+
+      - name: ARG image mặc định cũng phải pin digest
+        run: |
+          set -euo pipefail
+          # Vì sao cần bước riêng: `FROM ${RUNNER_IMAGE}` nhìn qua thì "không phải
+          # tag trôi", nhưng giá trị thật nằm ở dòng ARG. Nếu ARG mặc định là
+          # `docker.io/debian:bullseye-slim` thì build vẫn kéo theo TAG — đúng thứ
+          # yêu cầu #4 cấm, chỉ là giấu sau một lớp biến.
+          # Chỉ xét ARG có giá trị trông như image ref (có "/" và ":") để không
+          # bắt nhầm ARG phiên bản kiểu ARG GO_VERSION=1.25.
+          bad=$(grep -rHnE '^ARG +[A-Z_]*(IMAGE|BASE)[A-Z_]*=.*/.*:' \
+                  --include=Dockerfile -r . 2>/dev/null \
+                | grep -v "@sha256:" || true)
+          if [ -n "$bad" ]; then
+            echo "::error::ARG image mặc định chưa pin digest — build sẽ kéo theo tag:"
+            echo "$bad"
+            echo ""
+            echo "Sửa một trong hai cách:"
+            echo "  1. Thêm @sha256:<digest> vào giá trị mặc định của ARG, hoặc"
+            echo "  2. Truyền --build-arg <TÊN>=<image>@sha256:<digest> từ CI."
+            exit 1
+          fi
+          echo "✅ Mọi ARG image mặc định đều pin digest."
+
+  # ------------------------------------------------------------------ #
   # CDO-145: Dò service nào có unit test chạy được + đổi code trong PR. #
   #                                                                    #
   # Trước đây matrix liệt kê tay [checkout, product-catalog] nên hỏng   #
