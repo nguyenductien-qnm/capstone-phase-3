@@ -227,15 +227,89 @@ resource "aws_cloudtrail" "main_trail" {
   lifecycle { prevent_destroy = true }
 }
 
+# CMK cho topic mandate-12. Tách khỏi key `audit` (mã hoá log CloudTrail) vì hai thứ có
+# vòng đời và tập principal khác nhau: key audit mở cho cloudtrail.amazonaws.com kèm
+# EncryptionContext của trail, key này mở cho events.amazonaws.com. Trộn chung là nới
+# quyền của cả hai.
+data "aws_iam_policy_document" "mandate_12_audit_tamper_kms" {
+  count = var.enable_mandate_12_alert ? 1 : 0
+
+  statement {
+    sid     = "AccountKeyAdministration"
+    effect  = "Allow"
+    actions = ["kms:*"]
+
+    principals {
+      type        = "AWS"
+      identifiers = ["arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:root"]
+    }
+
+    resources = ["*"]
+  }
+
+  statement {
+    sid    = "AllowEventBridgePublish"
+    effect = "Allow"
+
+    actions = [
+      "kms:Decrypt",
+      "kms:GenerateDataKey*",
+    ]
+
+    principals {
+      type        = "Service"
+      identifiers = ["events.amazonaws.com"]
+    }
+
+    resources = ["*"]
+
+    # KHÔNG thêm condition aws:SourceAccount/aws:SourceArn ở statement này. Docs AWS
+    # (sns-key-management, mục compatibility with AWS services) ghi rõ:
+    #   "Adding the aws:SourceAccount, aws:SourceArn, and aws:SourceOrgID to a AWS KMS
+    #    policy is not supported for EventBridge-to-encrypted topics."
+    # Thêm vào thì EventBridge lại publish fail — đúng thứ thay đổi này đang đi sửa.
+    # Đây là điểm KHÁC key pipeline_health (module detection-routing), nơi publisher là
+    # cloudwatch.amazonaws.com nên siết được bằng SourceAccount.
+  }
+}
+
+resource "aws_kms_key" "mandate_12_audit_tamper" {
+  count = var.enable_mandate_12_alert ? 1 : 0
+
+  description             = "Encrypt MANDATE-12 audit tamper notifications for ${local.trail_name}"
+  enable_key_rotation     = true
+  deletion_window_in_days = 30
+  policy                  = data.aws_iam_policy_document.mandate_12_audit_tamper_kms[0].json
+
+  tags = { Name = local.m12_alert_name }
+}
+
+resource "aws_kms_alias" "mandate_12_audit_tamper" {
+  count = var.enable_mandate_12_alert ? 1 : 0
+
+  name          = "alias/${local.m12_alert_name}"
+  target_key_id = aws_kms_key.mandate_12_audit_tamper[0].key_id
+}
+
 resource "aws_sns_topic" "mandate_12_audit_tamper" {
   count = var.enable_mandate_12_alert ? 1 : 0
 
   name = local.m12_alert_name
 
-  # CKV_AWS_26: mã hoá at-rest bằng key SNS mặc định. Topic mang cảnh báo can thiệp
-  # CloudTrail nên nội dung chỉ là metadata sự kiện, không có bí mật; key mặc định đủ
-  # và không phát sinh phí KMS.
-  kms_master_key_id = "alias/aws/sns"
+  # CKV_AWS_26: mã hoá at-rest bằng CMK riêng, KHÔNG dùng alias/aws/sns.
+  #
+  # Vì sao không dùng key mặc định (sửa lại quyết định 26/07): topic này nhận message từ
+  # EventBridge. Docs AWS mục "Enable compatibility between event sources from AWS services
+  # and encrypted topics" nói bước ĐẦU TIÊN là "Use a customer managed key", vì service
+  # publisher cần kms:GenerateDataKey* + kms:Decrypt khai trong KEY POLICY — mà key
+  # alias/aws/sns do AWS quản, không sửa policy được.
+  #
+  # Hệ quả nếu để alias/aws/sns: aws_sns_topic_policy bên dưới cho events.amazonaws.com
+  # quyền sns:Publish, nhưng EventBridge vẫn không mã hoá nổi message nên publish FAIL
+  # IM LẶNG. Checkov CKV_AWS_26 chỉ hỏi "có mã hoá không", không hỏi "người gửi còn gửi
+  # được không" -> rule xanh mà chuỗi cảnh báo mandate-12 chết câm. Hỏng im lặng nguy
+  # hiểm hơn hỏng ồn ào, nhất là với alert canh việc bị can thiệp CloudTrail.
+  kms_master_key_id = aws_kms_key.mandate_12_audit_tamper[0].arn
 
   lifecycle {
     precondition {

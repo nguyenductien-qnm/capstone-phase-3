@@ -1,4 +1,5 @@
 data "aws_partition" "current" {}
+data "aws_caller_identity" "current" {}
 
 locals {
   cost_guard_name = "${var.project_name}-${var.environment}-cost-guard"
@@ -9,14 +10,78 @@ locals {
   }
 }
 
+# CMK dùng CHUNG cho cả hai topic budget (80% và 95%).
+#
+# Vì sao một key cho hai topic: cùng một publisher (budgets.amazonaws.com), cùng vòng đời,
+# cùng mức nhạy cảm. Tách hai key chỉ tốn thêm $1/tháng mà không thu hẹp được quyền gì.
+#
+# Vì sao KHÔNG dùng alias/aws/sns (sửa lại quyết định 26/07): AWS Budgets là service
+# publisher, cần kms:GenerateDataKey* + kms:Decrypt khai trong KEY POLICY. Key alias/aws/sns
+# do AWS quản nên không sửa policy được -> Budgets publish FAIL IM LẶNG. Topic policy bên
+# dưới cho budgets.amazonaws.com quyền sns:Publish là chưa đủ: đó là quyền trên TOPIC, còn
+# thiếu quyền trên KEY. Docs AWS mục "Enable compatibility between event sources from AWS
+# services and encrypted topics" nói bước đầu tiên là "Use a customer managed key".
+data "aws_iam_policy_document" "budget_alarms_kms" {
+  statement {
+    sid     = "AccountKeyAdministration"
+    effect  = "Allow"
+    actions = ["kms:*"]
+
+    principals {
+      type        = "AWS"
+      identifiers = ["arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:root"]
+    }
+
+    resources = ["*"]
+  }
+
+  statement {
+    sid    = "AllowBudgetsPublish"
+    effect = "Allow"
+
+    actions = [
+      "kms:Decrypt",
+      "kms:GenerateDataKey*",
+    ]
+
+    principals {
+      type        = "Service"
+      identifiers = ["budgets.amazonaws.com"]
+    }
+
+    resources = ["*"]
+
+    # Siết theo account để chống confused deputy. Budgets KHÁC EventBridge ở điểm này:
+    # docs chỉ cấm aws:SourceAccount cho EventBridge-to-encrypted-topics, còn Budgets thì
+    # thêm được. Cùng cách làm với key pipeline_health trong module detection-routing.
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
+  }
+}
+
+resource "aws_kms_key" "budget_alarms" {
+  description             = "Encrypt cost-guard budget alarm notifications for ${local.cost_guard_name}"
+  enable_key_rotation     = true
+  deletion_window_in_days = 30
+  policy                  = data.aws_iam_policy_document.budget_alarms_kms.json
+
+  tags = merge(local.common_tags, { Name = "${local.cost_guard_name}-budget-alarms" })
+}
+
+resource "aws_kms_alias" "budget_alarms" {
+  name          = "alias/${local.cost_guard_name}-budget-alarms"
+  target_key_id = aws_kms_key.budget_alarms.key_id
+}
+
 # SNS Topics cho Budget Alarms
 resource "aws_sns_topic" "budget_alarms_80" {
   name = "${local.cost_guard_name}-budget-alarms-80"
 
-  # CKV_AWS_26: mã hoá at-rest bằng key SNS mặc định của AWS. Chọn alias/aws/sns thay vì
-  # CMK riêng vì topic chỉ mang cảnh báo ngân sách, không chứa dữ liệu nhạy cảm — và key
-  # mặc định không phát sinh phí KMS.
-  kms_master_key_id = "alias/aws/sns"
+  # CKV_AWS_26: CMK riêng, không phải alias/aws/sns — lý do ở khối aws_kms_key trên.
+  kms_master_key_id = aws_kms_key.budget_alarms.arn
 
   tags = merge(
     local.common_tags,
@@ -29,8 +94,8 @@ resource "aws_sns_topic" "budget_alarms_80" {
 resource "aws_sns_topic" "budget_alarms_95" {
   name = "${local.cost_guard_name}-budget-alarms-95"
 
-  # CKV_AWS_26: xem chú thích ở budget_alarms_80.
-  kms_master_key_id = "alias/aws/sns"
+  # CKV_AWS_26: dùng chung CMK với topic 80 — xem chú thích ở aws_kms_key.budget_alarms.
+  kms_master_key_id = aws_kms_key.budget_alarms.arn
 
   tags = merge(
     local.common_tags,

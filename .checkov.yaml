@@ -100,8 +100,16 @@ skip-check:
   # Lambda trong VPC — cần thêm NAT gateway. Review: 2026-10-26
   - CKV_AWS_117
 
-  # Nhóm CMK riêng thay cho key mặc định — ~$1/key/tháng + phí request. Riêng SNS
-  # (CKV_AWS_26) ĐÃ SỬA THẬT ngày 26/07 vì alias/aws/sns không tốn thêm tiền.
+  # Nhóm CMK riêng thay cho key mặc định — ~$1/key/tháng + phí request.
+  #
+  # SNS (CKV_AWS_26) đã sửa THẬT và KHÔNG nằm trong danh sách skip. Sửa hai lần:
+  #   26/07 — dùng alias/aws/sns. Rule xanh, nhưng SAI: topic nhận từ EventBridge và
+  #           AWS Budgets, mà service publisher cần kms:GenerateDataKey*/kms:Decrypt khai
+  #           trong KEY POLICY — key AWS-managed không sửa policy được nên publish fail
+  #           IM LẶNG. Bài học: rule xanh không có nghĩa là thứ đang chạy còn chạy.
+  #   27/07 — CMK riêng có key policy mở đúng service principal. Chi phí thật $2/tháng
+  #           (2 key: cloudtrail + cost_guard), request nằm trong 20k free tier.
+  #
   # CKV_AWS_149 còn kéo theo việc cấp kms:Decrypt cho role ESO. Review: 2026-10-26
   - CKV_AWS_149
   - CKV_AWS_158
