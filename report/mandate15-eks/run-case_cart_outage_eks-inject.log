@@ -1,0 +1,14 @@
+[16:37:23] pre-check: cart   2/2   2     2     11d
+[16:37:24] INJECT ON  t_start=1785083844
+deployment.apps/cart scaled
+[16:38:27] +1min  checkout_error_ratio=0.0186  (nguong tinh 0.05)
+[16:39:27] +2min  checkout_error_ratio=0.0506  (nguong tinh 0.05)
+[16:40:28] +3min  checkout_error_ratio=0.0982  (nguong tinh 0.05)
+[16:41:29] +4min  checkout_error_ratio=0.1391  (nguong tinh 0.05)
+[16:42:30] +5min  checkout_error_ratio=0.1377  (nguong tinh 0.05)
+[16:43:31] +6min  checkout_error_ratio=0.1325  (nguong tinh 0.05)
+[16:43:31] INJECT OFF t_end=1785084211
+deployment.apps/cart scaled
+[16:43:32] settling 120s...
+[16:45:32] DONE. t_start=1785083844 t_end=1785084211
+cart   2/2   2     2     11d

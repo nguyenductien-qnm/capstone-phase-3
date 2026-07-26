@@ -1,0 +1,26 @@
+{
+  "id": "case-quiet-window-eks-001",
+  "type": "healthy_load",
+  "description": "MANDATE-15 / TF1-98 'giai doan binh thuong' do tren EKS that (ecommerce-dev-eks / techx-tf1). Khong bom gi ca, chi quan sat detector dang chay san trong cum duoi luu luong load-generator thuong ngay. Moi alert noi len trong cua so nay la mot bao dong gia va keo precision xuong. Khac voi ban compose (case_quiet_window.json) o cho: o day detector la pod aiops-detector da dung san 10 ngay trong cum, khong phai tien trinh do nguoi do dung len, nen con so phan anh dung hanh vi production.",
+  "service": null,
+  "monitored_rule_ids": [
+    "latency-p95-high",
+    "grpc-error-rate-high",
+    "error-budget-burn-fast-standard",
+    "error-budget-burn-fast-checkout",
+    "error-budget-burn-slow-standard",
+    "error-budget-burn-slow-checkout",
+    "memory-saturation-high",
+    "kafka-consumer-lag-high",
+    "llm-rate-limit-429",
+    "db-pool-exhaustion",
+    "oom-detected"
+  ],
+  "expect_fire": false,
+  "inject": null,
+  "duration_seconds": 300,
+  "settle_seconds": 0,
+  "notes": [
+    "Cua so cham cho ca nay lay theo --start/--end truyen tay (lenh `score`), khong chay `run`, vi khong co gi de bom. Xem report/mandate15-eks/ de biet cua so chinh xac da dung."
+  ]
+}

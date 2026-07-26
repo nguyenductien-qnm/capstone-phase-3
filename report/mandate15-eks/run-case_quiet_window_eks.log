@@ -1,0 +1,12 @@
+
+======================================================================
+SCENARIO: case-quiet-window-eks-001 [healthy_load]
+MANDATE-15 / TF1-98 'giai doan binh thuong' do tren EKS that (ecommerce-dev-eks / techx-tf1). Khong bom gi ca, chi quan sat detector dang chay san trong cum duoi luu luong load-generator thuong ngay. Moi alert noi len trong cua so nay la mot bao dong gia va keo precision xuong. Khac voi ban compose (case_quiet_window.json) o cho: o day detector la pod aiops-detector da dung san 10 ngay trong cum, khong phai tien trinh do nguoi do dung len, nen con so phan anh dung hanh vi production.
+----------------------------------------------------------------------
+  [case-quiet-window-eks-001] expect_fire=False -> FIRED (lead_time=166.3s) MISMATCH
+----------------------------------------------------------------------
+  K incidents = 0 | recall = None | precision = 0.0 (correct=0/total=10)
+  VERDICT (healthy_load): FAIL — false alarm(s): ['case-quiet-window-eks-001']
+======================================================================
+
+  result written to aiops/incident_scenarios/case_quiet_window_eks.result.json
