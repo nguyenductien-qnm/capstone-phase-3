@@ -18,8 +18,20 @@ ARG ELIXIR_VERSION=1.19.3
 ARG OTP_VERSION=28.0.2
 ARG DEBIAN_VERSION=bullseye-20251117-slim
 
-ARG BUILDER_IMAGE="docker.io/hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}"
-ARG RUNNER_IMAGE="docker.io/debian:${DEBIAN_VERSION}"
+# MANDATE-10 #4: pin theo DIGEST, không phải tag. Trước đây hai dòng này chỉ ghi tới
+# tag (`docker.io/debian:${DEBIAN_VERSION}`) — nhìn qua tưởng đã cố định vì tag có ngày
+# tháng, nhưng tag vẫn là con trỏ đẩy đè được, nên build hai thời điểm có thể ra hai nội
+# dung khác nhau. Digest là băm của chính nội dung image nên không đổi được.
+#
+# Chỗ này lọt lưới lâu vì lệnh grep kiểm pin chỉ soi dòng `FROM`, mà `FROM ${RUNNER_IMAGE}`
+# trông sạch — giá trị thật nằm ở đây. Job `pin-guard` trong platform-ci.yaml nay soi cả
+# dòng ARG để không lặp lại.
+#
+# Giữ nguyên tag phía trước digest: tag cho người đọc biết đây là bản nào, digest cho
+# Docker biết kéo đúng cái gì. Đổi version thì phải lấy digest mới:
+#   docker buildx imagetools inspect <image>:<tag> | grep Digest
+ARG BUILDER_IMAGE="docker.io/hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}@sha256:78ae416dd0f9100dec7fbc58da76e2cdd0400b6eece5ddb5055390f3162c97cd"
+ARG RUNNER_IMAGE="docker.io/debian:${DEBIAN_VERSION}@sha256:530a3348fc4b5734ffe1a137ddbcee6850154285251b53c3425c386ea8fac77b"
 
 FROM ${BUILDER_IMAGE} AS builder
 
