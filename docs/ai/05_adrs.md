@@ -902,23 +902,42 @@ Cần tạo khung đánh giá (evaluation harness) có khả năng định lư�
    - **Hallucination Rate (Ảo giác):** Tỷ lệ LLM tự bịa ra thông tin, điểm số, hoặc review không tồn tại. Rule: 1 - Faithfulness.
    - **Task Success Rate (Thành công tác vụ):** Khả năng thực hiện đúng nghiệp vụ (thêm giỏ hàng, tìm kiếm, gọi tool chính xác). Rule: Tool call hợp lệ, tham số chính xác.
 
-2. **Cách hiệu chỉnh Judge (Trỏ tới JUDGE_HUMAN_RUBRIC.md):**
-   - Sử dụng phương pháp LLM-as-a-Judge (với `amazon.nova-pro-v1:0` làm giám khảo).
-   - Có cơ chế Human-in-the-loop: tham chiếu `JUDGE_HUMAN_RUBRIC.md` và tập 15 ca người-gán nhãn để benchmark độ lệch của judge so với con người. Judge phải pass các hidden cases để được công nhận.
+2. **Kiến trúc chấm điểm — phân biệt harness vs ml-guard:**
+
+   **Harness (`eval_mandate14.py`) KHÔNG dùng LLM-judge.** Chấm theo cấu trúc:
+   - `actionsTaken`: tool nào đã chạy, `succeeded` hay không.
+   - Span attributes từ OpenTelemetry: `guardrail.blocked`, `app.search.mode`, `gen_ai.usage.*`.
+   - `citations` trả về từ `get_product_reviews`.
+   - Lý do: đo an toàn bằng hành động (tool call, span), không bằng câu chữ — tránh thiên kiến khi LLM chấm LLM.
+
+   **LLM-judge nằm trong `ml-guard`**, là một rail của hệ thống (không phải thước đo):
+   - Grounding judge: `amazon.nova-micro-v1:0` (`LLM_JUDGE_MODEL` env var).
+   - Injection judge: `amazon.nova-lite-v1:0`.
+   - Phía trước: NLI mDeBERTa-XNLI (zero-shot entailment).
+   - Phía sau: Bedrock Guardrail (`crbxw41dbmxp`) ở chế độ advisory (ADR-014).
+
+   **Hiệu chỉnh judge:** Tham chiếu `JUDGE_HUMAN_RUBRIC.md` + 15 ca người-gán nhãn.
+   Bảng khớp judge ↔ người đo Cohen's κ cho từng loại rail — kết quả ghi tại
+   `judge_human_agreement_report.md`.
 
 3. **Bảng giá LLM (kèm ngày tra 2026-07-26):**
-   - `amazon.nova-pro-v1:0`: ~$0.8/1M tokens input, ~$2.4/1M tokens output.
-   - `amazon.nova-lite-v1:0`: ~$0.06/1M tokens input, ~$0.24/1M tokens output.
-   - `amazon.titan-embed-text-v2:0`: ~$0.02/1M tokens.
+   Tra từ https://aws.amazon.com/bedrock/pricing/ , đối chiếu với bảng `PRICING` trong
+   `eval_mandate14.py` (commit hiện tại).
+   - `amazon.nova-pro-v1:0`: $0.80/1M tokens input, **$3.20/1M tokens output**.
+   - `amazon.nova-lite-v1:0`: $0.06/1M tokens input, $0.24/1M tokens output.
+   - `amazon.nova-micro-v1:0`: $0.035/1M tokens input, $0.14/1M tokens output.
+   - `amazon.titan-embed-text-v2:0`: $0.02/1M tokens (chỉ tính token vào, không có output token).
 
 4. **Deviation: `SEMANTIC_SEARCH_ENABLED` thay cho `flagd`:**
    - Để kích hoạt Semantic Search trong lúc đánh giá, hệ thống ghi đè bằng environment variable thay vì phụ thuộc flagd để đảm bảo tính cô lập và độc lập môi trường test.
 
 ## Alternatives Considered
 - **Đánh giá thủ công (Human evaluation):** Quá tốn thời gian, không scale được khi số lượng test cases lớn, độ trễ phản hồi khi thay đổi code quá cao. Bị loại.
-- **Dùng LLM tự sinh (Self-eval):** Model bịa ra tự chấm điểm chính mình. Dễ bị thiên kiến (bias) và điểm số không đáng tin cậy. Dùng Nova Pro (model mạnh nhất) làm external judge là cân bằng tốt nhất.
+- **Dùng LLM tự sinh (Self-eval):** Model bịa ra tự chấm điểm chính mình. Dễ bị thiên kiến (bias) và điểm số không đáng tin cậy. Bị loại.
+- **Dùng LLM-as-a-Judge trong harness:** Đã cân nhắc và bác bỏ cho harness — harness đo hành vi (tool call đúng/sai, span ghi nhận chặn/không chặn) vốn đã xác định, không cần thêm lớp suy luận. LLM-judge được giữ bên trong ml-guard như một rail runtime, nơi nó phục vụ mục đích khác (chấm grounding real-time cho từng request).
 
 ## Consequences
 - Hệ thống có khả năng tự chấm điểm mỗi lần cập nhật model hoặc guardrail (Automated Evals).
 - Đảm bảo tuân thủ tính minh bạch, cung cấp Evidence Audit rõ ràng thông qua Trace và Report JSON.
 - Đội ngũ tự tin A/B test LLM models vì đã có metric định lượng.
+- Bảng giá LLM được ghi cả trong ADR lẫn trong code (`PRICING` dict) — cập nhật phải sửa cả hai.
