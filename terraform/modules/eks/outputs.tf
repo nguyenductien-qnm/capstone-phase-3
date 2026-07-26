@@ -95,8 +95,8 @@ output "karpenter_node_role_arn" {
 }
 
 output "karpenter_interruption_queue_name" {
-  description = "SQS queue name for Karpenter spot interruption handling - wire into Helm values settings.interruptionQueue. Null if enable_karpenter_interruption_queue=false."
-  value       = var.enable_karpenter_interruption_queue ? aws_sqs_queue.karpenter_interruption[0].name : null
+  description = "SQS queue name for Karpenter spot interruption handling - wire into Helm values settings.interruptionQueue."
+  value       = aws_sqs_queue.karpenter_interruption.name
 }
 
 output "karpenter_node_instance_profile_name" {
