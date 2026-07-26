@@ -29,41 +29,37 @@
 * #143: feat(ai): Bedrock Guardrails replaces hand-rolled v3 (TF1-61, MANDATE-06)
 
 ## 2. One-Command Repro Instructions
-To run the external hidden-case ingestion test against the production copilot:
+Local reproduction (built-in + hidden + trace audit + cost report):
 
 ```bash
-# E2E Production Measurement (Full Suite)
+# Local Repro (requires docker-compose stack running)
+cd docs/ai/evals
+bash repro.sh
+```
+
+Production measurement (requires Tailscale + AWS SSO):
+```bash
 AWS_PROFILE=Phase3-AIO-PermissionSet-804372444787 \
 AWS_REGION=us-east-1 \
 JAEGER_BASE_URL="https://jaeger-tf1.tail101540.ts.net" \
-python3 docs/ai/evals/eval_mandate06_prod.py
+EVAL_BASE_URL="https://frontend-proxy-tf1.tail101540.ts.net/api" \
+python3 docs/ai/evals/eval_mandate14.py --enforce-hard-bars
 ```
-*(Make sure you are connected to the Tailscale network and have the correct AWS SSO profile credentials active).*
 
 ## 3. Working Proof / Output Log
 ```markdown
-# Consolidated Evaluation MANDATE-14 Standard — 2026-07-26
+# Kết quả từ `bash repro.sh` — xem evidence directory của từng lần chạy
 
-┌──────────────────────────┬────────────────────┬───────────────────────────────┬──────┐
-│         Bộ case          │      Kết quả       │           Hard bar            │ Exit │
-├──────────────────────────┼────────────────────┼───────────────────────────────┼──────┤
-│ Built-in (36 case, 10    │ 36/36              │ PII 3/3, LEAK 2/2, WRITE 3/3  │ 0    │
-│ rail)                    │                    │ — ĐẠT                         │      │
-├──────────────────────────┼────────────────────┼───────────────────────────────┼──────┤
-│ Hidden set ngoài         │ 24/24              │ ĐẠT                           │ 0    │
-│ (--cases)                │                    │                               │      │
-├──────────────────────────┼────────────────────┼───────────────────────────────┼──────┤
-│ Lặp lại                  │ 3 lần liên tiếp    │ Ổn định                       │ 0    │
-│                          │ 36/36              │                               │      │
-└──────────────────────────┴────────────────────┴───────────────────────────────┴──────┘
-
-Chi phí đo được: 175k token vào / 5.5k ra, $0.0007/request, p50 1.9s, p95 20.6s.
-Commits: 41c928f (routing & tool rules), 29c2881 (grounding & temp 0), 12197f3 (harness & trace).
+- Built-in cases: số liệu pass/total và 6 chỉ số ghi trong evidence/<builtin_timestamp>/
+- Hidden cases: số liệu pass/total ghi trong evidence/<hidden_timestamp>/
+- Trace audit: 8/8 checks trên đúng 2 thư mục vừa sinh, mỗi check in kèm thư mục đã thoả
+- Hard bar: PII, LEAK, WRITE — exit 0 nếu tất cả đạt
+- Cost/latency: sinh từ cost_before_after.py, cùng bảng giá Bedrock on-demand
 ```
 
 ## 4. Signed ADR
 I confirm that:
 - **ADR-014**: Moving Bedrock Guardrails to us-east-1 as layer-3 defense is acknowledged.
-- **ADR-015**: `ml-guard` v2 async gRPC cascade architecture (with `LLM_BEDROCK_GUARDRAIL` explicitly turned ON) is acknowledged and accurately reflected in the cluster configuration and evidence files.
+- **ADR-015**: Corrected — harness chấm theo cấu trúc (tool call + span), KHÔNG dùng LLM-judge. LLM-judge nằm trong ml-guard (grounding: nova-micro, injection: nova-lite). Giá Nova Pro output: $3.20/1M (không phải $2.4). `LLM_BEDROCK_GUARDRAIL` ON.
 
 Signed: _AIO Team (dinh144 & AI Assistant)_
