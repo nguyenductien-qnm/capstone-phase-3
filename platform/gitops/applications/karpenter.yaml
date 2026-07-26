@@ -22,9 +22,11 @@ spec:
       values: |
         settings:
           clusterName: ecommerce-dev-eks
-          # interruptionQueue thêm ở PR riêng, sau khi Terraform apply xong SQS queue
-          # (terraform/modules/eks/karpenter.tf: aws_sqs_queue.karpenter_interruption).
-          # Tránh selfHeal sync trước khi queue tồn tại.
+          # Yêu cầu: SQS queue (terraform/modules/eks/karpenter.tf:
+          # aws_sqs_queue.karpenter_interruption) đã apply thật trên sandbox
+          # trước khi merge PR này (PR #415 phải merge + terraform-apply chạy
+          # xong trước). Nếu chưa, selfHeal sync sẽ trỏ queue không tồn tại.
+          interruptionQueue: ecommerce-dev-eks-karpenter
         serviceAccount:
           create: true
           name: karpenter
