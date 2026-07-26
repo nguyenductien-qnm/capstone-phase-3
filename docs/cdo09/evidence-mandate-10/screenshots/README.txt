@@ -1,39 +1,52 @@
-Đặt ảnh chụp vào thư mục này, đúng tên file dưới đây.
-Lệnh chụp: HUONG-DAN-CHUP.md  ·  Tình trạng repo: ../AUDIT-DIRECTIVE-10.md
+ĐÃ CHỤP XONG PHẦN LỚN — cập nhật 26/07/2026.
 
-Chụp theo thứ tự A -> B -> C -> D. Mỗi nhóm là một lần ngồi.
+Chú thích từng ảnh: mỗi ảnh NN-*.png có file NN-*.md đi kèm ngay cạnh.
+Bảng tra nhanh toàn bộ 20 ảnh: INDEX.md
+Danh sách lệnh chụp (giữ lại để chụp bổ sung): HUONG-DAN-CHUP.md
 
-=== A · TĨNH (lúc nào cũng chụp được) ===
-  A1-ruleset.png              4 required status checks trên develop
-  A2-trivy-gate.png           severity CRITICAL,HIGH + exit-code 1
-  A3-ecr-immutable.png        imageTagMutability = IMMUTABLE
-  A4-cosign-verify.png        cosign verify + verify-attestation chạy thật
-  A5-build-scoped.png         CI run chỉ build service đổi
+=== ĐỐI CHIẾU KẾ HOẠCH CHỤP CŨ -> ẢNH THỰC TẾ ===
 
-=== B · KYVERNO TRƯỚC ENFORCE (chụp TRƯỚC khi merge!) ===
-  B1-pods-kyverno.png                4 pod Running + PDB ALLOWED DISRUPTIONS=1
-  B2-policyreport-sach.png           report PASS, FAIL=0
-  B3-truoc-unsigned-duoc-nhan.png    pod KHÔNG chữ ký vẫn được nhận    <- vế "trước"
-  B4-policy-audit.png                "Audit / Ignore"
-  B5-argocd-apps.png                 ArgoCD kyverno + kyverno-policies
+A · TĨNH
+  A1-ruleset              -> 15,16,17  ĐÃ CHỤP (3 required check, không phải 4:
+                                       "Unit tests" gộp 2 check cũ, xem PR #340)
+  A2-trivy-gate           -> CHƯA      bằng chứng dạng lệnh: app-build.yaml:485
+  A3-ecr-immutable        -> CHƯA
+  A4-cosign-verify        -> 20        gộp trong bảng trace provenance
+  A5-build-scoped         -> CHƯA      bằng chứng: app-build.yaml confirm_full+reason
 
-=== C · KYVERNO SAU ENFORCE (sau merge + sync techx-corp-root) ===
-  C1-sau-unsigned-bi-chan.png        pod KHÔNG chữ ký BỊ CHẶN    <- ẢNH GIÁ TRỊ NHẤT
-  C2-signed-van-tao-duoc.png         pod đã ký OK + image mutate @sha256
-  C3-policyreport-day-du.png         report phủ hết pod, kể cả aiops
-  C4-rollout-khong-ket.png           rollout restart frontend hoàn tất
-  C5-techx-corp-van-synced.png       autogen:none chặn vòng lặp drift
-  C6-do-tre-sau-enforce.png          so với baseline lúc Audit
-  C7-policy-enforce.png              "Enforce / Fail"
+B · KYVERNO TRƯỚC ENFORCE
+  B1-pods-kyverno         -> 01        ĐÃ CHỤP
+  B2-policyreport-sach    -> 02        ĐÃ CHỤP
+  B3-truoc-unsigned       -> 03        ĐÃ CHỤP  <- vế "trước"
+  B4-policy-audit         -> 04        ĐÃ CHỤP
+  B5-argocd-apps          -> 05,07     ĐÃ CHỤP
 
-=== D · BA BÀI KIỂM MENTOR BẤM NÚT ===
-  D1-ci-do-chan-merge.png     PR có CI đỏ -> nút Merge bị khoá
-  D2-admission-tu-choi.png    = C1, chụp 1 lần dùng 2 chỗ
-  D3-provenance-chain.png     chỉ vào pod -> truy ngược 6 mắt   <- CẦN provenance.sh
+C · KYVERNO SAU ENFORCE
+  C1-sau-unsigned-bi-chan -> 09        ĐÃ CHỤP  <- ẢNH GIÁ TRỊ NHẤT
+  C2-signed-van-tao-duoc  -> 10        ĐÃ CHỤP
+  C3-policyreport-day-du  -> 11        ĐÃ CHỤP
+  C4-rollout-khong-ket    -> 12        ĐÃ CHỤP
+  C5-techx-corp-synced    -> 13        ĐÃ CHỤP
+  C6-do-tre-sau-enforce   -> 14        ĐÃ CHỤP
+  C7-policy-enforce       -> 08        ĐÃ CHỤP
 
-CẶP QUAN TRỌNG NHẤT: B3 <-> C1
-Cùng một lệnh, hai kết quả trái ngược. Để cạnh nhau trong PR và video.
+D · BA BÀI KIỂM MENTOR
+  D1-ci-do-chan-merge     -> CHƯA      18 là PR XANH bị chặn vì out-of-date.
+                                       Vẫn cần ảnh PR CỐ TÌNH ĐỎ -> merge xám.
+  D2-admission-tu-choi    -> 09        ĐÃ CHỤP (dùng chung với C1)
+  D3-provenance-chain     -> 19,20     ĐÃ CHỤP — 8 mắt xích, hơn 6 mắt dự kiến.
+                                       provenance.sh đã thay bằng workflow
+                                       trace-image-provenance.yaml
 
-KHÔNG chụp được (repo chưa đạt — xem AUDIT):
-  YC2b IaC scan chưa chặn · YC2d không có SAST · YC4a action chưa pin SHA
-  YC4b base image chưa pin digest · YC5 chưa có provenance.sh (chặn D3)
+CẶP QUAN TRỌNG NHẤT: 03 <-> 09
+Cùng một manifest, cùng một cụm, chỉ khác chế độ policy.
+Kết quả lật từ "created" sang "blocked". Để cạnh nhau trong PR và video.
+
+=== CÒN THIẾU (tính năng chưa làm, không phải quên chụp) ===
+  YC2d  SAST      — grep 10 công cụ trên 13 workflow = 0 kết quả
+  YC2b  IaC gate  — infra-cd.yaml exit-code:"0" + soft_fail:true, chưa chặn
+
+=== ĐÃ XONG so với bản cũ (bản cũ ghi "chưa đạt") ===
+  YC4a  action pin SHA      — grep uses:@vX = 0 (PR #346)
+  YC4b  base image digest   — 57/57 dòng FROM có @sha256: (PR #377)
+  YC5   provenance          — workflow trace-image-provenance.yaml (PR #385)

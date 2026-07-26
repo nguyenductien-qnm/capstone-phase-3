@@ -27,7 +27,10 @@ resource "aws_security_group" "msk_connect" {
   vpc_id      = module.vpc.vpc_id
   description = "Security Group for MSK Connect Debezium connector"
 
+  # CKV_AWS_23: rule phải có description để người sau biết vì sao nó tồn tại.
+  # Egress mở là bắt buộc: connector cần gọi MSK, RDS, Secrets Manager và S3 (tải plugin).
   egress {
+    description = "Allow outbound to MSK, RDS, Secrets Manager and S3 plugin bucket"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
