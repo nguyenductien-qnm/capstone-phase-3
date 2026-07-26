@@ -4,7 +4,8 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 export EVAL_BASE_URL="${EVAL_BASE_URL:-http://localhost:8080/api}"
-export JAEGER_BASE_URL="${JAEGER_BASE_URL:-http://localhost:32772}"
+JAEGER_PORT=$(docker compose -f ../../../techx-corp-platform/docker-compose.yml port jaeger 16686 | cut -d: -f2 || echo 32772)
+export JAEGER_BASE_URL="${JAEGER_BASE_URL:-http://localhost:${JAEGER_PORT}}"
 
 echo "=== MANDATE-14 Reproducibility Script ==="
 

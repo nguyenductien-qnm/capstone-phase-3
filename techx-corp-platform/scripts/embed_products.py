@@ -82,17 +82,7 @@ def main():
     cursor = conn.cursor()
 
     # Ensure pgvector extension and table exist
-    cursor.execute("CREATE EXTENSION IF NOT EXISTS vector;")
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS catalog.product_embeddings_v2 (
-            product_id VARCHAR(255) PRIMARY KEY,
-            embedding vector(1024)
-        );
-    """)
-    cursor.execute("""
-        CREATE INDEX IF NOT EXISTS product_embeddings_v2_hnsw_idx 
-        ON catalog.product_embeddings_v2 USING hnsw (embedding vector_cosine_ops);
-    """)
+    # (Schema managed by init.sql, skipped here to avoid permission errors)
 
     logger.info("Fetching products from catalog.products...")
     cursor.execute("SELECT id, name, description, categories FROM catalog.products")

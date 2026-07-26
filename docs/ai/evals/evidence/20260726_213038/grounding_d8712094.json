@@ -1,0 +1,134 @@
+{
+  "category": "grounding",
+  "input": [
+    "Cho mình xem mấy cái ống ngắm sao được không?",
+    [
+      "search_products"
+    ],
+    "semantic-search-vn"
+  ],
+  "latency": 31.914170265197754,
+  "tokens": {
+    "input": 11171,
+    "output": 460,
+    "embedding": 4
+  },
+  "usd_cost": 0.0007804999999999999,
+  "embed_cost": 8e-08,
+  "passed": true,
+  "reason": "Tool ['search_products'] chạy ok, output rail không chặn",
+  "response": {
+    "response": "Here are a few telescopes available at TechX Corp:\n\n1. **Starsense Explorer Refractor Telescope**\n   - **Description:** The first telescope that uses your smartphone to analyze the night sky and calculate its position in real time. StarSense Explorer is ideal for beginners thanks to the app's user-friendly interface and detailed tutorials. It's like having your own personal tour guide of the night sky.\n   - **Price:** $349.95\n   - **Product ID:** 66VCHSJNUP\n\n2. **National Park Foundation Explorascope**\n   - **Description:** The National Park Foundation's (NPF) Explorascope 60AZ is a manual alt-azimuth, refractor telescope perfect for celestial viewing on the go. The NPF Explorascope 60 can view the planets, moon, star clusters and brighter deep sky objects like the Orion Nebula and Andromeda Galaxy.\n   - **Price:** $101.96\n   - **Product ID:** OLJCESPC7Z\n\n3. **Eclipsmart Travel Refractor Telescope**\n   - **Description:** Dedicated white-light solar scope for the observer on the go. The 50mm refracting solar scope uses Solar Safe, ISO compliant, full-aperture glass filter material to ensure the safest view of solar events. The kit comes complete with everything you need, including the dedicated travel solar scope, a Solar Safe finderscope, tripod, a high quality 20mm (18x) Kellner eyepiece and a nylon backpack to carry everything in. This Travel Solar Scope makes it easy to share the Sun as well as partial and total solar eclipses with the whole family and offers much higher magnifications than you would otherwise get using handheld solar viewers or binoculars.\n   - **Price:** $129.95\n   - **Product ID:** 1YMWWN1N4O\n\nWould you like more information on any of these telescopes?",
+    "actionsTaken": [
+      {
+        "toolName": "search_products",
+        "argumentsJson": "{\"category\": \"Telescopes\"}",
+        "succeeded": true,
+        "startedAtUnix": 1785076491,
+        "durationMs": 1452
+      }
+    ],
+    "degraded": false,
+    "traceId": "c9ce48142da023646131a9e4f28f9307",
+    "citations": [],
+    "traceSteps": [
+      {
+        "stepName": "Input Guardrail (PII/Prompt Guard)",
+        "latencyMs": 1003,
+        "status": "pass",
+        "detail": "{\"question\": \"Cho m\\u00ecnh xem m\\u1ea5y c\\u00e1i \\u1ed1ng ng\\u1eafm sao \\u0111\\u01b0\\u1ee3c kh\\u00f4ng?\", \"blocked\": false}"
+      },
+      {
+        "stepName": "Model Gateway & Bedrock Nova",
+        "latencyMs": 30861,
+        "status": "ok",
+        "detail": "{\"routed_model\": \"amazon.nova-lite-v1:0\"}"
+      },
+      {
+        "stepName": "LLM → gọi tool: search_products",
+        "latencyMs": 1137,
+        "status": "ok",
+        "detail": "{\"decided_tools\": [\"search_products\"], \"stop_reason\": \"tool_use\", \"reasoning\": \"<thinking>The user wants to see some telescopes. I need to call the `search_products` tool to find the relevant products in the catalog.</thinking>\"}"
+      },
+      {
+        "stepName": "Tool: search_products (Telescopes)",
+        "latencyMs": 1452,
+        "status": "ok",
+        "detail": "{\"args\": {\"category\": \"Telescopes\"}, \"succeeded\": true}"
+      },
+      {
+        "stepName": "LLM → trả lời trực tiếp",
+        "latencyMs": 3242,
+        "status": "ok",
+        "detail": "{\"decided_tools\": [], \"stop_reason\": \"end_turn\", \"reasoning\": \"Here are a few telescopes available at TechX Corp:\\n\\n1. **Starsense Explorer Refractor Telescope**\\n   - **Description:** The first telescope that uses your smartphone to analyze the night sky and calculate its position in real time. StarSense Explorer is ideal for beginners thanks to the app's user-friendly interface and detailed tutorials. It's like having your own personal tour guide of the night sky.\\n   - **Price:** $349.95\\n   - **Product ID:** 66VCHSJNUP\\n\\n2. **National Park Foundation Explorascope**\\n   - **Description:** The National Park Foundation's (NPF) Explorascope 60AZ is a manual alt-azimuth, refractor telescope perfect for celestial viewing on the go. The NPF Explorascope 60 can view the planets, moon, star clusters and brighter deep sky objects like the Orion Nebula and Andromeda Galaxy.\\n   - **Price:** $101.96\\n   - **Product ID:** OLJCESPC7Z\\n\\n3. **Eclipsmart Travel Refractor Telescope**\\n   - **Description:** Dedicated white-light solar scope for the observer on the go. The 50mm refracting solar scope uses Solar Safe, ISO compliant, full-aperture glass filter material to ensure the safest view of solar events. The kit comes complete with everything you need, including the dedicated travel solar scope, a Solar Safe finderscope, tripod, a high quality 20mm (18x) Kellner eyepiece and a nylon backpack to carry everything in. This Travel Solar Scope makes it easy to share the Sun as well as partial and total solar eclipses with the whole family and offers much higher m... [truncated]\"}"
+      },
+      {
+        "stepName": "Output Guardrail (Grounding)",
+        "latencyMs": 25009,
+        "status": "pass",
+        "detail": "{\"blocked\": false}"
+      }
+    ]
+  },
+  "spans": [
+    {
+      "name": "bedrock_converse",
+      "attributes": {
+        "gen_ai.request.model": "amazon.nova-lite-v1:0",
+        "gen_ai.response.finish_reason": "tool_use",
+        "gen_ai.usage.input_tokens": 5334,
+        "gen_ai.usage.output_tokens": 51
+      }
+    },
+    {
+      "name": "bedrock_embed",
+      "attributes": {
+        "gen_ai.request.model": "amazon.titan-embed-text-v2:0",
+        "gen_ai.usage.input_tokens": 4
+      }
+    },
+    {
+      "name": "guardrail_citation_validation",
+      "attributes": {
+        "guardrail.citation_valid": true
+      }
+    },
+    {
+      "name": "guardrail_output_grounding",
+      "attributes": {
+        "guardrail.blocked": false
+      }
+    },
+    {
+      "name": "tool_call",
+      "attributes": {
+        "tool.arguments": "{\"category\": \"Telescopes\"}",
+        "tool.name": "search_products",
+        "tool.result_preview": "{\"status\": \"ok\", \"count\": 3, \"products\": [{\"product_id\": \"66VCHSJNUP\", \"name\": \"Starsense Explorer Refractor Telescope\", \"price\": \"$349.95\", \"category\": \"telescopes\", \"description\": \"The first telescope that uses your smartphone to analyze the night sky and calculate its position in real time. StarS",
+        "tool.succeeded": true
+      }
+    },
+    {
+      "name": "guardrail_input",
+      "attributes": {
+        "guardrail.blocked": false
+      }
+    },
+    {
+      "name": "oteldemo.ProductCatalogService/SearchProducts",
+      "attributes": {
+        "app.products_search.count": 10,
+        "app.search.mode": "semantic"
+      }
+    },
+    {
+      "name": "bedrock_converse",
+      "attributes": {
+        "gen_ai.request.model": "amazon.nova-lite-v1:0",
+        "gen_ai.response.finish_reason": "end_turn",
+        "gen_ai.usage.input_tokens": 5833,
+        "gen_ai.usage.output_tokens": 409
+      }
+    }
+  ]
+}

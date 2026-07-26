@@ -498,17 +498,55 @@ func signAWSV4WithCreds(req *http.Request, body []byte, region, service, accessK
 	req.Header.Set("Authorization", authHeader)
 }
 
+func getLocalAWSCredentials() (string, string, string) {
+	ak := os.Getenv("AWS_ACCESS_KEY_ID")
+	sk := os.Getenv("AWS_SECRET_ACCESS_KEY")
+	st := os.Getenv("AWS_SESSION_TOKEN")
+	if ak != "" && sk != "" {
+		return ak, sk, st
+	}
+	credFile := os.Getenv("AWS_SHARED_CREDENTIALS_FILE")
+	if credFile == "" {
+		credFile = "/app/.aws/credentials"
+	}
+	content, err := os.ReadFile(credFile)
+	if err == nil {
+		lines := strings.Split(string(content), "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, "aws_access_key_id") {
+				parts := strings.SplitN(line, "=", 2)
+				if len(parts) == 2 {
+					ak = strings.TrimSpace(parts[1])
+				}
+			}
+			if strings.HasPrefix(line, "aws_secret_access_key") {
+				parts := strings.SplitN(line, "=", 2)
+				if len(parts) == 2 {
+					sk = strings.TrimSpace(parts[1])
+				}
+			}
+			if strings.HasPrefix(line, "aws_session_token") {
+				parts := strings.SplitN(line, "=", 2)
+				if len(parts) == 2 {
+					st = strings.TrimSpace(parts[1])
+				}
+			}
+		}
+	}
+	return ak, sk, st
+}
+
 func signAWSV4(req *http.Request, body []byte, region, service string) {
-	accessKey := os.Getenv("AWS_ACCESS_KEY_ID")
-	secretKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
-	sessionToken := os.Getenv("AWS_SESSION_TOKEN")
+	accessKey, secretKey, sessionToken := getLocalAWSCredentials()
 	signAWSV4WithCreds(req, body, region, service, accessKey, secretKey, sessionToken)
 }
 
 func getBedrockCredentials(ctx context.Context, region string) (string, string, string, error) {
 	roleArn := os.Getenv("BEDROCK_AWS_ROLE_ARN")
 	if roleArn == "" || roleArn == "<your-role-arn>" {
-		return os.Getenv("AWS_ACCESS_KEY_ID"), os.Getenv("AWS_SECRET_ACCESS_KEY"), os.Getenv("AWS_SESSION_TOKEN"), nil
+		ak, sk, st := getLocalAWSCredentials()
+		return ak, sk, st, nil
 	}
 
 	cachedCredsMutex.Lock()

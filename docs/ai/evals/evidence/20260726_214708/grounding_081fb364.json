@@ -1,0 +1,198 @@
+{
+  "category": "grounding",
+  "input": [
+    "Ống nhòm Roof Binoculars khách chấm mấy điểm?",
+    [
+      "search_products",
+      "get_product_reviews"
+    ],
+    "review-by-name"
+  ],
+  "latency": 26.067338228225708,
+  "tokens": {
+    "input": 19596,
+    "output": 522,
+    "embedding": 6
+  },
+  "usd_cost": 0.0013007999999999997,
+  "embed_cost": 1.2000000000000002e-07,
+  "passed": true,
+  "reason": "Tool ['search_products', 'get_product_reviews'] chạy ok, output rail không chặn",
+  "response": {
+    "response": "Ống nhòm Roof Binoculars có điểm trung bình là 4.4 sao dựa trên 5 đánh giá. Một số nhận xét từ khách hàng bao gồm:\n- \"Incredible clarity and brightness, perfect for bird watching. The ED glass really makes a difference. I can spot the subtlest markings.\" (5.0 sao)\n- \"These binoculars are fantastic for nature observation. The close focus is a huge advantage for viewing nearby wildlife. Very comfortable to hold.\" (4.5 sao)\n- \"Lightweight and durable, these are my go-to binoculars for hiking. The wide field of view is excellent. Highly recommend for outdoor enthusiasts.\" (4.0 sao)\n- \"Took these to a game and had an amazing view of the action. They perform great in various lighting conditions. A solid all-around binocular.\" (4.0 sao)\n- \"Excellent build quality and optical performance. They feel robust and provide sharp images. A great investment for any outdoor activity.\" (4.5 sao)",
+    "actionsTaken": [
+      {
+        "toolName": "search_products",
+        "argumentsJson": "{\"query\": \"Roof Binoculars\"}",
+        "succeeded": true,
+        "startedAtUnix": 1785077379,
+        "durationMs": 795
+      },
+      {
+        "toolName": "get_product_reviews",
+        "argumentsJson": "{\"product_id\": \"2ZYFJ3GM2N\"}",
+        "succeeded": true,
+        "startedAtUnix": 1785077381,
+        "durationMs": 109
+      }
+    ],
+    "degraded": false,
+    "traceId": "93131863194c9bb89c3ca9c0a916be01",
+    "citations": [
+      {
+        "reviewId": "bird_watcher",
+        "snippet": "Incredible clarity and brightness, perfect for bird watching. The ED glass really makes a difference. I can spot the subtlest markings.",
+        "score": "5.0"
+      },
+      {
+        "reviewId": "nature_lover",
+        "snippet": "These binoculars are fantastic for nature observation. The close focus is a huge advantage for viewing nearby wildlife. Very comfortable to hold.",
+        "score": "4.5"
+      },
+      {
+        "reviewId": "hiker_guy",
+        "snippet": "Lightweight and durable, these are my go-to binoculars for hiking. The wide field of view is excellent. Highly recommend for outdoor enthusiasts.",
+        "score": "4.0"
+      },
+      {
+        "reviewId": "stadium_fan",
+        "snippet": "Took these to a game and had an amazing view of the action. They perform great in various lighting conditions. A solid all-around binocular.",
+        "score": "4.0"
+      },
+      {
+        "reviewId": "outdoor_adventurer",
+        "snippet": "Excellent build quality and optical performance. They feel robust and provide sharp images. A great investment for any outdoor activity.",
+        "score": "4.5"
+      }
+    ],
+    "traceSteps": [
+      {
+        "stepName": "Input Guardrail (PII/Prompt Guard)",
+        "latencyMs": 955,
+        "status": "pass",
+        "detail": "{\"question\": \"\\u1ed0ng nh\\u00f2m Roof Binoculars kh\\u00e1ch ch\\u1ea5m m\\u1ea5y \\u0111i\\u1ec3m?\", \"blocked\": false}"
+      },
+      {
+        "stepName": "Model Gateway & Bedrock Nova",
+        "latencyMs": 25098,
+        "status": "ok",
+        "detail": "{\"routed_model\": \"amazon.nova-lite-v1:0\"}"
+      },
+      {
+        "stepName": "LLM → gọi tool: search_products",
+        "latencyMs": 1484,
+        "status": "ok",
+        "detail": "{\"decided_tools\": [\"search_products\"], \"stop_reason\": \"tool_use\", \"reasoning\": \"<thinking>Kh\\u00e1ch h\\u1ecfi v\\u1ec1 \\u0111\\u00e1nh gi\\u00e1 c\\u1ee7a s\\u1ea3n ph\\u1ea9m \\\"Roof Binoculars\\\". T\\u00f4i c\\u1ea7n g\\u1ecdi tool `search_products` \\u0111\\u1ec3 t\\u00ecm s\\u1ea3n ph\\u1ea9m n\\u00e0y v\\u00e0 l\\u1ea5y `product_id`, sau \\u0111\\u00f3 g\\u1ecdi `get_product_reviews` \\u0111\\u1ec3 l\\u1ea5y \\u0111\\u00e1nh gi\\u00e1.</thinking>\"}"
+      },
+      {
+        "stepName": "Tool: search_products (Roof Binoculars)",
+        "latencyMs": 795,
+        "status": "ok",
+        "detail": "{\"args\": {\"query\": \"Roof Binoculars\"}, \"succeeded\": true}"
+      },
+      {
+        "stepName": "LLM → gọi tool: get_product_reviews",
+        "latencyMs": 1355,
+        "status": "ok",
+        "detail": "{\"decided_tools\": [\"get_product_reviews\"], \"stop_reason\": \"tool_use\", \"reasoning\": \"<thinking>T\\u00f4i \\u0111\\u00e3 t\\u00ecm th\\u1ea5y s\\u1ea3n ph\\u1ea9m \\\"Roof Binoculars\\\" v\\u1edbi `product_id` l\\u00e0 \\\"2ZYFJ3GM2N\\\". B\\u00e2y gi\\u1edd t\\u00f4i s\\u1ebd g\\u1ecdi tool `get_product_reviews` \\u0111\\u1ec3 l\\u1ea5y \\u0111\\u00e1nh gi\\u00e1 cho s\\u1ea3n ph\\u1ea9m n\\u00e0y.</thinking>\"}"
+      },
+      {
+        "stepName": "Tool: get_product_reviews (2ZYFJ3GM2N)",
+        "latencyMs": 109,
+        "status": "ok",
+        "detail": "{\"args\": {\"product_id\": \"2ZYFJ3GM2N\"}, \"succeeded\": true}"
+      },
+      {
+        "stepName": "LLM → trả lời trực tiếp",
+        "latencyMs": 2538,
+        "status": "ok",
+        "detail": "{\"decided_tools\": [], \"stop_reason\": \"end_turn\", \"reasoning\": \"<thinking>T\\u00f4i \\u0111\\u00e3 l\\u1ea5y \\u0111\\u01b0\\u1ee3c \\u0111\\u00e1nh gi\\u00e1 cho s\\u1ea3n ph\\u1ea9m \\\"Roof Binoculars\\\". B\\u00e2y gi\\u1edd t\\u00f4i s\\u1ebd tr\\u1ea3 l\\u1eddi cho kh\\u00e1ch h\\u00e0ng.</thinking>\\n\\n\\u1ed0ng nh\\u00f2m Roof Binoculars c\\u00f3 \\u0111i\\u1ec3m trung b\\u00ecnh l\\u00e0 4.4 sao d\\u1ef1a tr\\u00ean 5 \\u0111\\u00e1nh gi\\u00e1. M\\u1ed9t s\\u1ed1 nh\\u1eadn x\\u00e9t t\\u1eeb kh\\u00e1ch h\\u00e0ng bao g\\u1ed3m:\\n- \\\"Incredible clarity and brightness, perfect for bird watching. The ED glass really makes a difference. I can spot the subtlest markings.\\\" (5.0 sao)\\n- \\\"These binoculars are fantastic for nature observation. The close focus is a huge advantage for viewing nearby wildlife. Very comfortable to hold.\\\" (4.5 sao)\\n- \\\"Lightweight and durable, these are my go-to binoculars for hiking. The wide field of view is excellent. Highly recommend for outdoor enthusiasts.\\\" (4.0 sao)\\n- \\\"Took these to a game and had an amazing view of the action. They perform great in various lighting conditions. A solid all-around binocular.\\\" (4.0 sao)\\n- \\\"Excellent build quality and optical performance. They feel robust and provide sharp images. A great investment for any outdoor activity.\\\" (4.5 sao)\"}"
+      },
+      {
+        "stepName": "Output Guardrail (Grounding)",
+        "latencyMs": 18811,
+        "status": "pass",
+        "detail": "{\"blocked\": false}"
+      }
+    ]
+  },
+  "spans": [
+    {
+      "name": "tool_call",
+      "attributes": {
+        "tool.arguments": "{\"query\": \"Roof Binoculars\"}",
+        "tool.name": "search_products",
+        "tool.result_preview": "{\"status\": \"ok\", \"count\": 10, \"products\": [{\"product_id\": \"2ZYFJ3GM2N\", \"name\": \"Roof Binoculars\", \"price\": \"$209.95\", \"category\": \"binoculars\", \"description\": \"This versatile, all-around binocular is a great choice for the trail, the stadium, the arena, or just about anywhere you want a close-up vi",
+        "tool.succeeded": true
+      }
+    },
+    {
+      "name": "bedrock_embed",
+      "attributes": {
+        "gen_ai.request.model": "amazon.titan-embed-text-v2:0",
+        "gen_ai.usage.input_tokens": 6
+      }
+    },
+    {
+      "name": "bedrock_converse",
+      "attributes": {
+        "gen_ai.request.model": "amazon.nova-lite-v1:0",
+        "gen_ai.response.finish_reason": "tool_use",
+        "gen_ai.usage.input_tokens": 6840,
+        "gen_ai.usage.output_tokens": 114
+      }
+    },
+    {
+      "name": "tool_call",
+      "attributes": {
+        "tool.arguments": "{\"product_id\": \"2ZYFJ3GM2N\"}",
+        "tool.name": "get_product_reviews",
+        "tool.result_preview": "{\"status\": \"ok\", \"product_id\": \"2ZYFJ3GM2N\", \"average_score\": 4.4, \"review_count\": 5, \"summary\": \"Incredible clarity and brightness, perfect for bird watching. The ED glass really makes a difference. I can spot the subtlest markings. | These binoculars are fantastic for nature observation. The close",
+        "tool.succeeded": true
+      }
+    },
+    {
+      "name": "bedrock_converse",
+      "attributes": {
+        "gen_ai.request.model": "amazon.nova-lite-v1:0",
+        "gen_ai.response.finish_reason": "end_turn",
+        "gen_ai.usage.input_tokens": 7412,
+        "gen_ai.usage.output_tokens": 297
+      }
+    },
+    {
+      "name": "guardrail_citation_validation",
+      "attributes": {
+        "guardrail.citation_valid": true
+      }
+    },
+    {
+      "name": "bedrock_converse",
+      "attributes": {
+        "gen_ai.request.model": "amazon.nova-lite-v1:0",
+        "gen_ai.response.finish_reason": "tool_use",
+        "gen_ai.usage.input_tokens": 5338,
+        "gen_ai.usage.output_tokens": 111
+      }
+    },
+    {
+      "name": "guardrail_input",
+      "attributes": {
+        "guardrail.blocked": false
+      }
+    },
+    {
+      "name": "oteldemo.ProductCatalogService/SearchProducts",
+      "attributes": {
+        "app.products_search.count": 10,
+        "app.search.mode": "semantic"
+      }
+    },
+    {
+      "name": "guardrail_output_grounding",
+      "attributes": {
+        "guardrail.blocked": false
+      }
+    }
+  ]
+}

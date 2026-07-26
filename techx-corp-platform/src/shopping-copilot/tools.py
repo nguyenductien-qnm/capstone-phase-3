@@ -244,17 +244,21 @@ def convert_currency(amount, from_code, to_code):
         return _error_json(str(e))
 
 
-def get_shipping_quote(items, address):
+def get_shipping_quote(items=None, address=None):
     try:
         SHIPPING_ADDR = os.environ.get("SHIPPING_ADDR", "http://shipping:50050")
         if not address:
-            address = {
-                "street_address": "1600 Amphitheatre Parkway",
-                "city": "Mountain View",
-                "state": "CA",
-                "country": "US",
-                "zip_code": "94043"
-            }
+            address = {}
+        default_address = {
+            "street_address": "1600 Amphitheatre Parkway",
+            "city": "Mountain View",
+            "state": "CA",
+            "country": "US",
+            "zip_code": "94043"
+        }
+        for k, v in default_address.items():
+            if k not in address or not address[k]:
+                address[k] = v
 
         is_estimate = False
         if not items:

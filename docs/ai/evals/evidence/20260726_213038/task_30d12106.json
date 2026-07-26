@@ -1,0 +1,367 @@
+{
+  "category": "task",
+  "input": [
+    "Có phụ kiện nào mua kèm với kính viễn vọng không?",
+    [
+      "search_products",
+      "list_recommendations"
+    ],
+    "task-cross-sell"
+  ],
+  "latency": 47.64619064331055,
+  "tokens": {
+    "input": 33414,
+    "output": 547,
+    "embedding": 55
+  },
+  "usd_cost": 0.028438699999999994,
+  "embed_cost": 1.1e-06,
+  "passed": true,
+  "reason": "All expected tools called successfully: ['search_products', 'list_recommendations']",
+  "response": {
+    "response": "Dưới đây là các phụ kiện được gợi ý mua kèm với kính viễn vọng:\n\n1. **Eclipsmart Travel Refractor Telescope** - $129.95\n2. **The Comet Book** - $0.99\n3. **Solar Filter** - $69.95\n4. **Lens Cleaning Kit** - $21.95\n5. **Solar System Color Imager** - $175.00\n\nBạn có muốn biết thêm chi tiết về bất kỳ sản phẩm nào trong danh sách không?",
+    "actionsTaken": [
+      {
+        "toolName": "search_products",
+        "argumentsJson": "{\"query\": \"k\\u00ednh vi\\u1ec5n v\\u1ecdng\"}",
+        "succeeded": true,
+        "startedAtUnix": 1785076866,
+        "durationMs": 1683
+      },
+      {
+        "toolName": "list_recommendations",
+        "argumentsJson": "{\"product_ids\": [\"66VCHSJNUP\"]}",
+        "succeeded": true,
+        "startedAtUnix": 1785076870,
+        "durationMs": 131
+      },
+      {
+        "toolName": "search_products",
+        "argumentsJson": "{\"query\": \"1YMWWN1N4O\"}",
+        "succeeded": true,
+        "startedAtUnix": 1785076872,
+        "durationMs": 2105
+      },
+      {
+        "toolName": "search_products",
+        "argumentsJson": "{\"query\": \"HQTGWGPNH4\"}",
+        "succeeded": true,
+        "startedAtUnix": 1785076874,
+        "durationMs": 2016
+      },
+      {
+        "toolName": "search_products",
+        "argumentsJson": "{\"query\": \"6E92ZMYYFZ\"}",
+        "succeeded": true,
+        "startedAtUnix": 1785076876,
+        "durationMs": 1531
+      },
+      {
+        "toolName": "search_products",
+        "argumentsJson": "{\"query\": \"L9ECAV7KIM\"}",
+        "succeeded": true,
+        "startedAtUnix": 1785076878,
+        "durationMs": 2676
+      },
+      {
+        "toolName": "search_products",
+        "argumentsJson": "{\"query\": \"0PUK6V6EV0\"}",
+        "succeeded": true,
+        "startedAtUnix": 1785076880,
+        "durationMs": 2356
+      }
+    ],
+    "degraded": false,
+    "traceId": "f08e39dd7c34fc2c97ddb73a92ec03e3",
+    "citations": [],
+    "traceSteps": [
+      {
+        "stepName": "Input Guardrail (PII/Prompt Guard)",
+        "latencyMs": 1130,
+        "status": "pass",
+        "detail": "{\"question\": \"C\\u00f3 ph\\u1ee5 ki\\u1ec7n n\\u00e0o mua k\\u00e8m v\\u1edbi k\\u00ednh vi\\u1ec5n v\\u1ecdng kh\\u00f4ng?\", \"blocked\": false}"
+      },
+      {
+        "stepName": "Model Gateway & Bedrock Nova",
+        "latencyMs": 46440,
+        "status": "ok",
+        "detail": "{\"routed_model\": \"amazon.nova-pro-v1:0\"}"
+      },
+      {
+        "stepName": "LLM → gọi tool: search_products",
+        "latencyMs": 2368,
+        "status": "ok",
+        "detail": "{\"decided_tools\": [\"search_products\"], \"stop_reason\": \"tool_use\", \"reasoning\": \"<thinking> \\u0110\\u1ec3 t\\u00ecm ph\\u1ee5 ki\\u1ec7n mua k\\u00e8m v\\u1edbi k\\u00ednh vi\\u1ec5n v\\u1ecdng, t\\u00f4i c\\u1ea7n bi\\u1ebft product_id c\\u1ee7a k\\u00ednh vi\\u1ec5n v\\u1ecdng. T\\u00f4i s\\u1ebd g\\u1ecdi search_products \\u0111\\u1ec3 t\\u00ecm ki\\u1ebfm k\\u00ednh vi\\u1ec5n v\\u1ecdng, sau \\u0111\\u00f3 s\\u1eed d\\u1ee5ng product_id \\u0111\\u00f3 \\u0111\\u1ec3 g\\u1ecdi list_recommendations. </thinking>\"}"
+      },
+      {
+        "stepName": "Tool: search_products (kính viễn vọng)",
+        "latencyMs": 1683,
+        "status": "ok",
+        "detail": "{\"args\": {\"query\": \"k\\u00ednh vi\\u1ec5n v\\u1ecdng\"}, \"succeeded\": true}"
+      },
+      {
+        "stepName": "LLM → gọi tool: list_recommendations",
+        "latencyMs": 1745,
+        "status": "ok",
+        "detail": "{\"decided_tools\": [\"list_recommendations\"], \"stop_reason\": \"tool_use\", \"reasoning\": \"<thinking> T\\u00f4i \\u0111\\u00e3 l\\u1ea5y \\u0111\\u01b0\\u1ee3c danh s\\u00e1ch c\\u00e1c k\\u00ednh vi\\u1ec5n v\\u1ecdng t\\u1eeb search_products. T\\u00f4i s\\u1ebd s\\u1eed d\\u1ee5ng product_id c\\u1ee7a k\\u00ednh vi\\u1ec5n v\\u1ecdng \\u0111\\u1ea7u ti\\u00ean trong danh s\\u00e1ch \\u0111\\u1ec3 g\\u1ecdi list_recommendations. </thinking>\"}"
+      },
+      {
+        "stepName": "Tool: list_recommendations",
+        "latencyMs": 131,
+        "status": "ok",
+        "detail": "{\"args\": {\"product_ids\": [\"66VCHSJNUP\"]}, \"succeeded\": true}"
+      },
+      {
+        "stepName": "LLM → gọi tool: search_products, search_products, search_products, search_products, search_products",
+        "latencyMs": 2150,
+        "status": "ok",
+        "detail": "{\"decided_tools\": [\"search_products\", \"search_products\", \"search_products\", \"search_products\", \"search_products\"], \"stop_reason\": \"tool_use\", \"reasoning\": \"<thinking> T\\u00f4i \\u0111\\u00e3 l\\u1ea5y \\u0111\\u01b0\\u1ee3c danh s\\u00e1ch c\\u00e1c s\\u1ea3n ph\\u1ea9m \\u0111\\u01b0\\u1ee3c g\\u1ee3i \\u00fd mua k\\u00e8m v\\u1edbi k\\u00ednh vi\\u1ec5n v\\u1ecdng. T\\u00f4i s\\u1ebd l\\u1ea5y th\\u00f4ng tin v\\u1ec1 c\\u00e1c s\\u1ea3n ph\\u1ea9m n\\u00e0y t\\u1eeb search_products. </thinking>\"}"
+      },
+      {
+        "stepName": "Tool: search_products (1YMWWN1N4O)",
+        "latencyMs": 2105,
+        "status": "ok",
+        "detail": "{\"args\": {\"query\": \"1YMWWN1N4O\"}, \"succeeded\": true}"
+      },
+      {
+        "stepName": "Tool: search_products (HQTGWGPNH4)",
+        "latencyMs": 2016,
+        "status": "ok",
+        "detail": "{\"args\": {\"query\": \"HQTGWGPNH4\"}, \"succeeded\": true}"
+      },
+      {
+        "stepName": "Tool: search_products (6E92ZMYYFZ)",
+        "latencyMs": 1531,
+        "status": "ok",
+        "detail": "{\"args\": {\"query\": \"6E92ZMYYFZ\"}, \"succeeded\": true}"
+      },
+      {
+        "stepName": "Tool: search_products (L9ECAV7KIM)",
+        "latencyMs": 2676,
+        "status": "ok",
+        "detail": "{\"args\": {\"query\": \"L9ECAV7KIM\"}, \"succeeded\": true}"
+      },
+      {
+        "stepName": "Tool: search_products (0PUK6V6EV0)",
+        "latencyMs": 2356,
+        "status": "ok",
+        "detail": "{\"args\": {\"query\": \"0PUK6V6EV0\"}, \"succeeded\": true}"
+      },
+      {
+        "stepName": "LLM → trả lời trực tiếp",
+        "latencyMs": 2643,
+        "status": "ok",
+        "detail": "{\"decided_tools\": [], \"stop_reason\": \"end_turn\", \"reasoning\": \"D\\u01b0\\u1edbi \\u0111\\u00e2y l\\u00e0 c\\u00e1c ph\\u1ee5 ki\\u1ec7n \\u0111\\u01b0\\u1ee3c g\\u1ee3i \\u00fd mua k\\u00e8m v\\u1edbi k\\u00ednh vi\\u1ec5n v\\u1ecdng:\\n\\n1. **Eclipsmart Travel Refractor Telescope** - $129.95\\n2. **The Comet Book** - $0.99\\n3. **Solar Filter** - $69.95\\n4. **Lens Cleaning Kit** - $21.95\\n5. **Solar System Color Imager** - $175.00\\n\\nB\\u1ea1n c\\u00f3 mu\\u1ed1n bi\\u1ebft th\\u00eam chi ti\\u1ebft v\\u1ec1 b\\u1ea5t k\\u1ef3 s\\u1ea3n ph\\u1ea9m n\\u00e0o trong danh s\\u00e1ch kh\\u00f4ng?\"}"
+      },
+      {
+        "stepName": "Output Guardrail (Grounding)",
+        "latencyMs": 25005,
+        "status": "pass",
+        "detail": "{\"blocked\": false}"
+      }
+    ]
+  },
+  "spans": [
+    {
+      "name": "oteldemo.ProductCatalogService/SearchProducts",
+      "attributes": {
+        "app.products_search.count": 10,
+        "app.search.mode": "semantic"
+      }
+    },
+    {
+      "name": "tool_call",
+      "attributes": {
+        "tool.arguments": "{\"query\": \"6E92ZMYYFZ\"}",
+        "tool.name": "search_products",
+        "tool.result_preview": "{\"status\": \"ok\", \"count\": 10, \"products\": [{\"product_id\": \"OLJCESPC7Z\", \"name\": \"National Park Foundation Explorascope\", \"price\": \"$101.96\", \"category\": \"telescopes\", \"description\": \"The National Park Foundation's (NPF) Explorascope 60AZ is a manual alt-azimuth, refractor telescope perfect for celes",
+        "tool.succeeded": true
+      }
+    },
+    {
+      "name": "bedrock_embed",
+      "attributes": {
+        "gen_ai.request.model": "amazon.titan-embed-text-v2:0",
+        "gen_ai.usage.input_tokens": 9
+      }
+    },
+    {
+      "name": "tool_call",
+      "attributes": {
+        "tool.arguments": "{\"query\": \"0PUK6V6EV0\"}",
+        "tool.name": "search_products",
+        "tool.result_preview": "{\"status\": \"ok\", \"count\": 10, \"products\": [{\"product_id\": \"OLJCESPC7Z\", \"name\": \"National Park Foundation Explorascope\", \"price\": \"$101.96\", \"category\": \"telescopes\", \"description\": \"The National Park Foundation's (NPF) Explorascope 60AZ is a manual alt-azimuth, refractor telescope perfect for celes",
+        "tool.succeeded": true
+      }
+    },
+    {
+      "name": "tool_call",
+      "attributes": {
+        "tool.arguments": "{\"query\": \"HQTGWGPNH4\"}",
+        "tool.name": "search_products",
+        "tool.result_preview": "{\"status\": \"ok\", \"count\": 10, \"products\": [{\"product_id\": \"OLJCESPC7Z\", \"name\": \"National Park Foundation Explorascope\", \"price\": \"$101.96\", \"category\": \"telescopes\", \"description\": \"The National Park Foundation's (NPF) Explorascope 60AZ is a manual alt-azimuth, refractor telescope perfect for celes",
+        "tool.succeeded": true
+      }
+    },
+    {
+      "name": "oteldemo.ProductCatalogService/SearchProducts",
+      "attributes": {
+        "app.products_search.count": 10,
+        "app.search.mode": "semantic"
+      }
+    },
+    {
+      "name": "bedrock_converse",
+      "attributes": {
+        "gen_ai.request.model": "amazon.nova-pro-v1:0",
+        "gen_ai.response.finish_reason": "tool_use",
+        "gen_ai.usage.input_tokens": 7050,
+        "gen_ai.usage.output_tokens": 156
+      }
+    },
+    {
+      "name": "bedrock_converse",
+      "attributes": {
+        "gen_ai.request.model": "amazon.nova-pro-v1:0",
+        "gen_ai.response.finish_reason": "end_turn",
+        "gen_ai.usage.input_tokens": 14113,
+        "gen_ai.usage.output_tokens": 156
+      }
+    },
+    {
+      "name": "guardrail_input",
+      "attributes": {
+        "guardrail.blocked": false
+      }
+    },
+    {
+      "name": "oteldemo.ProductCatalogService/SearchProducts",
+      "attributes": {
+        "app.products_search.count": 10,
+        "app.search.mode": "semantic"
+      }
+    },
+    {
+      "name": "oteldemo.ProductCatalogService/SearchProducts",
+      "attributes": {
+        "app.products_search.count": 10,
+        "app.search.mode": "semantic"
+      }
+    },
+    {
+      "name": "tool_call",
+      "attributes": {
+        "tool.arguments": "{\"query\": \"k\\u00ednh vi\\u1ec5n v\\u1ecdng\"}",
+        "tool.name": "search_products",
+        "tool.result_preview": "{\"status\": \"ok\", \"count\": 10, \"products\": [{\"product_id\": \"LS4PSXUNUM\", \"name\": \"Red Flashlight\", \"price\": \"$57.08\", \"category\": \"accessories\", \"description\": \"This 3-in-1 device features a 3-mode red flashlight, a hand warmer, and a portable power bank for recharging your personal electronics on th",
+        "tool.succeeded": true
+      }
+    },
+    {
+      "name": "bedrock_embed",
+      "attributes": {
+        "gen_ai.request.model": "amazon.titan-embed-text-v2:0",
+        "gen_ai.usage.input_tokens": 9
+      }
+    },
+    {
+      "name": "oteldemo.ProductCatalogService/SearchProducts",
+      "attributes": {
+        "app.products_search.count": 10,
+        "app.search.mode": "semantic"
+      }
+    },
+    {
+      "name": "oteldemo.ProductCatalogService/SearchProducts",
+      "attributes": {
+        "app.products_search.count": 10,
+        "app.search.mode": "semantic"
+      }
+    },
+    {
+      "name": "guardrail_output_grounding",
+      "attributes": {
+        "guardrail.blocked": false
+      }
+    },
+    {
+      "name": "tool_call",
+      "attributes": {
+        "tool.arguments": "{\"query\": \"1YMWWN1N4O\"}",
+        "tool.name": "search_products",
+        "tool.result_preview": "{\"status\": \"ok\", \"count\": 10, \"products\": [{\"product_id\": \"OLJCESPC7Z\", \"name\": \"National Park Foundation Explorascope\", \"price\": \"$101.96\", \"category\": \"telescopes\", \"description\": \"The National Park Foundation's (NPF) Explorascope 60AZ is a manual alt-azimuth, refractor telescope perfect for celes",
+        "tool.succeeded": true
+      }
+    },
+    {
+      "name": "bedrock_converse",
+      "attributes": {
+        "gen_ai.request.model": "amazon.nova-pro-v1:0",
+        "gen_ai.response.finish_reason": "tool_use",
+        "gen_ai.usage.input_tokens": 6858,
+        "gen_ai.usage.output_tokens": 106
+      }
+    },
+    {
+      "name": "bedrock_embed",
+      "attributes": {
+        "gen_ai.request.model": "amazon.titan-embed-text-v2:0",
+        "gen_ai.usage.input_tokens": 8
+      }
+    },
+    {
+      "name": "guardrail_citation_validation",
+      "attributes": {
+        "guardrail.citation_valid": true
+      }
+    },
+    {
+      "name": "bedrock_converse",
+      "attributes": {
+        "gen_ai.request.model": "amazon.nova-pro-v1:0",
+        "gen_ai.response.finish_reason": "tool_use",
+        "gen_ai.usage.input_tokens": 5338,
+        "gen_ai.usage.output_tokens": 129
+      }
+    },
+    {
+      "name": "bedrock_embed",
+      "attributes": {
+        "gen_ai.request.model": "amazon.titan-embed-text-v2:0",
+        "gen_ai.usage.input_tokens": 9
+      }
+    },
+    {
+      "name": "bedrock_embed",
+      "attributes": {
+        "gen_ai.request.model": "amazon.titan-embed-text-v2:0",
+        "gen_ai.usage.input_tokens": 11
+      }
+    },
+    {
+      "name": "bedrock_embed",
+      "attributes": {
+        "gen_ai.request.model": "amazon.titan-embed-text-v2:0",
+        "gen_ai.usage.input_tokens": 9
+      }
+    },
+    {
+      "name": "tool_call",
+      "attributes": {
+        "tool.arguments": "{\"query\": \"L9ECAV7KIM\"}",
+        "tool.name": "search_products",
+        "tool.result_preview": "{\"status\": \"ok\", \"count\": 10, \"products\": [{\"product_id\": \"0PUK6V6EV0\", \"name\": \"Solar System Color Imager\", \"price\": \"$175.00\", \"category\": \"accessories\", \"description\": \"You have your new telescope and have observed Saturn and Jupiter. Now you're ready to take the next step and start imaging them.",
+        "tool.succeeded": true
+      }
+    },
+    {
+      "name": "tool_call",
+      "attributes": {
+        "tool.arguments": "{\"product_ids\": [\"66VCHSJNUP\"]}",
+        "tool.name": "list_recommendations",
+        "tool.result_preview": "{\"status\": \"ok\", \"recommended_product_ids\": [\"1YMWWN1N4O\", \"HQTGWGPNH4\", \"6E92ZMYYFZ\", \"L9ECAV7KIM\", \"0PUK6V6EV0\"]}",
+        "tool.succeeded": true
+      }
+    }
+  ]
+}

@@ -8,7 +8,6 @@ This report formally concludes the execution of MANDATE-14 for the TechX Corp Sh
 * **Performance & Reliability Improvements (Phase 1):**
   * Upgraded `SimpleConnectionPool` to `ThreadedConnectionPool` in `product-reviews/database.py` and added connection pooling to `recommendation_server.py`, resolving connection exhaustion under concurrent load.
   * Successfully initialized semantic search vector databases and ensured robust retrieval via `Amazon Titan Text Embeddings`.
-  * Resolved HTTP 500 errors caused by service startup ordering (dependent services not yet ready when copilot boots).
 * **Automated Evaluation Harness (Phase 2 & 3):**
   * Created a structural automated test suite (`docs/ai/evals/eval_mandate14.py`) running against the Copilot's `/api/copilot` endpoint.
   * The harness scores by examining `actionsTaken` (tool calls + `succeeded` flag), OpenTelemetry spans (`guardrail.blocked`, `app.search.mode`, `gen_ai.usage.*`), and citations — it does NOT use LLM-as-a-judge.
