@@ -29,13 +29,23 @@ spec:
         # minValues bỏ: mỗi NodeClaim launch chỉ pin 1 AZ cụ thể, minValues>=2 trên key
         # zone reject 100% mọi launch thật (đã xác nhận bằng A/B test 2 NodePool). Việc
         # trải AZ để lại cho pod topologySpreadConstraint (zone, maxSkew=1, DoNotSchedule).
+        #
+        # us-east-1a tạm loại: subnet-0b59ee6ca01796a39 bị fragment, ipamd không xin nổi
+        # prefix /28 liên tục cho ENI mới (AssignPrivateIpAddresses -> InsufficientCidrBlocks,
+        # xác nhận qua CloudTrail, 100% fail trên 1a trong khi 1c cấp prefix bình thường).
+        # Node mới launch vào 1a bị kẹt FailedCreatePodSandBox vô thời hạn. Mở lại sau khi có
+        # subnet 1a sạch thay thế (theo dõi task riêng, không phải scope Karpenter).
         - key: topology.kubernetes.io/zone
           operator: In
-          values: ["us-east-1a", "us-east-1b", "us-east-1c"]
+          values: ["us-east-1b", "us-east-1c"]
       nodeClassRef:
         group: karpenter.k8s.aws
         kind: EC2NodeClass
         name: default
+      # Ép recycle định kỳ để node kéo AMI mới (AL2023 patch OS/kernel) — không có
+      # cái này, node sống lâu chạy AMI cũ vô thời hạn trừ khi consolidation tình
+      # cờ trigger. Pattern khớp TF3 (168h).
+      expireAfter: 168h
       terminationGracePeriod: 24h
   limits:
     cpu: "16"

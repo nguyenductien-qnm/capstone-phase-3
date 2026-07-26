@@ -18,7 +18,7 @@ spec:
           clusterName: ecommerce-develop-dev-eks
           # MANDATE-13: ten phai khop output karpenter_interruption_queue_name
           # cua module terraform/modules/eks (aws_sqs_queue.karpenter_interruption).
-          interruptionQueue: ecommerce-develop-dev-eks-karpenter-interruption
+          interruptionQueue: ecommerce-develop-dev-eks-karpenter
         serviceAccount:
           create: true
           name: karpenter

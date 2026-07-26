@@ -163,21 +163,15 @@ data "aws_iam_policy_document" "karpenter_controller" {
     }
   }
 
-  # MANDATE-13: cho phep controller poll SQS interruption queue duoi (chi khi
-  # enable_karpenter_interruption_queue=true o environment nay).
-  dynamic "statement" {
-    for_each = var.enable_karpenter_interruption_queue ? [1] : []
-    content {
-      sid    = "InterruptionQueue"
-      effect = "Allow"
-      actions = [
-        "sqs:DeleteMessage",
-        "sqs:GetQueueAttributes",
-        "sqs:GetQueueUrl",
-        "sqs:ReceiveMessage",
-      ]
-      resources = [aws_sqs_queue.karpenter_interruption[0].arn]
-    }
+  statement {
+    sid       = "AllowInterruptionQueueActions"
+    effect    = "Allow"
+    resources = [aws_sqs_queue.karpenter_interruption.arn]
+    actions = [
+      "sqs:DeleteMessage",
+      "sqs:GetQueueUrl",
+      "sqs:ReceiveMessage",
+    ]
   }
 }
 
@@ -194,92 +188,105 @@ resource "aws_eks_pod_identity_association" "karpenter_controller" {
   role_arn        = aws_iam_role.karpenter_controller.arn
 }
 
+# Spot capacity: AWS account cần AWSServiceRoleForEC2Spot tồn tại trước khi
+# CreateFleet với capacity-type=spot chạy được. Controller không tự tạo được
+# (thiếu iam:CreateServiceLinkedRole trong policy), nên khai báo tường minh ở đây.
+resource "aws_iam_service_linked_role" "spot" {
+  aws_service_name = "spot.amazonaws.com"
+}
+
 resource "aws_ec2_tag" "karpenter_cluster_security_group_discovery" {
   resource_id = aws_eks_cluster.this.vpc_config[0].cluster_security_group_id
   key         = "karpenter.sh/discovery"
   value       = local.cluster_name
 }
 
-# MANDATE-13: AWS chi bao truoc 2 phut khi thu hoi 1 spot instance (Spot
-# Interruption Warning). Khong co gi chu dong doc canh bao nay thi Kubernetes
-# chi phat hien node mat qua kubelet heartbeat timeout (~40s) + pod-eviction-
-# timeout (~5 phut) -- lau hon nhieu so voi cua so 2 phut that, request tren
-# node coi nhu rot. EventBridge day 3 loai canh bao lien quan vao SQS; Karpenter
-# (settings.interruptionQueue) poll queue nay de chu dong cordon+drain truoc.
-#
-# Gate boi enable_karpenter_interruption_queue: shared module nay dung chung
-# boi develop + sandbox, resource nay chi can cho environment dang lam
-# MANDATE-13 (develop) — khong duoc tao moi trong plan cua environment khac
-# (environment-isolation-execution-guide §Case T3).
+# Spot capacity: Karpenter cần nhận cảnh báo interruption (spot reclaim, rebalance
+# recommendation, instance state change...) trước khi AWS thu hồi instance, để kịp
+# drain pod graceful thay vì mất đột ngột. Không có queue này thì NodePool dùng
+# capacity-type=spot vẫn launch được nhưng mất khả năng graceful shutdown.
 resource "aws_sqs_queue" "karpenter_interruption" {
-  count                     = var.enable_karpenter_interruption_queue ? 1 : 0
-  name                      = "${local.cluster_name}-karpenter-interruption"
-  message_retention_seconds = 300 # su kien chi con y nghia trong vai phut
+  name                      = "${local.cluster_name}-karpenter"
+  message_retention_seconds = 300
   sqs_managed_sse_enabled   = true
 
   tags = {
-    Name = "${local.cluster_name}-karpenter-interruption"
+    Name = "${local.cluster_name}-karpenter"
+  }
+
+  lifecycle {
+    ignore_changes = [tags["karpenter.sh/discovery"]]
   }
 }
 
 data "aws_iam_policy_document" "karpenter_interruption_queue" {
-  count = var.enable_karpenter_interruption_queue ? 1 : 0
-
   statement {
-    sid     = "AllowEventBridgeRules"
-    effect  = "Allow"
-    actions = ["sqs:SendMessage"]
+    sid       = "AllowEventBridgeToSendMessages"
+    effect    = "Allow"
+    actions   = ["sqs:SendMessage"]
+    resources = [aws_sqs_queue.karpenter_interruption.arn]
 
     principals {
       type        = "Service"
-      identifiers = ["events.amazonaws.com"]
+      identifiers = ["events.amazonaws.com", "sqs.amazonaws.com"]
+    }
+  }
+
+  statement {
+    sid       = "DenyHTTP"
+    effect    = "Deny"
+    actions   = ["sqs:*"]
+    resources = [aws_sqs_queue.karpenter_interruption.arn]
+
+    principals {
+      type        = "*"
+      identifiers = ["*"]
     }
 
-    resources = [aws_sqs_queue.karpenter_interruption[0].arn]
-
     condition {
-      test     = "ArnEquals"
-      variable = "aws:SourceArn"
-      values   = [aws_cloudwatch_event_rule.karpenter_interruption[0].arn]
-    }
-
-    condition {
-      test     = "StringEquals"
-      variable = "aws:SourceAccount"
-      values   = [data.aws_caller_identity.current.account_id]
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
     }
   }
 }
 
 resource "aws_sqs_queue_policy" "karpenter_interruption" {
-  count     = var.enable_karpenter_interruption_queue ? 1 : 0
-  queue_url = aws_sqs_queue.karpenter_interruption[0].id
-  policy    = data.aws_iam_policy_document.karpenter_interruption_queue[0].json
+  queue_url = aws_sqs_queue.karpenter_interruption.id
+  policy    = data.aws_iam_policy_document.karpenter_interruption_queue.json
 }
 
 resource "aws_cloudwatch_event_rule" "karpenter_interruption" {
-  count       = var.enable_karpenter_interruption_queue ? 1 : 0
-  name        = "${local.cluster_name}-karpenter-interruption"
-  description = "Karpenter spot interruption: Spot Interruption Warning + Rebalance Recommendation + Instance State-change"
-  event_pattern = jsonencode({
-    source = ["aws.ec2"]
-    detail-type = [
-      "EC2 Spot Interruption Warning",
-      "EC2 Instance Rebalance Recommendation",
-      "EC2 Instance State-change Notification",
-    ]
-  })
-
-  tags = {
-    Name = "${local.cluster_name}-karpenter-interruption"
+  for_each = {
+    scheduled_change = {
+      source      = ["aws.health"]
+      detail-type = ["AWS Health Event"]
+    }
+    spot_interruption = {
+      source      = ["aws.ec2"]
+      detail-type = ["EC2 Spot Instance Interruption Warning"]
+    }
+    rebalance = {
+      source      = ["aws.ec2"]
+      detail-type = ["EC2 Instance Rebalance Recommendation"]
+    }
+    instance_state_change = {
+      source      = ["aws.ec2"]
+      detail-type = ["EC2 Instance State-change Notification"]
+    }
+    capacity_reservation_interruption = {
+      source      = ["aws.ec2"]
+      detail-type = ["EC2 Capacity Reservation Instance Interruption Warning"]
+    }
   }
+
+  name          = "${local.cluster_name}-karpenter-${each.key}"
+  event_pattern = jsonencode(each.value)
 }
 
 resource "aws_cloudwatch_event_target" "karpenter_interruption" {
-  count     = var.enable_karpenter_interruption_queue ? 1 : 0
-  rule      = aws_cloudwatch_event_rule.karpenter_interruption[0].name
-  target_id = "karpenter-interruption-queue"
-  arn       = aws_sqs_queue.karpenter_interruption[0].arn
+  for_each = aws_cloudwatch_event_rule.karpenter_interruption
 
-  depends_on = [aws_sqs_queue_policy.karpenter_interruption]
+  rule = each.value.name
+  arn  = aws_sqs_queue.karpenter_interruption.arn
 }
