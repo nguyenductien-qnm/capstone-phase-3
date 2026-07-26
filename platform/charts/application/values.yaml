@@ -550,8 +550,31 @@ components:
   # Dedicated background MSK Kafka Worker
   cart-consumer-worker:
     enabled: true
-    imageOverride:
-      tag: "1.1-cart-ae89fa2" # Same image as cart API
+    imageOverride: {}
+    initContainers:
+      - name: wait-for-valkey-cart
+        image: busybox:1.38.0
+        env:
+          - name: VALKEY_ADDR
+            valueFrom:
+              secretKeyRef:
+                name: valkey-secret
+                key: address
+        command: ["sh", "-c", "HOST=$(echo \"$VALKEY_ADDR\" | cut -d: -f1); PORT=$(echo \"$VALKEY_ADDR\" | cut -d: -f2); until nc -z -v -w30 \"$HOST\" \"$PORT\"; do echo waiting for valkey-cart; sleep 2; done;"]
+        securityContext:
+          runAsUser: 1000
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 50m
+            memory: 32Mi
     securityContext:
       allowPrivilegeEscalation: false
       runAsNonRoot: true
