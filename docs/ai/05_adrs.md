@@ -417,6 +417,7 @@ MANDATE-07 yêu cầu hệ thống tự phát hiện bất thường trên nhi�
 - **EWMA α=0.2 (spec TF1-49 gốc):** phản ứng có trọng số theo thời gian, tốt hơn rolling-mean với drift chậm. CHƯA thay vì cần backtest trên ≥24h dữ liệu Prometheus EKS thật để chọn α có căn cứ (kế hoạch `#7b`, TF1-71); rolling 3σ hiện tại cùng họ SPC, đơn giản, đủ cho sàn univariate của đề. → Defer sang #7b, không phải reject.
   - **Trạng thái tính đến 2026-07-27 — EWMA VẪN CHƯA CÓ TRONG CODE.** `git grep -i ewma aiops/**/*.py` trên `develop` trả về **rỗng**: `detector.py` vẫn là SMA + 3σ trên cửa sổ trượt 30 mẫu. PR #257 (`feat/TF1-95-implement-EWMA`) còn **OPEN và CONFLICTING**, cập nhật lần cuối 21/07. Ghi rõ ở đây vì đúng ba tài liệu khác từng nói ngược lại (xem "Đính chính tài liệu" bên dưới) — người đọc ADR này phải kết luận được ngay là hệ thống **không** chạy EWMA.
   - Điều kiện tiên quyết mà bullet trên đặt ra (**backtest trên dữ liệu EKS thật**) nay đã có nguyên liệu: phép đo TF1-98 ngày 26/07 cho baseline thật của lớp 3σ trên cụm — **10 báo động giả trong 188 phút (~3.2 lần/giờ)**, không lần nào chạm ngưỡng tĩnh. Đó là con số để so "trước/sau" khi thực sự bật EWMA. Xem addendum 2026-07-26 và `report/mandate15-eks/`.
+  - **→ ĐÃ CHỐT 2026-07-27: KHÔNG dùng EWMA.** Backtest đã chạy, EWMA α=0.2 **đo được là tệ hơn SMA đang chạy trên cả hai tín hiệu**; α=0.2 còn cho bộ nhớ **ngắn hơn** SMA30 ~4 lần nên không sửa được điểm yếu mà ADR này tự nêu. Thay vào đó gắn cổng SLO cho tầng 3σ (`dynamic_min_fraction`) — giảm 76% số alert, không mất phát hiện nào. Bullet này **không còn treo**; toàn bộ số đo và lập luận ở **addendum 2026-07-27** cuối ADR.
 - **Chỉ ngưỡng tĩnh:** mù với suy thoái dưới ngưỡng (slow burn 0.4%/ngày đốt 80% budget không kêu). → Loại, nhưng giữ làm lớp 1.
 - **Realtime stream consumer:** mua được ~15–30s MTTD bằng cả một service chạy 24/7 (state, reconnect, RAM trong trần $300) trong khi poll 30s đã pass target ≤2 phút với biên 3.4×. → Loại (trade-off sai).
 - **Multi-window burn-rate (SRE workbook):** ĐÚNG chuẩn hơn cho error budget — đã có rule DRAFT `error-budget-burn-fast` (14.4× ở cả 5m và 1h), chờ verify semantics trên EKS vì compose không sinh được 5xx thật. → Nâng cấp có kế hoạch ở #7b, không phát minh lại ngưỡng.
@@ -617,6 +618,75 @@ nổi nó. Đây là cảnh báo ĐÚNG về một sự cố có thật không a
 sạch**, nên con số precision phải đọc là "trong điều kiện có nhiễu nền thật". Muốn baseline
 sạch phải rebuild image `email` (image local cũ hơn Dockerfile đã sửa trên `develop`) rồi
 chạy lại — ghi ra đây là việc còn thiếu, không lấp liếm bằng cách bỏ ca này khỏi bộ.
+
+### Addendum 2026-07-27 — CHỐT: chỉ dùng 3-sigma, KHÔNG thêm EWMA; thay vào đó gắn cổng SLO
+
+Người quyết: Thanh Pham Huu Tien. Ticket: TF1-102. Đây là phần **kết luận** cho bullet
+"EWMA α=0.2 → Defer sang #7b" ở mục *Alternatives considered* — bullet đó không còn treo.
+
+Bullet gốc đặt điều kiện: *"cần backtest trên ≥24h dữ liệu Prometheus EKS thật để chọn α
+có căn cứ"*. Nay có quyền truy cập cụm nên đã chạy đúng backtest đó (12h, hai tín hiệu,
+step 30s = đúng nhịp poll, mô phỏng lại chính `eval_metric_rule` kèm cooldown 600s).
+
+**Kết quả — EWMA α=0.2 đo được là TỆ HƠN SMA đang chạy.**
+
+`checkout` error-ratio (SLO 0.05, 1391 điểm, có 1 sự cố thật là `cart` outage):
+
+| Phương án | Tổng alert | Bắt được sự cố | Số lần 3σ kêu |
+|---|---|---|---|
+| Hiện tại (SMA30 + 3σ) | 22 | 1 | 16 |
+| Chỉ ngưỡng tĩnh | 6 | 1 | 0 |
+| **EWMA α=0.2 + 3σ** | **25** | 1 | **19 ← tệ hơn** |
+| EWMA α=0.05 + 3σ | 11 | 1 | 5 |
+
+`cart` p95 latency (SLO 1.0s, 1433 điểm, không có sự cố nào → mọi lần kêu đều là giả):
+SMA30 **12**, EWMA α=0.2 **11**, EWMA α=0.05 **8**.
+
+**Lý do kỹ thuật, và nó ngược với giả định của cả nhóm:** EWMA α=0.2 có **bộ nhớ ngắn hơn
+SMA30 khoảng 4 lần** — center of mass `(1-α)/α = 4` mẫu ≈ 2 phút, so với SMA30 trễ trung
+bình 15 mẫu ≈ 7.5 phút (nhớ hết 15 phút). Nghĩa là EWMA ở α=0.2 **không** sửa được đúng
+điểm yếu mà chính ADR này nêu ở *Consequences* (*"rolling-mean nhớ ngắn ~15 phút"*) — nó
+làm điểm yếu đó tệ thêm. "EWMA = baseline tốt hơn" chỉ đúng khi α đủ nhỏ, mà α=0.2 thì không.
+
+**Phát hiện quan trọng hơn: tầng động đang không đóng góp gì.** Sự cố thật duy nhất bắt
+được là do tầng **tĩnh** (ratio 0.1325 > ngưỡng 0.05), không phải 3σ. Trong 12h, tầng động
+đóng góp **28 lần kêu và 0 phát hiện riêng**.
+
+**Nguyên nhân gốc không nằm ở cách làm mượt.** 3-sigma kêu vì bất thường **thống kê**, chứ
+không phải vì có ý nghĩa **vận hành**. Ví dụ rõ nhất: `cart` p95 đi từ 5ms lên 20ms là vượt
+3σ, trong khi SLO là 1000ms — cao gấp 28 lần giá trị lớn nhất từng quan sát. Không thuật
+toán làm mượt nào sửa được chuyện đó.
+
+**Quyết định — gắn tầng động vào chính SLO** bằng trường cấu hình mới `dynamic_min_fraction`
+(`rules.yaml`, đọc ở `detector.py::eval_metric_rule`): 3σ chỉ được kêu khi giá trị đã đạt
+một tỉ lệ nhất định của ngưỡng tĩnh. Đo lại bằng chính code đã sửa:
+
+| Tín hiệu | Trước | Sau | Bắt sự cố |
+|---|---|---|---|
+| `grpc-error-rate-high` (cổng 0.50) | 22 alert (16 do 3σ) | **8 alert (2 do 3σ)** | 1 → **1, không đổi** |
+| `latency-p95-high` (cổng 0.20) | 12 alert (12 do 3σ) | **0 alert** | 0 → 0 (đúng, không có sự cố) |
+
+**Tổng 34 → 8 alert trong 12h (giảm 76%), không mất một phát hiện nào.** Cách này cũng đưa
+tầng động về đúng mục đích ban đầu của nó: cảnh báo sớm khi **đang tiến gần** SLO, chứ không
+phải kêu mỗi lần có nhiễu thống kê.
+
+Trường này **không có mặc định** (`None` = hành vi y hệt trước). Chỉ 2/16 rule được bật, đúng
+2 rule có số đo. 14 rule còn lại không đổi hành vi — cố ý, để không đổi ngầm 11 rule metric
+cùng lúc.
+
+**Căng thẳng còn lại, ghi ra chứ không lờ đi:** cổng SLO mâu thuẫn một phần với yêu cầu
+masking của MANDATE-15 (*"sự cố nhỏ nấp dưới nhiễu vẫn phải bắt"*) — sự cố nhỏ nằm dưới cổng
+sẽ bị chặn. Đó chính là lý do cổng phải là **cấu hình per-rule** chứ không phải hằng số trong
+code: kịch bản masking chỉnh riêng được. Khi PR #343 (winsorize) về, phải đo lại tương tác
+giữa hai cơ chế này trên cùng bộ có nhãn.
+
+**Giới hạn của kết luận này:** 12h, 2 tín hiệu, 1 sự cố. Đủ để bác EWMA α=0.2 (nó tệ hơn
+trên **cả hai** tín hiệu) và đủ để chọn cổng SLO (giảm 76% mà không mất phát hiện). **Chưa**
+đủ để khẳng định tầng động là vô dụng — trong 12h đó đơn giản là không có ca suy thoái nào
+tiến gần SLO mà chưa vượt, tức đúng loại việc tầng động sinh ra để bắt. Giữ tầng động, có cổng.
+
+**Hệ quả cho PR #257** (`feat/TF1-95-implement-EWMA`, tác giả Nguyenngocgiao): đóng, kèm số đo.
+Đóng vì **có bằng chứng**, không phải vì code sai — và chính PR đó là thứ thúc đẩy việc đo.
 
 ---
 
