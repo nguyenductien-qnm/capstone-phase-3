@@ -255,6 +255,12 @@ def get_shipping_quote(items, address):
                 "country": "US",
                 "zip_code": "94043"
             }
+
+        is_estimate = False
+        if not items:
+            # Cho phép gọi không cần items — dùng 1 item mặc định để ước lượng
+            items = [{"product_id": "OLJCESPC7Z", "quantity": 1}]
+            is_estimate = True
         
         url = f"{SHIPPING_ADDR}/get-quote"
         payload = json.dumps({
@@ -272,10 +278,14 @@ def get_shipping_quote(items, address):
             # Depending on how the shipping service replies, it might already be JSON.
             # Easiest is to just decode it and parse it, then return JSON with our status.
             res_json = json.loads(res_body.decode('utf-8'))
-            return json.dumps({
+            result = {
                 "status": "ok",
                 "quote": res_json
-            })
+            }
+            if is_estimate:
+                result["is_estimate"] = True
+                result["note"] = "Đây là báo giá ước lượng cho 1 sản phẩm mẫu (chưa có giỏ hàng cụ thể)."
+            return json.dumps(result)
     except Exception as e:
         logger.error("get_shipping_quote error: %s", e)
         return _error_json(str(e))

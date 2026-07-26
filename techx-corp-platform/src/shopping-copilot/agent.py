@@ -116,6 +116,11 @@ SYSTEM_PROMPT_RULES = """QUY TẮC BẮT BUỘC:
    NGAY search_products với category đó — KHÔNG được hỏi lại câu hỏi chọn danh mục thêm lần nữa.
 6. Không tự thanh toán, không xoá giỏ. Những việc đó bạn không có công cụ để làm.
 6b. TIỀN TỆ & VẬN CHUYỂN: Khi khách hỏi giá bằng tiền khác (VND, EUR...) hãy gọi convert_currency. Khi khách hỏi phí ship, gọi get_shipping_quote.
+6c. CÂU HỎI KÉP / NHIỀU VIỆC: Nếu một lượt hỏi yêu cầu NHIỀU việc (ví dụ: "đổi tiền VÀ báo giá ship",
+   "tìm sản phẩm VÀ xem review"), PHẢI gọi ĐỦ tool cho TỪNG việc rồi mới trả lời — TUYỆT ĐỐI KHÔNG
+   được dừng sau tool đầu tiên. MAX_TOOL_CALLS = 5 vẫn đủ chỗ.
+6d. MUA KÈM / PHỤ KIỆN / GỢI Ý THÊM: Khi khách hỏi "có phụ kiện nào mua kèm không?", "nên mua thêm gì",
+   "gợi ý sản phẩm đi kèm" → gọi search_products trước (nếu chưa có product_id) rồi gọi list_recommendations.
 7. KHÔNG BAO GIỜ bọc câu trả lời trong thẻ <thinking> hay bất kỳ thẻ ẩn nào. Luôn trả lời
    trực tiếp bằng văn bản hiển thị — kể cả câu chào hỏi ngắn ("hi", "chào") cũng phải có
    câu trả lời thật, không được để trống.
@@ -173,7 +178,13 @@ TOOLS_DEFINITION = [
     }},
     {"toolSpec": {
         "name": "list_recommendations",
-        "description": "Lấy danh sách product ID được AI gợi ý dựa trên sản phẩm đang xem.",
+        "description": (
+            "GỢI Ý MUA KÈM / PHỤ KIỆN / CROSS-SELL: Lấy danh sách sản phẩm bổ sung "
+            "mà khách nên mua kèm với sản phẩm đang xem hoặc quan tâm. "
+            "Dùng khi khách hỏi 'có phụ kiện nào mua kèm không?', 'gợi ý thêm sản phẩm đi cùng', "
+            "'nên mua thêm gì', 'có gì liên quan'. "
+            "Cần truyền product_ids — nếu chưa có, PHẢI gọi search_products trước để lấy product_id."
+        ),
         "inputSchema": {
             "json": {
                 "type": "object",
@@ -181,7 +192,7 @@ TOOLS_DEFINITION = [
                     "product_ids": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "Danh sách product ID đang xem để lấy gợi ý (ví dụ: ['OLJCESPC7Z'])"
+                        "description": "Danh sách product ID đang xem để lấy gợi ý mua kèm (ví dụ: ['OLJCESPC7Z'])"
                     }
                 },
                 "required": ["product_ids"]
@@ -223,8 +234,10 @@ TOOLS_DEFINITION = [
     {"toolSpec": {
         "name": "get_shipping_quote",
         "description": (
-            "Lấy báo giá phí vận chuyển. Dùng khi khách hỏi ship bao nhiêu, phí giao hàng. "
-            "Cần danh sách items (product_id + quantity) và địa chỉ giao. Nếu khách không cho địa chỉ, dùng địa chỉ mặc định US."
+            "Lấy báo giá phí vận chuyển. Dùng khi khách hỏi ship bao nhiêu, phí giao hàng, "
+            "báo giá ship tới địa chỉ nào đó. Có thể gọi KHÔNG CẦN items — hệ thống sẽ "
+            "tự lấy giỏ hàng hiện tại hoặc ước lượng cho 1 sản phẩm mẫu. "
+            "Nếu khách không cho địa chỉ, dùng địa chỉ mặc định US."
         ),
         "inputSchema": {"json": {
             "type": "object",
@@ -238,7 +251,7 @@ TOOLS_DEFINITION = [
                             "quantity": {"type": "integer"},
                         },
                     },
-                    "description": "Danh sách sản phẩm cần ship",
+                    "description": "Danh sách sản phẩm cần ship (có thể bỏ trống để lấy ước lượng)",
                 },
                 "address": {
                     "type": "object",
@@ -252,7 +265,7 @@ TOOLS_DEFINITION = [
                     "description": "Địa chỉ giao hàng",
                 },
             },
-            "required": ["items"],
+            "required": [],
         }},
     }},
 ]
