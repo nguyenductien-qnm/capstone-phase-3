@@ -9,7 +9,7 @@ Chụp theo thứ tự **A → B → C → D**. Mỗi nhóm là một lần ng�
 | **C** | Trạng thái Kyverno **sau** khi Enforce | **SAU** khi merge + sync root app |
 | **D** | Ba bài kiểm mentor bấm nút | cuối cùng, khi mọi thứ đã xanh |
 
-Đối chiếu tình trạng repo: [../AUDIT-DIRECTIVE-10.md](../AUDIT-DIRECTIVE-10.md)
+Đối chiếu tình trạng repo: [../AUDIT-DIRECTIVE-10-lich-su-23-07.md](../AUDIT-DIRECTIVE-10-lich-su-23-07.md)
 
 ## Chuẩn bị (dán 1 lần)
 
