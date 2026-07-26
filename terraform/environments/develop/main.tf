@@ -87,6 +87,10 @@ module "eks" {
 
   # M17-R3: bật enforce NetworkPolicy cho cluster develop (ecommerce-develop-dev-eks).
   enable_network_policy = true
+
+  # MANDATE-13: SQS interruption queue + EventBridge rule chỉ bật ở develop —
+  # environment đang làm mandate này, không ảnh hưởng sandbox dùng chung module.
+  enable_karpenter_interruption_queue = true
 }
 
 module "rds" {

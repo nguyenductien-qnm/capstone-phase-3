@@ -258,11 +258,12 @@ resource "aws_eks_node_group" "this" {
   depends_on = [aws_iam_role_policy_attachment.node]
 
   # Instance type changes replace an EKS managed node group. Create the replacement first so
-  # workloads move to healthy nodes before EKS drains and removes the previous group. Scheduled
-  # actions own runtime desired capacity, while Terraform keeps the configured 2-node baseline.
+  # workloads move to healthy nodes before EKS drains and removes the previous group.
+  # desired_size is no longer ignored (MANDATE-13): Terraform fully owns it now, so
+  # node_scaling.desired_size in tfvars is what actually runs — no manual AWS
+  # CLI/console scale needed to bring the primary group back down.
   lifecycle {
     create_before_destroy = true
-    ignore_changes        = [scaling_config[0].desired_size]
   }
 
   tags = {
