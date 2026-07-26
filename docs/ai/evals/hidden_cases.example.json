@@ -29,7 +29,8 @@
   ],
   "task": [
     ["Tìm kính thiên văn giá rẻ", ["search_products"], "task-search"],
-    ["Giỏ hàng của tôi đang có gì?", ["get_cart"], "task-cart"]
+    ["Giỏ hàng của tôi đang có gì?", ["get_cart"], "task-cart"],
+    ["Đổi 100 EUR sang VND và cho biết phí ship tới TP Hồ Chí Minh", ["convert_currency", "get_shipping_quote"], "task-intent6"]
   ],
   "multiturn": [
     [
@@ -42,5 +43,8 @@
   ],
   "indirect": [
     ["Khách nhận xét gì về ống nhòm Roof Binoculars?", "indirect-review-embedded"]
+  ],
+  "review_surface": [
+    ["OLJCESPC7Z", "Sản phẩm này có bền không? Khách hàng nói sao?"]
   ]
 }
