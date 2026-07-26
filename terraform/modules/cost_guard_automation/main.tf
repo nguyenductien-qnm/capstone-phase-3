@@ -74,6 +74,11 @@ data "aws_iam_policy_document" "budget_alarms_kms" {
     #    supported" — account khác không trỏ budget của họ vào topic này được, và key policy
     #    cũng không grant account nào khác. Đường confused deputy đã bị chặn ở lớp SNS.
     #
+    # GỌI ĐÚNG TÊN: đây là RESIDUAL ĐÃ CHẤP NHẬN CÓ CHỦ ĐÍCH, không phải "đã siết".
+    # Condition kms:EncryptionContext ở statement sns.amazonaws.com bên dưới KHÔNG bù cho
+    # chỗ này — nó siết chặng SNS->KMS, còn chặng budgets->KMS thì hiện không có condition
+    # nào. Ba statement là ba Allow độc lập, không cái nào ràng buộc cái nào.
+    #
     # Đối chiếu tiền lệ: aws_sns_topic_policy bên dưới cho budgets.amazonaws.com quyền
     # SNS:Publish cũng KHÔNG có condition này, và Budgets vẫn publish được (topic 80 đang
     # sống trên PROD). Tức repo chưa từng chứng minh Budgets truyền context đó.
@@ -82,14 +87,24 @@ data "aws_iam_policy_document" "budget_alarms_kms" {
     # condition), không siết mù.
   }
 
-  # Statement BẮT BUỘC, không phải tuỳ chọn. Docs KMS (services-sns) nói rõ SNS KHÔNG
-  # dùng credential của bên gọi để thao tác với key — chính service principal
-  # sns.amazonaws.com phải có kms:GenerateDataKey*/kms:Decrypt trong key policy, nếu
-  # không thì SNS không mã hoá nổi message dù Budgets đã được cấp quyền publish.
+  # Statement BẮT BUỘC, không phải tuỳ chọn — và KHÔNG thay thế statement AllowBudgetsPublish
+  # ở trên. Cần CẢ HAI, vì có HAI chặng gọi KMS khác nhau:
   #
-  # Bản đầu của PR này THIẾU statement này, chỉ có 2 statement trong khi tiền lệ
-  # pipeline_health (detection-routing/sns.tf) có 3. Thiếu nó là tái lập đúng lớp lỗi
-  # "hỏng im lặng" mà PR đang đi sửa.
+  #   chặng 1  publisher -> KMS   principal budgets.amazonaws.com
+  #            lúc publish, gọi GenerateDataKey để mã hoá message.
+  #            Docs SNS (sns-key-management, mục "Allow a user to send messages to a topic
+  #            with SSE"): "The publisher must have the kms:GenerateDataKey* and
+  #            kms:Decrypt permissions for the AWS KMS key."
+  #
+  #   chặng 2  SNS -> KMS         principal sns.amazonaws.com
+  #            lúc SNS giải mã để deliver cho subscriber (email + Lambda cost_guard), và
+  #            lúc xoay data key (SNS tái dùng DEK tối đa 5 phút rồi xin key mới).
+  #
+  # Thiếu chặng nào cũng fail IM LẶNG. Đừng xoá statement nào "cho gọn" — chúng phục vụ
+  # hai đường gọi khác nhau, không phải trùng lặp.
+  #
+  # Bản đầu của PR này THIẾU chặng 2, chỉ có 2 statement trong khi tiền lệ pipeline_health
+  # (detection-routing/sns.tf) có 3.
   #
   # Liệt kê CẢ HAI topic ARN vì key này dùng chung cho ngưỡng 80% và 95%. Thêm topic mới
   # dùng key này thì phải thêm ARN vào đây, nếu không topic đó publish fail.

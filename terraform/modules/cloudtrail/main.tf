@@ -272,14 +272,25 @@ data "aws_iam_policy_document" "mandate_12_audit_tamper_kms" {
     # cloudwatch.amazonaws.com nên siết được bằng SourceAccount.
   }
 
-  # Statement BẮT BUỘC, không phải tuỳ chọn. Docs KMS (services-sns) nói rõ SNS KHÔNG
-  # dùng credential của bên gọi để thao tác với key — chính service principal
-  # sns.amazonaws.com phải có kms:GenerateDataKey*/kms:Decrypt trong key policy, nếu
-  # không thì SNS không mã hoá nổi message dù publisher đã được cấp quyền.
+  # Statement BẮT BUỘC, không phải tuỳ chọn — và KHÔNG thay thế statement publisher ở trên.
+  # Cần CẢ HAI, vì có HAI chặng gọi KMS khác nhau:
   #
-  # Bản đầu của PR này THIẾU statement này, chỉ có 2 statement trong khi tiền lệ
-  # pipeline_health (detection-routing/sns.tf) có 3. Thiếu nó là tái lập đúng lớp lỗi
-  # "hỏng im lặng" mà PR đang đi sửa, chỉ đổi nguyên nhân từ EventBridge sang SNS.
+  #   chặng 1  publisher -> KMS   principal events.amazonaws.com
+  #            lúc publish, gọi GenerateDataKey để mã hoá message.
+  #            Docs SNS (sns-key-management, mục "Allow a user to send messages to a topic
+  #            with SSE"): "The publisher must have the kms:GenerateDataKey* and
+  #            kms:Decrypt permissions for the AWS KMS key."
+  #
+  #   chặng 2  SNS -> KMS         principal sns.amazonaws.com
+  #            lúc SNS giải mã để deliver cho subscriber, và lúc xoay data key (SNS tái
+  #            dùng DEK tối đa 5 phút rồi xin key mới).
+  #
+  # Thiếu chặng nào cũng fail IM LẶNG. Đừng xoá statement nào "cho gọn" — chúng phục vụ
+  # hai đường gọi khác nhau, không phải trùng lặp.
+  #
+  # Bản đầu của PR này THIẾU chặng 2, chỉ có 2 statement trong khi tiền lệ pipeline_health
+  # (detection-routing/sns.tf) có 3. Đó là tái lập đúng lớp lỗi "hỏng im lặng" mà PR đang
+  # đi sửa, chỉ đổi nguyên nhân từ chặng 1 sang chặng 2.
   #
   # Siết bằng EncryptionContext thay vì aws:SourceAccount: đây là cách duy nhất còn lại
   # để giới hạn key theo đúng một topic, và nó KHÔNG nằm trong danh sách AWS cấm dùng với
