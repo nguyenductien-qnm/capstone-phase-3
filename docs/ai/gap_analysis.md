@@ -75,6 +75,7 @@ Dưới đây là kết quả rà soát chi tiết hạ tầng deployment trên 
 | **3** | **Terraform RDS pgvector Gap** | Container `postgres` local tự chạy `init.sql` | AWS RDS PostgreSQL 16.14 (Terraform [terraform/modules/rds/main.tf](file:///home/dinh/capstone-phase-3/terraform/modules/rds/main.tf)) | 🚨 **GAP TERRAFORM:** Code Terraform hiện tại CHỈ dựng RDS Database Instance `postgres` và parameter group; **CHƯA BẠO/CHƯA TẠO EXTENSION `pgvector`** cũng như chưa chạy schema migration `init.sql`. **Bắt buộc** phải chạy pipeline/script migration thực thi `CREATE EXTENSION IF NOT EXISTS vector;` và tạo bảng `product_embeddings_v2` trên RDS Endpoint trước khi kích hoạt `product-catalog` semantic search. |
 | **4** | **AIOps Remediation** | Local python test | EKS pod `aiops-remediation` | Mặc định pod chạy với `REMEDIATION_DRY_RUN=true` (an toàn). Chỉ đổi sang `"false"` sau khi verify dry-run log ổn định trên cluster. |
 | **5** | **Flagd Feature Flags** | Local `demo.flagd.json` | ConfigMap `flagd-config` trên EKS | Cần sync file flagd mới nhất chứa 2 flag riêng: `llmModelRouting` (copilot A/B) và `llmReviewsModelRouting` (reviews Lite-only). |
+| **6** | **Product Catalog Bedrock SigV4 IAM Gap** | Local env vars (`AWS_ACCESS_KEY_ID` Acc Model) | EKS Pod Identity / IRSA (`signAWSV4` trong [product-catalog/main.go](file:///home/dinh/capstone-phase-3/techx-corp-platform/src/product-catalog/main.go#L400)) | 🚨 **GAP CODE/IAM:** `signAWSV4` đọc 3 biến env credentials của **Account Hạ Tầng**, chưa có logic `sts:AssumeRole` tự nhảy sang Account Chứa Model (`384511757667`) như Python services. Khi deploy EKS, Bedrock Titan Embeddings sẽ bị `403 AccessDenied` (và tự động fallback về keyword search). **Cần:** Cấp quyền `bedrock:InvokeModel` trực tiếp cho IRSA Role `product-catalog` trên Account Hạ Tầng, hoặc refactor `main.go` dùng AWS SDK v2 với `AssumeRole`. |
 
 ---
 
@@ -87,6 +88,7 @@ Trước khi merge nhánh vào `main` / `develop` và kích hoạt CD:
 - [x] **Clean Up Debug Scripts:** Đã dọn dẹp các script debug rác/tạm.
 - [x] **Local AWS CLI SSO Profiles:** Đã xác nhận 2 profiles `Phase3-AIO-PermissionSet-804372444787` & `458580846647` active.
 - [ ] **Terraform RDS Extension Migration:** Chạy script migration `CREATE EXTENSION IF NOT EXISTS vector;` và `init.sql` trên RDS endpoint.
+- [ ] **Product Catalog IAM Permission:** Cấp quyền Bedrock InvokeModel cho IRSA role `product-catalog` trên Acc Hạ Tầng (hoặc thêm AssumeRole sang Acc Model).
 - [ ] **EKS Secret Preparation:** Đã tạo `secret/bedrock-config` và `secret/aiops-alert` trong namespace `techx-tf1`.
 - [ ] **Helm Values Verification:** Đã confirm `values-aio-llm.yaml` được include trong ArgoCD application overlay cho namespace `techx-tf1`.
 - [ ] **NetworkPolicy Egress Verification:** Đã confirm label `egress-internet: "true"` được gán cho các AI deployments.
