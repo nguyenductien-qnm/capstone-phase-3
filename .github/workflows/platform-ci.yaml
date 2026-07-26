@@ -329,3 +329,149 @@ jobs:
             exit 1
           fi
           echo "✅ Chart render OK ($(wc -l < /tmp/techx-corp-rendered.yaml) dòng)"
+
+  # ------------------------------------------------------------------ #
+  # MANDATE-10 #1+#2: TRỰC CỔNG cho phần quét ảnh (Trivy).              #
+  #                                                                     #
+  # Vấn đề: Trivy quét ảnh nằm trong job `build` của app-build.yaml, mà  #
+  # job đó tên ĐỘNG theo matrix (`Build email`, `Build currency`...).    #
+  # Required status check cần chuỗi CỐ ĐỊNH khai sẵn trong ruleset nên   #
+  # không trỏ vào tên động được. Hệ quả: Trivy đỏ chỉ chặn ảnh lên ECR   #
+  # (bước quét đứng trước bước push) chứ KHÔNG chặn merge — code mang    #
+  # CVE vẫn vào được develop.                                            #
+  #                                                                     #
+  # Vì sao job này nằm ở ĐÂY chứ không phải trong app-build.yaml:        #
+  #   1. app-build.yaml có `paths:` filter -> không chạy trên PR chỉ sửa #
+  #      docs/terraform. Đo thật: 5/10 PR gần đây không chạm code        #
+  #      service. Required check mà job không chạy = PR treo Expected    #
+  #      vĩnh viễn (đúng tai nạn 26/07 với SAST, 4 PR kẹt cứng).         #
+  #      platform-ci.yaml KHÔNG có paths filter -> chạy mọi PR.          #
+  #   2. Kyverno khoá danh tính ký theo đường dẫn app-build.yaml         #
+  #      (subject app-build.yaml@refs/heads/develop). Không đụng file đó #
+  #      thì không có rủi ro pod không lên.                              #
+  #                                                                     #
+  # Vì sao hỏi API thay vì `needs:`: `needs:` chỉ nối job trong CÙNG một #
+  # workflow file. Hai file khác nhau nên phải hỏi GitHub "run của       #
+  # app-build cho đúng commit này ra sao".                               #
+  #                                                                     #
+  # Job KHÔNG dựng lại ảnh. TF2 giải bài toán này bằng cách bake lại     #
+  # toàn bộ image trên mỗi PR để có cái mà quét; ở đây các nhánh build   #
+  # đã chạy sẵn rồi nên chỉ cần đọc kết quả — cùng kết luận, không tốn   #
+  # thêm phút runner.                                                    #
+  # ------------------------------------------------------------------ #
+  image-scan-gate:
+    name: Image scan gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      # Cần để đọc kết quả job của workflow KHÁC (app-build) qua API.
+      actions: read
+    steps:
+      - name: Đọc kết quả quét ảnh của app-build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # SHA của code THẬT đang xét. Trên PR, github.sha là commit merge tạm
+          # do GitHub dựng, không phải commit app-build chạy trên đó.
+          TARGET_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+
+          # Chờ app-build cho commit này xuất hiện và chạy xong. Nó khởi động cùng
+          # lúc với workflow này nên thường chưa có kết quả ngay.
+          # 40 vòng × 15s = 10 phút, khớp timeout-minutes ở trên.
+          run_json=""
+          for i in $(seq 1 40); do
+            run_json=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${TARGET_SHA}&per_page=100" \
+                        --jq '[.workflow_runs[] | select(.path == ".github/workflows/app-build.yaml")]
+                              | sort_by(.run_number) | last // empty' 2>/dev/null || true)
+            [ -z "$run_json" ] && { echo "[$i/40] chưa thấy run app-build..."; sleep 15; continue; }
+            status=$(printf '%s' "$run_json" | python3 -c "import json,sys;print(json.load(sys.stdin)['status'])")
+            [ "$status" = "completed" ] && break
+            echo "[$i/40] app-build đang chạy ($status)..."
+            sleep 15
+          done
+
+          # Không có run nào = app-build không được kích hoạt vì paths filter.
+          # PR này không chạm code service -> không có ảnh nào để quét -> CHO QUA.
+          # Đây là nhánh giữ cho gate không treo Expected trên PR sửa docs.
+          if [ -z "$run_json" ]; then
+            echo "✅ PR không chạm code service (app-build không chạy) — không có ảnh để quét."
+            {
+              echo "### Cổng quét ảnh — không có ảnh nào cần quét"
+              echo ""
+              echo "PR này không đụng \`techx-corp-platform/src/\`, \`aiops/\`, \`.trivyignore\`"
+              echo "hay chart values, nên workflow app-build không được kích hoạt và không có"
+              echo "image nào được dựng. Không có gì để quét là lý do hợp lệ để qua cổng,"
+              echo "không phải lỗi."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          run_id=$(printf '%s' "$run_json" | python3 -c "import json,sys;print(json.load(sys.stdin)['id'])")
+          run_status=$(printf '%s' "$run_json" | python3 -c "import json,sys;print(json.load(sys.stdin)['status'])")
+          echo "app-build run: $run_id (status=$run_status)"
+
+          if [ "$run_status" != "completed" ]; then
+            echo "::error::app-build (run $run_id) chưa xong sau 10 phút. Chạy lại job này khi nó kết thúc."
+            exit 1
+          fi
+
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?per_page=100" \
+            --jq '.jobs[] | "\(.conclusion // "running")\t\(.name)"' > /tmp/jobs.tsv
+          echo "--- job của run $run_id ---"; cat /tmp/jobs.tsv
+
+          fail=0
+          rows=""
+
+          # Hai nhánh detect KHÔNG được hỏng: chúng quyết định service nào cần dựng.
+          # Detect hỏng mà cho qua thì gate mù — không biết đáng lẽ phải quét những gì.
+          while IFS=$'\t' read -r res name; do
+            case "$name" in
+              "Detect changed services"|"Detect aiops changes")
+                case "$res" in
+                  success|skipped) echo "✅ $name: $res" ;;
+                  *) echo "::error::❌ $name: $res — không xác định được cần quét gì."; fail=1 ;;
+                esac
+                rows="${rows}| ${name} | \`${res}\` |"$'\n'
+                ;;
+            esac
+          done < /tmp/jobs.tsv
+
+          # Nhánh dựng+quét. Khớp cả hai dạng tên: khi matrix RỖNG thì API trả tên
+          # chưa nội suy (`Build ${{ matrix.service }}`), khi có service thì trả tên
+          # thật (`Build email`). Bỏ qua "Build aiops-detector" -> vẫn khớp "Build ".
+          while IFS=$'\t' read -r res name; do
+            case "$name" in
+              "Build "*)
+                case "$res" in
+                  success) echo "✅ $name: quét sạch, không CVE HIGH/CRITICAL" ;;
+                  skipped) echo "⏭️  $name: không có ảnh nào cần dựng" ;;
+                  *) echo "::error::❌ $name: $res — Trivy thấy CVE HIGH/CRITICAL, hoặc build hỏng."; fail=1 ;;
+                esac
+                rows="${rows}| ${name} | \`${res}\` |"$'\n'
+                ;;
+            esac
+          done < /tmp/jobs.tsv
+
+          {
+            echo "### Cổng quét ảnh"
+            echo ""
+            echo "Đọc từ [run ${run_id}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${run_id}) của \`app-build.yaml\`."
+            echo ""
+            echo "| Nhánh | Kết quả |"
+            echo "|---|---|"
+            printf '%s' "$rows"
+            echo ""
+            echo "> \`skipped\` = PR không đụng service đó nên không có ảnh để quét — hợp lệ."
+            echo "> \`failure\` = có ảnh và Trivy thấy CVE HIGH/CRITICAL — chặn."
+            echo ""
+            echo "> Trivy chặn ở HAI tầng: bước quét đứng TRƯỚC bước push nên ảnh bẩn không"
+            echo "> lên được ECR; job này đưa cùng kết quả đó lên tầng merge."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$fail" -ne 0 ]; then
+            echo "::error::Cổng quét ảnh KHÔNG pass — xem run $run_id để biết CVE nào."
+            exit 1
+          fi
+          echo "✅ Cổng quét ảnh pass."
