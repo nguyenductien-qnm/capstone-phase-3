@@ -80,7 +80,8 @@ public class ConsumerService : BackgroundService
                             var targetUserId = !string.IsNullOrEmpty(joinState.UserId) ? joinState.UserId : eventData.UserId;
                             if (!string.IsNullOrEmpty(targetUserId))
                             {
-                                _cartStore.EmptyCartAsync(targetUserId).GetAwaiter().GetResult();
+                                // Async ThreadPool safe
+                                await _cartStore.EmptyCartAsync(targetUserId).ConfigureAwait(false);
                                 _logger.LogInformation("Successfully cleared cart for user {UserId} (Order {OrderId})", targetUserId, eventData.OrderId);
                             }
 
