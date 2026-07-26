@@ -52,14 +52,34 @@ data "aws_iam_policy_document" "budget_alarms_kms" {
 
     resources = ["*"]
 
-    # Siết theo account để chống confused deputy. Budgets KHÁC EventBridge ở điểm này:
-    # docs chỉ cấm aws:SourceAccount cho EventBridge-to-encrypted-topics, còn Budgets thì
-    # thêm được. Cùng cách làm với key pipeline_health trong module detection-routing.
-    condition {
-      test     = "StringEquals"
-      variable = "aws:SourceAccount"
-      values   = [data.aws_caller_identity.current.account_id]
-    }
+    # CỐ Ý KHÔNG siết bằng aws:SourceAccount ở đây. Bản nháp có condition này với lý do
+    # "docs chỉ cấm cho EventBridge, Budgets thì thêm được" — nhưng "không bị cấm" KHÁC
+    # "đã chứng minh chạy được", và đó đúng là ngộ nhận sinh ra chính sự cố PR này đi sửa.
+    #
+    # Ba căn cứ để bỏ:
+    #
+    # 1. Docs AWS KHÔNG xác nhận được theo cả hai chiều. Trang duy nhất có thể trả lời —
+    #    cost-management/budgets-sns-policy, mục "To enable compatibility between AWS
+    #    Budgets and encrypted Amazon SNS topics" — ghi bước 2 là "Add the following text
+    #    to the KMS key policy" nhưng KHỐI JSON PHÍA SAU RỖNG (AWS quên đăng). Không có
+    #    mẫu policy chính thức nào để đối chiếu.
+    #
+    # 2. Bất đối xứng rủi ro. Nếu lời gọi KMS của Budgets không mang aws:SourceAccount thì
+    #    StringEquals fail -> deny -> CẢ HAI topic budget chết im lặng. Budget chỉ bắn khi
+    #    vượt ngưỡng nên không có traffic thường xuyên để lộ lỗi sớm — có thể câm hàng
+    #    tháng mà không ai biết.
+    #
+    # 3. Giá trị bảo mật thấp hơn tưởng. Cùng trang docs ghi "Amazon SNS topics must be in
+    #    the same account as the Budgets you're configuring. Cross-account Amazon SNS isn't
+    #    supported" — account khác không trỏ budget của họ vào topic này được, và key policy
+    #    cũng không grant account nào khác. Đường confused deputy đã bị chặn ở lớp SNS.
+    #
+    # Đối chiếu tiền lệ: aws_sns_topic_policy bên dưới cho budgets.amazonaws.com quyền
+    # SNS:Publish cũng KHÔNG có condition này, và Budgets vẫn publish được (topic 80 đang
+    # sống trên PROD). Tức repo chưa từng chứng minh Budgets truyền context đó.
+    #
+    # Muốn siết lại: chỉ làm SAU khi có bằng chứng hành vi (test budget bắn thành công qua
+    # condition), không siết mù.
   }
 
   # Statement BẮT BUỘC, không phải tuỳ chọn. Docs KMS (services-sns) nói rõ SNS KHÔNG

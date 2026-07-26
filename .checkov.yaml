@@ -107,8 +107,9 @@ skip-check:
   #           AWS Budgets, mà service publisher cần kms:GenerateDataKey*/kms:Decrypt khai
   #           trong KEY POLICY — key AWS-managed không sửa policy được nên publish fail
   #           IM LẶNG. Bài học: rule xanh không có nghĩa là thứ đang chạy còn chạy.
-  #   27/07 — CMK riêng có key policy mở đúng service principal. Chi phí thật $2/tháng
-  #           (2 key: cloudtrail + cost_guard), request nằm trong 20k free tier.
+  #   27/07 — CMK riêng có key policy mở đúng service principal. Chi phí thật ~$3/tháng:
+  #           sandbox(804) 2 key vì enable_mandate_12_alert=true, develop(458) 1 key vì
+  #           flag đó default false. Request nằm trong 20k free tier.
   #
   # CKV_AWS_149 còn kéo theo việc cấp kms:Decrypt cho role ESO. Review: 2026-10-26
   - CKV_AWS_149
