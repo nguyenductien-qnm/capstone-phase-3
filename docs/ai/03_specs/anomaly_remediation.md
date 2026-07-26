@@ -48,6 +48,16 @@ sequenceDiagram
 Thay vì dựa vào các ngưỡng tĩnh (static threshold) dễ sinh cảnh báo rác, hệ thống sử dụng các phương pháp phân tích động:
 
 ### 3.1 Phát hiện dị thường về Metrics (Metric Anomaly)
+
+> **⚠️ Đính chính 2026-07-27 (TF1-102) — mục này mô tả EWMA, code KHÔNG chạy EWMA.**
+> Bản gốc bên dưới là spec dự kiến. Code thật (`aiops/detector/detector.py`,
+> `eval_metric_rule`) dùng **SMA + 3σ** trên cửa sổ trượt 30 mẫu gần nhất theo khoá
+> `rule_id:service`, **không phải EWMA**. Kiểm chứng: `git grep -i ewma aiops/` trên
+> `develop` trả về rỗng ở mọi file `.py`. EWMA là phương án đã **defer có chủ đích**,
+> lý do ghi trong **ADR-012** (`docs/ai/05_adrs.md`, mục "Alternatives considered");
+> phần hiện thực nằm ở PR #257, còn OPEN. Giữ nguyên văn bản gốc làm tham chiếu cho
+> lần nâng cấp, **không dùng nó để mô tả hệ thống đang chạy**.
+
 - **Cơ chế:** Sử dụng thuật toán **EWMA (Exponentially Weighted Moving Average)** để làm mịn dữ liệu và bắt các biến động bất thường so với quá khứ.
 - **Áp dụng:** Theo dõi chỉ số độ trễ `http_request_duration_seconds` (p95).
 - **Ngưỡng cấu hình:** 

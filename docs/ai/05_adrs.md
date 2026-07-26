@@ -399,9 +399,9 @@ Tính năng AI (như tóm tắt review, shopping copilot) hiển thị trực ti
 
 - **Trạng thái:** Chấp nhận (Accepted)
 - **Ngày:** 2026-07-16
-- **Người ký:** Nhóm AI (AIO03) — Task Force 1 · Soạn thảo: Thanh Pham Huu Tien (owner TF1-53/TF1-62)
+- **Người ký:** **Thanh Pham Huu Tien** (`phamthanh.forwork@gmail.com`) — cá nhân chịu trách nhiệm về quyết định kỹ thuật này và về tính đúng của mọi con số trong ADR. Đổi từ "Nhóm AI (AIO03)" sang ký cá nhân ngày 2026-07-27 theo TF1-102: quyết định phát hiện bất thường phải quy được về một người, không núp sau tập thể.
 - **Trụ:** AI (AIOps) / Reliability / Operational Excellence
-- **Task:** TF1-53 (detector W1) · TF1-62 (deploy EKS) · MANDATE-07 `#7a`
+- **Task:** TF1-53 (detector W1) · TF1-62 (deploy EKS) · TF1-102 (ADR ký cá nhân) · MANDATE-07 `#7a`
 
 ## Context
 MANDATE-07 yêu cầu hệ thống tự phát hiện bất thường trên nhiều tín hiệu (sàn = univariate: mỗi service × 1 tín hiệu có baseline + luật riêng), cảnh báo theo mức ảnh hưởng, không spam. Detector (`aiops/detector/`) đã chạy liên tục trên EKS (ns `techx-tf1`, image `1.1-aiops-detector`), poll Prometheus + backend log mỗi 30s, alert về Discord.
@@ -415,12 +415,15 @@ MANDATE-07 yêu cầu hệ thống tự phát hiện bất thường trên nhi�
 
 ## Alternatives considered
 - **EWMA α=0.2 (spec TF1-49 gốc):** phản ứng có trọng số theo thời gian, tốt hơn rolling-mean với drift chậm. CHƯA thay vì cần backtest trên ≥24h dữ liệu Prometheus EKS thật để chọn α có căn cứ (kế hoạch `#7b`, TF1-71); rolling 3σ hiện tại cùng họ SPC, đơn giản, đủ cho sàn univariate của đề. → Defer sang #7b, không phải reject.
+  - **Trạng thái tính đến 2026-07-27 — EWMA VẪN CHƯA CÓ TRONG CODE.** `git grep -i ewma aiops/**/*.py` trên `develop` trả về **rỗng**: `detector.py` vẫn là SMA + 3σ trên cửa sổ trượt 30 mẫu. PR #257 (`feat/TF1-95-implement-EWMA`) còn **OPEN và CONFLICTING**, cập nhật lần cuối 21/07. Ghi rõ ở đây vì đúng ba tài liệu khác từng nói ngược lại (xem "Đính chính tài liệu" bên dưới) — người đọc ADR này phải kết luận được ngay là hệ thống **không** chạy EWMA.
+  - Điều kiện tiên quyết mà bullet trên đặt ra (**backtest trên dữ liệu EKS thật**) nay đã có nguyên liệu: phép đo TF1-98 ngày 26/07 cho baseline thật của lớp 3σ trên cụm — **10 báo động giả trong 188 phút (~3.2 lần/giờ)**, không lần nào chạm ngưỡng tĩnh. Đó là con số để so "trước/sau" khi thực sự bật EWMA. Xem addendum 2026-07-26 và `report/mandate15-eks/`.
 - **Chỉ ngưỡng tĩnh:** mù với suy thoái dưới ngưỡng (slow burn 0.4%/ngày đốt 80% budget không kêu). → Loại, nhưng giữ làm lớp 1.
 - **Realtime stream consumer:** mua được ~15–30s MTTD bằng cả một service chạy 24/7 (state, reconnect, RAM trong trần $300) trong khi poll 30s đã pass target ≤2 phút với biên 3.4×. → Loại (trade-off sai).
 - **Multi-window burn-rate (SRE workbook):** ĐÚNG chuẩn hơn cho error budget — đã có rule DRAFT `error-budget-burn-fast` (14.4× ở cả 5m và 1h), chờ verify semantics trên EKS vì compose không sinh được 5xx thật. → Nâng cấp có kế hoạch ở #7b, không phát minh lại ngưỡng.
+  - **Trạng thái tính đến 2026-07-27 — vẫn DRAFT, chưa bật.** Các rule burn-rate trong `rules.yaml` còn nguyên nhãn DRAFT. Đợt đo 26/07 tìm ra một lý do cụ thể để **không** vội gỡ nhãn: rule `kafka-consumer-lag-high` query metric `kafka_consumer_group_lag`, mà tên đó **không tồn tại** trên Prometheus EKS (tên thật là `kafka_consumer_records_lag`). Query sai tên trong PromQL trả chuỗi rỗng **chứ không ném lỗi**, nên rule sai tên khi bật lên sẽ im lặng vĩnh viễn mà người vận hành tưởng đang được canh. → Quy tắc rút ra: **mọi rule DRAFT phải verify tên metric có series thật trước khi gỡ nhãn**, không chỉ review PromQL bằng mắt.
 
 ## Consequences
-- 13 rule config-driven (`rules.yaml`), thêm tín hiệu không sửa code; mỗi con số có nhãn đo/assumption trong "Sổ đăng ký con số" (05_adrs).
+- **16 rule** config-driven (`rules.yaml` — 11 metric, 4 log, 1 k8s_status; đếm lại 2026-07-27, ADR trước ghi 13 từ thời điểm ký 16/07), thêm tín hiệu không sửa code; mỗi con số có nhãn đo/assumption trong "Sổ đăng ký con số" (05_adrs).
 - Trả giá: rolling-mean nhớ ngắn (~15 phút) → baseline "bình thường" theo giờ-trong-ngày chưa mô hình hoá; chấp nhận ở W2, đánh giá lại sau FP-run 24h (TF1-71).
 - Phụ thuộc mở: backend log trên EKS chưa tồn tại (collector logs pipeline chỉ export debug) → 5 rule log + Drain3 tạm mù trên production; đã escalate CDO (quyết định thay OpenSearch), detector tự hồi phục khi backend lên, không cần redeploy.
 

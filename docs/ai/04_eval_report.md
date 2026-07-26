@@ -42,7 +42,9 @@
 ## 3. Chaos Engineering (Measure Before/After Error Rate)
 
 **Thử nghiệm:** Tiêm lỗi (Fault Injection) thông qua Flagd/OpenFeature để gây nhiễu network hoặc 5xx trên service `product-reviews`.
-**Mục tiêu:** Kiểm tra phản xạ của hệ thống AIOps (EWMA Detector & Alerting) trên EKS.
+**Mục tiêu:** Kiểm tra phản xạ của hệ thống AIOps (Detector & Alerting) trên EKS.
+
+> **Đính chính 2026-07-27 (TF1-102):** bản trước ghi "EWMA Detector". Detector **không chạy EWMA** — lớp dynamic là SMA + 3σ trên cửa sổ trượt 30 mẫu (`detector.py::eval_metric_rule`). EWMA là phương án đã defer, lý do ở ADR-012; hiện thực còn ở PR #257 chưa merge. Số đo trong mục này không đổi, chỉ tên phương pháp bị ghi sai.
 
 **Kết quả đo lường (Metric Prometheus: `http_requests_total`):**
 - **Error Rate Trước Chaos (Baseline):** ~0.24%
