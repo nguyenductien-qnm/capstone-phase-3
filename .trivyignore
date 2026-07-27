@@ -44,18 +44,35 @@ CVE-2026-27820  # zlib gem — runtime nạp 3.2.3 (đã vá), gemspec default 3
 # (perl 5.40.4 ship Archive::Tar 3.02). perl-base + gzip là Essential=yes -> apt-get
 # remove cảnh báo phá hệ thống, không gỡ được khỏi base image.
 # Review: 2026-08-20 (soi lại sid/forky đã xuống trixie chưa)
-CVE-2026-13221  # perl-base — vulnerable tới cả sid/forky
-CVE-2026-42496  # perl-base/Archive::Tar — fix_deferred; upstream vá ở CPAN 3.08, Debian chưa tách gói
-CVE-2026-42497  # perl-base/Archive::Tar — như trên
-CVE-2026-48962  # perl-base/IO-Compress
-CVE-2026-57432  # perl-base — integer overflow
+# ⚠️⚠️ TÁM DÒNG DƯỚI ĐÂY CỐ TÌNH BỊ TẮT — EVIDENCE CHO DIRECTIVE #10, KHÔNG MERGE. ⚠️⚠️
+#
+# Comment-out cả nhóm perl-base để Trivy báo lại chúng, chứng minh gate quét ảnh là cổng
+# chặn THẬT. Tám CVE này vẫn nằm nguyên trong ảnh — chúng chưa bao giờ được vá, chỉ được
+# khai báo bỏ qua có chủ ý. Bằng chứng lấy từ log run 30235684823 (job 89883019084):
+#
+#   INFO  Some vulnerabilities have been ignored/suppressed.
+#         Use the "--show-suppressed" flag to display them.
+#   Report Summary: ...aiops-detector (debian 13.6) | debian | 0 |
+#
+# Tức là "0 CVE" của ngày thường là 0 SAU KHI LỌC, không phải ảnh sạch. Bỏ lọc đi thì
+# chúng hiện lại ngay, không cần dựng base image mới hay bịa CVE giả.
+#
+# CVE-2026-57433 là CRITICAL, thừa sức vượt ngưỡng `severity: CRITICAL,HIGH` của gate.
+#
+# KHÔI PHỤC: bỏ dấu `# ` ở đầu 8 dòng dưới. Nhánh này sẽ bị đóng, không merge.
+#
+# CVE-2026-13221  # perl-base — vulnerable tới cả sid/forky
+# CVE-2026-42496  # perl-base/Archive::Tar — fix_deferred; upstream vá ở CPAN 3.08, Debian chưa tách gói
+# CVE-2026-42497  # perl-base/Archive::Tar — như trên
+# CVE-2026-48962  # perl-base/IO-Compress
+# CVE-2026-57432  # perl-base — integer overflow
 # CVE-2026-57433 (thêm 22/07/2026): perl-base/Storable signed integer overflow. CRITICAL nhưng
 # Trivy báo status=affected, Fixed Version TRỐNG -> Debian chưa release bản vá ở trixie/sid.
 # Upstream vá ở Storable 3.41; Debian nhúng Storable trong perl-base (Essential=yes) nên không
 # bump/gỡ riêng được. Cùng họ với CVE-2026-57432 ở trên. Review: 2026-08-20.
-CVE-2026-57433  # perl-base/Storable — no fixed Debian trixie version; review 2026-08-20
-CVE-2026-8376   # perl-base — đã fixed ở sid, CHƯA xuống trixie (review sớm)
-CVE-2026-9538   # perl-base/Archive::Tar — fix_deferred
+# CVE-2026-57433  # perl-base/Storable — no fixed Debian trixie version; review 2026-08-20
+# CVE-2026-8376   # perl-base — đã fixed ở sid, CHƯA xuống trixie (review sớm)
+# CVE-2026-9538   # perl-base/Archive::Tar — fix_deferred
 CVE-2026-41992  # gzip — fix_deferred; vulnerable cả trixie/sid
 CVE-2025-69720  # ncurses-bin — affected mọi release
 CVE-2026-53615  # util-linux — affected mọi release
