@@ -120,10 +120,10 @@ networkPolicy:
     stores:
       - name: elasticache      # Redis/Valkey (VALKEY_ADDR, TLS)
         ports: [6379]
-        consumers: [cart, product-reviews]
+        consumers: [cart, cart-consumer-worker, product-reviews]
       - name: msk              # Kafka (KAFKA_ADDR; 9092 plaintext / 9094 TLS / 9096 SASL)
         ports: [9092, 9094, 9096]
-        consumers: [accounting, cart, checkout, email, fraud-detection, payment, shipping]
+        consumers: [accounting, cart, cart-consumer-worker, checkout, email, fraud-detection, payment, shipping]
       - name: rds              # Postgres (DB_CONNECTION_STRING)
         ports: [5432]
         consumers: [accounting, checkout, product-catalog, product-reviews, recommendation]
@@ -297,7 +297,7 @@ components:
     terminationGracePeriodSeconds: 30
     lifecycle:
       preStop:
-        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
+        sleep: { seconds: 5 }   # M17: sleep native (K8s>=1.29) thay exec /bin/sh — image distroless không có shell → exec fail (FailedPreStopHook).
     deploymentStrategy:
       type: RollingUpdate
       rollingUpdate:
@@ -414,6 +414,8 @@ components:
         drop:
           - ALL
       readOnlyRootFilesystem: true
+
+  # Dedicated gRPC API for Frontend & Checkout
   cart:
     enabled: true
     imageOverride:
@@ -440,7 +442,7 @@ components:
     terminationGracePeriodSeconds: 30
     lifecycle:
       preStop:
-        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
+        sleep: { seconds: 5 }   # M17: sleep native (K8s>=1.29) thay exec /bin/sh — image distroless không có shell → exec fail (FailedPreStopHook).
     deploymentStrategy:
       type: RollingUpdate
       rollingUpdate:
@@ -469,6 +471,12 @@ components:
         value: "8080"
       - name: ASPNETCORE_URLS
         value: http://*:$(CART_PORT)
+      - name: ENABLE_KAFKA_CONSUMER
+        value: "false"
+      - name: CART_MAX_CONCURRENT_REQUESTS
+        value: "128"
+      - name: CART_MAX_QUEUED_REQUESTS
+        value: "256"
       - name: VALKEY_ADDR
         valueFrom:
           secretKeyRef:
@@ -539,6 +547,100 @@ components:
             cpu: 50m
             memory: 32Mi
 
+  # Dedicated background MSK Kafka Worker
+  cart-consumer-worker:
+    enabled: true
+    imageOverride: {}
+    initContainers:
+      - name: wait-for-valkey-cart
+        image: busybox:1.38.0
+        env:
+          - name: VALKEY_ADDR
+            valueFrom:
+              secretKeyRef:
+                name: valkey-secret
+                key: address
+        command: ["sh", "-c", "HOST=$(echo \"$VALKEY_ADDR\" | cut -d: -f1); PORT=$(echo \"$VALKEY_ADDR\" | cut -d: -f2); until nc -z -v -w30 \"$HOST\" \"$PORT\"; do echo waiting for valkey-cart; sleep 2; done;"]
+        securityContext:
+          runAsUser: 1000
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 50m
+            memory: 32Mi
+    securityContext:
+      allowPrivilegeEscalation: false
+      runAsNonRoot: true
+      runAsUser: 1000
+      capabilities:
+        drop:
+          - ALL
+      readOnlyRootFilesystem: true
+    useDefault:
+      env: true
+    # Note: No `service:` field defined -> Helm will NOT expose inbound ports/K8s Service
+    podDisruptionBudget:
+      maxUnavailable: 1
+    topologySpread: true
+    terminationGracePeriodSeconds: 30
+    deploymentStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 0
+        maxSurge: 1
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: techx-corp
+    env:
+      - name: ENABLE_KAFKA_CONSUMER
+        value: "true"                  # Enable Kafka Consumer in Worker pods
+      - name: VALKEY_ADDR
+        valueFrom:
+          secretKeyRef:
+            name: valkey-secret
+            key: address
+      - name: VALKEY_TLS
+        value: "true"
+      - name: VALKEY_AUTH_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: valkey-secret
+            key: auth_token
+      - name: KAFKA_ADDR
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: brokers_sasl_scram
+      - name: KAFKA_USER
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: username
+      - name: KAFKA_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: password
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://$(OTEL_COLLECTOR_NAME):4317
+    resources:
+      requests:
+        cpu: 100m
+        memory: 64Mi
+      limits:
+        cpu: 300m
+        memory: 128Mi
+    hpa:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 4
+
   checkout:
     enabled: true
     imageOverride:
@@ -555,7 +657,7 @@ components:
     terminationGracePeriodSeconds: 30
     lifecycle:
       preStop:
-        exec: { command: ["/bin/sh", "-c", "sleep 5"] } # CDO-29: chờ endpoint propagate, không rơi request
+        sleep: { seconds: 5 }   # CDO-29: chờ endpoint propagate, không rơi request. M17: sleep native (K8s>=1.29) — image distroless không có /bin/sh nên exec fail (FailedPreStopHook).
     deploymentStrategy: # CDO-29: rollout không hạ pod cũ trước khi pod mới Ready
       type: RollingUpdate
       rollingUpdate:
@@ -672,6 +774,19 @@ components:
       env: true
     service:
       port: 8080
+    # M17 deploy-safety: dependency luồng ra tiền — readiness gate (không đẩy traffic vào pod chưa listening khi node churn)
+    # + preStop sleep native (K8s>=1.29, khỏi cần shell → an toàn cho mọi image) + grace. Fix rớt request khi Karpenter consolidate.
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep:
+          seconds: 5
+    readinessProbe:
+      tcpSocket: { port: 8080 }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
     env:
@@ -723,6 +838,18 @@ components:
       env: true
     service:
       port: 8080
+    # M17 deploy-safety: dependency luồng ra tiền — readiness gate + preStop sleep native + grace 30s. Fix rớt request khi drain/Karpenter consolidate.
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep:
+          seconds: 5
+    readinessProbe:
+      tcpSocket: { port: 8080 }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
     env:
@@ -884,7 +1011,7 @@ components:
     terminationGracePeriodSeconds: 30
     lifecycle:
       preStop:
-        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
+        sleep: { seconds: 5 }   # M17: sleep native (K8s>=1.29) thay exec /bin/sh — image distroless không có shell → exec fail (FailedPreStopHook).
     deploymentStrategy:
       type: RollingUpdate
       rollingUpdate:
@@ -1002,7 +1129,7 @@ components:
     terminationGracePeriodSeconds: 30
     lifecycle:
       preStop:
-        exec: { command: ["/bin/sh", "-c", "sleep 5"] } # cực quan trọng cho Envoy: drain kết nối trước khi tắt
+        sleep: { seconds: 5 }   # cực quan trọng cho Envoy: drain kết nối trước khi tắt. M17: sleep native (K8s>=1.29) thay exec — không phụ thuộc shell trong image.
     deploymentStrategy: # CDO-29: zero-downtime khi rollout Envoy cho Mandate 01
       type: RollingUpdate
       rollingUpdate:
@@ -1249,6 +1376,18 @@ components:
       env: true
     service:
       port: 8080
+    # M17 deploy-safety: dependency luồng ra tiền — readiness gate + preStop sleep native + grace 30s. Fix rớt request khi drain/Karpenter consolidate.
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep:
+          seconds: 5
+    readinessProbe:
+      tcpSocket: { port: 8080 }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
     env:
@@ -1346,7 +1485,7 @@ components:
     terminationGracePeriodSeconds: 30
     lifecycle:
       preStop:
-        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
+        sleep: { seconds: 5 }   # M17: sleep native (K8s>=1.29) thay exec /bin/sh — image distroless không có shell → exec fail (FailedPreStopHook).
     deploymentStrategy:
       type: RollingUpdate
       rollingUpdate:
@@ -1426,7 +1565,7 @@ components:
     terminationGracePeriodSeconds: 30
     lifecycle:
       preStop:
-        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
+        sleep: { seconds: 5 }   # M17: sleep native (K8s>=1.29) thay exec /bin/sh — image distroless không có shell → exec fail (FailedPreStopHook).
     deploymentStrategy:
       type: RollingUpdate
       rollingUpdate:
@@ -1500,6 +1639,18 @@ components:
       env: true
     service:
       port: 8080
+    # M17 deploy-safety: dependency luồng ra tiền (shipping→quote) — readiness gate + preStop sleep native + grace 30s. Fix rớt request khi drain/Karpenter consolidate.
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep:
+          seconds: 5
+    readinessProbe:
+      tcpSocket: { port: 8080 }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
     env:
@@ -1680,6 +1831,18 @@ components:
       env: true
     service:
       port: 8080
+    # M17 deploy-safety: dependency luồng ra tiền — readiness gate + preStop sleep native + grace 30s. Fix rớt request khi drain/Karpenter consolidate.
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep:
+          seconds: 5
+    readinessProbe:
+      tcpSocket: { port: 8080 }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
     env:

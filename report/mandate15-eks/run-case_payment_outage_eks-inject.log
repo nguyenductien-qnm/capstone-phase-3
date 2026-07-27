@@ -1,0 +1,14 @@
+[16:13:56] pre-check: payment   4/4   4     4     11d
+[16:13:57] INJECT ON  t_start=1785082437
+deployment.apps/payment scaled
+[16:15:00] +1min  checkout_error_ratio=0.0000  (nguong tinh 0.05)
+[16:16:01] +2min  checkout_error_ratio=0.0000  (nguong tinh 0.05)
+[16:17:01] +3min  checkout_error_ratio=0.0000  (nguong tinh 0.05)
+[16:18:02] +4min  checkout_error_ratio=0.0000  (nguong tinh 0.05)
+[16:19:03] +5min  checkout_error_ratio=0.0000  (nguong tinh 0.05)
+[16:20:04] +6min  checkout_error_ratio=0.0000  (nguong tinh 0.05)
+[16:20:04] INJECT OFF t_end=1785082804
+deployment.apps/payment scaled
+[16:20:06] settling 120s...
+[16:22:06] DONE. t_start=1785082437 t_end=1785082804
+payment   3/3   3     3     11d

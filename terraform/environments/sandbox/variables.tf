@@ -42,6 +42,15 @@ variable "private_app_subnets" {
   description = "Cấu hình Private Application Subnets"
 }
 
+variable "private_node_subnets" {
+  type = map(object({
+    cidr_block        = string
+    availability_zone = string
+  }))
+  description = "Cấu hình Private Node Subnets cho Karpenter — giá trị commit tại node-subnets.auto.tfvars (không cần GitHub repo variable mới)"
+  default     = {}
+}
+
 variable "private_data_subnets" {
   type = map(object({
     cidr_block        = string
@@ -83,6 +92,12 @@ variable "private_subnet_tags" {
 variable "private_app_subnet_tags" {
   type        = map(string)
   description = "Các tags bổ sung chỉ cho Private Application Subnets"
+  default     = {}
+}
+
+variable "private_node_subnet_tags" {
+  type        = map(string)
+  description = "Các tags bổ sung chỉ cho Private Node Subnets"
   default     = {}
 }
 

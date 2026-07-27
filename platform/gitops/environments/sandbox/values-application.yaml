@@ -85,6 +85,18 @@ components:
         cpu: 50m    # dùng 33m = 66%, giữ nguyên
       limits:
         cpu: 250m   # throttle 29.1%@100m — dùng chung nhiều flow
+    # Currency keeps OTLP logs, metrics, and traces enabled. The service uses
+    # bounded asynchronous processors so an unhealthy collector cannot block RPCs.
+    # This is a full Helm env override, so retain every base environment variable.
+    env:
+      - name: CURRENCY_PORT
+        value: "8080"
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://$(OTEL_COLLECTOR_NAME):4317
+      - name: VERSION
+        value: "{{ .Chart.AppVersion }}"
+      - name: IPV6_ENABLED
+        value: "false"
   cart:
     resources:
       requests:

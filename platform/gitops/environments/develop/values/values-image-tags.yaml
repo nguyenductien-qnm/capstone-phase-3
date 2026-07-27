@@ -9,13 +9,16 @@ components:
       tag: 1.0-ad-6beefa4
   cart:
     imageOverride:
-      tag: 1.0-cart-2578e5c
+      tag: 1.0-cart-4986041
+  cart-consumer-worker:
+    imageOverride:
+      tag: 1.0-cart-4986041
   checkout:
     imageOverride:
       tag: 1.0-checkout-6beefa4
   currency:
     imageOverride:
-      tag: 1.0-currency-6beefa4
+      tag: 1.0-currency-8909351
   fraud-detection:
     imageOverride:
       tag: 1.0-fraud-detection-6beefa4
