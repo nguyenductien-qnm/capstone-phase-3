@@ -300,3 +300,20 @@ def test_every_query_in_the_real_rules_yaml_parses():
     promql_errors = []
     vr.check_promql(queries, promql_errors)
     assert promql_errors == [], _joined(promql_errors)
+
+
+@pytest.mark.parametrize("field", ["dynamic_enabled", "expect_series"])
+def test_silent_failure_schema_fields_are_accepted(field):
+    """Hai truong do nhanh feat/aiops-silent-failure-detection them vao detector.py.
+
+    Khai trong schema cung luc voi code doc chung. Khong khai thi rule dung chung se bi
+    bao "truong la" va CI do sau khi ca hai nhanh merge.
+    """
+    errors, warnings = _run(_config(_metric_rule(**{field: False})))
+    assert errors == [] and warnings == []
+
+
+@pytest.mark.parametrize("field", ["dynamic_enabled", "expect_series"])
+def test_silent_failure_schema_fields_must_be_bool(field):
+    errors, _ = _run(_config(_metric_rule(**{field: "false"})))
+    assert any(field in e for e in errors), _joined(errors)

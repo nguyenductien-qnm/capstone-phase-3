@@ -102,6 +102,12 @@ TYPE_FIELDS = {
             "op": str,
             "summary_dynamic": str,
             "dynamic_min_fraction": NUMBER,
+            # Hai truong duoi do nhanh feat/aiops-silent-failure-detection them vao
+            # detector.py. Khai o day cung luc CO Y: neu khong, rule dung chung se bi bao
+            # "truong la" va CI do sau khi ca hai nhanh merge. Do dung la co che nay lam
+            # viec — them truong schema ma quen khai bao thi phai biet ngay.
+            "dynamic_enabled": bool,
+            "expect_series": bool,
         },
     },
     "log": {
