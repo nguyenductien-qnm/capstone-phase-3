@@ -21,9 +21,15 @@ Usage:
   python incident_replay.py run aiops/incident_scenarios/case_real_incident.json
 
   # Grading day: BTC injects the hidden scenario themselves: skip injection,
-  # score only, supplying the window you observed them trigger it in.
-  python incident_replay.py score aiops/incident_scenarios/case_real_incident.json \\
+  # score only, supplying the window you observed them trigger it in. The scenario
+  # file may live ANYWHERE — it does not have to be inside this repo.
+  python incident_replay.py score /path/to/btc-hidden-scenario.json \\
       --start 1721800000 --end 1721800120
+
+  # Multi-event hidden scenarios (masking) are supported: the observed window is
+  # split per event using the scenario own offset_seconds/duration_seconds, so a
+  # single alert can never satisfy two events. Scenario rule ids are checked against
+  # rules.yaml and a loud warning is printed if one does not exist.
 
   # --check-remediation also pulls aiops/remediation/audit_log.jsonl for the same
   # window (used once MANDATE-22's remediation scenario lands on top of this).
@@ -325,6 +331,7 @@ def _write_result(scenario_path, scenario, events, score, remediation_records):
 def cmd_run(args):
     with open(args.scenario, "r", encoding="utf-8") as f:
         scenario = json.load(f)
+    warn_unknown_rule_ids(_normalize_events(scenario))
     events = do_inject(scenario)
     score = score_events(events, args.alerter_history, scenario.get("settle_seconds", 30))
     remediation_records = None
@@ -332,6 +339,117 @@ def cmd_run(args):
         remediation_records = check_remediation(args.audit_log, score["window"]["start"], score["window"]["end"])
     _print_report(scenario, score, remediation_records)
     _write_result(args.scenario, scenario, events, score, remediation_records)
+
+
+DEFAULT_RULES_YAML = os.path.join(_HERE, "detector", "rules.yaml")
+
+
+def known_rule_ids(path=DEFAULT_RULES_YAML):
+    """Doc id cua moi rule trong rules.yaml. Tra ve None neu khong doc duoc.
+
+    Co y KHONG dung PyYAML: incident_replay.py chi phu thuoc stdlib, va harness phai
+    chay duoc tren may cua giam khao ma khong can cai them gi. Chi can bat dong
+    `  - id: <ten>` o dau muc rule nen mot bo doc dong don gian la du.
+    """
+    if not os.path.exists(path):
+        return None
+    ids = set()
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                s = line.strip()
+                if s.startswith("- id:"):
+                    ids.add(s.split(":", 1)[1].strip().strip('"\''))
+    except OSError:
+        return None
+    return ids or None
+
+
+def warn_unknown_rule_ids(events, path=DEFAULT_RULES_YAML):
+    """Keu to neu scenario dan mot rule id KHONG CO trong rules.yaml.
+
+    Vi sao can: mot rule id sai khong gay loi gi ca — `candidates` chi rong, su kien
+    bi cham la "silent", va ca kich ban FAIL ma khong mot dau hieu nao noi rang nguyen
+    nhan la go sai ten chu khong phai detector mu. Dung lop loi da tra gia hai lan:
+    rule kafka sai ten metric nam cam hang tuan, va lan doi ten grpc-error-rate-high ->
+    service-error-rate-high o #452 lam 5 file scenario cham sai.
+
+    Nguy hiem nhat vao NGAY CHAM: kich ban do BTC dua toi co the dan ten rule khong
+    khop voi rules.yaml hien tai, va ta se bao FAIL ma tuong la minh do.
+
+    Chi CANH BAO chu khong chan: rule id la cua BTC, ho co quyen dat ten khac.
+    """
+    valid = known_rule_ids(path)
+    if not valid:
+        return []
+    unknown = set()
+    for ev in events:
+        for rid in ev.get("expected_rule_ids", []) or []:
+            if rid not in valid:
+                unknown.add(rid)
+    if unknown:
+        print("", file=sys.stderr)
+        print("!" * 70, file=sys.stderr)
+        print("CANH BAO: scenario dan rule id KHONG CO trong rules.yaml:", file=sys.stderr)
+        for rid in sorted(unknown):
+            print(f"    - {rid}", file=sys.stderr)
+        print("Nhung su kien cho rule nay se KHONG BAO GIO khop, va se bi cham la", file=sys.stderr)
+        print("'silent' -> FAIL. Do la loi CAU HINH, khong phai detector mu.", file=sys.stderr)
+        print(f"Rule dang co: {', '.join(sorted(valid))}", file=sys.stderr)
+        print("!" * 70, file=sys.stderr)
+        print("", file=sys.stderr)
+    return sorted(unknown)
+
+
+def _assign_observed_window(events, start, end):
+    """Trai cua so quan sat duoc len tung su kien theo dung moc thoi gian cua scenario.
+
+    Ban truoc gan CUNG MOT cua so cho MOI su kien:
+        for ev in events: ev["t_start"] = start; ev["t_end"] = end
+    Voi kich ban mot su kien thi dung. Voi kich ban NHIEU su kien thi sai nghiem trong:
+    moi su kien deu nhan ca cua so, nen MOT alert duy nhat khop cho TAT CA — ca masking
+    se bao PASS ke ca khi su co thu hai bi che hoan toan. Da xac nhan bang thuc nghiem:
+    hai su kien cung tra ve lead_time=200.9s tu cung mot alert, va verdict PASS trong
+    khi correct=1/total=2.
+
+    Dieu do dac biet nguy hiem vi bo kich ban an cua MANDATE-15 CO ca masking, tuc dung
+    loai nhieu su kien.
+
+    Cach lam: scenario tu khai timeline tuong doi bang offset_seconds/duration_seconds.
+    Anh xa TUYEN TINH timeline do vao cua so quan sat duoc. Neu do dai hai ben bang nhau
+    thi phep anh xa la dong nhat; neu BTC chay nhanh/cham hon thi ti le duoc giu nguyen.
+    """
+    if not events:
+        return
+    if len(events) == 1:
+        events[0]["t_start"], events[0]["t_end"] = start, end
+        return
+
+    spans = [(ev.get("offset_seconds", 0),
+              ev.get("offset_seconds", 0) + ev.get("duration_seconds", 60))
+             for ev in events]
+    scenario_len = max(hi for _, hi in spans)
+    observed_len = end - start
+
+    if scenario_len <= 0 or observed_len <= 0:
+        for ev in events:
+            ev["t_start"], ev["t_end"] = start, end
+        return
+
+    # Moi su kien cung offset -> khong the tach duoc bang timeline. Noi ra thay vi
+    # am tham cham sai.
+    if len({lo for lo, _ in spans}) == 1:
+        print("CANH BAO: moi su kien co cung offset_seconds nen khong tach duoc theo "
+              "thoi gian; dung chung ca cua so quan sat. Diem tung su kien se khong "
+              "dang tin.", file=sys.stderr)
+        for ev in events:
+            ev["t_start"], ev["t_end"] = start, end
+        return
+
+    scale = observed_len / scenario_len
+    for ev, (lo, hi) in zip(events, spans):
+        ev["t_start"] = start + lo * scale
+        ev["t_end"] = start + hi * scale
 
 
 def cmd_score(args):
@@ -342,11 +460,8 @@ def cmd_score(args):
         print("score-only mode requires --start/--end (the window you observed "
               "the hidden scenario run in)", file=sys.stderr)
         sys.exit(2)
-    # Grading-day mode: BTC injected it, not us — assign every event the same
-    # externally-observed window instead of per-event t_start/t_end.
-    for ev in events:
-        ev["t_start"] = args.start
-        ev["t_end"] = args.end
+    warn_unknown_rule_ids(events)
+    _assign_observed_window(events, args.start, args.end)
     score = score_events(events, args.alerter_history, scenario.get("settle_seconds", 0))
     remediation_records = None
     if args.check_remediation:
