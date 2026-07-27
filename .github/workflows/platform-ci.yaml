@@ -214,7 +214,11 @@ jobs:
         service: ${{ fromJSON(needs.discover.outputs.py) }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+      # ⚠️ DÒNG NÀY CỐ TÌNH SAI — EVIDENCE CHO DIRECTIVE #10, KHÔNG MERGE.
+      # Đổi từ commit SHA về tag `@v5`. Tag di chuyển được: chủ action trỏ v5
+      # sang commit khác lúc nào cũng được, và CI sẽ lặng lẽ chạy code mới mà
+      # không ai duyệt. Đây chính là kiểu trôi mà gate `Pin guard` sinh ra để bắt.
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
           cache: pip
