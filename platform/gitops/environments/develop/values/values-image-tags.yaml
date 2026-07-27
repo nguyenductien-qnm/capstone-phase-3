@@ -21,7 +21,7 @@ components:
       tag: 1.0-currency-8909351
   fraud-detection:
     imageOverride:
-      tag: 1.0-fraud-detection-6beefa4
+      tag: 1.0-fraud-detection-d4c2a03
   frontend:
     imageOverride:
       tag: 1.0-frontend-6beefa4
