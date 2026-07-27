@@ -2,7 +2,6 @@
 
 # Copyright The OpenTelemetry Authors
 # SPDX-License-Identifier: Apache-2.0
-import copy
 
 import json
 import os
@@ -10,7 +9,7 @@ import random
 import uuid
 import logging
 
-from locust import HttpUser, LoadTestShape, task, between
+from locust import HttpUser, task, between
 from locust_plugins.users.playwright import PlaywrightUser, pw, PageWithRetry, event
 
 from opentelemetry import context, baggage, trace
@@ -111,29 +110,8 @@ products = [
 people_file = open('people.json')
 people = json.load(people_file)
 
-if os.getenv("MANDATE09_LOAD_PROFILE", "false").lower() == "true":
-    class Mandate09LoadShape(LoadTestShape):
-        """Sustained, opt-in load shape for managed-store change drills."""
-
-        peak_users = int(os.getenv("MANDATE09_PEAK_USERS", "100"))
-        duration_seconds = int(os.getenv("MANDATE09_DURATION_SECONDS", "900"))
-
-        def tick(self):
-            run_time = self.get_run_time()
-            if run_time >= self.duration_seconds:
-                return None
-            if run_time < 60:
-                return max(1, self.peak_users // 4), max(1, self.peak_users // 12)
-            if run_time < 180:
-                return max(1, self.peak_users // 2), max(1, self.peak_users // 10)
-            return self.peak_users, max(1, self.peak_users // 8)
-
-
 class WebsiteUser(HttpUser):
-    wait_time = between(
-        float(os.getenv("LOCUST_WAIT_MIN_SECONDS", "1")),
-        float(os.getenv("LOCUST_WAIT_MAX_SECONDS", "10")),
-    )
+    wait_time = between(1, 10)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -221,13 +199,9 @@ class WebsiteUser(HttpUser):
         user = str(uuid.uuid1())
         with self.tracer.start_as_current_span("user_checkout_single", context=Context(), attributes={"user.id": user}):
             self.add_to_cart(user=user)
-            checkout_person = copy.deepcopy(random.choice(people))
+            checkout_person = random.choice(people)
             checkout_person["userId"] = user
-            self.client.post(
-                "/api/checkout",
-                json=checkout_person,
-                headers={"Idempotency-Key": str(uuid.uuid4())},
-            )
+            self.client.post("/api/checkout", json=checkout_person)
             logging.info(f"Checkout completed for user {user}")
 
     @task(1)
@@ -238,59 +212,12 @@ class WebsiteUser(HttpUser):
                                             attributes={"user.id": user, "item.count": item_count}):
             for i in range(item_count):
                 self.add_to_cart(user=user)
-            checkout_person = copy.deepcopy(random.choice(people))
+            checkout_person = random.choice(people)
             checkout_person["userId"] = user
-            self.client.post(
-                "/api/checkout",
-                json=checkout_person,
-                headers={"Idempotency-Key": str(uuid.uuid4())},
-            )
+            self.client.post("/api/checkout", json=checkout_person)
             logging.info(f"Multi-item checkout completed for user {user}")
 
-    @task(1)
-    def checkout_idempotent_replay(self):
-        user = str(uuid.uuid4())
-        self.add_to_cart(user=user)
-        checkout_person = copy.deepcopy(random.choice(people))
-        checkout_person["userId"] = user
-        idempotency_key = str(uuid.uuid4())
-        headers = {"Idempotency-Key": idempotency_key}
-
-        with self.client.post(
-            "/api/checkout",
-            json=checkout_person,
-            headers=headers,
-            name="/api/checkout [initial]",
-            catch_response=True,
-        ) as initial:
-            if initial.status_code >= 400:
-                initial.failure(f"initial checkout returned {initial.status_code}")
-                return
-            try:
-                initial_order_id = initial.json()["orderId"]
-            except (KeyError, TypeError, ValueError):
-                initial.failure("initial checkout response has no orderId")
-                return
-
-        with self.client.post(
-            "/api/checkout",
-            json=checkout_person,
-            headers=headers,
-            name="/api/checkout [idempotent replay]",
-            catch_response=True,
-        ) as replay:
-            if replay.status_code >= 400:
-                replay.failure(f"replay returned {replay.status_code}")
-                return
-            try:
-                replay_order_id = replay.json()["orderId"]
-            except (KeyError, TypeError, ValueError):
-                replay.failure("replay response has no orderId")
-                return
-            if replay_order_id != initial_order_id:
-                replay.failure("same idempotency key returned a different orderId")
-
-    @task(1)
+    @task(5)
     def flood_home(self):
         flood_count = get_flagd_value("loadGeneratorFloodHomepage")
         if flood_count > 0:
