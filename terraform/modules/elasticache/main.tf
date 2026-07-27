@@ -57,6 +57,12 @@ resource "aws_elasticache_replication_group" "this" {
   auth_token                 = random_password.valkey_auth.result
   auth_token_update_strategy = "SET"
 
+  # Mandate 20: snapshot hằng ngày cho cart. snapshot_retention_limit=0 -> tắt (default);
+  # snapshot_window chỉ có hiệu lực khi retention > 0. Valkey không có PITR liên tục nên
+  # RPO của cart = 1 ngày (chốt trong ADR: mất giỏ hàng chấp nhận được, khác đơn đã đặt).
+  snapshot_retention_limit = var.snapshot_retention_limit
+  snapshot_window          = var.snapshot_window
+
   tags = {
     Name        = "${var.project_name}-${var.environment}-valkey"
     Environment = var.environment

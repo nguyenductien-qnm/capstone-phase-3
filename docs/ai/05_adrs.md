@@ -619,6 +619,56 @@ sạch**, nên con số precision phải đọc là "trong điều kiện có nh
 sạch phải rebuild image `email` (image local cũ hơn Dockerfile đã sửa trên `develop`) rồi
 chạy lại — ghi ra đây là việc còn thiếu, không lấp liếm bằng cách bỏ ca này khỏi bộ.
 
+### Addendum 2026-07-26 — MANDATE-15 / TF1-98: đo lại trên EKS thật, và 4 lỗ hổng phát hiện
+
+Báo cáo đầy đủ + dữ liệu thô: `report/mandate15-eks/`. Người đo: Thanh Pham Huu Tien.
+Đo trên cluster `ecommerce-dev-eks` / namespace `techx-tf1`, detector là pod
+`aiops-detector` đã đứng sẵn trong cụm 10 ngày (**không phải tiến trình do người đo dựng lên**).
+
+**Số mức bộ có nhãn (K=2): recall 0.500 · precision 0.077 · lead-time 380.0s.**
+So với compose `#7b` (K=3, 0.333 / 0.167 / 88.9s): recall khá hơn, **precision và lead-time
+đều tệ hơn rõ rệt**. So với số tổng hợp cũ của `evaluate_detector.py` (P=0.6875 / R=0.9167):
+số tổng hợp **lạc quan hơn thực tế ~9 lần về precision** — không dùng nó báo cáo năng lực nữa.
+
+**Quyết định — bơm bằng `kubectl`, không phải flagd.** flagd trên EKS đọc từ server BTC
+(`sandbox/values-flagd-sync.yaml` → `122.248.223.194.sslip.io`), patch ConfigMap vô tác dụng.
+Harness đã có sẵn `inject type=command` nên không phải sửa code đo trong lúc đang đo.
+
+**Lỗ hổng 1 (nghiêm trọng nhất) — detector mù hoàn toàn với hỏng-im-lặng.** Bơm `payment` →
+0 replica 367s: detector **không kêu một tiếng nào**. Bốn lớp xếp chồng, mỗi lớp kiểm chứng
+riêng: (a) `checkout` không còn gọi `payment` qua gRPC — kiến trúc đã chuyển sang Kafka
+(`domain.checkout.orders`), span `PaymentService/Charge` đứng yên từ 25/07 21:30 — nên giết
+payment không sinh lỗi ở đâu cả; (b) `payment` không xuất `rpc_server_duration_milliseconds`;
+(c) `payment` không xuất metric consumer lag; (d) rule `kafka-consumer-lag-high` sai tên metric
+— xem lỗ hổng 2. Rule error-ratio mù **về mặt cấu trúc** với hỏng-không-còn-tín-hiệu.
+Cần rule dạng `absent()`/throughput-về-0 cho service nghiệp vụ lõi.
+
+**Lỗ hổng 2 — chốt được câu hỏi bỏ ngỏ của TF1-71.** `kafka-consumer-lag-high` query
+`kafka_consumer_group_lag`; comment của chính rule đòi verify tên này trên Prometheus EKS.
+Verify xong: **tên đó không tồn tại**, tên thật là `kafka_consumer_records_lag(_avg|_max)`.
+Nguy hiểm ở chỗ query sai tên trả chuỗi rỗng chứ không ném lỗi — bật lên là **im lặng vĩnh
+viễn mà tưởng đang canh**. Phải sửa tên trước, rồi mới gỡ nhãn DRAFT.
+
+**Lỗ hổng 3 — ngưỡng 0.05 không có nghĩa như ta tưởng.** `grpc-error-rate-high` tính trên
+*toàn bộ* RPC. Đo trên cụm: `checkout` phục vụ `grpc.health.v1.Health/Check` 0.582 req/s so với
+`PlaceOrder` 0.071 req/s — health-check chiếm **89% mẫu số**. Nên 100% đơn hàng hỏng chỉ đẩy
+tỉ lệ lên ~0.11–0.18, và mất **380s** mới vượt ngưỡng (trên compose chỉ 88.9s vì tỉ lệ vọt lên
+0.9576). Phải loại health-check khỏi mẫu số hoặc tách rule theo `rpc_method`.
+
+**Lỗ hổng 4 — 3-sigma đang kêu nhảm 3.2 lần/giờ trên production.** Cửa sổ 188 phút không bơm
+gì: 10 alert. Tại thời điểm kêu, tỉ lệ lỗi là 0.0219 / 0.0125 / 0.0063 — **không lần nào chạm
+ngưỡng tĩnh 0.05**. Nguyên nhân: cửa sổ trượt 30 mẫu × poll 30s ⇒ baseline chỉ 15 phút, phương
+sai nền rất nhỏ nên một nhịp vô hại đã vượt `mean + 3σ`. Đây là bài toán mà winsorize/EWMA
+trong PR #343 nhắm tới; giờ đã có số nền để so trước/sau.
+
+**Bug harness phát hiện khi chấm, đã sửa.** `score_events` lọc alert theo `ts >= t_start` mà
+thiếu cận trên, nên trong scenario nhiều sự kiện, sự kiện sớm nuốt alert của sự kiện muộn —
+ca payment (thực tế im lặng) bị chấm thành caught với lead-time 1166.6s nhờ cướp alert của ca
+cart cách 19 phút. Ảnh hưởng thật nằm ở `case_masking.json` của MANDATE-15 vì nó **là scenario
+2 sự kiện theo thiết kế**. Đã kẹp cận trên `t_end + settle` + test hồi quy; 34/34 pass.
+
+---
+
 ### Addendum 2026-07-27 — CHỐT: chỉ dùng 3-sigma, KHÔNG thêm EWMA; thay vào đó gắn cổng SLO
 
 Người quyết: Thanh Pham Huu Tien. Ticket: TF1-102. Đây là phần **kết luận** cho bullet

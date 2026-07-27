@@ -198,11 +198,19 @@ def score_events(events, alerter_history_path, settle_seconds=30):
     per_event = []
     matched_alert_indices = set()
     for ev in events:
+        # An alert belongs to this event only if it lands inside THIS event's own
+        # window (+settle), not merely after it started. Without the upper bound a
+        # multi-event scenario lets the earlier event swallow an alert that belongs
+        # to a much later one: measuring the EKS set, the payment case (detector was
+        # silent for it) was scored as caught with lead_time=1166s by stealing the
+        # cart case's alert 19 minutes later. Single-event scenarios never showed it
+        # because `observed` is already clipped to the global window.
+        ev_end = ev["t_end"] + settle_seconds
         candidates = [
             (i, a) for i, a in enumerate(observed)
             if a.get("rule_id") in ev.get("expected_rule_ids", [])
             and (ev.get("service") is None or a.get("service") == ev.get("service"))
-            and a.get("ts", -1) >= ev["t_start"]
+            and ev["t_start"] <= a.get("ts", -1) <= ev_end
         ]
         candidates.sort(key=lambda ia: ia[1]["ts"])
         fired = bool(candidates)

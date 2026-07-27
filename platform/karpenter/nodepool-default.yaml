@@ -30,14 +30,20 @@ spec:
         # zone reject 100% mọi launch thật (đã xác nhận bằng A/B test 2 NodePool). Việc
         # trải AZ để lại cho pod topologySpreadConstraint (zone, maxSkew=1, DoNotSchedule).
         #
-        # us-east-1a tạm loại: subnet-0b59ee6ca01796a39 bị fragment, ipamd không xin nổi
-        # prefix /28 liên tục cho ENI mới (AssignPrivateIpAddresses -> InsufficientCidrBlocks,
-        # xác nhận qua CloudTrail, 100% fail trên 1a trong khi 1c cấp prefix bình thường).
-        # Node mới launch vào 1a bị kẹt FailedCreatePodSandBox vô thời hạn. Mở lại sau khi có
-        # subnet 1a sạch thay thế (theo dõi task riêng, không phải scope Karpenter).
+        # 27/07/2026: mở lại us-east-1a. Chẩn đoán cũ (f90d230: "1a fragment") đo lại
+        # cho kết quả ĐẢO NGƯỢC — trạng thái lúc đó là nhất thời (2 node đang giữ prefix
+        # ở 1a), không phải khiếm khuyết subnet. Số /28 trống đo 26-27/07: 1a = 12/16,
+        # 1b = 1/16, 1c = 2/16; CloudTrail 26/07 ghi 1250 lỗi InsufficientCidrBlocks,
+        # TOÀN BỘ từ node 1b/1c (ip-10-0-12-7 @1b chết NetworkNotReady 15:43Z), 0 lỗi
+        # từ 1a. Loại 1a dồn 100% launch vào 2 subnet cạn khối — vòng tự siết.
+        # Kèm PR này: Terraform thêm subnet node-1a/1b/1c (/20, tag discovery) — Karpenter
+        # tự chọn subnet còn nhiều IP trống nhất trong AZ nên node mới vào /20 NGAY SAU
+        # khi infra-cd apply. LƯU Ý: apply là bước THỦ CÔNG (workflow_dispatch, confirm
+        # "apply-sandbox") — trước lúc đó 1a chỉ có /24 cũ, 12 khối /28 ≈ trần ~4-5 node
+        # (mỗi node ăn 2-3 khối + warm prefix). Chạy apply trong CÙNG cửa sổ với merge.
         - key: topology.kubernetes.io/zone
           operator: In
-          values: ["us-east-1b", "us-east-1c"]
+          values: ["us-east-1a", "us-east-1b", "us-east-1c"]
       nodeClassRef:
         group: karpenter.k8s.aws
         kind: EC2NodeClass

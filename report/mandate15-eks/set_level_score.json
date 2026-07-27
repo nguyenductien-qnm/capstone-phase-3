@@ -1,0 +1,168 @@
+{
+  "window": {
+    "start": 1785069994.0,
+    "end": 1785084331.0
+  },
+  "per_event": [
+    {
+      "label": "case-quiet-window-eks-001",
+      "service": null,
+      "expected_rule_ids": [
+        "latency-p95-high",
+        "grpc-error-rate-high",
+        "error-budget-burn-fast-standard",
+        "error-budget-burn-fast-checkout",
+        "error-budget-burn-slow-standard",
+        "error-budget-burn-slow-checkout",
+        "memory-saturation-high",
+        "kafka-consumer-lag-high",
+        "llm-rate-limit-429",
+        "db-pool-exhaustion",
+        "oom-detected"
+      ],
+      "expect_fire": false,
+      "fired": true,
+      "correct": false,
+      "lead_time_seconds": 166.29028248786926,
+      "matched_alert": {
+        "ts": 1785070160.2902825,
+        "rule_id": "grpc-error-rate-high",
+        "service": "checkout",
+        "severity": "critical",
+        "fingerprint": "checkout:5950233"
+      }
+    },
+    {
+      "label": "case-payment-outage-eks-001",
+      "service": "checkout",
+      "expected_rule_ids": [
+        "grpc-error-rate-high",
+        "error-budget-burn-fast-checkout"
+      ],
+      "expect_fire": true,
+      "fired": false,
+      "correct": false,
+      "lead_time_seconds": null,
+      "matched_alert": null
+    },
+    {
+      "label": "case-cart-outage-eks-001",
+      "service": "checkout",
+      "expected_rule_ids": [
+        "grpc-error-rate-high",
+        "error-budget-burn-fast-checkout"
+      ],
+      "expect_fire": true,
+      "fired": true,
+      "correct": true,
+      "lead_time_seconds": 379.9857585430145,
+      "matched_alert": {
+        "ts": 1785084223.9857585,
+        "rule_id": "grpc-error-rate-high",
+        "service": "checkout",
+        "severity": "critical",
+        "fingerprint": "checkout:5950280"
+      }
+    }
+  ],
+  "metrics": {
+    "K_incidents": 2,
+    "recall": 0.5,
+    "precision": 0.07692307692307693,
+    "total_fires_observed": 13,
+    "correct_fires": 1
+  },
+  "raw_alerts_in_window": [
+    {
+      "ts": 1785070160.2902825,
+      "rule_id": "grpc-error-rate-high",
+      "service": "checkout",
+      "severity": "critical",
+      "fingerprint": "checkout:5950233"
+    },
+    {
+      "ts": 1785071835.8253467,
+      "rule_id": "grpc-error-rate-high",
+      "service": "checkout",
+      "severity": "critical",
+      "fingerprint": "checkout:5950239"
+    },
+    {
+      "ts": 1785072300.951916,
+      "rule_id": "llm-rate-limit-429",
+      "service": "log",
+      "severity": "critical",
+      "fingerprint": "log:5950241"
+    },
+    {
+      "ts": 1785072425.2797961,
+      "rule_id": "latency-p95-high",
+      "service": "cart",
+      "severity": "warning",
+      "fingerprint": "cart:5950241"
+    },
+    {
+      "ts": 1785074416.1889825,
+      "rule_id": "grpc-error-rate-high",
+      "service": "checkout",
+      "severity": "critical",
+      "fingerprint": "checkout:5950248"
+    },
+    {
+      "ts": 1785075318.5377643,
+      "rule_id": "grpc-error-rate-high",
+      "service": "product-catalog",
+      "severity": "critical",
+      "fingerprint": "product-catalog:5950251"
+    },
+    {
+      "ts": 1785076837.687341,
+      "rule_id": "grpc-error-rate-high",
+      "service": "checkout",
+      "severity": "critical",
+      "fingerprint": "checkout:5950256"
+    },
+    {
+      "ts": 1785078822.2452235,
+      "rule_id": "grpc-error-rate-high",
+      "service": "checkout",
+      "severity": "critical",
+      "fingerprint": "checkout:5950262"
+    },
+    {
+      "ts": 1785080745.3931866,
+      "rule_id": "llm-rate-limit-429",
+      "service": "log",
+      "severity": "critical",
+      "fingerprint": "log:5950269"
+    },
+    {
+      "ts": 1785080870.1138282,
+      "rule_id": "latency-p95-high",
+      "service": "cart",
+      "severity": "warning",
+      "fingerprint": "cart:5950269"
+    },
+    {
+      "ts": 1785082020.3908703,
+      "rule_id": "latency-p95-high",
+      "service": "cart",
+      "severity": "warning",
+      "fingerprint": "cart:5950273"
+    },
+    {
+      "ts": 1785083603.5805187,
+      "rule_id": "grpc-error-rate-high",
+      "service": "checkout",
+      "severity": "critical",
+      "fingerprint": "checkout:5950278"
+    },
+    {
+      "ts": 1785084223.9857585,
+      "rule_id": "grpc-error-rate-high",
+      "service": "checkout",
+      "severity": "critical",
+      "fingerprint": "checkout:5950280"
+    }
+  ]
+}

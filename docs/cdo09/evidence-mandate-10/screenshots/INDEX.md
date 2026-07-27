@@ -1,12 +1,10 @@
 # MANDATE-10 — chú thích ảnh bằng chứng (23/07 → 26/07/2026)
 
-23 ảnh: **01–14** chụp trên PROD (account `804372444787`, cluster `ecommerce-dev-eks`,
-namespace `techx-tf1`), **15–23** chụp trên GitHub (ruleset + Actions). Xếp theo thời gian,
-nhóm theo yêu cầu của directive.
+20 ảnh chụp trên **PROD** (account `804372444787`, cluster `ecommerce-dev-eks`, namespace
+`techx-tf1`). Xếp theo thời gian, nhóm theo yêu cầu của directive.
 
-Đọc nhanh: ảnh **09 + 10** là cặp chứng minh admission chặn thật; ảnh **17 → 23** là dòng
-thời gian cổng chặn từ 3 lên 4 check; ảnh **20** chứng minh truy ngược full provenance;
-ảnh **21** chứng minh SAST chạy thật; ảnh **22** chứng minh không rebuild thừa.
+Đọc nhanh: ảnh **09 + 10** là cặp chứng minh admission chặn thật; ảnh **17** chứng minh
+CI đỏ không merge được; ảnh **20** chứng minh truy ngược full provenance.
 
 ## Bảng tra nhanh
 
@@ -32,28 +30,60 @@ thời gian cổng chặn từ 3 lên 4 check; ảnh **20** chứng minh truy ng
 | 18 | [18-pr410-approved-checks-passed](18-pr410-approved-checks-passed.md) | 26/07 00:33 | #1 — cổng chạy thật |
 | 19 | [19-trace-provenance-run-success](19-trace-provenance-run-success.md) | 26/07 10:08 | #5 — workflow chạy |
 | 20 | [20-trace-provenance-8-mat-xich](20-trace-provenance-8-mat-xich.md) | 26/07 10:09 | #5 — **truy ngược** ⭐ |
-| 21 | [21-codeql-8-ngon-ngu-pass](21-codeql-8-ngon-ngu-pass.md) | 26/07 19:43 | #2 — **SAST chạy thật** ⭐ |
-| 22 | [22-pr413-build-skipped](22-pr413-build-skipped.md) | 26/07 19:49 | #6 — **không rebuild thừa** ⭐ |
-| 23 | [23-ruleset-4-checks-co-sast](23-ruleset-4-checks-co-sast.md) | 26/07 20:03 | #1+#2 — **SAST thành cổng chặn** ⭐ |
+| 21 | [21-codeql-8-ngon-ngu-pass](21-codeql-8-ngon-ngu-pass.md) | 26/07 19:43 | #2 — SAST chạy thật ⭐ |
+| 22 | [22-pr413-build-skipped](22-pr413-build-skipped.md) | 26/07 19:49 | #6 — chỉ đụng cái gì đổi ⭐ |
+| 23 | [23-ruleset-4-checks-co-sast](23-ruleset-4-checks-co-sast.md) | 26/07 20:03 | #1 + #2 — SAST vào ruleset ⭐ |
+| 24 | [24-pr444-pinguard-do-merge-xam](24-pr444-pinguard-do-merge-xam.md) | 27/07 10:53 | #1 — **PR đỏ bị chặn** ⭐ |
+| 25 | [25-pr444-diff-doi-sha-ve-tag](25-pr444-diff-doi-sha-ve-tag.md) | 27/07 10:53 | #4 — lỗi mồi là lỗi thật |
+| 26 | [26-add-check-codeql-vs-sast](26-add-check-codeql-vs-sast.md) | 27/07 11:04 | #1 — chọn đúng cổng |
+| 27 | [27-ruleset-7-required-checks](27-ruleset-7-required-checks.md) | 27/07 11:05 | #1 — **7 cổng** ⭐ |
+| 28 | [28-pr443-alert-sql-injection-high](28-pr443-alert-sql-injection-high.md) | 27/07 11:06 | #2 — SAST bắt High |
+| 29 | [29-pr443-alert-command-injection-critical](29-pr443-alert-command-injection-critical.md) | 27/07 11:06 | #2 — SAST bắt Critical |
+| 30 | [30-pr443-codeql-required-merge-xam](30-pr443-codeql-required-merge-xam.md) | 27/07 11:06 | #1 + #2 — **PR đỏ bị chặn** ⭐ |
+| 31 | [31-pr446-trivy-8-cve-perl-base](31-pr446-trivy-8-cve-perl-base.md) | 27/07 11:24 | #2 — Trivy bắt 8 CVE |
+| 32 | [32-pr446-image-scan-gate-merge-xam](32-pr446-image-scan-gate-merge-xam.md) | 27/07 11:24 | #1 + #2 — **PR đỏ bị chặn** ⭐ |
 
 ---
 
-## Đã vá thêm ngày 26/07 (ảnh 21–23)
+## Ba màn "PR cố tình đỏ"
 
-Ba mục dưới đây trước còn ghi "chưa phủ", nay đã có ảnh:
+Yêu cầu *"mở PR với CI cố tình đỏ → phải bị chặn merge"* cần chứng minh cổng chặn **đúng
+chỗ**, không phải chặn bừa. Nên có ba màn, mỗi màn một loại cổng và một cơ chế chặn khác
+nhau:
 
-| Yêu cầu | Trước 26/07 | Nay |
-|---|---|---|
-| #2 — vế SAST | 0/13 workflow có SAST | ✅ [21](21-codeql-8-ngon-ngu-pass.md) CodeQL 8 ngôn ngữ pass + [23](23-ruleset-4-checks-co-sast.md) đã required |
-| #2 — vế IaC gate | `exit-code:"0"` + `soft_fail:true` | ✅ Đã bật chặn (PR #429 merged) — bằng chứng lệnh trong [IAC-GATE.md](../IAC-GATE.md) |
-| #6 — scoped build | chỉ có bằng chứng file | ✅ [22](22-pr413-build-skipped.md) workflow tự chứng minh trên chính nó |
+| | PR #444 · ảnh [24](24-pr444-pinguard-do-merge-xam.md), [25](25-pr444-diff-doi-sha-ve-tag.md) | PR #443 · ảnh [28](28-pr443-alert-sql-injection-high.md)–[30](30-pr443-codeql-required-merge-xam.md) | PR #446 · ảnh [31](31-pr446-trivy-8-cve-perl-base.md), [32](32-pr446-image-scan-gate-merge-xam.md) |
+|---|---|---|---|
+| Cổng đỏ | `Pin guard` | `CodeQL` | `Image scan gate` |
+| Loại lỗi | Cấu hình pipeline sai | Lỗ hổng mã nguồn | CVE trong ảnh container |
+| Cách gài | Đổi `setup-python` SHA → `@v5` | Thêm SQL + command injection | Gỡ 8 dòng `perl-base` khỏi `.trivyignore` |
+| Ai quyết định đỏ | Script tự viết trong workflow | GitHub so ngưỡng severity | Job gộp đọc kết quả workflow khác qua API |
+| Số chặng | 1 — gate tự bắt | 2 — quét rồi so ngưỡng | **3 — Trivy → build → gate** |
+| Thời gian đỏ | 10 giây | 1 giây (đọc kết quả có sẵn) | 1 phút (chờ build xong) |
+| Cổng còn lại | 🟢 xanh hết | 🟢 xanh hết | 🟢 xanh hết |
 
-## Những gì 23 ảnh này VẪN CHƯA phủ
+Cả ba PR đều **đã có 1 approval** mà nút Merge vẫn xám — chứng minh thứ giữ cửa là gate,
+không phải thiếu chữ ký.
 
-Ghi rõ để không ai tưởng bộ ảnh là đủ:
+Cả ba đã đóng sau khi chụp, nhánh giữ lại để đối chiếu commit.
+
+### Vì sao cần cả ba
+
+Ba cơ chế chặn khác hẳn nhau, và mỗi cái có thể hỏng theo cách riêng:
+
+- **Một chặng** (Pin guard) — script tự viết, hỏng thì thấy ngay
+- **Hai chặng** (CodeQL) — job xanh mà cổng vẫn đỏ được; chứng minh `SAST (codeql)` và
+  `CodeQL` là hai thứ khác nhau (xem [26](26-add-check-codeql-vs-sast.md))
+- **Ba chặng** (Trivy) — cổng chặn nằm ở workflow KHÁC với chỗ phát hiện lỗi, nối với nhau
+  qua GitHub API. Đây là dây nối chưa từng được kiểm trước PR #446
+
+## Những gì bộ ảnh này CHƯA phủ
+
+Ghi rõ để không ai tưởng là đủ:
 
 | Yêu cầu | Thiếu gì |
 |---|---|
-| #1 — cảnh PR đỏ | Ảnh 18 là PR **xanh** bị chặn vì out-of-date. Còn thiếu ảnh PR **cố tình đỏ** → nút merge xám vì check fail. Đây là màn 1 trong mục "Phải nộp" của directive |
-| #2 — vế IaC gate | Đã bật thật nhưng **chưa có ảnh** job `Terraform fmt, validate, scan` pass ở chế độ chặn |
-| #4 — pin SHA/digest | Chưa có ảnh; bằng chứng đang ở dạng lệnh grep (`uses:@vX` = 0, 57/57 `FROM` có `@sha256:`). Chưa có job CI nào **gate** việc pin, nên chỉ chứng minh được "đang pin", không chứng minh được "không trôi lại được" |
+| #1 — cổng hạ tầng | `Terraform fmt, validate, scan` chưa vào ruleset. Không phải quên: workflow hạ tầng chưa có job gộp tên cố định, thêm job matrix vào sẽ dính bẫy tên động (xem [26](26-add-check-codeql-vs-sast.md)) |
+
+Ngoài ra repo còn **6 alert code scanning đang mở** (`py/flask-debug`, 3 ×
+`js/tainted-format-string`, 2 × `actions/missing-workflow-permissions`). Chúng không làm
+`CodeQL` đỏ vì đều dưới mức high, nhưng vẫn là nợ cần xử.
