@@ -447,17 +447,17 @@ tr:last-child td { border-bottom: none; }
   <div class="slide-content">
     <div class="slide-header">
       <span class="eyebrow">Tầng Vận hành (AIOps)</span>
-      <h2>Phát Hiện Bất Thường EWMA &amp; Audit Telemetry</h2>
-      <p class="lead">Thuật toán giám sát giúp giảm 90% báo động giả cho kỹ sư trực on-call.</p>
+      <h2>Phát Hiện Bất Thường Hai Tầng &amp; Audit Telemetry</h2>
+      <p class="lead">16 rule cấu hình được, đo thật trên EKS: cổng SLO cắt 76% báo động giả mà không mất phát hiện nào.</p>
     </div>
 
     <div class="grid-2" style="margin-top: 25px;">
       <div class="card">
-        <h3>Giám sát Anomaly bằng EWMA &amp; STL</h3>
+        <h3>Phát hiện lai: ngưỡng SLO + 3&sigma; động</h3>
         <ul class="bullet-list" style="margin-top: 10px;">
-          <li>Sử dụng **EWMA** ($\alpha = 0.2$, $3\sigma$) trên p95 latency để phát hiện drift tăng chậm (OOM, memory leak).</li>
-          <li>Sử dụng **STL Decomposition** tách trend và seasonal cho traffic storefront nhằm loại bỏ nhiễu lúc chuyển giao ngày/đêm.</li>
-          <li>Giám sát chỉ số tiền đề (**Precursor Metrics**) như `conn_pool_used` cảnh báo sớm trước khi sập hệ thống.</li>
+          <li><strong>Tầng 1 — ngưỡng tĩnh neo vào SLO hợp đồng</strong> (<code>onboarding/SLO.md</code>), không phải số tự chọn: checkout 5xx &gt; 1%, storefront 5xx &gt; 0.5%, p95 &gt; 1s. Vi phạm SLO là sự cố theo định nghĩa.</li>
+          <li><strong>Tầng 2 — 3&sigma; động</strong> trên cửa sổ trượt 30 mẫu (~15 phút) theo từng <code>rule × service</code>, bắt suy thoái <em>chưa</em> chạm SLO. Backtest 12h trên cụm thật: EWMA &alpha;=0.2 <strong>tệ hơn</strong> phương án này, nên đã bác có số đo (ADR-012).</li>
+          <li><strong>Cổng SLO</strong> (<code>dynamic_min_fraction</code>): tầng động chỉ kêu khi giá trị đã tiến gần ngưỡng — đo được <strong>34 → 8 alert/12h</strong>, vẫn bắt đúng sự cố đã bơm.</li>
         </ul>
       </div>
 
