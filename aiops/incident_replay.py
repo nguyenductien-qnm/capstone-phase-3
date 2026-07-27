@@ -167,8 +167,21 @@ def _load_jsonl(path):
     return records
 
 
+# Alert do detector tu bao cao ve CHINH NO, khong phai quan sat ve he thong duoc do.
+# `detector-silent-rule` keu khi mot rule tra ve 0 series suot N chu ky (tuc rule do dang
+# mu). No khong phai mot phat hien dung hay sai ve su co dang replay, nhung
+# `total_fires = len(observed)` dem MOI alert trong cua so, nen de nguyen thi mot bao cao
+# rule-mu roi trung cua so se KEO TUT precision do duoc, trong khi no khong noi len dieu gi
+# ve viec detector bat su co chinh xac den dau.
+_SELF_REPORT_RULE_IDS = {"detector-silent-rule"}
+
+
 def _alerts_in_window(alerter_history_path, start_ts, end_ts):
-    return [r for r in _load_jsonl(alerter_history_path) if start_ts <= r.get("ts", -1) <= end_ts]
+    return [
+        r for r in _load_jsonl(alerter_history_path)
+        if start_ts <= r.get("ts", -1) <= end_ts
+        and r.get("rule_id") not in _SELF_REPORT_RULE_IDS
+    ]
 
 
 def score_events(events, alerter_history_path, settle_seconds=30):

@@ -49,6 +49,30 @@ def _env_url(env_name):
 
 metric_history = {}
 
+# Bo dem "rule mu": rule_id -> so chu ky LIEN TIEP ma query tra ve 0 series.
+# Xoa khoi dict ngay khi query co du lieu tro lai.
+#
+# Ly do ton tai: PromQL sai ten metric TRA VE CHUOI RONG chu khong nem loi, va vong lap
+# duoi day khong chay lan nao khi series rong — khong log, khong dem, khong dau hieu gi.
+# Do la cach rule `kafka-consumer-lag-high` nam cam hang tuan (do 26/07, xem
+# report/mandate15-eks/report.md muc 4.4). Detector phai tu phat hien duoc rule mu cua
+# chinh no, chu khong doi nguoi tinh co nhan ra.
+empty_query_streak = {}
+
+# 120 chu ky x poll 30s = 60 phut im lang moi bao mot lan. Ghi de bang `silent_rule_cycles`
+# o top-level rules.yaml.
+SILENT_RULE_CYCLES = 120
+
+
+def reset_state():
+    """Xoa toan bo state cap module. Dung cho test.
+
+    Ton tai de lan sau them global moi thi co MOT cho duy nhat phai cap nhat — quen clear
+    mot global se ro ri theo thu tu test, kieu kho debug nhat.
+    """
+    metric_history.clear()
+    empty_query_streak.clear()
+
 
 def eval_metric_rule(rule, prom):
     """
@@ -59,13 +83,33 @@ def eval_metric_rule(rule, prom):
     fields:   structured list of (name, value, inline) for Discord embed.
     """
     alerts = []
+    op = rule.get("op", "gt")
+    # Chi chap nhan dung 2 gia tri. Truoc day dong so sanh o duoi la
+    #     value > threshold if op == "gt" else value < threshold
+    # nghia la MOI gia tri go sai ("GT", ">", "greater") deu roi vao nhanh else va chay
+    # thanh `lt`: rule bi DAO CHIEU ma khong co mot dau hieu nao. Khi chua rule nao dung
+    # lt thi loi do vo hai; tu khi co rule silent-failure dung lt that thi khong con vo hai.
+    # Bo qua rule (fail-closed) chu khong doan sang "gt" — doan la cach de mot rule chay
+    # sai trong im lang, con ERROR moi chu ky thi khong the bo qua.
+    if op not in ("gt", "lt"):
+        log.error("rule %s co op khong hop le: %r (chi nhan 'gt' hoac 'lt') - bo qua rule",
+                  rule["id"], op)
+        return alerts
+
     try:
         series = prom.query(rule["query"])
     except Exception as exc:  # noqa: BLE001
         log.error("Prometheus query error (rule=%s): %s", rule["id"], exc)
+        # CO Y khong dung vao empty_query_streak: goi Prometheus that bai la su co ha tang,
+        # khong phai bang chung rule mu. Dem no vao se bao "query sai ten metric" moi khi
+        # Prometheus sap - dung luc on-call can tin cay nhat.
         return alerts
 
-    op = rule.get("op", "gt")
+    if series:
+        empty_query_streak.pop(rule["id"], None)
+    else:
+        empty_query_streak[rule["id"]] = empty_query_streak.get(rule["id"], 0) + 1
+
     threshold = rule["threshold"]
     # Cong SLO cho tang dong (backtest 12h tren cum EKS, 26-27/07 — xem addendum
     # ADR-012). Tang 3-sigma keu vi bat thuong THONG KE, khong phai vi co y nghia
@@ -78,6 +122,17 @@ def eval_metric_rule(rule, prom):
     # None = khong khai bao = hanh vi y het truoc day. Co y KHONG dat mac dinh khac
     # None de tranh doi ngam hanh vi cua ca 11 rule metric cung luc.
     dynamic_min_fraction = rule.get("dynamic_min_fraction")
+
+    # Tat han tang dong theo tung rule. Mac dinh True = hanh vi y het truoc day (16 rule
+    # hien co khong khai bao truong nay).
+    #
+    # Ly do ton tai: rule "san thong luong" (op=lt tren mot ti le) chay tren chuoi quanh
+    # quan 1.0 voi phuong sai rat nho — mot nhip xuong 0.7 vo nghia ve van hanh van vuot
+    # mean-3sigma. Va cong SLO (dynamic_min_fraction) KHONG ap cho nhanh lt nen khong cuu
+    # duoc. Tat luon ca viec ghi metric_history: khong co baseline thi khong co baseline
+    # nhiem doc sau su co (chuoi 0 cua luc chet keo mean xuong), va khong ton bo nho cho
+    # chuoi khong bao gio dung den.
+    dynamic_enabled = rule.get("dynamic_enabled", True)
 
     for value, labels in series:
         svc = labels.get("service_name", "unknown")
@@ -92,42 +147,49 @@ def eval_metric_rule(rule, prom):
         mean = 0.0
         std_dev = 0.0
 
-        if history_key not in metric_history:
-            metric_history[history_key] = []
+        if dynamic_enabled:
+            if history_key not in metric_history:
+                metric_history[history_key] = []
 
-        history = metric_history[history_key]
+            history = metric_history[history_key]
 
-        if len(history) >= 5:
-            mean = sum(history) / len(history)
-            variance = sum((x - mean) ** 2 for x in history) / len(history)
-            std_dev = variance ** 0.5
-            dynamic_threshold = mean + 3 * std_dev
-            # Cong chi ap cho op=gt. Voi op=lt ("gia tri TUT xuong bat thuong") thi
-            # "da tien gan nguong" khong dien dat duoc bang mot ti le cua threshold theo
-            # cung cong thuc — hien KHONG rule nao dung op=lt, nen bo qua cong o nhanh do
-            # thay vi doan mot ngu nghia chua ai can den.
-            gate_ok = (
-                dynamic_min_fraction is None
-                or value >= dynamic_min_fraction * threshold
-            )
-            if op == "gt" and value > dynamic_threshold and (value - mean) > 0.001 and gate_ok:
-                dynamic_fired = True
-            elif op == "lt" and value < (mean - 3 * std_dev) and (mean - value) > 0.001:
-                dynamic_fired = True
+            if len(history) >= 5:
+                mean = sum(history) / len(history)
+                variance = sum((x - mean) ** 2 for x in history) / len(history)
+                std_dev = variance ** 0.5
+                # Nguong dong theo CHIEU cua rule. Truoc day bien nay luon la mean+3sigma
+                # ke ca khi op=lt: nhanh lt so sanh voi mean-3sigma nhung dong hien thi lai
+                # in ra bien nay, tuc in CAN TREN cho mot vi pham huong XUONG.
+                dynamic_threshold = (mean + 3 * std_dev) if op == "gt" else (mean - 3 * std_dev)
+                # Cong chi ap cho op=gt. Voi op=lt ("gia tri TUT xuong bat thuong") thi
+                # "da tien gan nguong" khong dien dat duoc bang mot ti le cua threshold theo
+                # cung cong thuc. Rule op=lt duy nhat hien nay (service-traffic-collapse)
+                # tat han tang dong bang dynamic_enabled: false, nen cong o nhanh do la
+                # van de chua can giai — dung doan mot ngu nghia chua ai can den.
+                gate_ok = (
+                    dynamic_min_fraction is None
+                    or value >= dynamic_min_fraction * threshold
+                )
+                if op == "gt" and value > dynamic_threshold and (value - mean) > 0.001 and gate_ok:
+                    dynamic_fired = True
+                elif op == "lt" and value < dynamic_threshold and (mean - value) > 0.001:
+                    dynamic_fired = True
 
-        # Keep rolling window of 30 samples
-        history.append(value)
-        if len(history) > 30:
-            history.pop(0)
+            # Keep rolling window of 30 samples
+            history.append(value)
+            if len(history) > 30:
+                history.pop(0)
 
         if static_fired or dynamic_fired:
             dedup_key = f"{rule['id']}:{svc}"
+            # Voi op=gt (moi rule truoc day) chuoi in ra giong het tung byte nhu cu.
+            op_symbol = ">" if op == "gt" else "<"
             method_parts = []
             if static_fired:
-                method_parts.append(f"Static (val={value:.4f} > th={threshold})")
+                method_parts.append(f"Static (val={value:.4f} {op_symbol} th={threshold})")
             if dynamic_fired:
                 method_parts.append(
-                    f"3-Sigma (val={value:.4f} > th_dev={dynamic_threshold:.4f}, "
+                    f"3-Sigma (val={value:.4f} {op_symbol} th_dev={dynamic_threshold:.4f}, "
                     f"mean={mean:.4f})"
                 )
 
@@ -207,11 +269,38 @@ def eval_k8s_status_rule(rule, core_v1):
     return alerts
 
 
-def run_cycle(cfg, prom, osc, core_v1, alerter) -> int:
+def silent_rule_note(rule, silent_after):
+    """Tra ve canh bao LAN DAU TIEN mot metric rule cham nguong im lang, nguoc lai None.
+
+    So sanh `!=` (chi ban khi streak DUNG BANG nguong) chu khong phai `>=`. Viet `>=` la
+    phan xa tu nhien va no SAI: canh bao se ban lai moi chu ky cho toi het doi rule.
+    Streak chi ve 0 khi query co du lieu tro lai, nen chu ky "mu -> song -> mu" tu dong
+    len dan mot lan nua. Pod cung restart moi lan CI bump image tag (moi merge vao
+    develop) -> do la nhip nhac lai tren thuc te.
+    """
+    # Rule rong-khi-khoe la binh thuong (vd burn-rate co menh de `and`, hay absent() cua
+    # mot service dang song). Khong opt-out thi sau 1 gio binh yen chung se tu to cao
+    # chinh minh la mu.
+    if not rule.get("expect_series", True):
+        return None
+    if not silent_after or silent_after < 1:
+        return None
+    if empty_query_streak.get(rule["id"], 0) != silent_after:
+        return None
+    return (
+        f"Rule '{rule['id']}' tra ve 0 series suot {silent_after} chu ky lien tiep — "
+        f"query nhieu kha nang sai ten metric/label; rule dang MU, khong the keu."
+    )
+
+
+def run_cycle(cfg, prom, osc, core_v1, alerter, silent_after=None) -> int:
     """
     One detection cycle: evaluate all rules, buffer alerts, flush grouped messages.
     Returns the number of grouped alert messages dispatched.
     """
+    if silent_after is None:
+        silent_after = cfg.get("silent_rule_cycles", SILENT_RULE_CYCLES)
+
     for rule in cfg["rules"]:
         if rule["type"] == "metric":
             results = eval_metric_rule(rule, prom)
@@ -226,6 +315,31 @@ def run_cycle(cfg, prom, osc, core_v1, alerter) -> int:
         for dedup_key, message, fields in results:
             # send() buffers — does NOT dispatch immediately (K3 fingerprint dedup)
             alerter.send(dedup_key, rule["severity"], rule["id"], message, fields=fields)
+
+        # Detector tu to cao rule mu cua chinh no. CHI cho metric rule: eval_log_rule tra
+        # ve count=0 hop le suot ngay, con k8s_status khong co khai niem "chuoi rong".
+        if rule["type"] == "metric":
+            note = silent_rule_note(rule, silent_after)
+            if note:
+                log.warning("%s", note)
+                # severity="info" co chu dich, DU hien tai AIOPS_SLACK_WEBHOOK_INFO chua
+                # duoc set nen moi severity van don ve kenh critical (alerter.py). Day la
+                # ly do cu the de set bien do — mot dong cau hinh cum, khong dung den code.
+                #
+                # dedup_key mang rule_id o o "service" vi alerter tach service tu dedup_key:
+                # moi rule mu thanh mot nhom rieng. Dung key chung "detector-silent-rule:detector"
+                # se gon hon nhung cooldown se nuot rule mu thu hai tro di ngay trong cung chu ky.
+                alerter.send(
+                    f"detector-silent-rule:{rule['id']}",
+                    "info",
+                    "detector-silent-rule",
+                    note,
+                    fields=[
+                        ("\U0001F4A4 Rule mu", rule["id"], True),
+                        ("\U0001F501 Chu ky rong lien tiep", str(silent_after), True),
+                        ("\U0001F50D Query", f"```{str(rule.get('query'))[:300]}```", False),
+                    ],
+                )
 
     # K3: flush all buffered alerts as grouped messages (1 per fingerprint)
     dispatched = alerter.flush()
@@ -275,7 +389,12 @@ def main():
     )
 
     if args.once:
-        dispatched = run_cycle(cfg, prom, osc, core_v1, alerter)
+        # --once la smoke test / LINTER, khong phai mot nhip cua vong lap: voi
+        # silent_after=1, MOT chu ky du de goi ten moi metric rule tra ve 0 series.
+        # `python detector.py --once --dry-run` tren Prometheus port-forward sau khi sua
+        # rules.yaml se noi ngay rule nao go sai ten metric — dung cai da chet am tham
+        # hang tuan. Ngu nghia khac che do chay lien tuc (60 phut) la CO Y.
+        dispatched = run_cycle(cfg, prom, osc, core_v1, alerter, silent_after=1)
         log.info("single cycle complete, %d grouped alert(s) dispatched", dispatched)
         return
 
