@@ -107,15 +107,15 @@ internal class Consumer : IDisposable
 
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, OrderFulfillmentJoinState> _pendingJoins = new();
 
-    private static string CheckoutOrderPayloadExpression()
+    private static string CheckoutOrderPayloadSql()
     {
         return (Environment.GetEnvironmentVariable("ACCOUNTING_ORDER_SCHEMA_PHASE") ?? "legacy")
             .Trim()
             .ToLowerInvariant() switch
         {
-            "dual_read" => "COALESCE(order_payload, order_metadata)",
-            "read_new" => "order_payload",
-            _ => "order_metadata"
+            "dual_read" => "SELECT COALESCE(order_payload, order_metadata)::text AS \"Value\" FROM checkout.orders WHERE order_id = {0}",
+            "read_new" => "SELECT order_payload::text AS \"Value\" FROM checkout.orders WHERE order_id = {0}",
+            _ => "SELECT order_metadata::text AS \"Value\" FROM checkout.orders WHERE order_id = {0}"
         };
     }
 
@@ -217,10 +217,8 @@ internal class Consumer : IDisposable
                 if (_dbContext != null)
                 {
                     // 1. Claim check: Query checkout.orders using orderId to get JSON metadata
-                    var orderPayloadExpression = CheckoutOrderPayloadExpression();
                     var rawJson = await _dbContext.Database
-                        .SqlQueryRaw<string>(
-                            $"SELECT {orderPayloadExpression}::text AS \"Value\" FROM checkout.orders WHERE order_id = {{0}}", orderId)
+                        .SqlQueryRaw<string>(CheckoutOrderPayloadSql(), orderId)
                         .FirstOrDefaultAsync();
 
                     if (!string.IsNullOrEmpty(rawJson))                                                                                                  
