@@ -32,15 +32,25 @@ components:
   # === Mandate-13 Phương án B (27-07-2026): NodePool `default` cho phép cả spot
   # lẫn on-demand (platform/karpenter/nodepool-default.yaml), nhưng an toàn mặc
   # định (on-demand) đã chuyển lên block `default:` ở trên — CHỈ 11 service dưới
-  # đây được opt-in tường minh vào NodePool `spot` riêng (taint, đã vá đủ PDB/
-  # topologySpread/graceful-drain/replicas≥2 trong values.yaml dùng chung trước
-  # khi thêm ở đây — với accounting/fraud-detection/email, 3 service ngoài
-  # critical path thật, không cần PDB/spread vì gián đoạn ngắn không ảnh hưởng
-  # SLO checkout, chỉ cần preStop/terminationGrace; payment/cart-consumer-worker
-  # thì đã có sẵn PDB+topologySpread từ trước, opt-in chỉ thêm nodeSelector).
+  # đây được opt-in tường minh vào NodePool `spot` riêng (taint).
+  #
+  # Hai mức bảo vệ khác nhau — có chủ ý, không phải bất nhất:
+  #   • image-provider/llm/ml-guard/ad/product-reviews/recommendation/
+  #     payment/cart-consumer-worker: đã có hoặc đã vá đủ PDB +
+  #     topologySpread + replicas≥2 + graceful-drain trước khi opt-in.
+  #   • accounting/fraud-detection: replicas=1, KHÔNG PDB (verify thực tế
+  #     trên cluster: kubectl get deploy,pdb -n techx-tf1). Opt-in được
+  #     chấp nhận vì cả hai là Kafka consumer THUẦN ASYNC ngoài critical
+  #     path storefront — khi pod bị SIGTERM, Kafka re-deliver message chưa
+  #     commit offset cho pod mới sau reschedule, chỉ trễ xử lý, không mất
+  #     dữ liệu, không ảnh hưởng SLO checkout/browse/cart. preStop + grace
+  #     giảm xác suất message dở; đây là đánh đổi cost/reliability có tính
+  #     toán, không phải bảo vệ tương đương PDB.
+  #
   # Mọi service khác (luồng tiền thật sự đồng bộ như quote/shipping/currency/
   # cart/checkout/product-catalog/frontend, hoặc chưa tồn tại) đều an toàn theo
   # mặc định mà không cần khai báo gì thêm.
+
   ad:
     schedulingRules:
       tolerations:
