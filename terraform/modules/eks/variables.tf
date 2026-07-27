@@ -244,13 +244,26 @@ variable "enable_network_policy" {
   default     = false
 }
 
-# MANDATE-13: SQS interruption queue + EventBridge rule cho Karpenter spot
-# interruption handling. Mặc định false để KHÔNG tự tạo resource mới trong
-# environment khác dùng chung module này (vd sandbox) — chỉ set true ở
-# environment đang làm Mandate-13 (develop). Module cung cấp capability;
-# environment root quyết định policy (environment-isolation-execution-guide §Case T3).
+# MANDATE-13: dự định rào (gate) SQS interruption queue + EventBridge rule của
+# Karpenter bằng biến này để chỉ bật ở develop, tránh tạo resource mới bên
+# sandbox dùng chung module (environment-isolation-execution-guide §Case T3).
+# THỰC TẾ (đã xác minh khi audit mở rộng Mandate-13 sang sandbox, 27-07-2026):
+# biến này KHÔNG được tham chiếu ở bất kỳ đâu trong karpenter.tf — không có
+# `count`/`dynamic` nào dùng nó. `aws_sqs_queue.karpenter_interruption`, các
+# `aws_cloudwatch_event_rule`/`_target`, và statement `AllowInterruptionQueueActions`
+# đều tạo VÔ ĐIỀU KIỆN cho mọi environment gọi module này. Trên thực tế sandbox
+# đã có các resource này từ trước (PR #415/#386, sáng kiến Karpenter riêng của
+# sandbox, commit 6df27a6/b68b16f — không liên quan Mandate-13), và ArgoCD
+# `platform/gitops/applications/karpenter.yaml` của sandbox đã trỏ
+# `interruptionQueue: ecommerce-dev-eks-karpenter` từ trước. Nghĩa là claim "sandbox
+# plan sẽ ra No changes nhờ biến này" trong ADR Mandate-13 đúng ngẫu nhiên (vì
+# resource vốn đã tồn tại ở sandbox từ nguồn khác), KHÔNG phải nhờ cơ chế gate.
+# KHÔNG thêm `count = var.enable_karpenter_interruption_queue ? 1 : 0` vào các
+# resource trên mà không kiểm tra state trước — sandbox default của biến này là
+# `false`, thêm gate ngay bây giờ sẽ khiến apply tiếp theo DESTROY queue/rule/policy
+# đang chạy thật của sandbox.
 variable "enable_karpenter_interruption_queue" {
-  description = "Tạo SQS interruption queue + EventBridge rule cho Karpenter spot interruption handling."
+  description = "Không dùng ở đâu trong module hiện tại (dead variable) — xem comment phía trên trước khi wire lại hoặc xoá."
   type        = bool
   default     = false
 }
