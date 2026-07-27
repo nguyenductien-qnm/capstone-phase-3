@@ -326,3 +326,57 @@ rules:
       max by (group) (avg_over_time(kafka_consumer_group_lag{namespace="techx-tf1"}[10m]))
     op: gt
     threshold: 1000
+
+  # ---- HONG-KHONG-CON-TIN-HIEU (silent failure) ----
+  # Do tren EKS 26/07: giet pod `payment` -> detector im lang HOAN TOAN. Moi rule tren day
+  # deu do "hong ma van tra loi" (latency cao, 5xx, error-ratio). Khong rule nao do duoc
+  # "khong con tra loi gi ca": chuoi cua service chet khong bao gio > threshold.
+  # Nguon: spanmetrics connector (values.yaml:2255) sinh metric TU TRACE nen phu 17 service,
+  # trong khi rpc_server_duration_* chi phu 3. Toan bo so do o report/mandate22-detection-gaps/verify.md
+  - id: service-traffic-collapse
+    type: metric
+    severity: critical
+    summary: "Luồng request của service SỤT SÂU so với phần còn lại của hệ — dịch vụ có thể đã chết"
+    # span_kind SERVER|CONSUMER = "viec ma service duoc YEU CAU lam", ca dong bo lan bat dong bo.
+    # BAT BUOC co CONSUMER: `payment` lam viec qua Kafka (process domain.checkout.orders) va
+    # KHONG co mot span SERVER nao (do V2). Loc SERVER don thuan se bo sot dung service ma
+    # ca thay doi nay nham vao. CLIENT/PRODUCER la loi goi DI RA, co y loai.
+    #
+    # Ti le SO VOI PHAN CON LAI CUA HE, khong phai so voi qua khu cua chinh no. Ca he cung
+    # tut (nguon tai doi, dem vang khach) thi tu va mau cung tut -> ~1.0, khong keu; chi MOT
+    # service chet thi ti le cua no -> 0 con cua he ~1 -> keu.
+    # Do duoc 12h: cach "tu than" bao dong DONG LOAT 8 service luc 06:17 vi load-generator di
+    # tu 43.9 xuong 6.9 span/s (sum(up) giu nguyen 23 nen khong phai ho scrape - traffic that
+    # su tut 6 lan). So ban triet tieu dung loai do: frontend 0.191->0.828, recommendation
+    # 0.160->0.598. Tong 25 -> 9 bao dong.
+    #
+    # Cua so [15m] chu khong [5m]: service it tai co the im 5 phut mot cach hop le. Do 12h,
+    # nguong 0.20: 5m -> 9 bao dong, 15m -> 2, 30m -> 2 (khong cai thien them nen 15m la diem gay).
+    # GIA PHAI TRA: service chet han mat ~12-15 phut moi bi bat, cham hon 380s cua rule
+    # error-rate. Chap nhan vi loai su co nay hien KHONG BAO GIO bi bat. Cach sua dung la
+    # truong `for:` (doi dieu kien keo dai) ma detector khong co - han che da biet.
+    #
+    # Ve phai `and (rate[1h] > 0.02)` la CONG HOAT DONG: service nhan roi hop le tu dong nam
+    # ngoai pham vi, khong can allowlist tay. 0.02 chu khong 0.05: san thap nhat do duoc la
+    # payment 0.0648 req/s, cong 0.05 chi cho bien 1.3x - qua mong cho dung service quan trong
+    # nhat. 0.02 cho bien 3.2x.
+    #
+    # `sum by (service_name)` song sot qua ca phep chia lan `and` -> tra ve DUNG nhan
+    # service_name (da kiem: 15 chuoi, chi 1 nhan). Nho vay dedup key, cooldown, nhom alert va
+    # cham diem incident_replay deu mang ten service that thay vi "unknown".
+    query: >-
+      (
+        sum by (service_name) (rate(traces_span_metrics_calls_total{span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[15m]))
+        / clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total{span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h])), 0.001)
+      )
+      / scalar(clamp_min(
+          sum(rate(traces_span_metrics_calls_total{span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[15m]))
+          / clamp_min(sum(rate(traces_span_metrics_calls_total{span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h])), 0.001), 0.001))
+      and (sum by (service_name) (rate(traces_span_metrics_calls_total{span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h])) > 0.02)
+    op: lt
+    threshold: 0.20
+    # Tang 3-sigma vo nghia o day: chuoi nay quanh quan 1.0 voi phuong sai rat nho nen mot
+    # nhip xuong 0.7 vo nghia ve van hanh van vuot mean-3sigma. Va cong SLO (dynamic_min_fraction)
+    # KHONG ap cho nhanh lt nen khong cuu duoc. Tat luon ca viec ghi metric_history -> khong co
+    # baseline nhiem doc sau su co (chuoi 0 cua luc chet keo mean xuong).
+    dynamic_enabled: false
