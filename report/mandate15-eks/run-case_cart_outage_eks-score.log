@@ -1,0 +1,12 @@
+
+======================================================================
+SCENARIO: case-cart-outage-eks-001 [real]
+MANDATE-15 / TF1-98: su co that tren EKS (ecommerce-dev-eks / techx-tf1). Dua cart ve 0 replica. Chon cart vi do tren cum cho thay checkout goi CartService/GetCart tren DUNG 100% so lan PlaceOrder (489 tren 489 trong 2h truoc do bom), tuc day la phu thuoc DONG BO that su nam tren duong di cua don hang. Khi cart chet, PlaceOrder that bai va checkout tu ghi rpc_grpc_status_code=13 tren metric server-side cua chinh no -> grpc-error-rate-high phai keu.
+----------------------------------------------------------------------
+  [case-cart-outage-eks-001] expect_fire=True -> FIRED (lead_time=380.0s) OK
+----------------------------------------------------------------------
+  K incidents = 1 | recall = 1.0 | precision = 1.0 (correct=1/total=1)
+  VERDICT (real): PASS — real incident fired within window
+======================================================================
+
+  result written to aiops/incident_scenarios/case_cart_outage_eks.result.json

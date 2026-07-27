@@ -118,6 +118,15 @@ module "rds" {
   rotation_rules_automatically_after_days = var.rds_rotation_rules_automatically_after_days
   enable_logical_replication              = true
   track_activity_query_size               = var.rds_track_activity_query_size
+
+  # Mandate 20 (CDO-252): chống xoá nhầm Primary + snapshot mang tag.
+  # skip_final_snapshot giữ true: drill dựa vào PITR + AWS Backup, không vào final snapshot.
+  deletion_protection   = true
+  copy_tags_to_snapshot = true
+
+  # Backup Selection của module backup chọn resource theo tag Backup=true;
+  # không gắn tag thì backup plan chạy nhưng không backup instance nào.
+  enable_aws_backup_tag = true
 }
 
 module "elasticache" {
@@ -132,6 +141,11 @@ module "elasticache" {
   node_type                  = var.valkey_node_type
   num_cache_clusters         = var.valkey_num_cache_clusters
   eks_node_security_group_id = module.eks.cluster_security_group_id
+
+  # Mandate 20 (CDO-253): cart có backup. cache.t4g.micro hỗ trợ snapshot.
+  # RPO cart = 1 ngày (snapshot hằng ngày, Valkey không có PITR). Cửa sổ 03:00-04:00 UTC = thấp điểm.
+  snapshot_retention_limit = 7
+  snapshot_window          = "03:00-04:00"
 }
 
 # IRSA cho external-dns: quyền ghi record trong ĐÚNG hosted zone của subdomain.
@@ -272,6 +286,19 @@ module "backup" {
 
   project_name = var.project_name
   environment  = var.environment
+
+  # Mandate 20 (CDO-259): vault mã hoá bằng KMS key có guardrail chống xoá của
+  # backup_protection thay vì key riêng không được bảo vệ.
+  kms_key_arn = module.backup_protection.kms_key_arn
 }
 
+# Mandate 20 (CDO-247): Bảo vệ backup — KMS key riêng + IAM Policy Explicit Deny chống xoá backup
+module "backup_protection" {
+  source = "../../modules/backup_protection"
+
+  project_name        = var.project_name
+  environment         = var.environment
+  operator_role_names = var.audit_operator_role_names
+  enable_kms_key      = true
+}
 

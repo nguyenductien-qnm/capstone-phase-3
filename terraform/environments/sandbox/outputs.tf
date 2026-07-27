@@ -28,6 +28,11 @@ output "private_mq_subnet_ids" {
   value       = module.vpc.private_mq_subnet_ids
 }
 
+output "private_node_subnet_ids" {
+  description = "Danh sách ID của các Private Node Subnets (Karpenter)"
+  value       = module.vpc.private_node_subnet_ids
+}
+
 output "nat_gateway_ips" {
   description = "IP công cộng của các NAT Gateways"
   value       = module.vpc.nat_gateway_ips
