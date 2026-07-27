@@ -36,7 +36,7 @@ Dịch vụ `product-reviews` nhận các biến môi trường cấu hình kế
 * **CPU Request / Limit**: `100m` / `500m`
 * **Memory Request / Limit**: `128Mi` / `512Mi`
 
-> **CDO đã xác nhận (17/07/2026):** bật Phase-2 Local ML Guard (`LLM_LOCAL_ML_GUARD=true`) **KHÔNG** thay đổi resource của pod này. "Local" nghĩa là *self-hosted trong cluster* (pod `ml-guard` riêng), **không phải in-process**: `guardrails.py` chỉ gọi HTTP sang `ML_GUARD_URL=http://ml-guard:8090` (ClusterIP, namespace `techx-tf1` — giá trị chốt), không load model nào trong pod `product-reviews`. Spec pod `ml-guard` xem `shopping-copilot-integration.md` §3.1 (dùng chung).
+> **CDO đã xác nhận (17/07/2026):** bật self-hosted ML Guard **KHÔNG** thay đổi resource của pod này. "Local" nghĩa là *self-hosted trong cluster* (pod `ml-guard` riêng), **không phải in-process**: shim `guardrails.py` → `pb/ml_guard_client.py` chỉ gọi **gRPC** sang `ML_GUARD_URL=ml-guard:8090` (ClusterIP, namespace `techx-tf1` — giá trị chốt; ADR-015 async `grpc.aio`), không load model nào trong pod `product-reviews`. Spec pod `ml-guard` xem `shopping-copilot-integration.md` §3.1 (dùng chung).
 
 ---
 
@@ -47,8 +47,8 @@ Dịch vụ `product-reviews` nhận các biến môi trường cấu hình kế
 ### 3.1. Bộ nhớ Cache Valkey (Redis-compatible)
 * **Chiến lược Caching**: Khi có yêu cầu tóm tắt đánh giá sản phẩm (`AskProductAIAssistant`), hệ thống sẽ kiểm tra trong Valkey cache trước:
   - Nếu tồn tại dữ liệu (`Cache Hit`): Trả ngay phản hồi mà không cần gọi sang Mock LLM.
-  - Nếu không tồn tại dữ liệu (`Cache Miss`): Gọi LLM để sinh phản hồi, sau đó ghi kết quả vào Valkey cache với **Dynamic TTL (4 giờ – 7 ngày)**, key `reviews:summary:{product_id}:{model_ver}:{prompt_ver}`. Xem `specs/valkey_caching.md` §5, §6.
-  - ⚠️ **Trạng thái LLM backend:** hiện `product-reviews` gọi **mock LLM in-cluster** (`http://llm:8000/v1`, OpenAI SDK), *không phải* Bedrock. Việc chuyển sang Amazon Bedrock Nova Lite (theo ADR-004) được theo dõi ở **TF1-58 Bước 1**. Cho tới khi đó, cost model ở `pitch.md` chỉ áp dụng cho Shopping Copilot.
+  - Nếu không tồn tại dữ liệu (`Cache Miss`): Gọi LLM để sinh phản hồi, sau đó ghi kết quả vào Valkey cache với **TTL phẳng 7 ngày** (content-addressed key — review đổi ⇒ fingerprint đổi ⇒ miss tự nhiên, ZERO staleness; ADR-001), key `reviews:summary:{product_id}:{model_ver}:{prompt_ver}`. Xem `specs/valkey_caching.md` §5, §6.
+  - ✅ **Trạng thái LLM backend:** `product-reviews` gọi **AWS Bedrock Nova Lite** (Converse API, boto3; fallback Nova Micro → mock). Mock LLM in-cluster (`http://llm:8000/v1`) chỉ còn dùng cho luồng sự cố `llmRateLimitError` (`LLM_MOCK_ENABLED=true`).
 * **Key format**: `reviews:summary:{product_id}`.
 
 ### 3.2. Cơ chế Fallback và Isolation (Circuit Breaker)
@@ -113,7 +113,7 @@ Ba điểm đã lệch thực tế sau PR#26 (bảng trên giữ nguyên vì đ�
 | `LLM_REVIEWS_MAX_RETRIES` / `LLM_REVIEWS_FALLBACK_RETRIES` | 2 / 1 | |
 | `LLM_BULKHEAD_SIZE` | 6 | phải < gRPC max_workers (10) |
 | `LLM_CB_THRESHOLD` / `LLM_CB_COOLDOWN` | 3 / 30 | circuit breaker |
-| `LLM_MAX_TOKENS` / `LLM_TEMPERATURE` / `LLM_TOP_P` | 1024 / 0.1 / 0.9 | inference config (justification trong code + 05_adrs) |
+| `LLM_MAX_TOKENS` / `LLM_TEMPERATURE` / `LLM_TOP_P` | 2048 / 0.1 / 0.9 | inference config (justification trong code + 05_adrs) |
 | `LLM_MOCK_ENABLED` | true | dùng mock LLM cho luồng sự cố `llmRateLimitError` |
 | `VALKEY_ADDR` | endpoint ElastiCache (vd. `master.ecommerce-dev-valkey.<id>.use1.cache.amazonaws.com:6379`) | **1 biến host:port gộp** (sửa 13/07: code đọc `VALKEY_ADDR`, KHÔNG phải VALKEY_HOST/PORT tách). **[14/07]** backend đã là ElastiCache Valkey managed (giá trị thật do CDO set trong `values.yaml`; trước đây `valkey-cart:6379` in-cluster) — cache tóm tắt |
 | flagd: `llmReviewsFallbackEnabled` (on), `llmReviewsCacheEnabled` | | đã thêm vào demo.flagd.json 12/07 |

@@ -109,10 +109,16 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
         ))
         if blocked:
             logger.warning("[Guardrail] Blocked input for session=%s", session_id)
-            return pb.ChatWithCopilotResponse(
+            # Trả kèm trace_id + trace_steps: đây chính là nhánh cần bằng chứng nhất
+            # (MANDATE-14 chấm quyết định chặn bằng span guardrail.blocked). Bỏ trống
+            # trace_id thì eval buộc phải đoán qua chuỗi ký tự trong câu trả lời.
+            blocked_resp = pb.ChatWithCopilotResponse(
                 response="Xin lỗi, tôi không thể xử lý yêu cầu này do vi phạm quy định an toàn.",
                 degraded=False,
+                trace_id=format(trace.get_current_span().get_span_context().trace_id, "032x"),
             )
+            blocked_resp.trace_steps.extend(trace_steps)
+            return blocked_resp
 
         session.append({"role": "user", "content": [{"text": sanitized_question}]})
 

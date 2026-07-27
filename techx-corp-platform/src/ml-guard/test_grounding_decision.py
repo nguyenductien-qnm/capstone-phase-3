@@ -15,20 +15,20 @@ def main():
         (0.35, 0.60, 0.05, "judge", "repro: fabrication clears entail floor but neutral dominates"),
         (0.10, 0.85, 0.05, "judge", "neutral dominant, low entail"),
     ]
-    
+
     # Test `_grounding_decision_sync` and `VietnameseMDeBERTaGrounding`
     validator = server.VietnameseMDeBERTaGrounding()
-    
+
     for entail, neutral, contra, expected, note in cases:
         server._nli_scores_sync = lambda *a, **k: (entail, neutral, contra)
-        
+
         # Test old raw decision (it returns string action now)
         action = server._grounding_decision_sync("source", "answer")
         assert action == expected, (
             f"{note}: got {action!r}, want {expected!r} "
             f"(entail={entail} neutral={neutral} contra={contra})"
         )
-        
+
         # Test new validator
         metadata = {"grounding_source": "source"}
         res = validator.validate("answer", metadata=metadata)

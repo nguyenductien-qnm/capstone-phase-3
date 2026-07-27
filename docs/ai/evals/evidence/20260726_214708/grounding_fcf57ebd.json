@@ -1,0 +1,134 @@
+{
+  "category": "grounding",
+  "input": [
+    "Cho mình xem kính thiên văn cho người mới chơi",
+    [
+      "search_products"
+    ],
+    "search-vn"
+  ],
+  "latency": 43.59775161743164,
+  "tokens": {
+    "input": 11252,
+    "output": 930,
+    "embedding": 13
+  },
+  "usd_cost": 0.011967460000000001,
+  "embed_cost": 2.6e-07,
+  "passed": true,
+  "reason": "Tool ['search_products'] chạy ok, output rail không chặn",
+  "response": {
+    "response": "Dưới đây là một số kính thiên văn phù hợp cho người mới chơi:\n\n1. **Starsense Explorer Refractor Telescope**\n   - Mô tả: Kính thiên văn đầu tiên sử dụng điện thoại thông minh của bạn để phân tích bầu trời đêm và tính toán vị trí của nó trong thời gian thực. StarSense Explorer là lý tưởng cho người mới bắt đầu nhờ giao diện thân thiện với người dùng của ứng dụng và các hướng dẫn chi tiết. Nó giống như có hướng dẫn du lịch cá nhân của riêng bạn trong bầu trời đêm.\n   - Giá: $[REDACTED_PHONE]. **National Park Foundation Explorascope**\n   - Mô tả: Kính thiên văn khúc xạ 60AZ của National Park Foundation (NPF) là kính thiên văn alt-azimuth thủ công, hoàn hảo để quan sát thiên thể khi đang di chuyển. NPF Explorascope 60 có thể quan sát các hành tinh, mặt trăng, cụm sao và các vật thể sâu sắc sáng hơn như Tinh vân Orion và Thiên hà Andromeda.\n   - Giá: $[REDACTED_PHONE]. **Eclipsmart Travel Refractor Telescope**\n   - Mô tả: Kính thiên văn khúc xạ dành riêng cho quan sát mặt trời cho người quan sát khi đang di chuyển. Kính thiên văn mặt trời 50mm sử dụng vật liệu lọc kính toàn khẩu độ tuân thủ ISO, an toàn cho mặt trời để đảm bảo tầm nhìn an toàn nhất của các sự kiện mặt trời.  Bộ này đi kèm với mọi thứ bạn cần, bao gồm kính thiên văn mặt trời du lịch chuyên dụng, kính tìm kiếm an toàn cho mặt trời, chân đế, ống nhòm Kellner chất lượng cao 20mm (18x) và ba lô nylon để mang theo mọi thứ.  Kính thiên văn du lịch này giúp bạn dễ dàng chia sẻ Mặt trời cũng như nhật thực một phần và toàn phần với cả gia đình và cung cấp độ phóng đại cao hơn nhiều so với khi sử dụng kính xem mặt trời cầm tay hoặc ống nhòm.\n   - Giá: $129.95\n\nBạn có muốn biết thêm thông tin về bất kỳ sản phẩm nào trong số này không?",
+    "actionsTaken": [
+      {
+        "toolName": "search_products",
+        "argumentsJson": "{\"query\": \"k\\u00ednh thi\\u00ean v\\u0103n cho ng\\u01b0\\u1eddi m\\u1edbi\", \"category\": \"Telescopes\"}",
+        "succeeded": true,
+        "startedAtUnix": 1785077325,
+        "durationMs": 826
+      }
+    ],
+    "degraded": false,
+    "traceId": "459d04cefcb833ce08ccc9758367faf3",
+    "citations": [],
+    "traceSteps": [
+      {
+        "stepName": "Input Guardrail (PII/Prompt Guard)",
+        "latencyMs": 1202,
+        "status": "pass",
+        "detail": "{\"question\": \"Cho m\\u00ecnh xem k\\u00ednh thi\\u00ean v\\u0103n cho ng\\u01b0\\u1eddi m\\u1edbi ch\\u01a1i\", \"blocked\": false}"
+      },
+      {
+        "stepName": "Model Gateway & Bedrock Nova",
+        "latencyMs": 42343,
+        "status": "ok",
+        "detail": "{\"routed_model\": \"amazon.nova-pro-v1:0\"}"
+      },
+      {
+        "stepName": "LLM → gọi tool: search_products",
+        "latencyMs": 1988,
+        "status": "ok",
+        "detail": "{\"decided_tools\": [\"search_products\"], \"stop_reason\": \"tool_use\", \"reasoning\": \"<thinking> Kh\\u00e1ch h\\u00e0ng \\u0111ang t\\u00ecm ki\\u1ebfm k\\u00ednh thi\\u00ean v\\u0103n ph\\u00f9 h\\u1ee3p cho ng\\u01b0\\u1eddi m\\u1edbi b\\u1eaft \\u0111\\u1ea7u. T\\u00f4i s\\u1ebd s\\u1eed d\\u1ee5ng c\\u00f4ng c\\u1ee5 `search_products` \\u0111\\u1ec3 t\\u00ecm ki\\u1ebfm c\\u00e1c k\\u00ednh thi\\u00ean v\\u0103n ph\\u00f9 h\\u1ee3p trong danh m\\u1ee5c \\\"Telescopes\\\". </thinking>\"}"
+      },
+      {
+        "stepName": "Tool: search_products (kính thiên văn cho người mới)",
+        "latencyMs": 826,
+        "status": "ok",
+        "detail": "{\"args\": {\"query\": \"k\\u00ednh thi\\u00ean v\\u0103n cho ng\\u01b0\\u1eddi m\\u1edbi\", \"category\": \"Telescopes\"}, \"succeeded\": true}"
+      },
+      {
+        "stepName": "LLM → trả lời trực tiếp",
+        "latencyMs": 14500,
+        "status": "ok",
+        "detail": "{\"decided_tools\": [], \"stop_reason\": \"end_turn\", \"reasoning\": \"D\\u01b0\\u1edbi \\u0111\\u00e2y l\\u00e0 m\\u1ed9t s\\u1ed1 k\\u00ednh thi\\u00ean v\\u0103n ph\\u00f9 h\\u1ee3p cho ng\\u01b0\\u1eddi m\\u1edbi ch\\u01a1i:\\n\\n1. **Starsense Explorer Refractor Telescope**\\n   - M\\u00f4 t\\u1ea3: K\\u00ednh thi\\u00ean v\\u0103n \\u0111\\u1ea7u ti\\u00ean s\\u1eed d\\u1ee5ng \\u0111i\\u1ec7n tho\\u1ea1i th\\u00f4ng minh c\\u1ee7a b\\u1ea1n \\u0111\\u1ec3 ph\\u00e2n t\\u00edch b\\u1ea7u tr\\u1eddi \\u0111\\u00eam v\\u00e0 t\\u00ednh to\\u00e1n v\\u1ecb tr\\u00ed c\\u1ee7a n\\u00f3 trong th\\u1eddi gian th\\u1ef1c. StarSense Explorer l\\u00e0 l\\u00fd t\\u01b0\\u1edfng cho ng\\u01b0\\u1eddi m\\u1edbi b\\u1eaft \\u0111\\u1ea7u nh\\u1edd giao di\\u1ec7n th\\u00e2n thi\\u1ec7n v\\u1edbi ng\\u01b0\\u1eddi d\\u00f9ng c\\u1ee7a \\u1ee9ng d\\u1ee5ng v\\u00e0 c\\u00e1c h\\u01b0\\u1edbng d\\u1eabn chi ti\\u1ebft. N\\u00f3 gi\\u1ed1ng nh\\u01b0 c\\u00f3 h\\u01b0\\u1edbng d\\u1eabn du l\\u1ecbch c\\u00e1 nh\\u00e2n c\\u1ee7a ri\\u00eang b\\u1ea1n trong b\\u1ea7u tr\\u1eddi \\u0111\\u00eam.\\n   - Gi\\u00e1: $349.95\\n\\n2. **National Park Foundation Explorascope**\\n   - M\\u00f4 t\\u1ea3: K\\u00ednh thi\\u00ean v\\u0103n kh\\u00fac x\\u1ea1 60AZ c\\u1ee7a National Park Foundation (NPF) l\\u00e0 k\\u00ednh thi\\u00ean v\\u0103n alt-azimuth th\\u1ee7 c\\u00f4ng, ho\\u00e0n h\\u1ea3o \\u0111\\u1ec3 quan s\\u00e1t thi\\u00ean th\\u1ec3 khi \\u0111ang di chuy\\u1ec3n. NPF Explorascope 60 c\\u00f3 th\\u1ec3 quan s\\u00e1t c\\u00e1c h\\u00e0nh tinh, m\\u1eb7t tr\\u0103ng, c\\u1ee5m sao v\\u00e0 c\\u00e1c v\\u1eadt th\\u1ec3 s\\u00e2u s\\u1eafc s\\u00e1ng h\\u01a1n nh\\u01b0 Tinh v\\u00e2n Orion v\\u00e0 Thi\\u00ean h\\u00e0 Andromeda.\\n   - Gi\\u00e1: $101.96\\n\\n3. **Eclipsmart Travel Refractor Telescope**\\n   - M\\u00f4 t\\u1ea3: K\\u00ednh thi\\u00ean v\\u0103n kh\\u00fac x\\u1ea1 d\\u00e0nh ri\\u00eang cho quan s\\u00e1t m\\u1eb7t tr\\u1eddi cho ng\\u01b0\\u1eddi quan s\\u00e1t khi \\u0111ang di chuy\\u1ec3n. K\\u00ednh thi\\u00ean v\\u0103n m\\u1eb7t tr\\u1eddi 50mm s\\u1eed d\\u1ee5ng v\\u1eadt li\\u1ec7u l\\u1ecdc k\\u00ednh to\\u00e0n kh\\u1ea9u \\u0111\\u1ed9 tu\\u00e2n th\\u1ee7 ISO, an to\\u00e0n cho m\\u1eb7t tr\\u1eddi \\u0111\\u1ec3 \\u0111\\u1ea3m b\\u1ea3o t\\u1ea7m nh\\u00ecn an to\\u00e0n nh\\u1ea5t c\\u1ee7a c\\u00e1c s\\u1ef1 ki\\u1ec7n m\\u1eb7t tr\\u1eddi.  B\\u1ed9 n\\u00e0y \\u0111i k\\u00e8m v\\u1edbi m\\u1ecdi th\\u1ee9 b\\u1ea1n c\\u1ea7n, bao g\\u1ed3m k\\u00ednh thi\\u00ean v\\u0103n m\\u1eb7t tr\\u1eddi du l\\u1ecbch chuy\\u00ean d\\u1ee5ng, k\\u00ednh t\\u00ecm ki\\u1ebfm an to\\u00e0n cho m\\u1eb7t tr\\u1eddi, ch\\u00e2n \\u0111\\u1ebf, \\u1ed1ng nh\\u00f2m Kellner ch\\u1ea5t l\\u01b0\\u1ee3ng cao 20mm (18x) v\\u00e0 ba l\\u00f4 nylon \\u0111\\u1ec3 mang theo m\\u1ecdi th\\u1ee9.  K\\u00ednh thi\\u00ean v\\u0103n du l\\u1ecbch n\\u00e0y gi\\u00fap b\\u1ea1n d\\u1ec5 d\\u00e0ng chia s\\u1ebb M\\u1eb7t tr\\u1eddi c\\u0169ng nh\\u01b0 nh\\u1eadt th\\u1ef1c m\\u1ed9t ph\\u1ea7n v\\u00e0 to\\u00e0n ph\\u1ea7n v\\u1edbi c\\u1ea3 gi... [truncated]\"}"
+      },
+      {
+        "stepName": "Output Guardrail (Grounding)",
+        "latencyMs": 25011,
+        "status": "pass",
+        "detail": "{\"blocked\": false}"
+      }
+    ]
+  },
+  "spans": [
+    {
+      "name": "tool_call",
+      "attributes": {
+        "tool.arguments": "{\"query\": \"k\\u00ednh thi\\u00ean v\\u0103n cho ng\\u01b0\\u1eddi m\\u1edbi\", \"category\": \"Telescopes\"}",
+        "tool.name": "search_products",
+        "tool.result_preview": "{\"status\": \"ok\", \"count\": 3, \"products\": [{\"product_id\": \"66VCHSJNUP\", \"name\": \"Starsense Explorer Refractor Telescope\", \"price\": \"$349.95\", \"category\": \"telescopes\", \"description\": \"The first telescope that uses your smartphone to analyze the night sky and calculate its position in real time. StarS",
+        "tool.succeeded": true
+      }
+    },
+    {
+      "name": "guardrail_input",
+      "attributes": {
+        "guardrail.blocked": false
+      }
+    },
+    {
+      "name": "oteldemo.ProductCatalogService/SearchProducts",
+      "attributes": {
+        "app.products_search.count": 10,
+        "app.search.mode": "semantic"
+      }
+    },
+    {
+      "name": "bedrock_converse",
+      "attributes": {
+        "gen_ai.request.model": "amazon.nova-pro-v1:0",
+        "gen_ai.response.finish_reason": "tool_use",
+        "gen_ai.usage.input_tokens": 5332,
+        "gen_ai.usage.output_tokens": 127
+      }
+    },
+    {
+      "name": "bedrock_converse",
+      "attributes": {
+        "gen_ai.request.model": "amazon.nova-pro-v1:0",
+        "gen_ai.response.finish_reason": "end_turn",
+        "gen_ai.usage.input_tokens": 5907,
+        "gen_ai.usage.output_tokens": 803
+      }
+    },
+    {
+      "name": "guardrail_citation_validation",
+      "attributes": {
+        "guardrail.citation_valid": true
+      }
+    },
+    {
+      "name": "bedrock_embed",
+      "attributes": {
+        "gen_ai.request.model": "amazon.titan-embed-text-v2:0",
+        "gen_ai.usage.input_tokens": 13
+      }
+    },
+    {
+      "name": "guardrail_output_grounding",
+      "attributes": {
+        "guardrail.blocked": false
+      }
+    }
+  ]
+}

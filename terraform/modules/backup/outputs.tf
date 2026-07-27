@@ -22,4 +22,3 @@ output "vault_kms_key_arn" {
   value       = aws_kms_key.vault.arn
   description = "ARN of KMS CMK dùng mã hoá Backup Vault (CDO-259)"
 }
-
