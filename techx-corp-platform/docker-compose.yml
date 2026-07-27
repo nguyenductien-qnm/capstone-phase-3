@@ -1080,6 +1080,10 @@ services:
       - OTEL_EXPORTER_OTLP_ENDPOINT
       - OTEL_SERVICE_NAME=shopping-copilot
       - OTEL_RESOURCE_ATTRIBUTES
+      - VALKEY_ADDR
+      - VALKEY_TLS
+      - VALKEY_AUTH_TOKEN
+      - DB_CONNECTION_STRING=host=${POSTGRES_HOST} user=otelu password=otelp dbname=${POSTGRES_DB}
     volumes:
       - ~/.aws:/app/.aws:ro
     depends_on:
@@ -1090,5 +1094,7 @@ services:
       currency:
         condition: service_started
       shipping:
+        condition: service_started
+      valkey-cart:
         condition: service_started
     logging: *logging
