@@ -34,18 +34,13 @@ components:
   # định (on-demand) đã chuyển lên block `default:` ở trên — CHỈ 11 service dưới
   # đây được opt-in tường minh vào NodePool `spot` riêng (taint).
   #
-  # Hai mức bảo vệ khác nhau — có chủ ý, không phải bất nhất:
-  #   • image-provider/llm/ml-guard/ad/product-reviews/recommendation/
-  #     payment/cart-consumer-worker: đã có hoặc đã vá đủ PDB +
-  #     topologySpread + replicas≥2 + graceful-drain trước khi opt-in.
-  #   • accounting/fraud-detection: replicas=1, KHÔNG PDB (verify thực tế
-  #     trên cluster: kubectl get deploy,pdb -n techx-tf1). Opt-in được
-  #     chấp nhận vì cả hai là Kafka consumer THUẦN ASYNC ngoài critical
-  #     path storefront — khi pod bị SIGTERM, Kafka re-deliver message chưa
-  #     commit offset cho pod mới sau reschedule, chỉ trễ xử lý, không mất
-  #     dữ liệu, không ảnh hưởng SLO checkout/browse/cart. preStop + grace
-  #     giảm xác suất message dở; đây là đánh đổi cost/reliability có tính
-  #     toán, không phải bảo vệ tương đương PDB.
+  # Tất cả 11 service spot đều đáp ứng CÙNG MỘT chuẩn an toàn:
+  #   PDB maxUnavailable=1 + replicas≥2 + preStop/terminationGrace
+  #   (Karpenter chỉ được drain 1 pod tại 1 thời điểm; pod còn lại
+  #   tiếp tục phục vụ trong khi pod bị evict reschedule trên node mới).
+  # accounting/fraud-detection: Kafka consumer async, mỗi pod xử lý
+  #   partition riêng → 2 pod không trùng message, PDB giữ ≥1 pod luôn
+  #   active trong consumer group, không có khoảng downtime khi drain.
   #
   # Mọi service khác (luồng tiền thật sự đồng bộ như quote/shipping/currency/
   # cart/checkout/product-catalog/frontend, hoặc chưa tồn tại) đều an toàn theo
@@ -230,14 +225,17 @@ components:
         cpu: 400m   # dùng thật ~290m/pod có tải (was 1000m = over-request 345%)
       limits:
         cpu: 2000m  # giữ — burst load model 25-90s (startupProbe đã cover)
-  # 27-07-2026 (dựa trên đo trực tiếp hạ tầng thật, không dựa ADR giấy): accounting
-  # và fraud-detection là 2 Kafka consumer async, ngoài critical path storefront,
-  # tự nhận "chấp nhận gián đoạn ngắn" (Kafka đệm lại khi consumer restart) — dùng
-  # đúng cơ chế toleration/nodeSelector đã chứng minh hoạt động cho 6 service trên.
-  # fraud-detection đã được thêm terminationGracePeriodSeconds/preStop trong
-  # platform/charts/application/values.yaml (shared) trước khi opt-in ở đây;
-  # accounting đã có sẵn field đó từ trước.
+  # 27-07-2026 (dựa trên đo trực tiếp hạ tầng thật): accounting và fraud-detection
+  # là 2 Kafka consumer async, ngoài critical path storefront. Opt-in vào NodePool
+  # spot với chuẩn đầy đủ: replicas=2 + PDB maxUnavailable=1 + preStop/grace
+  # (fraud-detection thêm preStop trong values.yaml shared; accounting có sẵn).
+  # replicas=2: Karpenter chỉ được drain 1 pod tại 1 thời điểm (PDB), pod còn lại
+  # tiếp tục consume partition Kafka của nó — không có khoảng downtime. Kafka phân
+  # partition theo consumer group nên 2 pod xử lý song song, không trùng message.
   accounting:
+    replicas: 2
+    podDisruptionBudget:
+      maxUnavailable: 1
     schedulingRules:
       tolerations:
         - key: techx.io/capacity
@@ -246,6 +244,9 @@ components:
       nodeSelector:
         techx.io/capacity: spot
   fraud-detection:
+    replicas: 2
+    podDisruptionBudget:
+      maxUnavailable: 1
     schedulingRules:
       tolerations:
         - key: techx.io/capacity
