@@ -157,7 +157,21 @@ rules:
     match_phrases:
       - "Rate limit reached"
       - "rate_limit_exceeded"
-      - "429"
+      # MANDATE-15 ca healthy-load, do that 27/07: cum tran "429" da bi BO.
+      # `message_field` la text da analyze, nen match_phrase khop TOKEN "429" o BAT KY
+      # dau nao trong dong log - khong rieng gi ma trang thai HTTP. Dem tren toan bo
+      # index (7 ngay, 7.94M dong): 49 dong khop, KHONG dong nao la 429 that:
+      #   24 dong = access log Envoy, status 200, "429" la truong %DURATION% (429 mili-giay)
+      #   25 dong = "topic=domain.checkout.orders, partition=0, offset=429" cua shipping
+      # Precision cua cum nay = 0.00 tren toan bo du lieu no tung thay. No lam ca
+      # healthy-load FAIL oan: tai 3.84x -> do tre tang -> mot request mat dung 429ms
+      # -> CRITICAL. Tuc la cum tu nay bien "he thong BAN" thanh "he thong HONG",
+      # dung cai loi ma MANDATE-15 di tim.
+      # Thay bang cum neo vao vi tri trang thai HTTP trong access log Envoy: analyzer
+      # tach thanh [http, 1.1, 429] lien tiep, nen chi khop khi status THAT SU la 429
+      # (kiem chung bang _analyze tren otel-logs-2026-07-27: bat status=429, khong khop
+      # ca dong 429ms lan dong offset=429).
+      - 'HTTP/1.1" 429'
     window_minutes: 5
     min_count: 1
 
