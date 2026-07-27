@@ -892,3 +892,79 @@ def test_silent_rule_cycles_defaults_when_cfg_omits_it():
     )
     assert total == 0
     assert detector.SILENT_RULE_CYCLES > 5
+
+
+# ---------------------------------------------------------------------------
+# MANDATE-15 — masking-resistance (winsorize)
+#
+# Test nay giu nguyen tu PR #343 (tac gia TienThanh). Phan code no bao ve da duoc
+# dat lai vao cau truc hien tai cua eval_metric_rule (cong SLO + dynamic_enabled +
+# nguong theo chieu op), nhung khang dinh thi khong doi.
+# ---------------------------------------------------------------------------
+def test_dynamic_detection_not_masked_by_prior_spike():
+    """MANDATE-15 masking case: mot spike nhieu don le khong duoc phep nang baseline
+    truot len du de che mot su co RIENG BIET, NHO HON ngay sau do.
+
+    Hoi quy cho loi ma eval_metric_rule nhoi gia tri bat thuong THO vao metric_history,
+    keo mean/std ve phia spike suot ~30 chu ky va day dynamic_threshold len tren gia tri
+    tiep theo — von that su bat thuong nhung nho hon.
+    """
+    prom = MagicMock()
+    rule = {
+        "id": "latency-test",
+        "type": "metric",
+        "query": "dummy_query",
+        "op": "gt",
+        "threshold": 100.0,  # nguong tinh khong bao gio keu -> co lap dung tang 3-sigma
+        "summary": "High latency alert",
+        "severity": "warning",
+    }
+    detector.reset_state()
+
+    for val in [0.1, 0.11, 0.09, 0.1, 0.12]:
+        prom.query.return_value = [(val, {"service_name": "storefront"})]
+        detector.eval_metric_rule(rule, prom)
+
+    prom.query.return_value = [(5.0, {"service_name": "storefront"})]
+    spike_alerts = detector.eval_metric_rule(rule, prom)
+    assert len(spike_alerts) == 1
+
+    prom.query.return_value = [(0.5, {"service_name": "storefront"})]
+    incident_alerts = detector.eval_metric_rule(rule, prom)
+    assert len(incident_alerts) == 1, (
+        "mot spike truoc do khong duoc phep nang mean/std du de che mot su co "
+        "rieng biet, nho hon trong cung cua so"
+    )
+
+
+def test_winsorize_clips_the_stored_sample_not_the_fired_value():
+    """Kep chi anh huong thu duoc GHI vao history, khong anh huong quyet dinh keu.
+
+    Neu ai do nham va kep ca gia tri dem so sanh thi spike se thoi khong keu nua —
+    tuc bien mot ban va chong-che thanh mot lo hong phat hien.
+    """
+    prom = MagicMock()
+    rule = {
+        "id": "latency-test", "type": "metric", "query": "q", "op": "gt",
+        "threshold": 100.0, "summary": "s", "severity": "warning",
+    }
+    detector.reset_state()
+    for val in [0.1, 0.11, 0.09, 0.1, 0.12]:
+        prom.query.return_value = [(val, {"service_name": "storefront"})]
+        detector.eval_metric_rule(rule, prom)
+
+    prom.query.return_value = [(5.0, {"service_name": "storefront"})]
+    alerts = detector.eval_metric_rule(rule, prom)
+    assert len(alerts) == 1, "spike phai van keu"
+    assert "5.0000" in field_values(alerts[0]), "alert phai bao gia tri THAT, khong phai gia tri da kep"
+    assert max(detector.metric_history["latency-test:storefront"]) < 5.0, "history phai luu gia tri DA KEP"
+
+
+def test_dynamic_disabled_rule_is_untouched_by_winsorize():
+    """Rule tat tang dong khong ghi history, nen khong co gi de kep."""
+    prom = MagicMock()
+    rule = _collapse_rule()
+    for val in (1.0, 1.0, 0.9, 1.0, 1.0, 0.05):
+        prom.query.return_value = [(val, {"service_name": "payment"})]
+        detector.eval_metric_rule(rule, prom)
+    assert detector.metric_history == {}
