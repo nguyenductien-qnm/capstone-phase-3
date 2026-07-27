@@ -5,7 +5,7 @@
   "service": null,
   "monitored_rule_ids": [
     "latency-p95-high",
-    "grpc-error-rate-high",
+    "service-error-rate-high",
     "error-budget-burn-fast-standard",
     "error-budget-burn-fast-checkout",
     "error-budget-burn-slow-standard",

@@ -40,7 +40,7 @@ spec:
       containers:
         - name: aiops-remediation
           # MANDATE-05: pin tag co dinh, khong dung tag troi (:latest).
-          image: 804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.1-aiops-remediation-85a9b75
+          image: 804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.1-aiops-remediation-60c811e
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false
@@ -54,6 +54,19 @@ spec:
               value: "http://opensearch:9200"
             # AN TOAN mac dinh (spec anomaly_remediation.md Sec4.1) - doi tay sang
             # "false" chi khi da san sang cho remediation act that len K8s.
+            #
+            # DA TRA VE "true" sau khi do xong MTTR cho TF1-106 (PR #459 tat tam thoi).
+            # So do duoc, tren pod moi mttr-canary da xoa:
+            #   MTTR before (kubelet CrashLoopBackOff) : 310.3s
+            #   MTTR after  (remediation xoa pod)      :  67.2s
+            #     trong do 61.0s la detector poll (30s) + remediation poll (~31s)
+            #     va 6.2s la khoi dong container
+            #
+            # Nhung con so 4.6x do CHI dung cho MOT lan: blast_radius cho toi da
+            # 1 hanh dong/gio/namespace, nen tren mot pod hong lap lai (OOM moi ~2 phut)
+            # vong tu dap chi cuu duoc 1 trong ~30 lan -> MTTR trung binh ~302s, gan nhu
+            # khong cai thien. Voi mot OOM DON LE thi con nguoc: kubelet restart lan dau
+            # chi ~10s, cham hon la vong tu dap voi 67s. Chi tiet o report/mandate15/.
             - name: REMEDIATION_DRY_RUN
               value: "true"
             # Tai dung secret webhook cua aiops-detector - remediation gui audit/escalate

@@ -126,7 +126,7 @@ networkPolicy:
         consumers: [accounting, cart, cart-consumer-worker, checkout, email, fraud-detection, payment, shipping]
       - name: rds              # Postgres (DB_CONNECTION_STRING)
         ports: [5432]
-        consumers: [accounting, checkout, product-catalog, product-reviews]
+        consumers: [accounting, checkout, product-catalog, product-reviews, recommendation]
   # per-service INGRESS: mỗi đích chỉ nhận từ đúng caller (đồ thị phụ thuộc đã xác minh từ *_ADDR).
   # flagd xử lý riêng ở trên; DB/queue (valkey-cart, kafka) và service lá cũng liệt kê.
   serviceIngress:
@@ -382,6 +382,15 @@ components:
     topologySpread: true   # M17-R2: trải pod ra ≥2 AZ (browse-path SLO)
     podDisruptionBudget:   # M17-R2: drain-az không hạ cả 2 pod cùng lúc
       maxUnavailable: 1
+    # Audit mở rộng Mandate-13 sang sandbox (27-07-2026): ad đã nằm trên NodePool
+    # spot của sandbox từ trước (values-application.yaml) nhưng thiếu preStop/grace —
+    # circuit breaker M17-R1 chỉ bảo vệ CALLER (frontend) khỏi lỗi gọi ad, không bảo
+    # vệ request đang xử lý DỞ trong chính pod ad khi bị SIGTERM lúc Karpenter
+    # consolidate/spot interruption. Thêm cho khớp pattern đã dùng ở mọi service khác.
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep: { seconds: 5 }
     hpa:
       enabled: true
       minReplicas: 2       # M17-R2: HA, mất 1 AZ vẫn còn pod
@@ -808,13 +817,6 @@ components:
     topologySpread: true   # M17-R2: trải pod ra ≥2 AZ (money-path)
     podDisruptionBudget:   # M17-R2: drain-az/rollout không hạ cả 2 pod cùng lúc
       maxUnavailable: 1
-    # CDO-29 pattern (khớp cart/checkout): chờ endpoint propagate trước khi container
-    # tắt, tránh checkout (caller đồng bộ) nhận connection reset khi Karpenter
-    # consolidate/drift evict pod này giữa lúc có traffic.
-    terminationGracePeriodSeconds: 30
-    lifecycle:
-      preStop:
-        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
     hpa:
       enabled: true
       minReplicas: 2       # M17-R2: HA, mất 1 AZ vẫn còn pod
@@ -927,6 +929,14 @@ components:
       env: true
     # Consumer Kafka async, KHÔNG HPA (scale nên theo lag, không phải CPU) và ngoài
     # critical path storefront → không cần PDB/spread (gián đoạn ngắn được Kafka đệm).
+    # Mandate-13: develop không pin service nào vào on-demand (1 NodePool duy nhất,
+    # Karpenter tự cân đối spot/on-demand) -> fraud-detection có thể rơi vào spot
+    # bất kỳ lúc nào. Thiếu preStop/grace thì message Kafka đang xử lý dở bị cắt
+    # ngang khi node bị drain/thu hồi, khác accounting (đã có field này từ trước).
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep: { seconds: 5 }
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
     env:
@@ -1252,6 +1262,19 @@ components:
       limits:
         cpu: 100m
         memory: 50Mi
+    # Mandate-13 (mở rộng sandbox spot, 27-07-2026): ứng viên spot mới, browse-path
+    # (ảnh sản phẩm), không nằm trên luồng tiền. Trước đây replicas mặc định=1 (chart
+    # default) và không có PDB/grace — 1 replica + PDB thì PDB vô nghĩa (K8s vẫn được
+    # phép evict pod duy nhất). Bump lên 2 + đủ bộ graceful-drain trước khi cho vào
+    # NodePool spot (platform/gitops/environments/sandbox/values-application.yaml).
+    replicas: 2
+    topologySpread: true
+    podDisruptionBudget:
+      maxUnavailable: 1
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep: { seconds: 5 }
   load-generator:
     enabled: true
     useDefault:
@@ -1357,19 +1380,22 @@ components:
     podDisruptionBudget:
       maxUnavailable: 1
     topologySpread: true
+    # Mandate-13 (mở rộng sandbox spot, 27-07-2026): ml-guard là ứng viên spot lớn
+    # nhất về CPU (400m request), off money-path, gọi qua async gRPC với fail-open
+    # sẵn (regex+local ML khi Bedrock lỗi) — nhưng thiếu preStop nên request đang
+    # xử lý dở (model inference 25-90s warm-up, có thể lâu hơn cho 1 lần gọi) có
+    # thể bị cắt ngang khi Karpenter drain node spot/on-demand. Thêm cho khớp
+    # pattern các service khác.
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep: { seconds: 5 }
   payment:
     enabled: true
     replicas: 2            # M17-R2: HA money-path
     topologySpread: true   # M17-R2: trải pod ra ≥2 AZ
     podDisruptionBudget:   # M17-R2: drain-az/rollout không hạ cả 2 pod cùng lúc
       maxUnavailable: 1
-    # CDO-29 pattern (khớp cart/checkout): chờ endpoint propagate trước khi container
-    # tắt, tránh checkout (caller đồng bộ) nhận connection reset khi Karpenter
-    # consolidate/drift evict pod này giữa lúc có traffic.
-    terminationGracePeriodSeconds: 30
-    lifecycle:
-      preStop:
-        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
     imageOverride:
       tag: "1.0-payment-ae89fa2" # incident 2026-07-16: tag tran bi ECR lifecycle xoa, image rebuild tu source
     useDefault:
@@ -1472,6 +1498,10 @@ components:
 
   product-catalog:
     enabled: true
+    serviceAccount:
+      create: true
+      annotations: {}
+      name: product-catalog
     imageOverride:
       tag: "1.1-product-catalog" # CDO-80: image mới có gRPC health tách liveness/readiness
     useDefault:
@@ -1701,6 +1731,11 @@ components:
         value: flagd
       - name: FLAGD_PORT
         value: "8013"
+      - name: DB_CONNECTION_STRING
+        valueFrom:
+          secretKeyRef:
+            name: db-secret
+            key: catalog-db-conn
       - name: OTEL_EXPORTER_OTLP_ENDPOINT
         value: http://$(OTEL_COLLECTOR_NAME):4317
     resources:
@@ -1713,6 +1748,18 @@ components:
     topologySpread: true   # M17-R2: trải pod ra ≥2 AZ (browse-path SLO)
     podDisruptionBudget:   # M17-R2: drain-az không hạ cả 2 pod cùng lúc
       maxUnavailable: 1
+    # Mandate-13 (mở rộng sandbox, 27-07-2026): recommendation được thêm vào
+    # NodePool spot của sandbox (platform/gitops/environments/sandbox/
+    # values-application.yaml) — cần preStop/grace trước khi nhận toleration
+    # spot, cùng lý do với payment/currency: Karpenter consolidate hoặc spot
+    # interruption drain node bất kỳ lúc nào, không có sleep native thì
+    # Envoy/kube-proxy chưa kịp gỡ IP pod khỏi Service endpoints đã bị SIGTERM,
+    # gây rớt request browse đang gọi recommendation.
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep:
+          seconds: 5
     hpa:
       enabled: true
       minReplicas: 2       # M17-R2: HA, mất 1 AZ vẫn còn pod (tăng từ 1)
@@ -1815,13 +1862,6 @@ components:
     topologySpread: true   # M17-R2: trải pod ra ≥2 AZ
     podDisruptionBudget:   # M17-R2: drain-az/rollout không hạ cả 2 pod cùng lúc
       maxUnavailable: 1
-    # CDO-29 pattern (khớp cart/checkout): chờ endpoint propagate trước khi container
-    # tắt, tránh checkout (caller đồng bộ) nhận connection reset khi Karpenter
-    # consolidate/drift evict pod này giữa lúc có traffic.
-    terminationGracePeriodSeconds: 30
-    lifecycle:
-      preStop:
-        exec: { command: ["/bin/sh", "-c", "sleep 5"] }
     useDefault:
       env: true
     service:
@@ -2058,11 +2098,19 @@ components:
       port: 8000
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
-    env:
-      - name: FLAGD_HOST
-        value: flagd
-      - name: FLAGD_PORT
-        value: "8013"
+    # Mandate-13 (mở rộng sandbox spot, 27-07-2026): ứng viên spot mới. Caller
+    # (product-reviews) đã có timeout + fallback riêng cho llm (LLM_REVIEWS_TIMEOUT/
+    # LLM_REVIEWS_FALLBACK_TIMEOUT) nên chịu được llm gián đoạn ngắn — nhưng bản thân
+    # llm trước đây replicas mặc định=1, không PDB/grace. Bump 2 + đủ bộ graceful-drain
+    # trước khi cho vào NodePool spot (values-application.yaml sandbox).
+    replicas: 2
+    topologySpread: true
+    podDisruptionBudget:
+      maxUnavailable: 1
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep: { seconds: 5 }
     resources:
       requests:
         cpu: 50m

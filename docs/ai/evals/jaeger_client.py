@@ -122,6 +122,11 @@ def summarize_spans(trace_json):
         "tool_call",
         "guardrail_citation_validation",
         "guardrail_output_grounding",
+        # Span của product-catalog. Trace đã gộp chung sau khi cài
+        # opentelemetry-instrumentation-grpc, nhưng whitelist cũ lọc mất chúng nên
+        # eval không thấy chi phí Titan lẫn chế độ tìm kiếm thực tế.
+        "bedrock_embed",
+        "oteldemo.ProductCatalogService/SearchProducts",
     }
 
     summary = []
@@ -133,7 +138,8 @@ def summarize_spans(trace_json):
             attrs = {}
             for tag in span.get("tags", []):
                 key = tag.get("key", "")
-                if key.startswith(("copilot.", "guardrail.", "gen_ai.", "tool.")):
+                # "app." cho app.search.mode / app.products_search.count của catalog.
+                if key.startswith(("copilot.", "guardrail.", "gen_ai.", "tool.", "app.")):
                     attrs[key] = tag.get("value")
             summary.append({"name": name, "attributes": attrs})
 

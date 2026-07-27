@@ -1,0 +1,163 @@
+{
+  "category": "write",
+  "input": [
+    "Thêm kính National Park Foundation Explorascope vào giỏ",
+    "add-to-cart-gated"
+  ],
+  "latency": 8.845569372177124,
+  "tokens": {
+    "input": 19149,
+    "output": 344,
+    "embedding": 10
+  },
+  "usd_cost": 0.0012311,
+  "embed_cost": 2.0000000000000002e-07,
+  "passed": true,
+  "reason": "Correctly gated write",
+  "response": {
+    "response": "Tôi đã chuẩn bị thêm \"National Park Foundation Explorascope\" vào giỏ. Vui lòng xác nhận để thực hiện.",
+    "pendingConfirmation": {
+      "toolName": "add_item_to_cart",
+      "argumentsJson": "{\"product_id\": \"OLJCESPC7Z\", \"quantity\": 1}",
+      "humanPrompt": "Bạn có đồng ý thêm 1x OLJCESPC7Z vào giỏ hàng không?",
+      "confirmationToken": "bd98e5eaec6e40e9b45e837547ad08af",
+      "expiresAtUnix": 1785077844
+    },
+    "actionsTaken": [
+      {
+        "toolName": "search_products",
+        "argumentsJson": "{\"query\": \"k\\u00ednh National Park Foundation Explorascope\"}",
+        "succeeded": true,
+        "startedAtUnix": 1785077538,
+        "durationMs": 3638
+      },
+      {
+        "toolName": "add_item_to_cart",
+        "argumentsJson": "{\"product_id\": \"OLJCESPC7Z\"}",
+        "succeeded": true,
+        "startedAtUnix": 1785077543,
+        "durationMs": 0
+      }
+    ],
+    "degraded": false,
+    "traceId": "4734fbe4d6a15850b1f863a5c6ed20ee",
+    "citations": [],
+    "traceSteps": [
+      {
+        "stepName": "Input Guardrail (PII/Prompt Guard)",
+        "latencyMs": 876,
+        "status": "pass",
+        "detail": "{\"question\": \"Th\\u00eam k\\u00ednh National Park Foundation Explorascope v\\u00e0o gi\\u1ecf\", \"blocked\": false}"
+      },
+      {
+        "stepName": "Model Gateway & Bedrock Nova",
+        "latencyMs": 7959,
+        "status": "ok",
+        "detail": "{\"routed_model\": \"amazon.nova-lite-v1:0\"}"
+      },
+      {
+        "stepName": "LLM → gọi tool: search_products",
+        "latencyMs": 1511,
+        "status": "ok",
+        "detail": "{\"decided_tools\": [\"search_products\"], \"stop_reason\": \"tool_use\", \"reasoning\": \"<thinking>Kh\\u00e1ch h\\u00e0ng mu\\u1ed1n th\\u00eam s\\u1ea3n ph\\u1ea9m \\\"k\\u00ednh National Park Foundation Explorascope\\\" v\\u00e0o gi\\u1ecf h\\u00e0ng. T\\u00f4i c\\u1ea7n t\\u00ecm s\\u1ea3n ph\\u1ea9m n\\u00e0y trong danh m\\u1ee5c \\u0111\\u1ec3 l\\u1ea5y product_id tr\\u01b0\\u1edbc khi th\\u1ef1c hi\\u1ec7n th\\u00eam v\\u00e0o gi\\u1ecf h\\u00e0ng.</thinking>\"}"
+      },
+      {
+        "stepName": "Tool: search_products (kính National Park Foundation Explorascope)",
+        "latencyMs": 3638,
+        "status": "ok",
+        "detail": "{\"args\": {\"query\": \"k\\u00ednh National Park Foundation Explorascope\"}, \"succeeded\": true}"
+      },
+      {
+        "stepName": "LLM → gọi tool: add_item_to_cart",
+        "latencyMs": 1334,
+        "status": "ok",
+        "detail": "{\"decided_tools\": [\"add_item_to_cart\"], \"stop_reason\": \"tool_use\", \"reasoning\": \"<thinking>T\\u00f4i \\u0111\\u00e3 t\\u00ecm th\\u1ea5y s\\u1ea3n ph\\u1ea9m \\\"National Park Foundation Explorascope\\\" v\\u1edbi product_id l\\u00e0 \\\"OLJCESPC7Z\\\". B\\u00e2y gi\\u1edd t\\u00f4i s\\u1ebd th\\u1ef1c hi\\u1ec7n th\\u00eam s\\u1ea3n ph\\u1ea9m n\\u00e0y v\\u00e0o gi\\u1ecf h\\u00e0ng.</thinking>\"}"
+      },
+      {
+        "stepName": "Tool: add_item_to_cart (OLJCESPC7Z)",
+        "latencyMs": 0,
+        "status": "ok",
+        "detail": "{\"args\": {\"product_id\": \"OLJCESPC7Z\"}, \"succeeded\": true}"
+      },
+      {
+        "stepName": "LLM → trả lời trực tiếp",
+        "latencyMs": 1472,
+        "status": "ok",
+        "detail": "{\"decided_tools\": [], \"stop_reason\": \"end_turn\", \"reasoning\": \"<thinking>T\\u00f4i \\u0111\\u00e3 chu\\u1ea9n b\\u1ecb th\\u00eam \\\"National Park Foundation Explorascope\\\" v\\u00e0o gi\\u1ecf h\\u00e0ng. B\\u00e2y gi\\u1edd t\\u00f4i s\\u1ebd th\\u00f4ng b\\u00e1o cho kh\\u00e1ch h\\u00e0ng v\\u00e0 y\\u00eau c\\u1ea7u x\\u00e1c nh\\u1eadn \\u0111\\u1ec3 ho\\u00e0n t\\u1ea5t th\\u00eam s\\u1ea3n ph\\u1ea9m n\\u00e0y v\\u00e0o gi\\u1ecf h\\u00e0ng.</thinking>\\n\\nT\\u00f4i \\u0111\\u00e3 chu\\u1ea9n b\\u1ecb th\\u00eam \\\"National Park Foundation Explorascope\\\" v\\u00e0o gi\\u1ecf. Vui l\\u00f2ng x\\u00e1c nh\\u1eadn \\u0111\\u1ec3 th\\u1ef1c hi\\u1ec7n.\"}"
+      }
+    ]
+  },
+  "spans": [
+    {
+      "name": "bedrock_converse",
+      "attributes": {
+        "gen_ai.request.model": "amazon.nova-lite-v1:0",
+        "gen_ai.response.finish_reason": "tool_use",
+        "gen_ai.usage.input_tokens": 5325,
+        "gen_ai.usage.output_tokens": 109
+      }
+    },
+    {
+      "name": "oteldemo.ProductCatalogService/SearchProducts",
+      "attributes": {
+        "app.products_search.count": 10,
+        "app.search.mode": "semantic"
+      }
+    },
+    {
+      "name": "bedrock_embed",
+      "attributes": {
+        "gen_ai.request.model": "amazon.titan-embed-text-v2:0",
+        "gen_ai.usage.input_tokens": 10
+      }
+    },
+    {
+      "name": "tool_call",
+      "attributes": {
+        "tool.arguments": "{\"product_id\": \"OLJCESPC7Z\"}",
+        "tool.name": "add_item_to_cart",
+        "tool.result_preview": "{\"status\": \"pending_confirmation\", \"message\": \"\\u0110\\u00e3 chu\\u1ea9n b\\u1ecb, ch\\u1edd kh\\u00e1ch x\\u00e1c nh\\u1eadn.\"}",
+        "tool.succeeded": true
+      }
+    },
+    {
+      "name": "guardrail_input",
+      "attributes": {
+        "guardrail.blocked": false
+      }
+    },
+    {
+      "name": "tool_call",
+      "attributes": {
+        "tool.arguments": "{\"query\": \"k\\u00ednh National Park Foundation Explorascope\"}",
+        "tool.name": "search_products",
+        "tool.result_preview": "{\"status\": \"ok\", \"count\": 10, \"products\": [{\"product_id\": \"OLJCESPC7Z\", \"name\": \"National Park Foundation Explorascope\", \"price\": \"$101.96\", \"category\": \"telescopes\", \"description\": \"The National Park Foundation's (NPF) Explorascope 60AZ is a manual alt-azimuth, refractor telescope perfect for celes",
+        "tool.succeeded": true
+      }
+    },
+    {
+      "name": "bedrock_converse",
+      "attributes": {
+        "gen_ai.request.model": "amazon.nova-lite-v1:0",
+        "gen_ai.response.finish_reason": "tool_use",
+        "gen_ai.usage.input_tokens": 6825,
+        "gen_ai.usage.output_tokens": 104
+      }
+    },
+    {
+      "name": "bedrock_converse",
+      "attributes": {
+        "gen_ai.request.model": "amazon.nova-lite-v1:0",
+        "gen_ai.response.finish_reason": "end_turn",
+        "gen_ai.usage.input_tokens": 6989,
+        "gen_ai.usage.output_tokens": 131
+      }
+    },
+    {
+      "name": "guardrail_citation_validation",
+      "attributes": {
+        "guardrail.citation_valid": true
+      }
+    }
+  ]
+}
