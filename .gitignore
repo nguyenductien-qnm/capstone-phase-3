@@ -32,6 +32,9 @@ tfplan
 *.tfvars.json
 !terraform/environments/*/access.auto.tfvars
 !terraform/environments/sandbox/primary-capacity.tfvars
+# Node subnet cho Karpenter: không chứa secret/account ID, PHẢI được commit —
+# thiếu nó thì private_node_subnets = {} (default) và CI plan ra 0 subnet.
+!terraform/environments/sandbox/node-subnets.auto.tfvars
 
 # Ignore temporary logs
 *.log
