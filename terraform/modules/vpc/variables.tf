@@ -45,6 +45,19 @@ variable "private_app_subnets" {
   }
 }
 
+variable "private_node_subnets" {
+  type = map(object({
+    cidr_block        = string
+    availability_zone = string
+  }))
+  description = "Cấu hình Private Node Subnets cho Karpenter — dải rộng (/20) để VPC CNI prefix delegation luôn xin được khối /28 liền mạch. Mặc định rỗng: environment nào không khai thì không tạo gì."
+  default     = {}
+  validation {
+    condition     = alltrue([for k, v in var.private_node_subnets : can(cidrhost(v.cidr_block, 0))])
+    error_message = "Tất cả Private Node Subnet CIDR phải hợp lệ."
+  }
+}
+
 variable "private_data_subnets" {
   type = map(object({
     cidr_block        = string
@@ -94,5 +107,11 @@ variable "private_subnet_tags" {
 variable "private_app_subnet_tags" {
   type        = map(string)
   description = "Các tags bổ sung chỉ cho Private Application Subnets"
+  default     = {}
+}
+
+variable "private_node_subnet_tags" {
+  type        = map(string)
+  description = "Các tags bổ sung chỉ cho Private Node Subnets (vd karpenter.sh/discovery)"
   default     = {}
 }

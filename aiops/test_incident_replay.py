@@ -142,6 +142,35 @@ def test_alert_in_no_fire_window_is_not_counted_as_a_correct_fire(tmp_path):
     assert score["metrics"]["precision"] == 0.0
 
 
+def test_event_does_not_steal_an_alert_from_a_later_event(tmp_path):
+    """An alert outside an event's own window must not count as catching it.
+
+    The candidate filter only had a lower bound, so in a multi-event scenario the
+    earlier event matched any later alert too. Found scoring the MANDATE-15 EKS
+    set: the payment case, for which the detector stayed silent, was reported as
+    caught with lead_time=1166s because it grabbed the cart case's alert from 19
+    minutes later. Matters most for the masking scenario, which is multi-event by
+    construction.
+    """
+    history = tmp_path / "alerter_history.jsonl"
+    _write_jsonl(history, [
+        {"ts": 3000.0, "rule_id": "grpc-error-rate-high", "service": "checkout"},
+    ])
+    events = [
+        {"label": "earlier-incident", "service": "checkout",
+         "expected_rule_ids": ["grpc-error-rate-high"], "expect_fire": True,
+         "t_start": 1000.0, "t_end": 1100.0},
+        {"label": "later-incident", "service": "checkout",
+         "expected_rule_ids": ["grpc-error-rate-high"], "expect_fire": True,
+         "t_start": 2900.0, "t_end": 3100.0},
+    ]
+    score = ir.score_events(events, str(history), settle_seconds=30)
+    earlier, later = score["per_event"]
+    assert earlier["fired"] is False, "alert 1900s later is not this event's"
+    assert later["fired"] is True
+    assert score["metrics"]["recall"] == 0.5
+
+
 def test_verdict_real_incident_passes_when_fired():
     per_event = [{"label": "incident", "expect_fire": True, "fired": True}]
     ok, _ = ir.verdict_for_type("real", per_event)
