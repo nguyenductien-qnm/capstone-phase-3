@@ -13,14 +13,14 @@ default:
   # Mandate-13 Phương án B, đơn giản hoá (27-07-2026): an toàn mặc định = on-demand
   # cho MỌI component, đặt ở đây thay vì lặp lại nodeSelector ở từng service (cách
   # cũ, đã bỏ — xem git history nếu cần đối chiếu). Component nào có
-  # `schedulingRules.nodeSelector` riêng (6 service Nhóm B bên dưới) sẽ override
+  # `schedulingRules.nodeSelector` riêng (8 service Nhóm B bên dưới) sẽ override
   # đúng theo cơ chế `_objects.tpl` (component-level luôn thắng default). Component
   # KHÔNG khai báo gì — kể cả service mới thêm sau này mà quên cấu hình — sẽ tự
-  # động rơi vào nhánh an toàn này thay vì lộ ra spot. Đánh đổi: accounting/
-  # fraud-detection (Kafka consumer async, ngoài critical path) trước đây được để
-  # tự do rơi vào pool mixed, giờ cũng bị pin theo default — mất phần đóng góp nhỏ
-  # (~150m/3090m) vào tỷ lệ spot, đổi lấy việc xoá sạch rủi ro "quên pin service
-  # mới" (fail-open) ở cấp từng service.
+  # động rơi vào nhánh an toàn này thay vì lộ ra spot.
+  # 27-07-2026 (dựa trên đo trực tiếp trên cluster thật, không dựa ADR giấy):
+  # accounting/fraud-detection (Kafka consumer async, ngoài critical path, tự
+  # nhận "chấp nhận gián đoạn ngắn") đã được đưa vào NodePool `spot` riêng bên
+  # dưới — xem comment đầu block `components:`.
   schedulingRules:
     nodeSelector:
       karpenter.sh/capacity-type: on-demand
@@ -28,11 +28,13 @@ default:
 components:
   # === Mandate-13 Phương án B (27-07-2026): NodePool `default` cho phép cả spot
   # lẫn on-demand (platform/karpenter/nodepool-default.yaml), nhưng an toàn mặc
-  # định (on-demand) đã chuyển lên block `default:` ở trên — CHỈ 6 service dưới
+  # định (on-demand) đã chuyển lên block `default:` ở trên — CHỈ 8 service dưới
   # đây được opt-in tường minh vào NodePool `spot` riêng (taint, đã vá đủ PDB/
   # topologySpread/graceful-drain/replicas≥2 trong values.yaml dùng chung trước
-  # khi thêm ở đây). Mọi service khác (luồng tiền, fragile, hoặc chưa tồn tại)
-  # đều an toàn theo mặc định mà không cần khai báo gì thêm.
+  # khi thêm ở đây — với accounting/fraud-detection, 2 Kafka consumer async
+  # ngoài critical path, không cần PDB/spread vì gián đoạn ngắn được Kafka đệm,
+  # chỉ cần preStop/terminationGrace). Mọi service khác (luồng tiền, fragile,
+  # hoặc chưa tồn tại) đều an toàn theo mặc định mà không cần khai báo gì thêm.
   ad:
     schedulingRules:
       tolerations:
@@ -177,3 +179,26 @@ components:
         cpu: 400m   # dùng thật ~290m/pod có tải (was 1000m = over-request 345%)
       limits:
         cpu: 2000m  # giữ — burst load model 25-90s (startupProbe đã cover)
+  # 27-07-2026 (dựa trên đo trực tiếp hạ tầng thật, không dựa ADR giấy): accounting
+  # và fraud-detection là 2 Kafka consumer async, ngoài critical path storefront,
+  # tự nhận "chấp nhận gián đoạn ngắn" (Kafka đệm lại khi consumer restart) — dùng
+  # đúng cơ chế toleration/nodeSelector đã chứng minh hoạt động cho 6 service trên.
+  # fraud-detection đã được thêm terminationGracePeriodSeconds/preStop trong
+  # platform/charts/application/values.yaml (shared) trước khi opt-in ở đây;
+  # accounting đã có sẵn field đó từ trước.
+  accounting:
+    schedulingRules:
+      tolerations:
+        - key: techx.io/capacity
+          value: spot
+          effect: NoSchedule
+      nodeSelector:
+        techx.io/capacity: spot
+  fraud-detection:
+    schedulingRules:
+      tolerations:
+        - key: techx.io/capacity
+          value: spot
+          effect: NoSchedule
+      nodeSelector:
+        techx.io/capacity: spot
