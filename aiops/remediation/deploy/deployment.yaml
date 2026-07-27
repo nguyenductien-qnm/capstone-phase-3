@@ -52,10 +52,20 @@ spec:
               value: "http://prometheus:9090"
             - name: OPENSEARCH_URL
               value: "http://opensearch:9200"
-            # AN TOAN mac dinh (spec anomaly_remediation.md Sec4.1) - doi tay sang
-            # "false" chi khi da san sang cho remediation act that len K8s.
+            # AN TOAN mac dinh la "true" (spec anomaly_remediation.md Sec4.1).
+            #
+            # TAM THOI dat "false" de do MTTR before/after cho TF1-106 (MANDATE-22).
+            # Khong the do "after" khi dry-run bat: cong dry-run nam TRUOC hanh dong
+            # that (remediation.py, buoc 4) va `continue` ngay, nen vong tu dap chua
+            # tung sua gi. Khong co "after" thi khong co so de so sanh.
+            #
+            # Da xac nhan hanh vi dung qua dry-run that tren EKS truoc khi bat:
+            # detector bat oom-detected tren pod moi mttr-canary luc 18:46:03, remediation
+            # phan ung sau 4 giay va in dung pod se restart — chi khong goi K8s API.
+            #
+            # PHAI TRA VE "true" sau khi do xong. PR tra lai la buoc cuoi cua TF1-106.
             - name: REMEDIATION_DRY_RUN
-              value: "true"
+              value: "false"
             # Tai dung secret webhook cua aiops-detector - remediation gui audit/escalate
             # alert vao cung kenh Discord, phan biet qua title "remediation-*".
             - name: AIOPS_SLACK_WEBHOOK_CRITICAL
