@@ -149,7 +149,8 @@ CREATE TABLE IF NOT EXISTS catalog.product_embeddings_v2 (
 CREATE INDEX IF NOT EXISTS idx_product_embeddings_v2 ON catalog.product_embeddings_v2 USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64);
 
 -- Product Catalog Service: grant permission to schema
-GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA catalog TO otelu;
+GRANT SELECT ON ALL TABLES IN SCHEMA catalog TO otelu;
+GRANT SELECT, INSERT, UPDATE ON catalog.product_embeddings_v2 TO otelu;
 
 -- Product Catalog Service: add product data
 INSERT INTO catalog.products (id, name, description, image_url, price_currency_code, price_units, price_nanos, categories)

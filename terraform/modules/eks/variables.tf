@@ -8,6 +8,16 @@ variable "environment" {
   type        = string
 }
 
+variable "app_namespace" {
+  description = "Kubernetes namespace where application workloads and Pod Identity service accounts run"
+  type        = string
+
+  validation {
+    condition     = can(regex("^[a-z0-9]([-a-z0-9]*[a-z0-9])?$", var.app_namespace)) && length(var.app_namespace) <= 63
+    error_message = "app_namespace must be a valid Kubernetes namespace name."
+  }
+}
+
 variable "cluster_version" {
   description = "Explicit EKS Kubernetes version. Keep this reviewed instead of silently following latest."
   type        = string

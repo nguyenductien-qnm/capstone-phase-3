@@ -82,6 +82,8 @@ components:
     podLabels:
       egress-internet: "true"
     envOverrides:
+      - name: SEMANTIC_SEARCH_ENABLED
+        value: "true"
       - name: BEDROCK_AWS_ROLE_ARN
         valueFrom:
           secretKeyRef:

@@ -1472,6 +1472,10 @@ components:
 
   product-catalog:
     enabled: true
+    serviceAccount:
+      create: true
+      annotations: {}
+      name: product-catalog
     imageOverride:
       tag: "1.1-product-catalog" # CDO-80: image mới có gRPC health tách liveness/readiness
     useDefault:

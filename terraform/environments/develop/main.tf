@@ -64,6 +64,7 @@ module "eks" {
 
   project_name       = var.project_name
   environment        = var.environment
+  app_namespace      = "techx-develop"
   cluster_version    = var.eks_cluster_version
   private_subnet_ids = values(module.vpc.private_app_subnet_ids)
 
