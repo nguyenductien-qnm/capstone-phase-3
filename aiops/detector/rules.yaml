@@ -274,17 +274,45 @@ rules:
   # SEMANTICS-VERIFIED 12/07 (compose + chaos productCatalogFailure): loi flag nay hien o tang gRPC
   # (rpc_grpc_status_code=13) va KHONG sinh HTTP 5xx nao -> cac rule http_server_* mu voi no.
   # Rule nay do error-ratio gRPC; do thuc te duoi chaos: product-catalog = 6.6% (fire voi threshold 5%).
-  - id: grpc-error-rate-high
+  #
+  # DOI NEN METRIC 27/07 (rpc_server_duration_* -> spanmetrics). Do that tren EKS, so o
+  # report/mandate22-detection-gaps/verify.md. Hai ly do, deu la so do chu khong phai y kien:
+  #
+  # 1. COVERAGE. rpc_server_duration_milliseconds chi co o 3/20 service (ad, checkout,
+  #    product-catalog). traces_span_metrics_calls_total co o 17 service, vi spanmetrics
+  #    connector (values.yaml:2255) sinh metric TU TRACE nen khong doi service tu xuat metric.
+  #
+  # 2. HEALTH-CHECK PHA LOANG MAU SO. Do 26/07 tren checkout: grpc.health.v1.Health/Check
+  #    0.582 req/s vs PlaceOrder 0.071 req/s — health-check chiem 89% mau so. Hau qua: ke ca
+  #    khi 100% don hang that bai, ti le chi bo len 0.109-0.18 so voi nguong 0.05, nen mat
+  #    380s moi vuot nguong (lead-time do duoc cua MANDATE-15). Bo loc phai ap DOI XUNG ca
+  #    tu so lan mau so.
+  #
+  # Doi ten id: rule khong con chi ve gRPC nua (spanmetrics phu ca HTTP lan Kafka).
+  # `id` la khoa cua metric_history/dedup_key/alerter_history.jsonl nen doi ten lam DUT MACH
+  # lich su alert cua rule cu — chap nhan, va ghi ra day de nguoi doc so lieu cu khong bi lo.
+  - id: service-error-rate-high
     type: metric
     severity: critical
-    summary: "Tỉ lệ lỗi gRPC > 5% — lỗi tầng RPC (KHÔNG hiện qua HTTP 5xx, vd productCatalogFailure)"
-    summary_dynamic: "Tỉ lệ lỗi gRPC TĂNG BẤT THƯỜNG so với baseline (chưa vượt 5% — cảnh báo sớm)"
+    summary: "Tỉ lệ lỗi của service > 10% (đã loại health-check) — lỗi tầng RPC/HTTP/Kafka"
+    summary_dynamic: "Tỉ lệ lỗi TĂNG BẤT THƯỜNG so với baseline (chưa vượt ngưỡng — cảnh báo sớm)"
     query: >-
-      sum by (service_name) (rate(rpc_server_duration_milliseconds_count{rpc_grpc_status_code=~"2|4|13|14"}[5m]))
+      sum by (service_name) (rate(traces_span_metrics_calls_total{
+        status_code="STATUS_CODE_ERROR",
+        span_name!="grpc.health.v1.Health/Check",
+        span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[5m]))
       /
-      clamp_min(sum by (service_name) (rate(rpc_server_duration_milliseconds_count[5m])), 0.001)
+      clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total{
+        span_name!="grpc.health.v1.Health/Check",
+        span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[5m])), 0.001)
     op: gt
-    threshold: 0.05
+    # 0.05 -> 0.10. Bo health-check ra thi mau so nho di ~9 lan, nen ti le nen cua CHINH
+    # trang thai binh thuong cung cao len: do 12h, checkout co p50 0.0153 va p95 dung bang
+    # 0.0500, tuc vuot nguong cu suot 4.9% thoi gian ma khong co su co gi.
+    # Backtest so bao dong/12h: 0.05 -> 14, 0.10 -> 3, 0.15 -> 3, 0.20 -> 3, 0.30 -> 2.
+    # 0.10 la diem gay. Van cach xa su co that: mau so nho di 9 lan nghia la su co that day
+    # ti le len gan 1.0 (max do duoc 1.0000, p99 0.5714) chu khong bo len 0.109-0.18 nhu truoc.
+    threshold: 0.10
     # Cong SLO cho tang 3-sigma (backtest 12h tren EKS 27/07 — addendum ADR-012).
     # Do thuc te tren chuoi that (1391 diem, 42% bang 0): 3-sigma keu 16 lan trong 12h,
     # trong khi su co that DUY NHAT lai do tang TINH bat duoc (ratio 0.1325 > 0.05).
@@ -312,18 +340,34 @@ rules:
     op: gt
     threshold: 0.85
 
-  # DRAFT (de bai AIOps core: "da tin hieu ... queue lag") - he co Kafka (accounting/fraud-detection).
-  # PHAI verify ten metric tren Prometheus EKS (kafka receiver cua collector) truoc khi tin.
+  # De bai AIOps core: "da tin hieu ... queue lag".
+  #
+  # VERIFY TREN CUM 27/07 — ban truoc co BA loi chong nhau, khong phai mot. Sua moi ten
+  # metric van ra chuoi rong. So o report/mandate22-detection-gaps/verify.md muc V6:
+  #   1. `kafka_consumer_group_lag` KHONG TON TAI. Ten that: kafka_consumer_records_lag.
+  #      Ly do goc: metric cu la cua kafkametrics receiver, ma receiver do tro vao
+  #      `kafka:9092` — mot broker khong ton tai, vi chart dat kafka.enabled=false
+  #      (values.yaml:1989). Cum dung Amazon MSK, va MSK tat ca jmx lan node exporter
+  #      (terraform/modules/msk/main.tf:98-106).
+  #   2. `max by (group)` — KHONG HE co nhan `group`. Do la nhan cua metric cu. Nhan that
+  #      cua metric moi: client_id, partition, topic, service_name. Gom theo nhan khong ton
+  #      tai cho ra mot chuoi khong nhan -> svc = "unknown" -> dedup key, nhom alert va cham
+  #      diem incident_replay deu don ve mot ro "unknown".
+  #   3. `{namespace="techx-tf1"}` — nhan that la `k8s_namespace_name`. Bo loc sai nhan
+  #      khong bao loi, no chi khop 0 chuoi.
+  #
+  # PHAM VI THAT, khong noi qua: metric nay chi co DUY NHAT 1 chuoi, cua `fraud-detection`
+  # (JVM tu bao qua OTLP). Cac consumer khac — payment (group `payment` tren
+  # domain.checkout.orders), email, shipping — KHONG QUAN SAT DUOC lag, vi MSK tat
+  # open_monitoring. Muon phu ho can bat open_monitoring tren MSK: cham ha tang chung va co
+  # chi phi, nen la ticket rieng cho CDO chu khong lam trong PR nay.
+  # Gom theo service_name (nhan co that) chu khong theo group.
   - id: kafka-consumer-lag-high
     type: metric
     severity: warning
-    # ⚠️ Metric nay KHONG ton tai tren compose local (collector khong scrape kafka consumer lag) —
-    # ten metric `kafka_consumer_group_lag` la GIA DINH, PHAI verify tren Prometheus EKS + kafka exporter
-    # truoc khi tin (TF1-71). Giu DRAFT, khong bat production cho toi khi verify.
-    summary: "DRAFT: Kafka consumer lag > 1000 msg trong 10m — consumer tụt hậu, đơn hàng xử lý chậm"
-    # namespace = namespace K8s (techx-tf1), cung ly do voi rule memory-saturation-high.
+    summary: "Kafka consumer lag > 1000 msg trong 10m (chỉ phủ fraud-detection) — consumer tụt hậu"
     query: >-
-      max by (group) (avg_over_time(kafka_consumer_group_lag{namespace="techx-tf1"}[10m]))
+      max by (service_name) (avg_over_time(kafka_consumer_records_lag{k8s_namespace_name="techx-tf1"}[10m]))
     op: gt
     threshold: 1000
 

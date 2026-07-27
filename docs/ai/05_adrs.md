@@ -967,3 +967,98 @@ Additionally, the orchestration logic (regex pre-filters, fallback mechanisms, l
   - Adds `grpcio` and `grpcio-tools` dependency.
   - Requires maintaining `pb/ml_guard.proto` schemas.
   - Không có "standard interface" của framework — đổi lại là cascade tự đo, tự kiểm soát; đánh giá lại nếu hub có validator tiếng Việt đáng dùng.
+
+---
+
+### Addendum 2026-07-27 (b) — Đổi nền metric sang spanmetrics; và đo ra 9/11 rule đang câm
+
+**Bối cảnh.** Addendum (a) ở trên chốt thuật toán (3-sigma + cổng SLO). Addendum này về
+**nguồn tín hiệu** — và hoá ra đó mới là ràng buộc lớn hơn nhiều. Toàn bộ số đo trên cụm
+`ecommerce-dev-eks` ngày 27/07, chi tiết ở `report/mandate22-detection-gaps/verify.md`.
+
+**Phát hiện chính, và nó nghiêm trọng: 9 trong 11 metric rule đang trả về chuỗi rỗng.**
+Chỉ `latency-p95-high` và rule error-rate có dữ liệu. Trong 9 rule câm có **cả 4 rule
+`error-budget-burn-*`** — phần neo vào SLO hợp đồng, thứ vẫn được trình bày như lõi của hệ
+phát hiện. Nguyên nhân đo được:
+
+- `{service_name="checkout"}` trên `http_server_request_duration_seconds_count` là **rỗng** —
+  checkout không hề xuất metric đó
+- `{service_namespace="techx-corp"}` chỉ khớp **duy nhất `cart`**
+- `http_response_status_code=~"5.."` **rỗng toàn cụm** → tử số không bao giờ có dữ liệu
+
+Tức là **các rule burn-rate chưa từng có khả năng kêu**, và không ai biết vì detector nuốt
+im lặng kết quả rỗng. Chính cơ chế detector-tự-tố-cáo-rule-câm (thêm cùng đợt này) phát
+hiện ra điều này ngay lần chạy đầu tiên.
+
+**Quyết định 1 — chuyển error-rate sang spanmetrics.**
+`grpc-error-rate-high` → `service-error-rate-high` trên `traces_span_metrics_calls_total`.
+
+| | `rpc_server_duration_*` | `traces_span_metrics_*` |
+|---|---|---|
+| Số service phủ | **3** (ad, checkout, product-catalog) | **17** |
+| Nguồn | service tự xuất | collector sinh **từ trace** |
+
+Đồng thời loại `grpc.health.v1.Health/Check` khỏi **cả tử số lẫn mẫu số**: đo 26/07 trên
+checkout, health-check chiếm **89% mẫu số** (0.582 vs 0.071 req/s), nên kể cả khi 100% đơn
+hàng thất bại tỉ lệ chỉ bò lên 0.109–0.18 → mất 380s mới vượt ngưỡng.
+
+Ngưỡng **0.05 → 0.10**: bỏ health-check thì mẫu số nhỏ đi ~9 lần nên tỉ lệ nền của *chính
+trạng thái bình thường* cũng cao lên — đo 12h, checkout có p95 đúng bằng 0.0500, tức vượt
+ngưỡng cũ suốt **4.9% thời gian mà không có sự cố gì**. Backtest: 0.05 → 14 alert/12h,
+**0.10 → 3**, 0.15 → 3, 0.20 → 3. 0.10 là điểm gãy.
+
+**Quyết định 2 — thêm `service-traffic-collapse`, rule đầu tiên bắt "hỏng-không-còn-tín-hiệu".**
+Đo 26/07: giết pod `payment` → detector im lặng hoàn toàn. Mọi rule đều đo "hỏng mà vẫn trả
+lời"; không rule nào đo được "không còn trả lời gì cả".
+
+Ba điều **đo ra khác với thiết kế ban đầu**, ghi lại vì mỗi cái đều suýt thành lỗi:
+
+1. **`payment` là `SPAN_KIND_CONSUMER`, không phải `SERVER`** — nó làm việc qua Kafka. Lọc
+   `SPAN_KIND_SERVER` như dự định ban đầu sẽ bỏ sót đúng service mà cả đợt này nhắm vào.
+   Bộ lọc đúng: `SPAN_KIND_SERVER|SPAN_KIND_CONSUMER` (15 service).
+
+2. **Bỏ hẳn phương án `absent()`.** spanmetrics **không hết hạn chuỗi** — đo được 53/84 pod
+   đã chết mà series vẫn còn. Service chết thì chuỗi bị *đóng băng* chứ không biến mất, nên
+   `absent()` không bao giờ kêu. Giữ lại là giữ một rule chết.
+
+3. **Đo tỉ lệ so với phần còn lại của hệ, không so với quá khứ của chính service.** Cách
+   "tự thân" báo động đồng loạt 8 service lúc 06:17 — nguyên nhân thật là một nguồn tải
+   thượng nguồn đổi (load-generator 43.9 → 6.9 span/s, tổng hệ 236.6 → 54.7). `sum(up)` giữ
+   nguyên 23 suốt 12h nên không phải hố scrape: traffic thật sự tụt 6 lần. Cách "so bạn"
+   triệt tiêu đúng loại đó (`frontend` 0.191→0.828, `recommendation` 0.160→0.598).
+
+| cửa sổ ngắn | ngưỡng | tự thân | **so bạn** |
+|---|---|---|---|
+| 5m | 0.20 | 25 | 9 |
+| **15m** | **0.20** | 5 | **2** |
+| 30m | 0.20 | 2 | 2 |
+
+**Giá phải trả, không giấu:** cửa sổ `[15m]` nghĩa là service chết hẳn mất ~12–15 phút mới bị
+bắt — chậm hơn 380s của rule error-rate. Chấp nhận vì loại sự cố này hiện **không bao giờ**
+bị bắt. Cách sửa đúng là trường `for:` (đòi điều kiện kéo dài N chu kỳ) mà detector **không
+có** — hạn chế đã biết, để ticket riêng.
+
+**Quyết định 3 — sửa `kafka-consumer-lag-high`, vốn có ba lỗi chồng nhau chứ không phải một.**
+Tên metric sai (`kafka_consumer_group_lag` không tồn tại; tên thật `kafka_consumer_records_lag`);
+gom `by (group)` trong khi **không hề có nhãn `group`**; và bộ lọc `{namespace=...}` sai tên
+nhãn (thật là `k8s_namespace_name`). Sửa mỗi tên metric vẫn ra chuỗi rỗng. Nguyên nhân gốc:
+kafkametrics receiver trỏ vào `kafka:9092` — broker không tồn tại vì `kafka.enabled=false`;
+cụm dùng MSK và MSK tắt `open_monitoring`. **Phạm vi thật sau khi sửa: chỉ `fraud-detection`.**
+`payment`/`email`/`shipping` vẫn không quan sát được lag → ticket hạ tầng cho CDO.
+
+**Cố ý KHÔNG cho rule nào `expect_series: false`.** Kế hoạch ban đầu định cho
+`error-budget-burn-fast` opt-out vì tưởng nó "rỗng khi hệ khoẻ", nhưng đo ra nó **mù thật**.
+Cho opt-out là che đi một rule hỏng. Hệ quả đã biết trước: lần deploy đầu sẽ có **8 cảnh báo
+rule-câm** — danh sách đầy đủ và nguyên nhân từng cái ở `verify.md` §V7, báo trước để không
+ai bất ngờ.
+
+**Đổi `id` rule làm đứt mạch lịch sử alert.** `id` là khoá của `metric_history`, `dedup_key`
+và `alerter_history.jsonl`. Số liệu trước 27/07 nằm dưới `grpc-error-rate-high`, sau đó nằm
+dưới `service-error-rate-high`. Ghi ra đây để người đọc số cũ không bị lỡ.
+
+**Việc phát sinh, chưa làm:** viết lại hoặc bỏ 4 rule burn-rate; `bedrock-cost-high`
+(`bedrock_cost_usd_total` không tồn tại); `genai-latency-high` (lọc sai service);
+`memory-saturation-high` (join không ra kết quả); MSK `open_monitoring`; trường `for:`.
+
+**Người ký:** Thanh Pham Huu Tien (phamthanh.forwork@gmail.com) — cá nhân chịu trách nhiệm
+về quyết định kỹ thuật này và về tính đúng của mọi con số trong addendum.
