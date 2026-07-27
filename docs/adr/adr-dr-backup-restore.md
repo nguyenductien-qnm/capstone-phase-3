@@ -70,14 +70,13 @@ Procedure: **Seed ($T_0$)** → **Simulate loss ($T_1$, start RTO clock)** → *
 
 On-demand backup **without** a lifecycle → job **FAILED** `"lifecycle is outside the valid range for backup vault"` (infinite retention exceeds `MaxRetentionDays=30`). Same backup with `DeleteAfterDays=14` (inside `[7,30]`) → accepted and ran. This demonstrates the Governance-mode Vault Lock actively enforces retention bounds.
 
-### 4.3 IAM Deny Policy — mechanism proven end-to-end; **production attachment pending**
+### 4.3 IAM Deny Policy — **enforced on the live operator permission set** ✅
 
 - **Simulation:** `aws iam simulate-custom-policy` (broad `Allow *` + the deny policy) → all 8 delete actions `explicitDeny`; `rds:CreateDBSnapshot` `allowed`.
-- **Real enforcement proof (2026-07-27):** a throwaway role `m20-deny-test` with `AmazonRDSFullAccess` + the deny policy was assumed and probed:
-  - `rds:DeleteDBSnapshot` → `AccessDenied ... with an explicit deny in an identity-based policy: .../ecommerce-develop-dev-dr-backup-protection-deny` — deny overrides full access ✅
-  - `rds:CreateDBSnapshot` → `DBInstanceNotFound` (not denied) — creation still allowed ✅
-  - Test role deleted after the probe.
-- **Remaining production step:** the deny policy is not yet attached to the live CDO operator permission set (live probe from the SSO operator role returns `DBSnapshotNotFound`, not `AccessDenied`). Attach via IAM Identity Center per Section 3.2. The mechanism is proven; only the org-wide attachment (an SSO-admin action with the cross-account prerequisite) is outstanding.
+- **Enforcement now live (2026-07-28):** IAM Identity Center attached the deny to the CDO operator permission set (provisioned to all assigned accounts). Live probe from the real SSO operator role (`AWSReservedSSO_Phase3-CDO-PermissionSet`):
+  - **Account 458 (develop):** `rds:DeleteDBSnapshot` → `AccessDenied ... explicit deny`; `backup:DeleteRecoveryPoint` → `AccessDenied ... explicit deny`; `rds:CreateDBSnapshot` → `DBInstanceNotFound` (not denied) ✅
+  - **Account 804 (sandbox):** `rds:DeleteDBSnapshot` → `AccessDenied ... explicit deny` ✅ (permission set provisioned cross-account, no provisioning break)
+- Before the attach, the same probe returned `DBSnapshotNotFound` (operator could delete) — the change from `DBSnapshotNotFound` → `AccessDenied` is the proof of separation-of-duties now being enforced.
 
 ---
 
@@ -88,9 +87,9 @@ On-demand backup **without** a lifecycle → job **FAILED** `"lifecycle is outsi
 - [x] IAM Deny Guardrail policy created; content verified via policy simulation (4.3).
 - [x] DR Seed, Loss Simulation, Verify (Pod manifests) & Cleanup scripts created; PITR Runbook at `docs/runbook/dr-restore.md`.
 - [x] **Live PITR restore drill executed on develop — RTO ≈ 20 min, data integrity 100%** (4.1).
-- [ ] **IAM Deny policy attached to operator permission set (SSO) — PENDING** (3.2 debt). Separation-of-duties not yet enforced.
-- [ ] Sandbox (production) backup coverage wired + verified — PENDING (separate PR; do **not** run destructive drill on sandbox).
-- [ ] AWS Backup recovery point produced (on-demand job with 14-day lifecycle running at time of writing).
+- [x] **IAM Deny policy attached to operator permission set (SSO) & enforced** — probe from real CDO role returns `AccessDenied` on both account 458 (develop) and 804 (sandbox); create still allowed (4.3).
+- [x] AWS Backup recovery point produced — on-demand job `COMPLETED`, recovery point `Encrypted=true` in the vault.
+- [ ] Sandbox (production) backup coverage (RDS/Valkey/vault) — code wired (`feat/m20-sandbox-backup`), **not yet applied**; apply via CI to protect production data. (Deny guardrail already live on sandbox via SSO; the backup resources are pending apply.)
 
 ---
 

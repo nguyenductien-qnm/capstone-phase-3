@@ -162,17 +162,19 @@ rds:CreateDBSnapshot -> DBInstanceNotFound   (không bị chặn)
 ```
 Role tạm đã xoá sau test.
 
-**⚠️ NỢ:** policy **chưa gắn** vào Permission Set operator (`audit_operator_role_names=[]`). Probe từ role CDO thật:
+**✅ ĐÃ ENFORCE (28/07):** SSO admin đã attach deny vào CDO Permission Set qua Identity Center, provision sang mọi account. Probe từ role CDO thật:
 ```bash
-aws rds delete-db-snapshot --db-snapshot-identifier m20-deny-probe-nonexistent   # role AWSReservedSSO_Phase3-CDO-PermissionSet
+aws rds delete-db-snapshot --db-snapshot-identifier m20-deny-probe-nonexistent   # AWSReservedSSO_Phase3-CDO-PermissionSet
 ```
-→ `DBSnapshotNotFound` (KHÔNG phải AccessDenied) = **separation-of-duties chưa enforce**. Cần SSO admin attach vào Permission Set (inline policy) qua Identity Center — xem ADR §3.2.
+- **Account 458 (develop):** `DeleteDBSnapshot` → `AccessDenied ... explicit deny`; `backup:DeleteRecoveryPoint` → `AccessDenied ... explicit deny`; `CreateDBSnapshot` → `DBInstanceNotFound` (không bị chặn).
+- **Account 804 (sandbox):** `DeleteDBSnapshot` → `AccessDenied ... explicit deny` (permission set provision cross-account, không hỏng provisioning).
+- Trước attach cùng lệnh này ra `DBSnapshotNotFound` → chuyển thành `AccessDenied` chính là bằng chứng separation-of-duties đã enforce thật.
 
 ---
 
 ## 5. Việc còn treo (khai báo minh bạch)
-- [ ] Attach deny policy vào CDO/AIO Permission Set (SSO admin) → probe lại xác nhận `AccessDenied`.
-- [ ] Recovery point AWS Backup đầu tiên (job on-demand 14-day đang chạy / hoặc chờ cron 03:00 UTC).
-- [ ] Sandbox (production) chưa wire coverage — PR riêng; **không** chạy drill phá trên sandbox.
+- [x] Attach deny policy vào CDO Permission Set → probe lại `AccessDenied` trên cả 458 & 804 (§4.3).
+- [x] Recovery point AWS Backup: job on-demand `COMPLETED`, recovery point `Encrypted=true`.
+- [ ] Sandbox (production) coverage RDS/Valkey/vault: code đã wire (`feat/m20-sandbox-backup`), **chưa apply** — apply qua CI để bảo vệ data khách. (Deny guardrail đã live trên sandbox; backup resource chờ apply.)
 
 > **Bài học mang đi:** "đã bật backup" và "khôi phục được trong RTO cam kết" là hai chuyện khác nhau — buổi drill này chứng minh vế thứ hai bằng số đo thật (RTO 20', integrity 100%), và đồng thời phát hiện guardrail deny đang treo dù policy trông đã đủ.
