@@ -92,6 +92,83 @@ def test_eval_metric_rule_3sigma():
     assert "storefront" in alerts[0][0]
 
 
+def _feed_baseline_then(prom, rule, spike, baseline=(0.1, 0.11, 0.09, 0.1, 0.12)):
+    """Seed 5 quiet samples (min needed to arm 3-sigma), then evaluate `spike`."""
+    detector.metric_history.clear()
+    for val in baseline:
+        prom.query.return_value = [(val, {"service_name": "storefront"})]
+        detector.eval_metric_rule(rule, prom)
+    prom.query.return_value = [(spike, {"service_name": "storefront"})]
+    return detector.eval_metric_rule(rule, prom)
+
+
+def _gated_rule(**over):
+    rule = {
+        "id": "latency-test",
+        "type": "metric",
+        "query": "dummy_query",
+        "op": "gt",
+        "threshold": 10.0,
+        "summary": "p95 > SLO",
+        "summary_dynamic": "Baseline deviation (not yet at SLO threshold)",
+        "severity": "warning",
+    }
+    rule.update(over)
+    return rule
+
+
+def test_dynamic_gate_suppresses_spike_far_below_slo():
+    """A 3-sigma spike that is nowhere near the SLO must NOT page.
+
+    Measured on EKS 27/07: cart p95 moving 5ms -> 20ms clears 3-sigma while the SLO
+    is 1000ms, and that shape produced 12 of 12 false alarms in 12h. The gate exists
+    to make "statistically odd" and "operationally meaningful" stop being the same
+    thing. 0.5 is >3-sigma over the 0.1 baseline but only 5% of threshold 10.0.
+    """
+    prom = MagicMock()
+    alerts = _feed_baseline_then(prom, _gated_rule(dynamic_min_fraction=0.20), 0.5)
+    assert alerts == []
+
+
+def test_dynamic_gate_still_fires_once_value_approaches_slo():
+    """Same spike shape, but now past the gate -> the early warning must survive."""
+    prom = MagicMock()
+    rule = _gated_rule(dynamic_min_fraction=0.20)
+    alerts = _feed_baseline_then(prom, rule, 3.0)  # 30% of threshold, above gate 20%
+    assert len(alerts) == 1
+    assert "3-Sigma" in field_values(alerts[0])
+    # Dynamic-only alert keeps the dynamic headline, not the SLO one.
+    assert "Baseline deviation" in alerts[0][1]
+
+
+def test_dynamic_gate_absent_keeps_previous_behaviour():
+    """Regression guard: rules that don't declare the gate behave exactly as before.
+
+    The gate was introduced with no default on purpose — 11 metric rules ship without
+    it and none of their behaviour may change silently.
+    """
+    prom = MagicMock()
+    alerts = _feed_baseline_then(prom, _gated_rule(), 0.5)
+    assert len(alerts) == 1
+    assert "3-Sigma" in field_values(alerts[0])
+
+
+def test_static_breach_fires_even_when_below_dynamic_gate():
+    """The gate only guards the dynamic layer; an SLO breach always pages.
+
+    Gate 0.20 with threshold 10.0 would block anything under 2.0, so a static breach
+    at 12.0 also proves the gate is not accidentally applied to layer 1.
+    """
+    prom = MagicMock()
+    rule = _gated_rule(dynamic_min_fraction=0.20)
+    detector.metric_history.clear()
+    prom.query.return_value = [(12.0, {"service_name": "storefront"})]
+    alerts = detector.eval_metric_rule(rule, prom)
+    assert len(alerts) == 1
+    assert "Static" in field_values(alerts[0])
+    assert "p95 > SLO" in alerts[0][1]
+
+
 def test_eval_log_rule():
     osc = MagicMock()
     osc.count_matches.return_value = (5, "ERROR connection pool timeout")

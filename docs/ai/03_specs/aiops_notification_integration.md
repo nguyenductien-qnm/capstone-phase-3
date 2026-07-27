@@ -87,7 +87,7 @@ Payload gửi qua Webhook (Slack/Discord) cần chứa đủ thông tin để K�
         },
         {
           "type": "mrkdwn",
-          "text": "*Phương pháp:* EWMA (3σ deviation)"
+          "text": "*Phương pháp:* 3-Sigma (val=1.2500 > th_dev=1.1032, mean=0.4210)"
         },
         {
           "type": "mrkdwn",

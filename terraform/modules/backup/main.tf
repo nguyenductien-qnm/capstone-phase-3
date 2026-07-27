@@ -1,7 +1,9 @@
 data "aws_caller_identity" "current" {}
 
-# KMS CMK cho AWS Backup Vault
+# KMS CMK cho AWS Backup Vault — chỉ tạo khi không truyền key ngoài vào
 resource "aws_kms_key" "backup_key" {
+  count = var.kms_key_arn == null ? 1 : 0
+
   description             = "KMS Key ma hoa cho AWS Backup Vault"
   deletion_window_in_days = 7
   enable_key_rotation     = true
@@ -41,14 +43,16 @@ resource "aws_kms_key" "backup_key" {
 }
 
 resource "aws_kms_alias" "backup_key_alias" {
+  count = var.kms_key_arn == null ? 1 : 0
+
   name          = "alias/${var.project_name}-${var.environment}-backup-key"
-  target_key_id = aws_kms_key.backup_key.key_id
+  target_key_id = aws_kms_key.backup_key[0].key_id
 }
 
 # AWS Backup Vault
 resource "aws_backup_vault" "this" {
   name        = "${var.project_name}-${var.environment}-backup-vault"
-  kms_key_arn = aws_kms_key.backup_key.arn
+  kms_key_arn = var.kms_key_arn != null ? var.kms_key_arn : aws_kms_key.backup_key[0].arn
 
   tags = {
     Name        = "${var.project_name}-${var.environment}-backup-vault"
