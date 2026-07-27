@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -14,6 +15,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -54,6 +56,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	"github.com/open-telemetry/techx-corp/src/checkout/validator"
@@ -221,8 +224,16 @@ func main() {
 			if err != nil {
 				logger.Error(fmt.Sprintf("Unable to create connection pool: %v", err))
 			} else {
-				svc.dbPool = dbPool
-				defer dbPool.Close()
+				pingCtx, pingCancel := context.WithTimeout(context.Background(), 5*time.Second)
+				pingErr := dbPool.Ping(pingCtx)
+				pingCancel()
+				if pingErr != nil {
+					logger.Error(fmt.Sprintf("Unable to reach database: %v", pingErr))
+					dbPool.Close()
+				} else {
+					svc.dbPool = dbPool
+					defer dbPool.Close()
+				}
 			}
 		}
 	} else {
@@ -274,7 +285,7 @@ func main() {
 	)
 	pb.RegisterCheckoutServiceServer(srv, svc)
 
-	healthcheck := newCheckoutHealthServer()
+	healthcheck := newCheckoutHealthServer(svc.dbPool != nil)
 	healthpb.RegisterHealthServer(srv, healthcheck)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGKILL)
@@ -293,14 +304,19 @@ func main() {
 	logger.Info("Checkout gRPC server stopped")
 }
 
-func newCheckoutHealthServer() *health.Server {
+func newCheckoutHealthServer(databaseReady bool) *health.Server {
 	healthcheck := health.NewServer()
 	// Kafka post-processing is degraded independently through publisher metrics
 	// and logs. It must not remove the revenue path from service endpoints.
 	healthcheck.SetServingStatus("liveness", healthpb.HealthCheckResponse_SERVING)
-	healthcheck.SetServingStatus("readiness", healthpb.HealthCheckResponse_SERVING)
-	// Keep compatibility with probes that omit the service name.
-	healthcheck.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
+	readiness := healthpb.HealthCheckResponse_NOT_SERVING
+	if databaseReady {
+		readiness = healthpb.HealthCheckResponse_SERVING
+	}
+	healthcheck.SetServingStatus("readiness", readiness)
+	// Keep compatibility with probes that omit the service name. Checkout is
+	// not ready to accept revenue traffic until durable persistence is ready.
+	healthcheck.SetServingStatus("", readiness)
 	return healthcheck
 }
 
@@ -340,6 +356,38 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		}
 	}()
 
+	if cs.dbPool == nil {
+		return nil, status.Error(codes.Unavailable, "order persistence is unavailable")
+	}
+	idempotencyKey, err := idempotencyKeyFromContext(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid idempotency key: %v", err)
+	}
+	if idempotencyKey == "" {
+		idempotencyKey = "legacy-" + uuid.NewString()
+		logger.Warn("PlaceOrder called without x-idempotency-key; generated a non-replayable compatibility key")
+	}
+
+	requestHash, err := checkoutRequestHash(req)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to hash checkout request: %v", err)
+	}
+
+	if currentOrderSchemaPhase() != orderSchemaLegacy {
+		if existing, found, lookupErr := cs.findOrderByIdempotency(
+			ctx, req.UserId, idempotencyKey, requestHash,
+		); lookupErr != nil {
+			if errors.Is(lookupErr, errIdempotencyConflict) {
+				return nil, status.Error(codes.AlreadyExists, lookupErr.Error())
+			}
+			if !isTransientDBError(lookupErr) {
+				return nil, status.Errorf(codes.Internal, "failed idempotency lookup: %v", lookupErr)
+			}
+		} else if found {
+			return &pb.PlaceOrderResponse{Order: existing}, nil
+		}
+	}
+
 	orderID, err := uuid.NewUUID()
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to generate order uuid")
@@ -373,66 +421,6 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 
 	span.AddEvent("prepared")
 
-	if cs.dbPool != nil {
-		tx, err := cs.dbPool.Begin(ctx)
-		if err != nil {
-			logger.Error(fmt.Sprintf("failed to begin transaction: %v", err))
-			return nil, status.Errorf(codes.Internal, "failed to begin transaction: %v", err)
-		}
-
-		orderMetadata := struct {
-			*pb.PlaceOrderRequest
-			OrderItems            []*pb.OrderItem `json:"orderItems"`
-			CartItems             []*pb.CartItem  `json:"cartItems"`
-			ShippingCostLocalized *pb.Money       `json:"shippingCostLocalized"`
-			Total                 *pb.Money       `json:"total"`
-		}{
-			PlaceOrderRequest:     req,
-			OrderItems:            prep.orderItems,
-			CartItems:             prep.cartItems,
-			ShippingCostLocalized: prep.shippingCostLocalized,
-			Total:                 total,
-		}
-
-		orderMetadataBytes, err := json.Marshal(orderMetadata)
-		if err != nil {
-			tx.Rollback(ctx)
-			logger.Error(fmt.Sprintf("failed to convert Go struct into a JSONB format: %v", err))
-			return nil, status.Errorf(codes.Internal, "failed to convert Go struct into a JSONB format: %v", err)
-		}
-
-		_, err = tx.Exec(ctx, `
-			INSERT INTO checkout.orders 
-			(order_id, user_id, currency_code, status, order_metadata) 
-			VALUES ($1, $2, $3, $4, $5)`,
-			orderID.String(), req.UserId, req.UserCurrency, "PROCESSING", orderMetadataBytes,
-		)
-		if err != nil {
-			tx.Rollback(ctx)
-			logger.Error(fmt.Sprintf("failed to insert order: %v", err))
-			return nil, status.Errorf(codes.Internal, "failed to insert order: %v", err)
-		}
-
-		_, err = tx.Exec(ctx, `
-			INSERT INTO checkout.outbox 
-			(aggregate_id, event_type, order_id, user_id) 
-			VALUES ($1, $2, $3, $4)`,
-			orderID.String(), "ORDER_PLACED", orderID.String(), req.UserId,
-		)
-		if err != nil {
-			tx.Rollback(ctx)
-			logger.Error(fmt.Sprintf("failed to insert outbox event: %v", err))
-			return nil, status.Errorf(codes.Internal, "failed to insert outbox event: %v", err)
-		}
-
-		if err := tx.Commit(ctx); err != nil {
-			logger.Error(fmt.Sprintf("failed to commit transaction: %v", err))
-			return nil, status.Errorf(codes.Internal, "failed to commit transaction: %v", err)
-		}
-
-		logger.Info("successfully saved order and outbox event to DB")
-	}
-
 	orderResult := &pb.OrderResult{
 		OrderId:            orderID.String(),
 		ShippingTrackingId: "",
@@ -441,11 +429,41 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		Items:              prep.orderItems,
 	}
 
+	orderMetadataBytes, err := marshalOrderMetadata(
+		req,
+		prep.orderItems,
+		prep.cartItems,
+		prep.shippingCostLocalized,
+		total,
+	)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to marshal order metadata: %v", err)
+	}
+	orderResultBytes, err := marshalOrderResult(orderResult)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to marshal order result: %v", err)
+	}
+
+	orderResult, err = cs.persistOrderWithRetry(ctx, orderPersistenceRecord{
+		OrderID:           orderID.String(),
+		UserID:            req.UserId,
+		CurrencyCode:      req.UserCurrency,
+		OrderMetadataJSON: orderMetadataBytes,
+		OrderResultJSON:   orderResultBytes,
+		OrderResult:       orderResult,
+		IdempotencyKey:    idempotencyKey,
+		RequestHash:       requestHash,
+	})
+	if err != nil {
+		return nil, persistenceStatusError(err)
+	}
+	logger.Info("successfully saved order and outbox event to DB")
+
 	shippingCostFloat, _ := strconv.ParseFloat(fmt.Sprintf("%d.%02d", prep.shippingCostLocalized.GetUnits(), prep.shippingCostLocalized.GetNanos()/1000000000), 64)
 	totalPriceFloat, _ := strconv.ParseFloat(fmt.Sprintf("%d.%02d", total.GetUnits(), total.GetNanos()/1000000000), 64)
 
 	span.SetAttributes(
-		attribute.String("app.order.id", orderID.String()),
+		attribute.String("app.order.id", orderResult.GetOrderId()),
 		attribute.Float64("app.shipping.amount", shippingCostFloat),
 		attribute.Float64("app.order.amount", totalPriceFloat),
 		attribute.Int("app.order.items.count", len(prep.orderItems)),
@@ -453,7 +471,7 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 	logger.LogAttrs(
 		ctx,
 		slog.LevelInfo, "order placed (asynchronous)",
-		slog.String("app.order.id", orderID.String()),
+		slog.String("app.order.id", orderResult.GetOrderId()),
 		slog.Float64("app.shipping.amount", shippingCostFloat),
 		slog.Float64("app.order.amount", totalPriceFloat),
 		slog.Int("app.order.items.count", len(prep.orderItems)),
@@ -461,6 +479,35 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 
 	resp := &pb.PlaceOrderResponse{Order: orderResult}
 	return resp, nil
+}
+
+func idempotencyKeyFromContext(ctx context.Context) (string, error) {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return "", nil
+	}
+	values := md.Get(idempotencyMetadataKey)
+	if len(values) == 0 || strings.TrimSpace(values[0]) == "" {
+		return "", nil
+	}
+	key := strings.TrimSpace(values[0])
+	if err := validateIdempotencyKey(key); err != nil {
+		return "", err
+	}
+	return key, nil
+}
+
+func persistenceStatusError(err error) error {
+	switch {
+	case errors.Is(err, errIdempotencyConflict):
+		return status.Error(codes.AlreadyExists, err.Error())
+	case isTransientDBError(err),
+		errors.Is(err, context.DeadlineExceeded),
+		errors.Is(err, context.Canceled):
+		return status.Errorf(codes.Unavailable, "database temporarily unavailable: %v", err)
+	default:
+		return status.Errorf(codes.Internal, "failed to persist order: %v", err)
+	}
 }
 
 type orderPrep struct {
@@ -799,7 +846,6 @@ func (cs *checkout) shipOrder(ctx context.Context, address *pb.Address, items []
 
 	return shipResp.TrackingID, nil
 }
-
 
 func (cs *checkout) isFeatureFlagEnabled(ctx context.Context, featureFlagName string) bool {
 	client := openfeature.NewClient("checkout")

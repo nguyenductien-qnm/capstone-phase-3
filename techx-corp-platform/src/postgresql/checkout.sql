@@ -8,10 +8,18 @@ CREATE TABLE checkout.orders (
 	status TEXT NOT NULL DEFAULT 'PROCESSING',
 	
 	order_metadata JSONB NOT NULL,
+	order_payload JSONB,
+	idempotency_key TEXT,
+	idempotency_request_hash TEXT,
+	order_result JSONB,
 
 	created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
 	updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE UNIQUE INDEX checkout_orders_user_idempotency_uidx
+	ON checkout.orders (user_id, idempotency_key)
+	WHERE idempotency_key IS NOT NULL;
 
 -- Control which fields downstream services can consume
 -- Do not include user sensitive credentials/payment data here

@@ -78,7 +78,15 @@ internal class Consumer : IDisposable
                 {
                     using var activity = MyActivitySource.StartActivity("order-consumed",  ActivityKind.Internal);
                     var consumeResult = _consumer.Consume();
-                    ProcessMessage(consumeResult.Message).GetAwaiter().GetResult();
+                    if (ProcessMessage(consumeResult.Message).GetAwaiter().GetResult())
+                    {
+                        _consumer.StoreOffset(consumeResult);
+                    }
+                    else
+                    {
+                        _consumer.Seek(consumeResult.TopicPartitionOffset);
+                        Thread.Sleep(TimeSpan.FromSeconds(1));
+                    }
                 }
                 catch (ConsumeException e)
                 {
@@ -99,7 +107,19 @@ internal class Consumer : IDisposable
 
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, OrderFulfillmentJoinState> _pendingJoins = new();
 
-    private async Task ProcessMessage(Message<string, byte[]> message)
+    private static string CheckoutOrderPayloadExpression()
+    {
+        return (Environment.GetEnvironmentVariable("ACCOUNTING_ORDER_SCHEMA_PHASE") ?? "legacy")
+            .Trim()
+            .ToLowerInvariant() switch
+        {
+            "dual_read" => "COALESCE(order_payload, order_metadata)",
+            "read_new" => "order_payload",
+            _ => "order_metadata"
+        };
+    }
+
+    private async Task<bool> ProcessMessage(Message<string, byte[]> message)
     {
         try
         {
@@ -157,7 +177,7 @@ internal class Consumer : IDisposable
             if (string.IsNullOrEmpty(orderId))
             {
                 _logger.LogWarning("Accounting consumed message on {Topic} without a valid orderId key", TopicName);
-                return;
+                return true;
             }
 
             var joinState = _pendingJoins.GetOrAdd(orderId, id => new OrderFulfillmentJoinState { OrderId = id });
@@ -197,8 +217,10 @@ internal class Consumer : IDisposable
                 if (_dbContext != null)
                 {
                     // 1. Claim check: Query checkout.orders using orderId to get JSON metadata
+                    var orderPayloadExpression = CheckoutOrderPayloadExpression();
                     var rawJson = await _dbContext.Database
-                        .SqlQuery<string>($"SELECT order_metadata::text AS \"Value\" FROM checkout.orders WHERE order_id = {orderId}")
+                        .SqlQueryRaw<string>(
+                            $"SELECT {orderPayloadExpression}::text AS \"Value\" FROM checkout.orders WHERE order_id = {{0}}", orderId)
                         .FirstOrDefaultAsync();
 
                     if (!string.IsNullOrEmpty(rawJson))                                                                                                  
@@ -217,10 +239,12 @@ internal class Consumer : IDisposable
                 }
                 _pendingJoins.TryRemove(orderId, out _);
             }
+            return true;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to process message in Accounting consumer:");
+            return false;
         }
     }
 
@@ -432,6 +456,7 @@ internal class OrderFulfillmentJoinState
             BootstrapServers = servers,
             // https://github.com/confluentinc/confluent-kafka-dotnet/tree/07de95ed647af80a0db39ce6a8891a630423b952#basic-consumer-example
             AutoOffsetReset = AutoOffsetReset.Earliest,
+            EnableAutoOffsetStore = false,
             EnableAutoCommit = true,
             SecurityProtocol = SecurityProtocol.SaslSsl,
             SaslMechanism = SaslMechanism.ScramSha512,

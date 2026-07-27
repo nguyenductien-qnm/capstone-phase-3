@@ -326,6 +326,8 @@ components:
           secretKeyRef:
             name: db-secret
             key: accounting-db-conn
+      - name: ACCOUNTING_ORDER_SCHEMA_PHASE
+        value: "legacy"
       - name: OTEL_DOTNET_AUTO_TRACES_ENTITYFRAMEWORKCORE_INSTRUMENTATION_ENABLED
         value: "false"
       - name: KAFKA_TOPIC
@@ -697,6 +699,8 @@ components:
           secretKeyRef:
             name: db-secret
             key: catalog-db-conn
+      - name: CHECKOUT_ORDER_SCHEMA_PHASE
+        value: "legacy"
       - name: CART_ADDR
         value: cart:8080
       - name: CURRENCY_ADDR

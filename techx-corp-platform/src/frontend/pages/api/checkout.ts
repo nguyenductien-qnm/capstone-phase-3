@@ -10,12 +10,19 @@ import ProductCatalogService from '../../services/ProductCatalog.service';
 
 type TResponse = IProductCheckout | Empty;
 
-const handler = async ({ method, body, query }: NextApiRequest, res: NextApiResponse<TResponse>) => {
+const IDEMPOTENCY_KEY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/;
+
+const handler = async ({ method, body, query, headers }: NextApiRequest, res: NextApiResponse<TResponse>) => {
   switch (method) {
     case 'POST': {
       const { currencyCode = '' } = query;
+      const rawKey = headers['idempotency-key'];
+      const idempotencyKey = Array.isArray(rawKey) ? rawKey[0] : rawKey;
+      if (!idempotencyKey || !IDEMPOTENCY_KEY_PATTERN.test(idempotencyKey)) {
+        return res.status(400).json({} as Empty);
+      }
       const orderData = body as PlaceOrderRequest;
-      const { order: { items = [], ...order } = {} } = await CheckoutGateway.placeOrder(orderData);
+      const { order: { items = [], ...order } = {} } = await CheckoutGateway.placeOrder(orderData, idempotencyKey);
 
       let allProducts: Product[] = [];
       try {
