@@ -281,24 +281,20 @@ module "external_secrets_irsa" {
   ]
 }
 
+# Mandate 20 (CDO-259 + CDO-260): backup vault + KMS CMK có guardrail + IAM Deny
 module "backup" {
   source = "../../modules/backup"
 
   project_name = var.project_name
   environment  = var.environment
-
-  # Mandate 20 (CDO-259): vault mã hoá bằng KMS key của backup_protection —
-  # key đó có policy chặn kms:ScheduleKeyDeletion + kms:DisableKey (guardrail).
-  kms_key_arn = module.backup_protection.kms_key_arn
 }
 
-# Mandate 20 (CDO-247): Bảo vệ backup — KMS key riêng + IAM Policy Explicit Deny chống xoá backup
+# Mandate 20 (CDO-260): IAM Explicit Deny chặn xoá recovery point / snapshot
 module "backup_protection" {
   source = "../../modules/backup_protection"
 
   project_name        = var.project_name
   environment         = var.environment
   operator_role_names = var.audit_operator_role_names
-  enable_kms_key      = true
 }
 
