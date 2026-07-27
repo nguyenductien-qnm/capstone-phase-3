@@ -1,0 +1,14 @@
+{"ts": 1785070160.2902825, "rule_id": "grpc-error-rate-high", "service": "checkout", "severity": "critical", "fingerprint": "checkout:5950233"}
+{"ts": 1785071835.8253467, "rule_id": "grpc-error-rate-high", "service": "checkout", "severity": "critical", "fingerprint": "checkout:5950239"}
+{"ts": 1785072300.951916, "rule_id": "llm-rate-limit-429", "service": "log", "severity": "critical", "fingerprint": "log:5950241"}
+{"ts": 1785072425.2797961, "rule_id": "latency-p95-high", "service": "cart", "severity": "warning", "fingerprint": "cart:5950241"}
+{"ts": 1785074416.1889825, "rule_id": "grpc-error-rate-high", "service": "checkout", "severity": "critical", "fingerprint": "checkout:5950248"}
+{"ts": 1785075318.5377643, "rule_id": "grpc-error-rate-high", "service": "product-catalog", "severity": "critical", "fingerprint": "product-catalog:5950251"}
+{"ts": 1785076837.687341, "rule_id": "grpc-error-rate-high", "service": "checkout", "severity": "critical", "fingerprint": "checkout:5950256"}
+{"ts": 1785078822.2452235, "rule_id": "grpc-error-rate-high", "service": "checkout", "severity": "critical", "fingerprint": "checkout:5950262"}
+{"ts": 1785080745.3931866, "rule_id": "llm-rate-limit-429", "service": "log", "severity": "critical", "fingerprint": "log:5950269"}
+{"ts": 1785080870.1138282, "rule_id": "latency-p95-high", "service": "cart", "severity": "warning", "fingerprint": "cart:5950269"}
+{"ts": 1785082020.3908703, "rule_id": "latency-p95-high", "service": "cart", "severity": "warning", "fingerprint": "cart:5950273"}
+{"ts": 1785083603.5805187, "rule_id": "grpc-error-rate-high", "service": "checkout", "severity": "critical", "fingerprint": "checkout:5950278"}
+{"ts": 1785084223.9857585, "rule_id": "grpc-error-rate-high", "service": "checkout", "severity": "critical", "fingerprint": "checkout:5950280"}
+{"ts": 1785084347.3061342, "rule_id": "latency-p95-high", "service": "cart", "severity": "warning", "fingerprint": "cart:5950281"}
