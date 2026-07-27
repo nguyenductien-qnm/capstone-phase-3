@@ -16,29 +16,22 @@
 
 ---
 
-## 📊 Tổng quan — 6/6 đạt (vế SAST và IaC gate vá xong 26/07)
+## 📊 Tổng quan — 6/6 đạt
 
 | # | Yêu cầu | Kết quả | Bằng chứng | Đọc tiếp |
 |---|---|---|---|---|
-| 1 | Cổng chặn thật | ✅ **ĐẠT** | 5 ảnh + `gh api` | [↓](#1--cổng-chặn-thật) |
-| 2 | Quét chặn HIGH/CRITICAL | ✅ **ĐẠT** — đủ 4/4 vế | 2 ảnh + code workflow | [↓](#2--quét-trước-khi-ra-cluster-chặn-trên-highcritical) |
+| 1 | Cổng chặn thật | ✅ **ĐẠT** | 4 ảnh + `gh api` | [↓](#1--cổng-chặn-thật) |
+| 2 | Quét chặn HIGH/CRITICAL | ✅ **ĐẠT 4/4 vế** | code workflow | [↓](#2--quét-trước-khi-ra-cluster-chặn-trên-highcritical) |
 | 3 | Bất biến + ký + admission enforce | ✅ **ĐẠT** | 14 ảnh + logs | [↓](#3--bất-biến--xác-thực-nguồn-gốc) |
 | 4 | Không phụ thuộc thứ trôi | ✅ **ĐẠT** | grep 2 lệnh | [↓](#4--không-phụ-thuộc-thứ-trôi) |
 | 5 | Truy ngược được | ✅ **ĐẠT** | 2 ảnh, 8 mắt xích | [↓](#5--truy-ngược-được) |
-| 6 | Chỉ đụng cái gì đổi | ✅ **ĐẠT** | 1 ảnh + code workflow | [↓](#6--chỉ-đụng-cái-gì-đổi) |
-
-Hai vế cuối của yêu cầu #2 được vá ngày 26/07 bằng hai PR:
-
-| PR | Vá gì | Bằng chứng |
-|---|---|---|
-| [#428](https://github.com/nguyenductien-qnm/capstone-phase-3/pull/428) | Thêm CodeQL quét 8 ngôn ngữ, rồi đưa `SAST (codeql)` vào required check | ảnh [21](screenshots/21-codeql-8-ngon-ngu-pass.md) + [23](screenshots/23-ruleset-4-checks-co-sast.md) |
-| [#429](https://github.com/nguyenductien-qnm/capstone-phase-3/pull/429) | Bật IaC gate: Trivy `exit-code:"1"`, Checkov `soft_fail:false` | [IAC-GATE.md](IAC-GATE.md) |
+| 6 | Chỉ đụng cái gì đổi | ✅ **ĐẠT** | code workflow | [↓](#6--chỉ-đụng-cái-gì-đổi) |
 
 **Ba phép thử kiểm chứng được** (mục "Phải nộp" của directive):
 
 | Phép thử | Yêu cầu | Trạng thái |
 |---|---|---|
-| PR có CI đỏ → bị chặn merge | #1 | 🟡 cơ chế ĐẠT (4 required check, xem ảnh [23](screenshots/23-ruleset-4-checks-co-sast.md)), **thiếu ảnh PR đỏ** |
+| PR có CI đỏ → bị chặn merge | #1 | ✅ **ĐẠT** — 3 PR đỏ thật, ảnh 24 + 30 + 32 |
 | Deploy image chưa ký → admission từ chối | #3 | ✅ **ĐẠT** |
 | Chỉ vào pod → truy ngược full provenance | #5 | ✅ **ĐẠT** |
 
@@ -112,16 +105,136 @@ riêng lẻ đều xanh nhưng gộp lại thì hỏng.
 
 ### Kết luận
 
-✅ **ĐẠT.** Cổng đặt đúng nhánh deploy, ba check bắt buộc, chặn force-push, bắt buộc PR có
-người duyệt. Ảnh 18 chứng minh cổng thật sự cản một PR dù đã xanh và đã được duyệt.
+✅ **ĐẠT.** Cổng đặt đúng nhánh deploy, **bảy** check bắt buộc (ảnh 27), chặn force-push,
+bắt buộc PR có người duyệt. Ảnh 18 chứng minh cổng cản một PR dù đã xanh và đã được duyệt.
 
 Tên `Unit tests` là job discovery (PR #340) thay 2 check cứng cũ, nên thêm service mới
 không phải sửa ruleset.
 
+### Ruleset lớn dần: 3 → 4 → 7 cổng
+
+Ba ảnh dưới đây chụp cùng một trang cấu hình ở ba thời điểm, cho thấy hàng rào được dựng
+lên từng bước chứ không phải có sẵn từ đầu.
+
+![Ruleset 4 checks có SAST](screenshots/23-ruleset-4-checks-co-sast.png)
+
+*26/07 20:03 — Thêm `SAST (codeql)` thành cổng thứ tư.*
+→ [chú thích đầy đủ](screenshots/23-ruleset-4-checks-co-sast.md)
+
+![Ruleset 7 required checks](screenshots/27-ruleset-7-required-checks.png)
+
+*27/07 11:05 — Lên **bảy** cổng. Ba cái thêm trong ngày: `Pin guard`, `Image scan gate`,
+và `CodeQL`.* → [chú thích đầy đủ](screenshots/27-ruleset-7-required-checks.md)
+
+Cổng thứ bảy tên là `CodeQL`, và nó khác hẳn cổng thứ tư dù cả hai đều mang chữ CodeQL.
+Đây là chỗ dễ nhầm nhất, nên tách riêng ra nói.
+
+![Add check CodeQL vs SAST](screenshots/26-add-check-codeql-vs-sast.png)
+
+*27/07 11:04 — Gõ "CodeQL" vào ô tìm ra chín dòng. Chỉ dòng đầu — nguồn **GitHub Advanced
+Security** — là thứ cần tick.* → [chú thích đầy đủ](screenshots/26-add-check-codeql-vs-sast.md)
+
+Nhìn cột nguồn bên phải sẽ thấy hai nhóm khác nhau. `SAST (codeql)` đến từ GitHub Actions,
+nó là **job** trong workflow, và việc của nó là chạy CodeQL rồi báo "tôi quét xong rồi".
+`CodeQL` đến từ GitHub Advanced Security, nó đọc kết quả quét và so với ngưỡng severity.
+
+Ví như nhân viên phòng xét nghiệm và bác sĩ. Nhân viên báo *"đã lấy đủ mẫu, máy chạy bình
+thường"* — câu đó đúng kể cả khi kết quả xét nghiệm xấu. Bác sĩ mới là người nhìn con số rồi
+nói *"chỉ số này nguy hiểm, chưa cho về"*. Ruleset trước 27/07 chỉ nghe nhân viên phòng xét
+nghiệm, mà nhân viên thì báo về cái máy chứ không báo về bệnh nhân.
+
+Tám dòng `SAST (codeql, ...)` còn lại tuyệt đối không được tick, dù trông rất giống. Chúng
+là job con của matrix, tên sinh động theo số ngôn ngữ — bỏ Rust khỏi matrix là check
+`SAST (codeql, rust)` biến mất, ruleset vẫn đòi nó, và mọi PR treo `Expected` vĩnh viễn.
+
+### Ba PR cố tình đỏ (27/07)
+
+Có cấu hình đúng chưa chắc cổng đã đóng. Cách duy nhất biết chắc là đẩy vào nó một thứ sai
+rành rành rồi xem nó có chặn không — giống muốn biết khoá cửa còn tốt không thì phải thử
+xoay nắm đấm khi cửa đang khoá, chứ đứng nhìn cánh cửa đóng im thì chẳng biết được gì.
+
+Ba PR dưới đây làm đúng việc đó, mỗi PR phá một loại cổng qua một cơ chế khác nhau.
+
+#### Màn 1 — Pin guard (PR #444)
+
+![PR 444 Pin guard chặn merge](screenshots/24-pr444-pinguard-do-merge-xam.png)
+
+*10:53 — `Pin guard` đỏ sau **10 giây**, nhãn `Required`, nút **Merge pull request xám**.
+Kèm dòng ✅ **1 approval**.* → [chú thích đầy đủ](screenshots/24-pr444-pinguard-do-merge-xam.md)
+
+Dòng `1 approval` là chi tiết dễ bỏ qua nhất mà lại quan trọng nhất. Nếu PR chưa ai duyệt
+thì nút Merge cũng xám, và người đọc có quyền nghi ngờ: xám vì thiếu chữ ký hay xám vì CI
+đỏ? Ảnh này trả lời dứt điểm — chữ ký đã có, nút vẫn xám.
+
+Con số **15 successful** cũng cần nằm trong khung hình. Một hệ thống đỏ vơ đũa cả nắm thì vô
+dụng ngang hệ thống xanh hết: nó không nói được cái gì thật sự hỏng.
+
+![PR 444 diff đổi SHA về tag](screenshots/25-pr444-diff-doi-sha-ve-tag.png)
+
+*10:53 — Chỗ cố tình sai: đổi `actions/setup-python` từ commit SHA về tag `@v5`.*
+→ [chú thích đầy đủ](screenshots/25-pr444-diff-doi-sha-ve-tag.md)
+
+Đây không phải lỗi bịa ra cho vui. Commit SHA là địa chỉ cố định, trỏ vào đúng một bản mã và
+không đổi được. Tag `v5` chỉ là cái nhãn dán — chủ action gỡ ra dán sang commit khác lúc nào
+cũng được, và CI của mình lặng lẽ chạy mã mới mà không ai trong repo duyệt qua.
+
+Ví như hợp đồng ghi *"giao tại kho số 12"* thay vì *"giao tại kho ở 12 Nguyễn Trãi"*. Ai đó
+tháo biển số 12 gắn sang kho khác thì hàng vẫn được giao đều, chỉ là giao nhầm chỗ, và trên
+giấy tờ không dòng nào sai cả.
+
+#### Màn 2 — CodeQL (PR #443)
+
+![PR 443 alert SQL injection](screenshots/28-pr443-alert-sql-injection-high.png)
+
+*11:06 — `py/sql-injection`, mức **High**, chỉ đúng dòng 47, kèm bản vá đề xuất.*
+→ [chú thích đầy đủ](screenshots/28-pr443-alert-sql-injection-high.md)
+
+![PR 443 alert command injection](screenshots/29-pr443-alert-command-injection-critical.png)
+
+*11:06 — `py/command-line-injection`, mức **Critical**.*
+→ [chú thích đầy đủ](screenshots/29-pr443-alert-command-injection-critical.md)
+
+![PR 443 CodeQL chặn merge](screenshots/30-pr443-codeql-required-merge-xam.png)
+
+*11:06 — `Code scanning results / CodeQL` đỏ, nhãn `Required`, nút Merge xám, dù đã có 1
+approval.* → [chú thích đầy đủ](screenshots/30-pr443-codeql-required-merge-xam.md)
+
+Trong ảnh cuối, `SAST (codeql)` và cả 8 job ngôn ngữ đều nằm trong nhóm **23 successful**.
+Chúng xanh, và xanh là **đúng** — công cụ quét chạy trót lọt thật. Thứ chặn merge là check
+khác, do GitHub Advanced Security sinh ra.
+
 > [!WARNING]
-> **Còn thiếu cho bài mentor:** ảnh PR **cố tình đỏ** → nút merge xám kèm dòng *"Required
-> statuses must pass"*. Ảnh 18 là PR xanh bị chặn vì lý do khác (out-of-date), chưa thay
-> thế được. Cần chụp bổ sung để hoàn thiện bộ bằng chứng.
+> **Bài học đắt nhất của ngày: thấy đỏ chưa chắc đã chặn.**
+>
+> PR #443 từng ở trạng thái `UNSTABLE` — trang PR **có hiện màu đỏ** mà nút Merge vẫn bấm
+> được, vì lúc đó `CodeQL` chưa có tên trong ruleset. GitHub coi check không nằm trong
+> ruleset là loại "cho biết thôi".
+>
+> Ví như thấy đèn đỏ ở ngã tư nên tưởng xe phải dừng, nhưng đó là đèn của làn bên cạnh. Làn
+> của mình vẫn xanh, xe cứ thế đi.
+>
+> Khi đọc bằng chứng, phải xem có nhãn **`Required`** cạnh check đỏ hay không. Đó là lý do
+> mọi ảnh trong bộ này đều cố lấy nhãn `Required` và nút Merge vào cùng khung hình.
+
+#### Màn 3 — Image scan gate (PR #446)
+
+Màn này khó nhất và được nói kỹ ở [mục #2](#2--quét-trước-khi-ra-cluster-chặn-trên-highcritical),
+vì nó thuộc về vế image CVE scan. Tóm tắt: Trivy không thể vào ruleset trực tiếp, nên nó
+chặn qua **ba chặng** — Trivy đỏ làm job `Build` đỏ, `Image scan gate` gọi API đọc kết quả
+run đó rồi tự đỏ theo, và gate ấy mới là thứ có tên trong ruleset.
+
+#### Tổng kết ba màn
+
+| | PR #444 | PR #443 | PR #446 |
+|---|---|---|---|
+| Cổng đỏ | `Pin guard` | `CodeQL` | `Image scan gate` |
+| Loại lỗi | Cấu hình pipeline sai | Lỗ hổng mã nguồn | CVE trong ảnh container |
+| Số chặng | 1 | 2 | **3** |
+| Thời gian đỏ | 10 giây | 1 giây | 1 phút |
+| Cổng còn lại | 🟢 xanh hết | 🟢 xanh hết | 🟢 xanh hết |
+
+Cả ba **đã có 1 approval** mà nút vẫn xám, nên thứ giữ cửa đúng là gate chứ không phải thiếu
+chữ ký. Cả ba đã đóng sau khi chụp, nhánh giữ lại để đối chiếu commit.
 
 ---
 
@@ -137,7 +250,7 @@ không phải sửa ruleset.
 | Image CVE scan | ✅ **chặn thật** | [app-build.yaml:485](../../../.github/workflows/app-build.yaml#L485) |
 | Secret scan | ✅ **chặn thật** | [platform-ci.yaml:27](../../../.github/workflows/platform-ci.yaml#L27) + trong required checks |
 | IaC misconfig scan | ✅ **chặn thật** | [infra-cd.yaml](../../../.github/workflows/infra-cd.yaml) — `exit-code: "1"` + `soft_fail: false` |
-| SAST | ✅ **chặn thật** (26/07) | [codeql.yaml](../../../.github/workflows/codeql.yaml) — 8 ngôn ngữ + `SAST (codeql)` trong required checks |
+| SAST | ✅ **chặn thật** | [codeql.yaml](../../../.github/workflows/codeql.yaml) — 8 ngôn ngữ; ảnh 28–30 |
 
 ### Vế ĐẠT — image CVE scan
 
@@ -157,6 +270,56 @@ kiểm, còn đây là cổng chặn thật.
 
 Cũng không dùng `ignore-unfixed: true` — cờ đó tắt mọi CVE chưa có bản vá, làm gate nhẹ đi
 một cách giả tạo.
+
+#### Chứng minh bằng một lần đỏ thật (PR #446, 27/07)
+
+![Trivy 8 CVE perl-base](screenshots/31-pr446-trivy-8-cve-perl-base.png)
+
+*11:24 — Comment-out 8 dòng nhóm `perl-base` trong `.trivyignore` (37 → 29 dòng active).
+Trivy báo lại **đúng 8**: `Total: 8 (HIGH: 4, CRITICAL: 4)`, cột Fixed Version trống ở mọi
+dòng.* → [chú thích đầy đủ](screenshots/31-pr446-trivy-8-cve-perl-base.md)
+
+Không bịa CVE giả và không hạ base image: 8 CVE đó vẫn nằm nguyên trong ảnh của ngày
+thường, chỉ được khai bỏ qua có chủ ý vì Debian nhúng `Archive::Tar` và `Storable` thẳng
+vào gói `perl-base` (`Essential=yes`). Log một build bình thường hôm đó (run `30235684823`)
+tự nói ra điều này:
+
+```
+INFO  Some vulnerabilities have been ignored/suppressed.
+      Use the "--show-suppressed" flag to display them.
+Report Summary: ...aiops-detector (debian 13.6) │ debian │ 0 │
+```
+
+Con số **0 CVE** của ngày thường là 0 **sau khi lọc**, không phải ảnh sạch.
+
+![Image scan gate chặn merge](screenshots/32-pr446-image-scan-gate-merge-xam.png)
+
+*11:24 — Trivy đỏ kéo theo cả chuỗi: job `Build aiops-detector`/`Build aiops-remediation`
+đỏ, `Image scan gate` (nhãn `Required`) đỏ theo, nút **Merge pull request xám** dù PR đã có
+1 approval.* → [chú thích đầy đủ](screenshots/32-pr446-image-scan-gate-merge-xam.md)
+
+Đây là **chuỗi ba chặng**, và nó đáng nói vì Trivy không thể vào ruleset trực tiếp:
+
+```
+Trivy thấy CVE HIGH/CRITICAL → exit-code 1
+      ▼
+job "Build aiops-*" đỏ                                    (app-build.yaml)
+      ▼  Image scan gate gọi GitHub API đọc kết quả run đó
+"Image scan gate" fail=1 → exit 1                         (platform-ci.yaml)
+      ▼  gate này CÓ tên trong 7 required check
+nút Merge xám                                             (ruleset 18604771)
+```
+
+Log của gate chứng minh nó đọc đúng run và phân biệt được `skipped` với `failure`:
+
+```
+app-build run: 30236871985 (status=completed)
+✅ Detect changed services: success
+❌ Build aiops-detector: failure — Trivy thấy CVE HIGH/CRITICAL, hoặc build hỏng.
+❌ Build aiops-remediation: failure — Trivy thấy CVE HIGH/CRITICAL, hoặc build hỏng.
+⏭️  Build ${{ matrix.service }}: không có ảnh nào cần dựng
+Cổng quét ảnh KHÔNG pass — xem run 30236871985 để biết CVE nào.
+```
 
 ### Vế ĐẠT — IaC misconfig scan (bật 26/07)
 
@@ -191,30 +354,30 @@ phát sinh vẫn đỏ.
 
 Chi tiết 136 finding phân 4 nhóm + những gì đã sửa: [IAC-GATE.md](IAC-GATE.md).
 
-### Vế ĐẠT — SAST (vá 26/07, PR #428)
+### Vế SAST — đã bịt xong (PR #428, 26/07)
 
-Trước ngày này repo không có SAST nào:
+![CodeQL pass đủ 8 ngôn ngữ](screenshots/21-codeql-8-ngon-ngu-pass.png)
 
-```bash
-grep -rilE "codeql|semgrep|sonar|snyk|bandit|gosec|njsscan|horusec|opengrep" .github/
-# (không kết quả)   <-- trạng thái TRƯỚC 26/07
-```
+*26/07 19:43 — `codeql.yaml` quét đủ 8 ngôn ngữ, `build-mode: none` cho ngôn ngữ thông dịch
+và `autobuild` cho Go.* → [chú thích đầy đủ](screenshots/21-codeql-8-ngon-ngu-pass.md)
 
-Nay có `.github/workflows/codeql.yaml` quét 8 ngôn ngữ, và `SAST (codeql)` nằm trong
-required status checks:
+Vế này cần **hai** check, không phải một, và mỗi cái gác một thứ khác nhau:
 
-```bash
-gh api repos/nguyenductien-qnm/capstone-phase-3/rulesets/18604771 \
-  | python3 -c "import json,sys; [print(' ',c['context']) for r in json.load(sys.stdin)['rules'] if r['type']=='required_status_checks' for c in r['parameters']['required_status_checks']]"
-#   Secret scan (gitleaks)
-#   Helm lint + render (deploy gate)
-#   Unit tests
-#   SAST (codeql)          <-- mới
-```
+| Check | Xanh nghĩa là | Đỏ khi |
+|---|---|---|
+| `SAST (codeql)` | Công cụ chạy ổn, không crash | Quét thất bại — bịt đường "làm hỏng job để né cổng" |
+| `CodeQL` | Không có lỗ hổng vượt ngưỡng | Có alert từ mức **high** trở lên |
 
-Bằng chứng ảnh: [21](screenshots/21-codeql-8-ngon-ngu-pass.md) CodeQL pass đủ 8 ngôn ngữ
-(43s–1m58s mỗi ngôn ngữ, không finding) và [23](screenshots/23-ruleset-4-checks-co-sast.md)
-ruleset đủ 4 check.
+Thiếu cái nào cũng hở một đằng. Chỉ có `SAST (codeql)` thì công cụ chạy ngon mà code đầy lỗ
+vẫn merge được — đúng tình trạng PR #443 gặp phải trước khi thêm `CodeQL`. Ngược lại chỉ có
+`CodeQL` thì ai đó làm job crash sớm là không alert nào sinh ra, mà không có alert thì không
+có gì để chặn: cổng tự mở khi bị làm hỏng.
+
+Chứng minh bằng PR #443 — gài một SQL injection (high) và một command injection (critical),
+`CodeQL` đỏ, nút Merge xám dù PR đã được duyệt. Xem ảnh
+[28](screenshots/28-pr443-alert-sql-injection-high.md),
+[29](screenshots/29-pr443-alert-command-injection-critical.md),
+[30](screenshots/30-pr443-codeql-required-merge-xam.md) ở mục #1.
 
 > [!CAUTION]
 > **Bẫy đã mắc, ghi lại để không tái phạm.** Từng kết luận *"gitleaks thỏa vế secret nên #2
@@ -224,28 +387,26 @@ ruleset đủ 4 check.
 > Lần grep đầu chỉ dùng 3 từ khóa nên tưởng có; grep rộng 10 công cụ mới thấy hở nguyên.
 
 > [!CAUTION]
-> **Bẫy thứ hai, trả giá thật ngày 26/07.** Thêm `SAST (codeql)` vào ruleset **trước khi**
-> `codeql.yaml` có trên develop làm 4 PR đang mở kẹt cứng ở trạng thái `Expected` — GitHub
-> chờ một check mà không PR nào sinh ra được. Thứ tự đúng: **merge workflow trước, thêm vào
-> ruleset sau**. Chi tiết trong ảnh [23](screenshots/23-ruleset-4-checks-co-sast.md).
+> **Bẫy thứ hai: có job SAST chưa chắc đã có cổng SAST.** Sau khi thêm `codeql.yaml`, ruleset
+> có `SAST (codeql)` và ai cũng tưởng xong. Nhưng PR #443 mang hai lỗ hổng thật mà check đó
+> vẫn **xanh** và PR vẫn merge được — vì job chỉ báo *"đã quét xong"*, không báo *"quét ra
+> gì"*. Phải thêm `CodeQL` (nguồn GitHub Advanced Security, chính là ô
+> `Require code scanning results`) thì cổng mới đóng. Xem
+> [ảnh 26](screenshots/26-add-check-codeql-vs-sast.md).
 
 ### Kết luận
 
-✅ **ĐẠT đủ 4/4 vế.** Trước 26/07 hở 2 vế (IaC gate không chặn + không có SAST); cả hai đã
-vá trong ngày bằng PR #429 và #428.
+✅ **ĐẠT 4/4 vế.** Trước 26/07 hở 2 vế; IaC gate bật xong 26/07, SAST bật xong 27/07.
 
-| Vế | Công cụ | Chặn ở đâu |
+Ruleset hiện có **7 check bắt buộc** — ảnh
+[27](screenshots/27-ruleset-7-required-checks.md).
+
+**Việc còn lại:**
+
+| Việc | Thời gian | Cần quyết gì? |
 |---|---|---|
-| Image CVE | Trivy image | tầng build — `exit-code:"1"` trước bước Push |
-| IaC misconfig | Trivy config + Checkov | tầng CI — `soft_fail:false` |
-| Secret | gitleaks | tầng merge — required check |
-| **SAST** | **CodeQL 8 ngôn ngữ** | **tầng merge — required check** |
-
-> [!NOTE]
-> Ô `Require code scanning results` trong ruleset **cố ý để trống**. Bản trước của tài liệu
-> này khuyên tick nó — **lời khuyên đó không đúng**: chỉ cần `SAST (codeql)` trong required
-> checks là đã chặn merge. Ba lý do giữ nguyên ô trống ghi trong ảnh
-> [23](screenshots/23-ruleset-4-checks-co-sast.md).
+| Job gộp cho `Terraform fmt, validate, scan` rồi thêm vào ruleset (nay IaC gate chặn thật nhưng chưa phải required check) | ~30' | ❌ làm được ngay |
+| Xử 6 alert code scanning đang mở (đều dưới mức high nên không chặn PR) | ~1h | ❌ làm được ngay |
 
 ---
 
@@ -574,6 +735,18 @@ hãy điền 'services' để build có phạm vi, hoặc bật confirm_full=tru
 (MANDATE-10 #6: đường full phải hẹp và có lý do).
 ```
 
+### Bằng chứng chạy thật
+
+![PR 413 build skipped](screenshots/22-pr413-build-skipped.png)
+
+*26/07 19:49 — PR #413 chỉ sửa file không thuộc service nào, nên mọi job `Build` đều
+`Skipped`. Workflow tự chứng minh trên chính nó.*
+→ [chú thích đầy đủ](screenshots/22-pr413-build-skipped.md)
+
+Ảnh này đáng giá hơn đoạn code phía trên, vì code chỉ nói ý định còn ảnh nói kết quả. Một
+`if` viết đúng vẫn có thể không bao giờ chạy tới, hoặc chạy rồi cho kết quả ngược — chỉ khi
+thấy job thật sự `Skipped` trên một PR thật mới biết cơ chế hoạt động.
+
 ### Ba lớp bảo vệ
 
 | Lớp | Cơ chế |
@@ -677,14 +850,14 @@ KHÔNG `kubectl patch` để đổi Audit/Enforce — ArgoCD selfHeal revert v�
 
 ```
 README.md (file này)    bằng chứng theo 6 yêu cầu directive + phụ lục P2
-screenshots/           20 ảnh + chú thích .md đi kèm từng ảnh + INDEX.md
+screenshots/           29 ảnh + chú thích .md đi kèm từng ảnh + INDEX.md
 evidence/              manifest pod test (signed / unsigned / upstream đối chứng)
 logs/                  output đo đạc và trạng thái cụm
 ```
 
 | File | Nội dung |
 |---|---|
-| [screenshots/INDEX.md](screenshots/INDEX.md) | Bảng tra nhanh 20 ảnh |
+| [screenshots/INDEX.md](screenshots/INDEX.md) | Bảng tra nhanh 29 ảnh |
 | `screenshots/NN-*.md` | Chú thích chi tiết từng ảnh (nằm cạnh ảnh) |
-| [AUDIT-DIRECTIVE-10-lich-su-23-07.md](AUDIT-DIRECTIVE-10-lich-su-23-07.md) | Bản tự kiểm gốc 23/07 (LỊCH SỬ — mọi mục THIẾU đã vá xong) |
+| [AUDIT-DIRECTIVE-10.md](AUDIT-DIRECTIVE-10.md) | Bản tự kiểm gốc, nguồn của các YC |
 | [IAC-GATE.md](IAC-GATE.md) | Yêu cầu #2 vế IaC — hiện trạng, 136 finding phân 4 nhóm, 3 câu cần chốt, kế hoạch bật gate |
