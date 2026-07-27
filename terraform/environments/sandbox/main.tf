@@ -44,6 +44,18 @@ module "vpc" {
       "karpenter.sh/discovery" = "${var.project_name}-${var.environment}-eks"
     }
   )
+
+  # Node subnet /20 cho Karpenter (giá trị: node-subnets.auto.tfvars). Cùng mang tag
+  # discovery với app subnet; Karpenter chọn subnet còn nhiều IP trống nhất trong AZ
+  # nên node mới luôn vào /20 — app /24 cũ (fragment) không cần gỡ tag ngay, tránh
+  # ép drift-roll node đang chạy giữa tuần chuẩn bị drill M21. Gỡ tag = follow-up.
+  private_node_subnets = var.private_node_subnets
+  private_node_subnet_tags = merge(
+    var.private_node_subnet_tags,
+    {
+      "karpenter.sh/discovery" = "${var.project_name}-${var.environment}-eks"
+    }
+  )
 }
 
 module "vpc_endpoints" {
