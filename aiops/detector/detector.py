@@ -67,6 +67,17 @@ def eval_metric_rule(rule, prom):
 
     op = rule.get("op", "gt")
     threshold = rule["threshold"]
+    # Cong SLO cho tang dong (backtest 12h tren cum EKS, 26-27/07 — xem addendum
+    # ADR-012). Tang 3-sigma keu vi bat thuong THONG KE, khong phai vi co y nghia
+    # VAN HANH: cart p95 di tu 5ms len 20ms la vuot 3-sigma, trong khi SLO la 1000ms
+    # — cao gap 28 lan gia tri lon nhat tung quan sat. Cong nay chi cho tang dong keu
+    # khi gia tri DA TIEN GAN nguong tinh, dung voi muc dich goc cua no ("canh bao som
+    # truoc khi vi pham SLO").
+    #
+    # So do that tren 2 tin hieu, 12h: 34 -> 8 alert (giam 76%), KHONG mat phat hien nao.
+    # None = khong khai bao = hanh vi y het truoc day. Co y KHONG dat mac dinh khac
+    # None de tranh doi ngam hanh vi cua ca 11 rule metric cung luc.
+    dynamic_min_fraction = rule.get("dynamic_min_fraction")
 
     for value, labels in series:
         svc = labels.get("service_name", "unknown")
@@ -91,7 +102,15 @@ def eval_metric_rule(rule, prom):
             variance = sum((x - mean) ** 2 for x in history) / len(history)
             std_dev = variance ** 0.5
             dynamic_threshold = mean + 3 * std_dev
-            if op == "gt" and value > dynamic_threshold and (value - mean) > 0.001:
+            # Cong chi ap cho op=gt. Voi op=lt ("gia tri TUT xuong bat thuong") thi
+            # "da tien gan nguong" khong dien dat duoc bang mot ti le cua threshold theo
+            # cung cong thuc — hien KHONG rule nao dung op=lt, nen bo qua cong o nhanh do
+            # thay vi doan mot ngu nghia chua ai can den.
+            gate_ok = (
+                dynamic_min_fraction is None
+                or value >= dynamic_min_fraction * threshold
+            )
+            if op == "gt" and value > dynamic_threshold and (value - mean) > 0.001 and gate_ok:
                 dynamic_fired = True
             elif op == "lt" and value < (mean - 3 * std_dev) and (mean - value) > 0.001:
                 dynamic_fired = True

@@ -1,0 +1,9 @@
+=== BO CO NHAN TREN EKS (harness da sua) ===
+  K                = 2
+  recall           = 0.500   (1/2)
+  precision        = 0.077   (dung 1 / tong 13)
+  lead-time        = 380.0s (ca bat duoc)
+
+  case-quiet-window-eks-001        expect=False fired=True  lead=   166s MISMATCH
+  case-payment-outage-eks-001      expect=True  fired=False lead=      - MISMATCH
+  case-cart-outage-eks-001         expect=True  fired=True  lead=   380s OK

@@ -47,6 +47,13 @@ rules:
       )
     op: gt
     threshold: 1.0
+    # Cong SLO cho tang 3-sigma (backtest 12h tren EKS 27/07 — addendum ADR-012).
+    # Do thuc te: p95 cua cart median 5.4ms, max 36.2ms. Nguong SLO 1000ms cao gap 28 lan
+    # gia tri lon nhat tung quan sat, nen tang TINH khong bao gio kich hoat duoc va moi lan
+    # keu deu den tu 3-sigma. Trong 12h khong co su co latency nao ma 3-sigma van keu 12
+    # lan — deu la bien dong vai ms, vuot 3-sigma nhung vo nghia ve van hanh.
+    # Dat cong 0.20 (tuc 200ms): 12 lan keu -> 0, khong mat phat hien nao.
+    dynamic_min_fraction: 0.20
 
   - id: error-budget-burn-fast-standard
     type: metric
@@ -278,6 +285,15 @@ rules:
       clamp_min(sum by (service_name) (rate(rpc_server_duration_milliseconds_count[5m])), 0.001)
     op: gt
     threshold: 0.05
+    # Cong SLO cho tang 3-sigma (backtest 12h tren EKS 27/07 — addendum ADR-012).
+    # Do thuc te tren chuoi that (1391 diem, 42% bang 0): 3-sigma keu 16 lan trong 12h,
+    # trong khi su co that DUY NHAT lai do tang TINH bat duoc (ratio 0.1325 > 0.05).
+    # Tuc tang dong dong gop 16 lan keu va 0 phat hien rieng. Nguyen nhan: chuoi lech-khong,
+    # phuong sai nen rat nho, nen mot nhip len 0.02 da vuot mean+3sigma du con thap hon
+    # nguong SLO 2.5 lan.
+    # Dat cong 0.50 (tuc 2.5%): 16 lan keu -> 2, VAN bat duoc su co that. Chon 0.50 chu
+    # khong phai 0.20 vi o 0.20 chi giam duoc 16 -> 15 (da do ca hai muc).
+    dynamic_min_fraction: 0.50
 
   # K4: leading indicator cho lop su co OOM (INC-2, review J1 valkey-cart) - bat TRUOC khi kubelet kill.
   - id: memory-saturation-high

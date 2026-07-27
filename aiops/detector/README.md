@@ -104,7 +104,7 @@ kubectl -n <ns> apply -f deploy/deployment.yaml
 
 | Task | Quan hệ |
 |---|---|
-| TF1-49 Golden Signal (EWMA) | Nâng cấp ngưỡng tĩnh → EWMA α=0.2, 3σ (thay `threshold` ở rule metric) |
+| TF1-49 Golden Signal (EWMA) | Nâng cấp **dự kiến** ngưỡng tĩnh → EWMA α=0.2, 3σ. **Chưa làm:** detector hiện chạy SMA + 3σ cửa sổ 30 mẫu, `git grep -i ewma` trong `aiops/` không ra file `.py` nào. Hiện thực nằm ở PR #257 (còn OPEN); lý do defer ghi ở ADR-012. |
 | TF1-52 Drain3 Log Clustering | Nâng cấp rule log keyword → gom cụm template lạ |
 | TF1-50 Remediation | Nhận alert từ tool này làm đầu vào cho vòng tự khắc phục |
 | TF1-51 Telemetry Audit | Đảm bảo metric/log tool này query không bị đứt đoạn |
