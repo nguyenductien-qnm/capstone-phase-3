@@ -1,0 +1,9 @@
+{
+  "assumed_by_rule": "kafka_consumer_group_lag",
+  "exists": false,
+  "actual_lag_metrics": [
+    "kafka_consumer_records_lag",
+    "kafka_consumer_records_lag_avg",
+    "kafka_consumer_records_lag_max"
+  ]
+}

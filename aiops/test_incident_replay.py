@@ -142,6 +142,35 @@ def test_alert_in_no_fire_window_is_not_counted_as_a_correct_fire(tmp_path):
     assert score["metrics"]["precision"] == 0.0
 
 
+def test_event_does_not_steal_an_alert_from_a_later_event(tmp_path):
+    """An alert outside an event's own window must not count as catching it.
+
+    The candidate filter only had a lower bound, so in a multi-event scenario the
+    earlier event matched any later alert too. Found scoring the MANDATE-15 EKS
+    set: the payment case, for which the detector stayed silent, was reported as
+    caught with lead_time=1166s because it grabbed the cart case's alert from 19
+    minutes later. Matters most for the masking scenario, which is multi-event by
+    construction.
+    """
+    history = tmp_path / "alerter_history.jsonl"
+    _write_jsonl(history, [
+        {"ts": 3000.0, "rule_id": "grpc-error-rate-high", "service": "checkout"},
+    ])
+    events = [
+        {"label": "earlier-incident", "service": "checkout",
+         "expected_rule_ids": ["grpc-error-rate-high"], "expect_fire": True,
+         "t_start": 1000.0, "t_end": 1100.0},
+        {"label": "later-incident", "service": "checkout",
+         "expected_rule_ids": ["grpc-error-rate-high"], "expect_fire": True,
+         "t_start": 2900.0, "t_end": 3100.0},
+    ]
+    score = ir.score_events(events, str(history), settle_seconds=30)
+    earlier, later = score["per_event"]
+    assert earlier["fired"] is False, "alert 1900s later is not this event's"
+    assert later["fired"] is True
+    assert score["metrics"]["recall"] == 0.5
+
+
 def test_verdict_real_incident_passes_when_fired():
     per_event = [{"label": "incident", "expect_fire": True, "fired": True}]
     ok, _ = ir.verdict_for_type("real", per_event)
@@ -185,3 +214,46 @@ def test_check_remediation_filters_to_window(tmp_path):
     records = ir.check_remediation(str(audit), window_start=900.0, window_end=1500.0)
     assert len(records) == 1
     assert records[0]["outcome"] == "verified_pass"
+
+
+def test_self_report_alert_does_not_dilute_precision(tmp_path):
+    """`detector-silent-rule` la detector tu bao cao ve CHINH NO, khong phai quan sat
+    ve he thong dang duoc do.
+
+    `total_fires = len(observed)` dem MOI alert trong cua so. Khong loc thi mot bao cao
+    "rule X dang mu" roi dung vao cua so replay se keo tut precision, trong khi no khong
+    noi len dieu gi ve viec detector bat su co chinh xac den dau. Khong lo duoc: co che
+    tu bao cao ban dinh ky va cua so replay thi dai hang chuc phut.
+    """
+    history = tmp_path / "alerter_history.jsonl"
+    _write_jsonl(history, [
+        {"ts": 1000.0, "rule_id": "grpc-error-rate-high", "service": "checkout"},
+        {"ts": 1010.0, "rule_id": "detector-silent-rule", "service": "kafka-consumer-lag-high"},
+    ])
+    events = [{
+        "label": "incident", "service": "checkout",
+        "expected_rule_ids": ["grpc-error-rate-high"], "expect_fire": True,
+        "t_start": 980.0, "t_end": 1040.0,
+    }]
+    score = ir.score_events(events, str(history), settle_seconds=10)
+    assert score["metrics"]["recall"] == 1.0
+    assert score["metrics"]["total_fires_observed"] == 1, (
+        "bao cao tu-to-cao khong duoc tinh vao mau so cua precision"
+    )
+    assert score["metrics"]["precision"] == 1.0
+
+
+def test_self_report_alert_cannot_satisfy_an_expected_incident(tmp_path):
+    """Chan chieu nguoc lai: loc roi thi no cung khong the bi nham la mot phat hien dung."""
+    history = tmp_path / "alerter_history.jsonl"
+    _write_jsonl(history, [
+        {"ts": 1000.0, "rule_id": "detector-silent-rule", "service": "checkout"},
+    ])
+    events = [{
+        "label": "incident", "service": "checkout",
+        "expected_rule_ids": ["detector-silent-rule"], "expect_fire": True,
+        "t_start": 980.0, "t_end": 1040.0,
+    }]
+    score = ir.score_events(events, str(history), settle_seconds=10)
+    assert score["per_event"][0]["fired"] is False
+    assert score["metrics"]["recall"] == 0.0

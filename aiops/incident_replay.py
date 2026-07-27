@@ -167,8 +167,21 @@ def _load_jsonl(path):
     return records
 
 
+# Alert do detector tu bao cao ve CHINH NO, khong phai quan sat ve he thong duoc do.
+# `detector-silent-rule` keu khi mot rule tra ve 0 series suot N chu ky (tuc rule do dang
+# mu). No khong phai mot phat hien dung hay sai ve su co dang replay, nhung
+# `total_fires = len(observed)` dem MOI alert trong cua so, nen de nguyen thi mot bao cao
+# rule-mu roi trung cua so se KEO TUT precision do duoc, trong khi no khong noi len dieu gi
+# ve viec detector bat su co chinh xac den dau.
+_SELF_REPORT_RULE_IDS = {"detector-silent-rule"}
+
+
 def _alerts_in_window(alerter_history_path, start_ts, end_ts):
-    return [r for r in _load_jsonl(alerter_history_path) if start_ts <= r.get("ts", -1) <= end_ts]
+    return [
+        r for r in _load_jsonl(alerter_history_path)
+        if start_ts <= r.get("ts", -1) <= end_ts
+        and r.get("rule_id") not in _SELF_REPORT_RULE_IDS
+    ]
 
 
 def score_events(events, alerter_history_path, settle_seconds=30):
@@ -185,11 +198,19 @@ def score_events(events, alerter_history_path, settle_seconds=30):
     per_event = []
     matched_alert_indices = set()
     for ev in events:
+        # An alert belongs to this event only if it lands inside THIS event's own
+        # window (+settle), not merely after it started. Without the upper bound a
+        # multi-event scenario lets the earlier event swallow an alert that belongs
+        # to a much later one: measuring the EKS set, the payment case (detector was
+        # silent for it) was scored as caught with lead_time=1166s by stealing the
+        # cart case's alert 19 minutes later. Single-event scenarios never showed it
+        # because `observed` is already clipped to the global window.
+        ev_end = ev["t_end"] + settle_seconds
         candidates = [
             (i, a) for i, a in enumerate(observed)
             if a.get("rule_id") in ev.get("expected_rule_ids", [])
             and (ev.get("service") is None or a.get("service") == ev.get("service"))
-            and a.get("ts", -1) >= ev["t_start"]
+            and ev["t_start"] <= a.get("ts", -1) <= ev_end
         ]
         candidates.sort(key=lambda ia: ia[1]["ts"])
         fired = bool(candidates)
