@@ -62,6 +62,35 @@ Kiểm tra nhanh không cần webhook:
 python detector.py --once --dry-run
 ```
 
+## Kiểm tra `rules.yaml` trước khi merge
+
+Sửa `rules.yaml` xong thì chạy **cả hai** tầng dưới đây. Chúng bắt hai loại lỗi khác hẳn
+nhau và không cái nào thay được cái kia.
+
+**Tầng 1 — offline, CI tự chạy mọi PR:**
+```sh
+python validate_rules.py            # schema + cú pháp PromQL (cần promtool)
+python validate_rules.py --strict   # coi cảnh báo là lỗi
+```
+Bắt được: cú pháp PromQL sai, thiếu trường bắt buộc, sai kiểu, `id` trùng, `op` không phải
+`gt`/`lt`, và **tên trường gõ sai**. Cái cuối là quan trọng nhất — viết
+`dynamic_min_fration` thiếu chữ `c` thì `rule.get()` trả `None`, cấu hình im lặng không
+bao giờ có tác dụng, rule vẫn chạy như chưa ai đụng vào.
+
+**Tầng 2 — cần Prometheus thật, thủ công, BẮT BUỘC trước khi merge:**
+```sh
+kubectl -n techx-tf1 port-forward svc/prometheus 9090:9090 &
+PROM_URL=http://localhost:9090 python detector.py --once --dry-run
+```
+
+> ⚠️ **Tầng 1 KHÔNG bắt được tên metric sai.** `kafka_consumer_group_lag` là PromQL hợp lệ
+> hoàn toàn — nó chỉ tình cờ không khớp chuỗi nào trên cụm. PromQL sai tên **trả chuỗi rỗng
+> chứ không ném lỗi**, và `eval_metric_rule` nuốt im lặng chuỗi rỗng. Đó là lý do rule
+> `kafka-consumer-lag-high` nằm câm hàng tuần trong khi ai cũng tưởng nó đang canh queue
+> lag (đo được 26/07 — `report/mandate15-eks/report.md` §4.4).
+>
+> **`validate_rules.py` xanh không có nghĩa là rule sống.** Nó chỉ bảo đảm rule đúng cú pháp.
+
 ## Deploy in-cluster (Tuần 2)
 
 ```sh
