@@ -39,11 +39,16 @@ async def main():
     import argparse
     parser = argparse.ArgumentParser(description="Eval MANDATE-06")
     parser.add_argument("--threshold", type=float, default=0.0, help="Minimum pass rate threshold (0.0 to 1.0)")
+    parser.add_argument("--cases", type=str, default="", help="Path to external cases JSON")
     args = parser.parse_args()
 
     # UTF-8 stdout configuration for Windows compatibility
     if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
+    global cases
+    if args.cases:
+        cases = cases.from_json(args.cases)
 
     import boto3
     from botocore.config import Config
@@ -121,7 +126,8 @@ async def main():
         "",
         f"- Region: {region}; injection judge: {os.environ.get('LLM_INJECTION_JUDGE_MODEL', 'amazon.nova-lite-v1:0')}; "
         f"grounding judge: {os.environ.get('LLM_JUDGE_MODEL', 'amazon.nova-lite-v1:0')}",
-        f"- ml-guard: ON; Bedrock Guardrails: OFF",
+        f"- ml-guard: ON; Bedrock Guardrails: {'ON' if os.environ.get('LLM_BEDROCK_GUARDRAIL', 'false').lower() == 'true' else 'OFF'} "
+        f"(offline cascade harness — layer-3 ApplyGuardrail chỉ chạy khi có creds Bedrock)",
         "",
         "| Rail | Case | Pass | Chi tiết | Latency |",
         "|---|---|---|---|---|",

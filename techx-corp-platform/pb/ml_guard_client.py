@@ -120,13 +120,17 @@ def sanitize_text(text):
     return text[:MAX_FIELD_CHARS]
 
 
-def _walk(node):
+_SANITIZE_KEYS = frozenset({"description", "summary", "snippet", "text", "review_text"})
+
+def _walk(node, key=None):
     if isinstance(node, str):
+        if key is not None and key not in _SANITIZE_KEYS:
+            return node
         return sanitize_text(node)
     if isinstance(node, list):
-        return [_walk(x) for x in node]
+        return [_walk(x, key=key) for x in node]
     if isinstance(node, dict):
-        return {k: _walk(v) for k, v in node.items()}
+        return {k: _walk(v, key=k) for k, v in node.items()}
     return node
 
 
@@ -137,7 +141,7 @@ def _sanitize_json_local(json_str):
         return json.dumps({"error": "unparseable tool result was withheld by guardrail"})
 
 
-def leaks_system_prompt(output_text, system_prompt, window_words=8, allowlist=None):
+def leaks_system_prompt(output_text, system_prompt, window_words=12, allowlist=None):
     """Output guard rẻ: sliding-window N-từ của output có nằm trong system_prompt
     không (bắt leak verbatim, không bắt paraphrase — việc của grounding gate).
 
@@ -160,7 +164,10 @@ def leaks_system_prompt(output_text, system_prompt, window_words=8, allowlist=No
         if len(out_words) >= window_words else [" ".join(out_words)]
     )
     for w in windows:
-        if len(w) >= 20 and w in prompt_norm:
+        # 12 từ / 40 ký tự: câu trả lời review hợp lệ hay lặp lại cách diễn đạt trong
+        # rule ("thông tin đến từ đánh giá thật của khách") và bị 8 từ/20 ký tự bắt
+        # nhầm là leak — chặn oan cả câu trả lời đúng. Leak verbatim thật luôn dài hơn.
+        if len(w) >= 40 and w in prompt_norm:
             if any(w in a for a in allow_norm):
                 continue
             logger.warning("System prompt leakage detected (matched: %r…)", w[:30])

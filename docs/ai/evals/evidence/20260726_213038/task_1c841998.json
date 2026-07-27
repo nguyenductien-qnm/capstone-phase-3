@@ -1,0 +1,170 @@
+{
+  "category": "task",
+  "input": [
+    "Kính thiên văn National Park và Ống nhòm Roof Binoculars khác nhau thế nào?",
+    [
+      "search_products"
+    ],
+    "task-compare"
+  ],
+  "latency": 34.19713544845581,
+  "tokens": {
+    "input": 13598,
+    "output": 498,
+    "embedding": 22
+  },
+  "usd_cost": 0.0009345200000000001,
+  "embed_cost": 4.4e-07,
+  "passed": true,
+  "reason": "All expected tools called successfully: ['search_products']",
+  "response": {
+    "response": "Kính thiên văn National Park Foundation Explorascope 60AZ là một kính thiên văn phản xạ thủ công với trục ngang, lý tưởng cho việc quan sát thiên văn di động. Nó có thể quan sát các hành tinh, mặt trăng, cụm sao và các đối tượng thiên văn sáng hơn như Tinh vân Orion và Thiên hà Andromeda.\n\nỐng nhòm Roof Binoculars là một ống nhòm tất cả mọi nơi, lý tưởng cho đường đua, sân vận động, sân vận động, hoặc bất kỳ nơi nào bạn muốn có tầm nhìn gần mà không phải hy sinh độ sáng hoặc chi tiết. Nó đặc biệt là bạn đồng hành tuyệt vời cho quan sát thiên nhiên và quan sát chim, với kính ED giúp bạn phát hiện các dấu hiệu trường đồng nhất và tiêu điểm gần chỉ 6,5 feet.",
+    "actionsTaken": [
+      {
+        "toolName": "search_products",
+        "argumentsJson": "{\"query\": \"K\\u00ednh thi\\u00ean v\\u0103n National Park\"}",
+        "succeeded": true,
+        "startedAtUnix": 1785076822,
+        "durationMs": 856
+      },
+      {
+        "toolName": "search_products",
+        "argumentsJson": "{\"query\": \"\\u1ed0ng nh\\u00f2m Roof Binoculars\"}",
+        "succeeded": true,
+        "startedAtUnix": 1785076823,
+        "durationMs": 1293
+      }
+    ],
+    "degraded": false,
+    "traceId": "28bb0fb29d2fb6c3daddfc181f8211fc",
+    "citations": [],
+    "traceSteps": [
+      {
+        "stepName": "Input Guardrail (PII/Prompt Guard)",
+        "latencyMs": 2261,
+        "status": "pass",
+        "detail": "{\"question\": \"K\\u00ednh thi\\u00ean v\\u0103n National Park v\\u00e0 \\u1ed0ng nh\\u00f2m Roof Binoculars kh\\u00e1c nhau th\\u1ebf n\\u00e0o?\", \"blocked\": false}"
+      },
+      {
+        "stepName": "Model Gateway & Bedrock Nova",
+        "latencyMs": 31874,
+        "status": "ok",
+        "detail": "{\"routed_model\": \"amazon.nova-lite-v1:0\"}"
+      },
+      {
+        "stepName": "LLM → gọi tool: search_products, search_products",
+        "latencyMs": 1424,
+        "status": "ok",
+        "detail": "{\"decided_tools\": [\"search_products\", \"search_products\"], \"stop_reason\": \"tool_use\", \"reasoning\": \"<thinking>Kh\\u00e1ch h\\u1ecfi v\\u1ec1 s\\u1ef1 kh\\u00e1c bi\\u1ec7t gi\\u1eefa hai s\\u1ea3n ph\\u1ea9m c\\u1ee5 th\\u1ec3, n\\u00ean c\\u1ea7n t\\u00ecm ki\\u1ebfm th\\u00f4ng tin chi ti\\u1ebft v\\u1ec1 c\\u1ea3 hai s\\u1ea3n ph\\u1ea9m tr\\u01b0\\u1edbc khi so s\\u00e1nh.</thinking>\"}"
+      },
+      {
+        "stepName": "Tool: search_products (Kính thiên văn National Park)",
+        "latencyMs": 856,
+        "status": "ok",
+        "detail": "{\"args\": {\"query\": \"K\\u00ednh thi\\u00ean v\\u0103n National Park\"}, \"succeeded\": true}"
+      },
+      {
+        "stepName": "Tool: search_products (Ống nhòm Roof Binoculars)",
+        "latencyMs": 1293,
+        "status": "ok",
+        "detail": "{\"args\": {\"query\": \"\\u1ed0ng nh\\u00f2m Roof Binoculars\"}, \"succeeded\": true}"
+      },
+      {
+        "stepName": "LLM → trả lời trực tiếp",
+        "latencyMs": 3283,
+        "status": "ok",
+        "detail": "{\"decided_tools\": [], \"stop_reason\": \"end_turn\", \"reasoning\": \"<thinking>T\\u00f4i \\u0111\\u00e3 t\\u00ecm th\\u1ea5y th\\u00f4ng tin v\\u1ec1 c\\u1ea3 hai s\\u1ea3n ph\\u1ea9m. B\\u00e2y gi\\u1edd t\\u00f4i s\\u1ebd so s\\u00e1nh \\u0111\\u1ec3 tr\\u1ea3 l\\u1eddi c\\u00e2u h\\u1ecfi c\\u1ee7a kh\\u00e1ch h\\u00e0ng.</thinking>\\n\\nK\\u00ednh thi\\u00ean v\\u0103n National Park Foundation Explorascope 60AZ l\\u00e0 m\\u1ed9t k\\u00ednh thi\\u00ean v\\u0103n ph\\u1ea3n x\\u1ea1 th\\u1ee7 c\\u00f4ng v\\u1edbi tr\\u1ee5c ngang, l\\u00fd t\\u01b0\\u1edfng cho vi\\u1ec7c quan s\\u00e1t thi\\u00ean v\\u0103n di \\u0111\\u1ed9ng. N\\u00f3 c\\u00f3 th\\u1ec3 quan s\\u00e1t c\\u00e1c h\\u00e0nh tinh, m\\u1eb7t tr\\u0103ng, c\\u1ee5m sao v\\u00e0 c\\u00e1c \\u0111\\u1ed1i t\\u01b0\\u1ee3ng thi\\u00ean v\\u0103n s\\u00e1ng h\\u01a1n nh\\u01b0 Tinh v\\u00e2n Orion v\\u00e0 Thi\\u00ean h\\u00e0 Andromeda.\\n\\n\\u1ed0ng nh\\u00f2m Roof Binoculars l\\u00e0 m\\u1ed9t \\u1ed1ng nh\\u00f2m t\\u1ea5t c\\u1ea3 m\\u1ecdi n\\u01a1i, l\\u00fd t\\u01b0\\u1edfng cho \\u0111\\u01b0\\u1eddng \\u0111ua, s\\u00e2n v\\u1eadn \\u0111\\u1ed9ng, s\\u00e2n v\\u1eadn \\u0111\\u1ed9ng, ho\\u1eb7c b\\u1ea5t k\\u1ef3 n\\u01a1i n\\u00e0o b\\u1ea1n mu\\u1ed1n c\\u00f3 t\\u1ea7m nh\\u00ecn g\\u1ea7n m\\u00e0 kh\\u00f4ng ph\\u1ea3i hy sinh \\u0111\\u1ed9 s\\u00e1ng ho\\u1eb7c chi ti\\u1ebft. N\\u00f3 \\u0111\\u1eb7c bi\\u1ec7t l\\u00e0 b\\u1ea1n \\u0111\\u1ed3ng h\\u00e0nh tuy\\u1ec7t v\\u1eddi cho quan s\\u00e1t thi\\u00ean nhi\\u00ean v\\u00e0 quan s\\u00e1t chim, v\\u1edbi k\\u00ednh ED gi\\u00fap b\\u1ea1n ph\\u00e1t hi\\u1ec7n c\\u00e1c d\\u1ea5u hi\\u1ec7u tr\\u01b0\\u1eddng \\u0111\\u1ed3ng nh\\u1ea5t v\\u00e0 ti\\u00eau \\u0111i\\u1ec3m g\\u1ea7n ch\\u1ec9 6,5 feet.\"}"
+      },
+      {
+        "stepName": "Output Guardrail (Grounding)",
+        "latencyMs": 25008,
+        "status": "pass",
+        "detail": "{\"blocked\": false}"
+      }
+    ]
+  },
+  "spans": [
+    {
+      "name": "tool_call",
+      "attributes": {
+        "tool.arguments": "{\"query\": \"\\u1ed0ng nh\\u00f2m Roof Binoculars\"}",
+        "tool.name": "search_products",
+        "tool.result_preview": "{\"status\": \"ok\", \"count\": 10, \"products\": [{\"product_id\": \"2ZYFJ3GM2N\", \"name\": \"Roof Binoculars\", \"price\": \"$209.95\", \"category\": \"binoculars\", \"description\": \"This versatile, all-around binocular is a great choice for the trail, the stadium, the arena, or just about anywhere you want a close-up vi",
+        "tool.succeeded": true
+      }
+    },
+    {
+      "name": "bedrock_embed",
+      "attributes": {
+        "gen_ai.request.model": "amazon.titan-embed-text-v2:0",
+        "gen_ai.usage.input_tokens": 11
+      }
+    },
+    {
+      "name": "oteldemo.ProductCatalogService/SearchProducts",
+      "attributes": {
+        "app.products_search.count": 10,
+        "app.search.mode": "semantic"
+      }
+    },
+    {
+      "name": "oteldemo.ProductCatalogService/SearchProducts",
+      "attributes": {
+        "app.products_search.count": 10,
+        "app.search.mode": "semantic"
+      }
+    },
+    {
+      "name": "bedrock_converse",
+      "attributes": {
+        "gen_ai.request.model": "amazon.nova-lite-v1:0",
+        "gen_ai.response.finish_reason": "end_turn",
+        "gen_ai.usage.input_tokens": 8231,
+        "gen_ai.usage.output_tokens": 382
+      }
+    },
+    {
+      "name": "tool_call",
+      "attributes": {
+        "tool.arguments": "{\"query\": \"K\\u00ednh thi\\u00ean v\\u0103n National Park\"}",
+        "tool.name": "search_products",
+        "tool.result_preview": "{\"status\": \"ok\", \"count\": 10, \"products\": [{\"product_id\": \"OLJCESPC7Z\", \"name\": \"National Park Foundation Explorascope\", \"price\": \"$101.96\", \"category\": \"telescopes\", \"description\": \"The National Park Foundation's (NPF) Explorascope 60AZ is a manual alt-azimuth, refractor telescope perfect for celes",
+        "tool.succeeded": true
+      }
+    },
+    {
+      "name": "guardrail_input",
+      "attributes": {
+        "guardrail.blocked": false
+      }
+    },
+    {
+      "name": "bedrock_converse",
+      "attributes": {
+        "gen_ai.request.model": "amazon.nova-lite-v1:0",
+        "gen_ai.response.finish_reason": "tool_use",
+        "gen_ai.usage.input_tokens": 5345,
+        "gen_ai.usage.output_tokens": 116
+      }
+    },
+    {
+      "name": "bedrock_embed",
+      "attributes": {
+        "gen_ai.request.model": "amazon.titan-embed-text-v2:0",
+        "gen_ai.usage.input_tokens": 11
+      }
+    },
+    {
+      "name": "guardrail_citation_validation",
+      "attributes": {
+        "guardrail.citation_valid": true
+      }
+    },
+    {
+      "name": "guardrail_output_grounding",
+      "attributes": {
+        "guardrail.blocked": false
+      }
+    }
+  ]
+}

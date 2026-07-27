@@ -60,7 +60,7 @@ resource "aws_iam_role_policy" "shopping_copilot_bedrock" {
 # EKS Pod Identity Association for shopping-copilot
 resource "aws_eks_pod_identity_association" "shopping_copilot" {
   cluster_name    = aws_eks_cluster.this.name
-  namespace       = "techx-tf1"
+  namespace       = var.app_namespace
   service_account = "shopping-copilot"
   role_arn        = aws_iam_role.shopping_copilot_bedrock.arn
 }
@@ -68,7 +68,7 @@ resource "aws_eks_pod_identity_association" "shopping_copilot" {
 # EKS Pod Identity Association for product-reviews
 resource "aws_eks_pod_identity_association" "product_reviews" {
   cluster_name    = aws_eks_cluster.this.name
-  namespace       = "techx-tf1"
+  namespace       = var.app_namespace
   service_account = "product-reviews"
   role_arn        = aws_iam_role.shopping_copilot_bedrock.arn
 }
@@ -76,7 +76,16 @@ resource "aws_eks_pod_identity_association" "product_reviews" {
 # EKS Pod Identity Association for ml-guard
 resource "aws_eks_pod_identity_association" "ml_guard" {
   cluster_name    = aws_eks_cluster.this.name
-  namespace       = "techx-tf1"
+  namespace       = var.app_namespace
   service_account = "ml-guard"
   role_arn        = aws_iam_role.shopping_copilot_bedrock.arn
 }
+
+# EKS Pod Identity Association for product-catalog
+resource "aws_eks_pod_identity_association" "product_catalog" {
+  cluster_name    = aws_eks_cluster.this.name
+  namespace       = var.app_namespace
+  service_account = "product-catalog"
+  role_arn        = aws_iam_role.shopping_copilot_bedrock.arn
+}
+

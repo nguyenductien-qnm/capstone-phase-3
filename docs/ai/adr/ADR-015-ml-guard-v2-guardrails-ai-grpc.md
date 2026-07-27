@@ -19,7 +19,7 @@ Additionally, the orchestration logic (regex pre-filters, fallback mechanisms, l
    - MANDATE-06 chấm **kết quả eval tái tạo được**, không chấm framework.
 5. **Concurrency:** Remove the `Semaphore(2)` bottleneck. Run CPU-bound torch/presidio inference in a `ThreadPoolExecutor` to unblock the gRPC async event loop.
 6. **Infrastructure:** Health check dùng `grpc_health_probe`; health servicer có thread-pool riêng (không tranh thread torch) và chỉ báo `SERVING` **sau khi model load xong** (`NOT_SERVING` lúc boot). CPU requests 400m, limits 2000m cho inference bursts.
-7. **Bedrock Guardrail:** giữ nguyên layer 3 feature-gated (`LLM_BEDROCK_GUARDRAIL`, mặc định OFF — ADR-014: grounding không hỗ trợ tiếng Việt; bật lại chỉ cần 1 dòng values).
+7. **Bedrock Guardrail:** layer 3 feature-gated (`LLM_BEDROCK_GUARDRAIL`) **bật ON** (2026-07-24, theo xác nhận vận hành) — `crbxw41dbmxp` áp ở us-east-1 cho `product-reviews` + `shopping-copilot`. Đánh đổi đã cân: Bedrock grounding **không hỗ trợ tiếng Việt** (ADR-014) nên có thể false-block các câu abstention/apology không có context — theo dõi false-block-rate ở eval; tắt lại chỉ cần đổi 1 dòng values về `"false"`.
 
 ## Consequences
 - **Positive:**

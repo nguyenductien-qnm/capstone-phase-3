@@ -63,6 +63,8 @@ _baseline-phase3/
 
 # CDO-83 evidence output (runtime snapshots)
 docs/templates/cdo/evidence/
+docs/ai/evals/evidence/
+docs/ai/gap_analysis.md
 
 # Local agents configuration
 .agents/

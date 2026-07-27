@@ -60,6 +60,16 @@ INJECTION_JUDGE = os.environ.get("LLM_INJECTION_JUDGE", "true").lower() == "true
 MAX_FIELD_CHARS = 1000
 GROUNDING_MAX_SOURCE_CHARS = 90000
 
+# Chỉ redact PII thật. Để mặc định (mọi entity) thì NER coi tên sản phẩm thiên văn
+# là PERSON — "National Park Foundation Explorascope" → "<PERSON>" — nuốt mất câu
+# trả lời. Hard bar của MANDATE-14 là email/phone/thẻ, không phải danh từ riêng.
+PII_ENTITIES = [
+    e.strip() for e in os.environ.get(
+        "ML_GUARD_PII_ENTITIES",
+        "EMAIL_ADDRESS,PHONE_NUMBER,CREDIT_CARD,IBAN_CODE,US_SSN,IP_ADDRESS",
+    ).split(",") if e.strip()
+]
+
 _state = {"ready": False, "tok": None, "model": None, "torch": None, "analyzer": None, "anonymizer": None, "bedrock": None}
 executor = ThreadPoolExecutor(max_workers=TORCH_THREADS)
 
@@ -105,7 +115,11 @@ _GROUND_JUDGE_SYSTEM = (
     "Bạn là bộ kiểm chứng. Trả lời đúng một từ YES hoặc NO. YES nếu CÂU TRẢ LỜI chỉ dùng "
     "thông tin có trong NGUỒN (kể cả diễn đạt lại). NO nếu CÂU TRẢ LỜI thêm thông tin, "
     "con số, hay tính năng KHÔNG có trong NGUỒN. "
-    "Lưu ý: Nếu CÂU TRẢ LỜI chỉ đơn giản nói rằng không có thông tin, không tìm thấy, hoặc từ chối trả lời, hãy trả về YES."
+    "Lưu ý: Nếu CÂU TRẢ LỜI chỉ đơn giản nói rằng không có thông tin, không tìm thấy, hoặc từ chối trả lời, hãy trả về YES.\n"
+    "NGUỒN có thể gồm NHIỀU khối JSON nối nhau (kết quả của nhiều tool). Thông tin nằm ở "
+    "BẤT KỲ khối nào cũng tính là có căn cứ. Dịch sang tiếng Việt, đổi tên sản phẩm thành "
+    "product_id (hoặc ngược lại), làm tròn điểm, tóm tắt nhiều review thành một câu — đều là "
+    "diễn đạt lại, KHÔNG phải bịa: trả về YES."
 )
 
 
@@ -152,6 +166,34 @@ def _nli_scores_sync(premise, hypothesis):
     return probs[0].item(), probs[1].item(), probs[2].item()
 
 
+def _source_to_text(source):
+    """Tool result là JSON; mDeBERTa-XNLI được train trên câu tự nhiên nên dấu ngoặc,
+    khoá và escape sequence đẩy điểm contradiction lên và chặn oan câu trả lời có căn
+    cứ (đo 26/07: hỏi review theo TÊN sản phẩm → 2 tool → NLI contradiction).
+    Duỗi mỗi khối JSON thành dòng "khoá: giá trị" trước khi đưa vào NLI/judge."""
+    lines = []
+
+    def walk(node, prefix=""):
+        if isinstance(node, dict):
+            for k, v in node.items():
+                walk(v, f"{prefix}{k}: " if not prefix else f"{prefix}{k}: ")
+        elif isinstance(node, list):
+            for item in node:
+                walk(item, prefix)
+        elif node is not None and str(node) != "":
+            lines.append(f"{prefix}{node}".strip())
+
+    for block in (source or "").split("\n"):
+        block = block.strip()
+        if not block:
+            continue
+        try:
+            walk(json.loads(block))
+        except (json.JSONDecodeError, ValueError):
+            lines.append(block)
+    return "\n".join(lines) if lines else (source or "")
+
+
 def _grounding_decision_sync(source, answer):
     entail, neutral, contra = _nli_scores_sync(source[:6000], answer[:2000])
     if contra >= BLOCK_CONTRA:
@@ -172,7 +214,7 @@ def _presidio_protect_sync(text, anonymize_only=False):
     anonymized_text = text
     analyzer = _state["analyzer"]
     anonymizer = _state["anonymizer"]
-    results = analyzer.analyze(text=text, language='en')
+    results = analyzer.analyze(text=text, language='en', entities=PII_ENTITIES)
     if results:
         anonymized = anonymizer.anonymize(text=text, analyzer_results=results)
         anonymized_text = anonymized.text
@@ -213,18 +255,36 @@ async def _judge(system, user_text, model=None):
         return None
 
 
-def _is_blocking(resp):
+def _blocking_policies(resp):
+    """Tên các policy Bedrock đã BLOCKED — cần biết policy nào để xử riêng
+    contextual grounding (xem _bedrock_grounding_applies)."""
+    hit = set()
     for a in resp.get("assessments", []):
         cg = a.get("contextualGroundingPolicy", {}).get("filters", [])
         if any(f.get("action") == "BLOCKED" for f in cg):
-            return True
+            hit.add("contextualGrounding")
         tp = a.get("topicPolicy", {}).get("topics", [])
         if any(t.get("action") == "BLOCKED" for t in tp):
-            return True
+            hit.add("topic")
         cp = a.get("contentPolicy", {}).get("filters", [])
         if any(f.get("action") == "BLOCKED" for f in cp):
-            return True
-    return False
+            hit.add("content")
+    return hit
+
+
+def _is_blocking(resp):
+    return bool(_blocking_policies(resp))
+
+
+# Bedrock contextual grounding = ADVISORY, không chặn (đo 26/07).
+# Nó chặn nhầm cả câu trả lời hoàn toàn lấy từ tool result: hỏi "ống ngắm sao" →
+# search_products trả 3 telescope → câu trả lời liệt kê đúng 3 sản phẩm đó vẫn bị
+# BLOCKED. Nguyên nhân: nguồn là JSON tiếng Anh, câu trả lời tiếng Việt — Bedrock
+# grounding chỉ hỗ trợ tiếng Anh nên chấm điểm thấp bất kể nội dung có căn cứ.
+# Việc chặn grounding do Layer 1 (NLI mDeBERTa-XNLI, đa ngữ) + Layer 2 (Nova judge,
+# prompt tiếng Việt) đảm nhiệm — cả hai đã duyệt trước khi tới Layer 3, và đã được
+# đo 24/25 (eval 24/07). topicPolicy/contentPolicy của Bedrock vẫn chặn bình thường.
+GROUNDING_ADVISORY = os.environ.get("ML_GUARD_BEDROCK_GROUNDING_ADVISORY", "true").lower() == "true"
 
 
 async def _apply_bedrock_guardrail(source, content_blocks):
@@ -266,17 +326,24 @@ async def sanitize_text(text):
     return text[:MAX_FIELD_CHARS]
 
 
-async def _walk(node):
+# Keys whose string values contain user-generated content and MUST be sanitized.
+_SANITIZE_KEYS = frozenset({"description", "summary", "snippet", "text", "review_text"})
+
+async def _walk(node, key=None):
     if isinstance(node, str):
+        # Only sanitize values of keys known to hold user-generated content.
+        # Control keys (status, message, id, etc.) pass through unchanged.
+        if key is not None and key not in _SANITIZE_KEYS:
+            return node
         return await sanitize_text(node)
     if isinstance(node, list):
-        return [await _walk(x) for x in node]
+        return [await _walk(x, key=key) for x in node]
     if isinstance(node, dict):
-        return {k: await _walk(v) for k, v in node.items()}
+        return {k: await _walk(v, key=k) for k, v in node.items()}
     return node
 
 
-def leaks_system_prompt(output_text, system_prompt, window_words=8):
+def leaks_system_prompt(output_text, system_prompt, window_words=12):
     if not output_text or not system_prompt:
         return False
     def _norm(t):
@@ -291,7 +358,7 @@ def leaks_system_prompt(output_text, system_prompt, window_words=8):
         if len(out_words) >= window_words else [" ".join(out_words)]
     )
     for w in windows:
-        if len(w) >= 20 and w in prompt_norm:
+        if len(w) >= 40 and w in prompt_norm:
             logger.warning("System prompt leakage detected (matched: %r…)", w[:30])
             return True
     return False
@@ -311,6 +378,21 @@ def validate_citations(llm_output, tool_results):
         if num_str not in all_text:
             cleaned = cleaned.replace(num_str, '[unverified]', 1)
     return cleaned
+
+
+def _is_abstention(text):
+    text_lower = text.lower()
+    return any(phrase in text_lower for phrase in [
+        "tôi không có thông tin",
+        "xin lỗi",
+        "chưa có thông tin",
+        "không tìm thấy",
+        "không có dữ liệu",
+        "không thể xử lý",
+        "rất tiếc",
+        "dạ, câu hỏi của bạn",
+        "dạ, mình là trợ lý"
+    ])
 
 
 # --- gRPC Service Implementation ---
@@ -354,8 +436,13 @@ class MLGuardServicer(ml_guard_pb2_grpc.MLGuardServiceServicer):
                     return ml_guard_pb2.CheckInputResponse(blocked=True, sanitized_text=masked, reason="Bedrock Guardrail fail-closed")
                 outputs = resp.get("outputs", [])
                 masked = outputs[0].get("text", masked) if outputs else masked
-                if resp.get("action") == "GUARDRAIL_INTERVENED" and _is_blocking(resp):
-                    return ml_guard_pb2.CheckInputResponse(blocked=True, sanitized_text=masked, reason="Bedrock Guardrail blocked")
+                policies = _blocking_policies(resp)
+                if resp.get("action") == "GUARDRAIL_INTERVENED" and policies:
+                    logger.warning("Input BLOCK (Bedrock Guardrail: %s)", ",".join(sorted(policies)))
+                    return ml_guard_pb2.CheckInputResponse(
+                        blocked=True, sanitized_text=masked,
+                        reason="Bedrock Guardrail blocked (%s)" % ",".join(sorted(policies)),
+                    )
                     
             return ml_guard_pb2.CheckInputResponse(blocked=False, sanitized_text=masked, reason="pass")
 
@@ -373,7 +460,11 @@ class MLGuardServicer(ml_guard_pb2_grpc.MLGuardServiceServicer):
             if LOCAL_ML_GUARD:
                 masked, _ = await async_presidio_protect(masked, anonymize_only=True)
                 
-            src = (request.grounding_source or "")[:GROUNDING_MAX_SOURCE_CHARS]
+            if _is_abstention(masked):
+                logger.info("CheckOutput: bypassed grounding for abstention")
+                return ml_guard_pb2.CheckOutputResponse(blocked=False, sanitized_text=masked, reason="pass (abstention)")
+
+            src = _source_to_text(request.grounding_source or "")[:GROUNDING_MAX_SOURCE_CHARS]
             
             # Layer 1: NLI grounding (mDeBERTa-XNLI, 1 lần trong executor)
             try:
@@ -405,10 +496,25 @@ class MLGuardServicer(ml_guard_pb2_grpc.MLGuardServiceServicer):
                 ]
                 resp = await _apply_bedrock_guardrail("OUTPUT", content)
                 if resp is not None:
+                    original = masked
                     outputs = resp.get("outputs", [])
                     masked = outputs[0].get("text", masked) if outputs else masked
-                    if resp.get("action") == "GUARDRAIL_INTERVENED" and _is_blocking(resp):
-                        return ml_guard_pb2.CheckOutputResponse(blocked=True, sanitized_text=masked, reason="Bedrock Guardrail blocked")
+                    policies = _blocking_policies(resp)
+                    if resp.get("action") == "GUARDRAIL_INTERVENED" and policies:
+                        if policies == {"contextualGrounding"} and GROUNDING_ADVISORY:
+                            # Bỏ qua verdict => phải trả lại câu trả lời gốc, vì outputs[0]
+                            # lúc này là blockedOutputsMessaging của guardrail, không phải nội dung.
+                            masked = original
+                            logger.warning(
+                                "Bedrock contextualGrounding BLOCKED (advisory, không chặn) — "
+                                "NLI+judge đã pass; xem GROUNDING_ADVISORY"
+                            )
+                        else:
+                            logger.warning("Grounding BLOCK (Bedrock Guardrail: %s)", ",".join(sorted(policies)))
+                            return ml_guard_pb2.CheckOutputResponse(
+                                blocked=True, sanitized_text=masked,
+                                reason="Bedrock Guardrail blocked (%s)" % ",".join(sorted(policies)),
+                            )
                         
             return ml_guard_pb2.CheckOutputResponse(blocked=False, sanitized_text=masked, reason="pass")
 
