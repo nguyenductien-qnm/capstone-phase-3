@@ -13,14 +13,17 @@ default:
   # Mandate-13 Phương án B, đơn giản hoá (27-07-2026): an toàn mặc định = on-demand
   # cho MỌI component, đặt ở đây thay vì lặp lại nodeSelector ở từng service (cách
   # cũ, đã bỏ — xem git history nếu cần đối chiếu). Component nào có
-  # `schedulingRules.nodeSelector` riêng (6 service Nhóm B bên dưới) sẽ override
+  # `schedulingRules.nodeSelector` riêng (11 service Nhóm B bên dưới) sẽ override
   # đúng theo cơ chế `_objects.tpl` (component-level luôn thắng default). Component
   # KHÔNG khai báo gì — kể cả service mới thêm sau này mà quên cấu hình — sẽ tự
-  # động rơi vào nhánh an toàn này thay vì lộ ra spot. Đánh đổi: accounting/
-  # fraud-detection (Kafka consumer async, ngoài critical path) trước đây được để
-  # tự do rơi vào pool mixed, giờ cũng bị pin theo default — mất phần đóng góp nhỏ
-  # (~150m/3090m) vào tỷ lệ spot, đổi lấy việc xoá sạch rủi ro "quên pin service
-  # mới" (fail-open) ở cấp từng service.
+  # động rơi vào nhánh an toàn này thay vì lộ ra spot.
+  # 27-07-2026 (dựa trên đo trực tiếp trên cluster thật, không dựa ADR giấy):
+  # accounting/fraud-detection (Kafka consumer async, ngoài critical path, tự
+  # nhận "chấp nhận gián đoạn ngắn") đã được đưa vào NodePool `spot` riêng bên
+  # dưới — xem comment đầu block `components:`.
+  # 27-07-2026 (re-audit bằng Jaeger, xem block `email:` bên dưới): email cũng
+  # đã được đưa vào spot — quote thì KHÔNG, vẫn pin on-demand ở đây vì xác nhận
+  # thật là đồng bộ trên đường checkout.
   schedulingRules:
     nodeSelector:
       karpenter.sh/capacity-type: on-demand
@@ -28,11 +31,21 @@ default:
 components:
   # === Mandate-13 Phương án B (27-07-2026): NodePool `default` cho phép cả spot
   # lẫn on-demand (platform/karpenter/nodepool-default.yaml), nhưng an toàn mặc
-  # định (on-demand) đã chuyển lên block `default:` ở trên — CHỈ 6 service dưới
-  # đây được opt-in tường minh vào NodePool `spot` riêng (taint, đã vá đủ PDB/
-  # topologySpread/graceful-drain/replicas≥2 trong values.yaml dùng chung trước
-  # khi thêm ở đây). Mọi service khác (luồng tiền, fragile, hoặc chưa tồn tại)
-  # đều an toàn theo mặc định mà không cần khai báo gì thêm.
+  # định (on-demand) đã chuyển lên block `default:` ở trên — CHỈ 11 service dưới
+  # đây được opt-in tường minh vào NodePool `spot` riêng (taint).
+  #
+  # Tất cả 11 service spot đều đáp ứng CÙNG MỘT chuẩn an toàn:
+  #   PDB maxUnavailable=1 + replicas≥2 + preStop/terminationGrace
+  #   (Karpenter chỉ được drain 1 pod tại 1 thời điểm; pod còn lại
+  #   tiếp tục phục vụ trong khi pod bị evict reschedule trên node mới).
+  # accounting/fraud-detection: Kafka consumer async, mỗi pod xử lý
+  #   partition riêng → 2 pod không trùng message, PDB giữ ≥1 pod luôn
+  #   active trong consumer group, không có khoảng downtime khi drain.
+  #
+  # Mọi service khác (luồng tiền thật sự đồng bộ như quote/shipping/currency/
+  # cart/checkout/product-catalog/frontend, hoặc chưa tồn tại) đều an toàn theo
+  # mặc định mà không cần khai báo gì thêm.
+
   ad:
     schedulingRules:
       tolerations:
@@ -90,7 +103,25 @@ components:
   # email/quote/shipping/payment trước kẹt 1 replica không HPA -> min2/max4
   # (email throttle 43%->2.1%, quote 58%->8%); min>=2 khớp chuẩn PDB×min-replicas
   # (INC-2). target CPU 70% dùng default.hpa.
+  # Mandate-13 (re-audit 27-07-2026, dựa trên Jaeger thật — không dựa giả định
+  # cũ): lấy 20 trace gần nhất của oteldemo.CheckoutService/PlaceOrder qua
+  # continuous load-gen (`kubectl port-forward svc/jaeger 16686`, API
+  # /jaeger/ui/api/traces) — CẢ 20/20 trace không hề có span nào gọi `email`.
+  # `email` có Sinatra + OTel instrumentation ĐANG hoạt động (log xác nhận
+  # "OpenTelemetry::Instrumentation::Sinatra... installed") và server-span tự
+  # sinh cho MỌI request tới bất kể caller có instrument hay không — nên 0 span
+  # nghĩa là 0 request tới thật, không phải do thiếu instrumentation. Log Puma/
+  # Sinatra của pod `email` (chạy nhiều giờ) cũng không có 1 dòng access-log
+  # nào. Kết luận: checkout hiện KHÔNG gọi email đồng bộ trên đường thật (khác
+  # giả định cũ dựa trên biến env EMAIL_ADDR) — an toàn để opt-in spot.
   email:
+    schedulingRules:
+      tolerations:
+        - key: techx.io/capacity
+          value: spot
+          effect: NoSchedule
+      nodeSelector:
+        techx.io/capacity: spot
     hpa:
       enabled: true
       minReplicas: 2
@@ -100,6 +131,16 @@ components:
         cpu: 100m   # dùng thật 62m (was 50m = under-request 124%)
       limits:
         cpu: 400m   # throttle 95.7%@100m — nghẽn nặng nhất chain
+  # Mandate-13 (re-audit 27-07-2026, dựa trên log + Jaeger thật): `payment` KHÔNG
+  # hề có RPC handler đồng bộ nào được checkout gọi trực tiếp — operations của
+  # nó trên Jaeger chỉ có tcp/tls/dns.connect + "send domain.fulfillment.events"
+  # + "process domain.checkout.orders" (100% Kafka/CDC). Log pod xác nhận rõ:
+  # "Extracted orderId and userId in Payment consumer" rồi "Payment service
+  # published fulfillment event..." — checkout publish event, `payment` consume
+  # async, KHÔNG nằm trong span PlaceOrder (khác giả định cũ dựa trên biến env
+  # PAYMENT_ADDR). Đã có sẵn PDB + topologySpread + replicas=2 + graceful-drain
+  # từ ADR gốc (Decision 5, bảo vệ chung, không phải vì đồng bộ) — an toàn hơn cả
+  # accounting/fraud-detection lúc opt-in (đã có PDB, không chỉ dựa "Kafka đệm").
   payment:
     hpa:
       enabled: true
@@ -110,6 +151,13 @@ components:
         cpu: 80m    # dùng thật 44m (was 50m = 88%)
       limits:
         cpu: 300m   # throttle 34.2%@100m — luồng ra tiền, không được throttle
+  # Mandate-13 (re-audit 27-07-2026): ĐÃ kiểm chứng lại bằng Jaeger — KHÔNG đổi
+  # kết luận cũ. Trace thật của oteldemo.CheckoutService/PlaceOrder (20/20 mẫu)
+  # cho thấy chuỗi checkout -> "POST" (gọi shipping) -> shipping "POST
+  # /get-quote" -> quote "POST /getquote" -> "calculate-quote" nằm TRỌN trong
+  # span prepareOrderItemsAndShippingQuoteFromCart, tức đồng bộ thật trên MỌI
+  # request checkout, không phải giả định suông. Giữ nguyên pin on-demand qua
+  # `default:` — không opt-in spot đợt này.
   quote:
     hpa:
       enabled: true
@@ -177,3 +225,49 @@ components:
         cpu: 400m   # dùng thật ~290m/pod có tải (was 1000m = over-request 345%)
       limits:
         cpu: 2000m  # giữ — burst load model 25-90s (startupProbe đã cover)
+  # 27-07-2026 (dựa trên đo trực tiếp hạ tầng thật): accounting và fraud-detection
+  # là 2 Kafka consumer async, ngoài critical path storefront. Opt-in vào NodePool
+  # spot với chuẩn đầy đủ: replicas=2 + PDB maxUnavailable=1 + preStop/grace
+  # (fraud-detection thêm preStop trong values.yaml shared; accounting có sẵn).
+  # replicas=2: Karpenter chỉ được drain 1 pod tại 1 thời điểm (PDB), pod còn lại
+  # tiếp tục consume partition Kafka của nó — không có khoảng downtime. Kafka phân
+  # partition theo consumer group nên 2 pod xử lý song song, không trùng message.
+  accounting:
+    replicas: 2
+    podDisruptionBudget:
+      maxUnavailable: 1
+    schedulingRules:
+      tolerations:
+        - key: techx.io/capacity
+          value: spot
+          effect: NoSchedule
+      nodeSelector:
+        techx.io/capacity: spot
+  fraud-detection:
+    replicas: 2
+    podDisruptionBudget:
+      maxUnavailable: 1
+    schedulingRules:
+      tolerations:
+        - key: techx.io/capacity
+          value: spot
+          effect: NoSchedule
+      nodeSelector:
+        techx.io/capacity: spot
+  # Mandate-13 (re-audit 27-07-2026): `cart-consumer-worker` không có `service:`
+  # (không nhận traffic trực tiếp từ ai), thuần Kafka consumer chờ event
+  # "Payment and Shipping completed" rồi mới clear cart (log pod xác nhận: "...
+  # Clearing cart for user X... Successfully cleared cart...") — chạy SAU khi
+  # checkout đã trả response cho khách, không nằm trên đường chặn request nào.
+  # Đã có PDB(maxUnavailable=1) + topologySpread + HPA min2/max4 +
+  # terminationGracePeriodSeconds=30 từ trước (đủ để Kafka client commit offset
+  # gọn trước khi bị SIGKILL) — không cần thêm preStop vì không có Service nào
+  # cần gỡ endpoint.
+  cart-consumer-worker:
+    schedulingRules:
+      tolerations:
+        - key: techx.io/capacity
+          value: spot
+          effect: NoSchedule
+      nodeSelector:
+        techx.io/capacity: spot
