@@ -136,8 +136,17 @@ GOLDEN_SIGNAL_QUERIES: list[tuple[str, str]] = [
         # gRPC error rate -- captures productCatalogFailure chaos flag and any
         # RPC-layer fault that does NOT surface as HTTP 5xx (verified under chaos:
         # product-catalog reached 6.6% with rpc_grpc_status_code=13, threshold 5%).
-        # Matches grpc-error-rate-high rule in rules.yaml.
         # Error status codes: 2=UNKNOWN, 4=DEADLINE_EXCEEDED, 13=INTERNAL, 14=UNAVAILABLE.
+        #
+        # NO LONGER mirrors a rule in rules.yaml. On 27/07 `grpc-error-rate-high` became
+        # `service-error-rate-high` on the spanmetrics family; the expression here was left
+        # alone on purpose, because correlation_matrix.json is committed as a baseline and
+        # swapping the signal underneath it would make the stored numbers unreproducible.
+        #
+        # Known limitation, measured 27/07: rpc_server_duration_milliseconds exists on only
+        # 3 of 20 services (ad, checkout, product-catalog), so this signal correlates across
+        # 3 services while traces_span_metrics_calls_total would cover 17. Worth switching
+        # when the matrix is regenerated -- that belongs with the Diagnose/RCA work, not here.
         "grpc_error_rate",
         "sum by (service_name) ("
         "rate(rpc_server_duration_milliseconds_count"

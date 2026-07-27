@@ -1,3 +1,7 @@
+import os
+
+os.environ.setdefault("DB_CONNECTION_STRING", "host=test user=test password=test dbname=test")
+
 import pytest
 from unittest.mock import patch, MagicMock
 from product_reviews_server import get_ai_assistant_response

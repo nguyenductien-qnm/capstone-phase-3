@@ -20,6 +20,25 @@ psql "$RDS_ADMIN_URL" --set ON_ERROR_STOP=1 \\
 
 Do not substitute `techx-tf1` or a local PostgreSQL container for the RDS endpoint.
 
+## Seed embeddings
+
+After the DDL succeeds, seed one embedding per catalog product before enabling the feature. The script uses the AWS default credential chain or the configured cross-account role and upserts through `otelu`:
+
+```bash
+AWS_REGION=us-east-1 \\
+DB_CONNECTION_STRING="$RDS_APP_URL" \\
+BEDROCK_AWS_ROLE_ARN="$BEDROCK_AWS_ROLE_ARN" \\
+BEDROCK_AWS_EXTERNAL_ID="$BEDROCK_AWS_EXTERNAL_ID" \\
+python3 techx-corp-platform/scripts/embed_products.py
+```
+
+Verify that the embedding row count matches the product count before rollout:
+
+```sql
+SELECT (SELECT count(*) FROM catalog.products) AS products,
+       (SELECT count(*) FROM catalog.product_embeddings_v2) AS embeddings;
+```
+
 ## Verify
 
 ```sql
