@@ -1,9 +1,11 @@
 data "aws_caller_identity" "current" {}
 
-# KMS CMK cho AWS Backup Vault — chỉ tạo khi không truyền key ngoài vào
+# KMS CMK nội bộ của Backup Vault — luôn tạo (không dùng count).
+# Lý do bỏ count: khi vault nhận kms_key_arn từ module khác (known after apply),
+# count = kms_key_arn == null ? ... không evaluate được lúc plan → lỗi.
+# Nếu kms_key_arn được truyền vào, vault dùng key đó (coalesce bên dưới),
+# key nội bộ này vẫn tồn tại nhưng không được dùng — trade-off chấp nhận được.
 resource "aws_kms_key" "backup_key" {
-  count = var.kms_key_arn == null ? 1 : 0
-
   description             = "KMS Key ma hoa cho AWS Backup Vault"
   deletion_window_in_days = 7
   enable_key_rotation     = true
@@ -43,16 +45,16 @@ resource "aws_kms_key" "backup_key" {
 }
 
 resource "aws_kms_alias" "backup_key_alias" {
-  count = var.kms_key_arn == null ? 1 : 0
-
   name          = "alias/${var.project_name}-${var.environment}-backup-key"
-  target_key_id = aws_kms_key.backup_key[0].key_id
+  target_key_id = aws_kms_key.backup_key.key_id
 }
 
 # AWS Backup Vault
 resource "aws_backup_vault" "this" {
   name        = "${var.project_name}-${var.environment}-backup-vault"
-  kms_key_arn = var.kms_key_arn != null ? var.kms_key_arn : aws_kms_key.backup_key[0].arn
+  # coalesce: dùng external key (backup_protection, có guardrail) nếu được truyền vào,
+  # fallback sang key nội bộ nếu không. Cả hai giá trị đều known at plan time.
+  kms_key_arn = coalesce(var.kms_key_arn, aws_kms_key.backup_key.arn)
 
   tags = {
     Name        = "${var.project_name}-${var.environment}-backup-vault"
