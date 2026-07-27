@@ -14,8 +14,4 @@ variable "kms_key_arn" {
   default     = null
 }
 
-variable "create_kms_key" {
-  type        = bool
-  description = "Tạo KMS key nội bộ hay không. Set false khi truyền kms_key_arn từ ngoài vào (ví dụ từ module backup_protection). Phải là giá trị tĩnh để count không phụ thuộc vào known-after-apply."
-  default     = true
-}
+
