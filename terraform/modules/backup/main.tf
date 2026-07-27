@@ -1,58 +1,89 @@
 data "aws_caller_identity" "current" {}
 
-# KMS CMK cho AWS Backup Vault — chỉ tạo khi không truyền key ngoài vào
-resource "aws_kms_key" "backup_key" {
-  count = var.kms_key_arn == null ? 1 : 0
+# ─── CDO-259: KMS CMK cho AWS Backup Vault với guardrail chống xoá/disable ────
+# Key nằm ở đây vì nó phục vụ trực tiếp vault bên dưới.
+# backup_protection chỉ còn lo IAM Deny (CDO-260) — không còn cross-module dep.
+data "aws_iam_policy_document" "vault_kms_policy" {
+  statement {
+    sid    = "EnableIAMUserPermissions"
+    effect = "Allow"
 
-  description             = "KMS Key ma hoa cho AWS Backup Vault"
-  deletion_window_in_days = 7
-  enable_key_rotation     = true
+    principals {
+      type        = "AWS"
+      identifiers = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"]
+    }
 
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid    = "AllowLocalAdministration"
-        Effect = "Allow"
-        Principal = {
-          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
-        }
-        Action   = "kms:*"
-        Resource = "*"
-      },
-      {
-        Sid    = "AllowAWSBackupToUseKey"
-        Effect = "Allow"
-        Principal = {
-          Service = "backup.amazonaws.com"
-        }
-        Action = [
-          "kms:Decrypt",
-          "kms:GenerateDataKey*"
-        ]
-        Resource = "*"
-      }
+    actions   = ["kms:*"]
+    resources = ["*"]
+  }
+
+  statement {
+    sid    = "AllowAWSServicesToUseKey"
+    effect = "Allow"
+
+    principals {
+      type        = "Service"
+      identifiers = ["backup.amazonaws.com"]
+    }
+
+    actions = [
+      "kms:Decrypt",
+      "kms:DescribeKey",
+      "kms:Encrypt",
+      "kms:GenerateDataKey*",
+      "kms:ReEncrypt*",
     ]
-  })
+    resources = ["*"]
+  }
 
-  tags = {
-    Name        = "${var.project_name}-${var.environment}-backup-kms-key"
-    Environment = var.environment
-    Project     = var.project_name
+  # Guardrail: chặn xoá/disable key — kể cả admin thông thường.
+  # Chỉ aws-service-role (managed by AWS) mới được exempt.
+  statement {
+    sid    = "DenyKeyDeletionAndDisabling"
+    effect = "Deny"
+
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+
+    actions = [
+      "kms:ScheduleKeyDeletion",
+      "kms:DisableKey",
+    ]
+    resources = ["*"]
+
+    condition {
+      test     = "StringNotLike"
+      variable = "aws:PrincipalArn"
+      values   = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-service-role/*"]
+    }
   }
 }
 
-resource "aws_kms_alias" "backup_key_alias" {
-  count = var.kms_key_arn == null ? 1 : 0
+resource "aws_kms_key" "vault" {
+  description             = "Mandate 20 (CDO-259): KMS CMK cho AWS Backup Vault — co guardrail chong xoa/disable"
+  deletion_window_in_days = 30
+  enable_key_rotation     = true
+  policy                  = data.aws_iam_policy_document.vault_kms_policy.json
 
-  name          = "alias/${var.project_name}-${var.environment}-backup-key"
-  target_key_id = aws_kms_key.backup_key[0].key_id
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-backup-vault-kms"
+    Environment = var.environment
+    Project     = var.project_name
+    Mandate     = "20"
+  }
 }
 
-# AWS Backup Vault
+resource "aws_kms_alias" "vault" {
+  name          = "alias/${var.project_name}-${var.environment}-backup-vault"
+  target_key_id = aws_kms_key.vault.key_id
+}
+
+# ─── AWS Backup Vault ──────────────────────────────────────────────────────────
 resource "aws_backup_vault" "this" {
   name        = "${var.project_name}-${var.environment}-backup-vault"
-  kms_key_arn = var.kms_key_arn != null ? var.kms_key_arn : aws_kms_key.backup_key[0].arn
+  kms_key_arn = aws_kms_key.vault.arn
 
   tags = {
     Name        = "${var.project_name}-${var.environment}-backup-vault"
@@ -61,24 +92,24 @@ resource "aws_backup_vault" "this" {
   }
 }
 
-# AWS Backup Vault Lock (Governance Mode)
+# AWS Backup Vault Lock (Governance Mode — gỡ được, không kẹt vĩnh viễn)
 resource "aws_backup_vault_lock_configuration" "this" {
   backup_vault_name  = aws_backup_vault.this.name
   min_retention_days = 7
   max_retention_days = 30
 }
 
-# AWS Backup Plan
+# ─── AWS Backup Plan ───────────────────────────────────────────────────────────
 resource "aws_backup_plan" "this" {
   name = "${var.project_name}-${var.environment}-backup-plan"
 
   rule {
     rule_name         = "daily-backup-rule"
     target_vault_name = aws_backup_vault.this.name
-    schedule          = "cron(0 3 * * ? *)" # Chạy lúc 3:00 AM UTC hàng ngày (10:00 AM VN)
+    schedule          = "cron(0 3 * * ? *)" # 3:00 AM UTC = 10:00 AM VN
 
     lifecycle {
-      delete_after = 7 # Lưu giữ bản snapshot trong 7 ngày
+      delete_after = 7
     }
   }
 
@@ -89,7 +120,7 @@ resource "aws_backup_plan" "this" {
   }
 }
 
-# AWS Backup Selection
+# ─── AWS Backup Selection (chọn resource theo tag Backup=true) ─────────────────
 resource "aws_backup_selection" "this" {
   iam_role_arn = aws_iam_role.backup_service_role.arn
   name         = "${var.project_name}-${var.environment}-backup-selection"
@@ -102,21 +133,17 @@ resource "aws_backup_selection" "this" {
   }
 }
 
-# IAM Service Role cho AWS Backup
+# ─── IAM Service Role cho AWS Backup ──────────────────────────────────────────
 resource "aws_iam_role" "backup_service_role" {
   name = "${var.project_name}-${var.environment}-backup-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "backup.amazonaws.com"
-        }
-      }
-    ]
+    Statement = [{
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
+      Principal = { Service = "backup.amazonaws.com" }
+    }]
   })
 
   tags = {
