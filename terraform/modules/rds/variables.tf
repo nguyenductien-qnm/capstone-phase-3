@@ -112,3 +112,29 @@ variable "track_activity_query_size" {
   description = "Optional PostgreSQL track_activity_query_size value preserved in the Terraform-managed parameter group"
   default     = null
 }
+
+# --- Mandate 20: DR Backup & Restore ---
+
+variable "deletion_protection" {
+  type        = bool
+  description = "Bật deletion protection cho Primary DB (chống xoá nhầm/ransomware). Default false để không chặn destroy ở môi trường tạm; bật ở env thật."
+  default     = false
+}
+
+variable "copy_tags_to_snapshot" {
+  type        = bool
+  description = "Sao chép tag của instance sang snapshot/PITR để AWS Backup và tra cứu theo tag hoạt động đúng. Default false = giữ hành vi AWS cũ, không rò rỉ diff sang env chưa bật; bật rõ ràng ở từng env."
+  default     = false
+}
+
+variable "skip_final_snapshot" {
+  type        = bool
+  description = "Bỏ qua final snapshot khi destroy. Default true (giữ hành vi cũ cho môi trường tạm). Đặt false ở env cần giữ bản chụp cuối trước khi xoá."
+  default     = true
+}
+
+variable "enable_aws_backup_tag" {
+  type        = bool
+  description = "Gắn tag Backup=true lên Primary DB để AWS Backup Selection (chọn resource theo tag) đưa instance vào backup plan. Default false; chỉ bật ở env có backup vault."
+  default     = false
+}

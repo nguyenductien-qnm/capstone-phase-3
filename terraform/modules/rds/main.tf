@@ -111,22 +111,32 @@ resource "aws_db_instance" "this" {
   password                    = random_password.db_password.result
   db_subnet_group_name        = aws_db_subnet_group.this.name
   parameter_group_name        = var.enable_logical_replication ? aws_db_parameter_group.this[0].name : null
-  skip_final_snapshot         = true
+  skip_final_snapshot         = var.skip_final_snapshot
+  final_snapshot_identifier   = var.skip_final_snapshot ? null : "${var.project_name}-${var.environment}-postgres-final"
   multi_az                    = var.multi_az
   storage_encrypted           = true
   allow_major_version_upgrade = true
 
+  # Mandate 20: chống xoá nhầm + đảm bảo snapshot/PITR thừa hưởng tag để AWS Backup nhận diện.
+  deletion_protection   = var.deletion_protection
+  copy_tags_to_snapshot = var.copy_tags_to_snapshot
 
-  # Phải bật backup retention để cho phép tạo Read Replica
+  # Backup retention 7 ngày -> tạo cửa sổ PITR liên tục (cần cho drill restore-to-point-in-time)
+  # đồng thời cho phép tạo Read Replica.
   backup_retention_period = 7
 
   vpc_security_group_ids = [aws_security_group.db.id]
 
-  tags = {
-    Name        = "${var.project_name}-${var.environment}-postgres-primary"
-    Environment = var.environment
-    Project     = var.project_name
-  }
+  tags = merge(
+    {
+      Name        = "${var.project_name}-${var.environment}-postgres-primary"
+      Environment = var.environment
+      Project     = var.project_name
+    },
+    # AWS Backup Selection chọn resource theo tag Backup=true (kết hợp copy_tags_to_snapshot
+    # để snapshot thừa hưởng tag). Chỉ gắn cho Primary — replica không cần backup.
+    var.enable_aws_backup_tag ? { Backup = "true" } : {}
+  )
 
   lifecycle {
     ignore_changes = [password]
