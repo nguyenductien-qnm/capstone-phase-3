@@ -257,3 +257,108 @@ def test_self_report_alert_cannot_satisfy_an_expected_incident(tmp_path):
     score = ir.score_events(events, str(history), settle_seconds=10)
     assert score["per_event"][0]["fired"] is False
     assert score["metrics"]["recall"] == 0.0
+
+
+# ---------------------------------------------------------------------------
+# TF1-104 — cua replay nhan kich ban NGOAI (MANDATE-22 directive #22)
+#
+# Hai loi duoi day deu duoc phat hien bang cach chay thu voi kich ban dat ngoai repo,
+# va ca hai deu chi can vao NGAY CHAM chu khong phai luc phat trien.
+# ---------------------------------------------------------------------------
+def test_observed_window_is_split_per_event_not_shared(tmp_path):
+    """Kich ban NHIEU su kien tu ngoai khong duoc de MOT alert khop cho TAT CA.
+
+    Ban truoc gan cung mot cua so cho moi su kien, nen mot alert duy nhat thoa man
+    ca hai -> ca masking bao PASS ke ca khi su co thu hai bi che hoan toan. Da xac
+    nhan bang thuc nghiem: hai su kien cung tra ve lead_time=200.9s tu cung mot alert,
+    verdict PASS trong khi correct=1/total=2.
+
+    Dac biet nguy hiem vi bo kich ban an cua MANDATE-15 CO ca masking.
+    """
+    events = [
+        {"label": "e1", "service": "checkout", "expected_rule_ids": ["r"],
+         "expect_fire": True, "offset_seconds": 0, "duration_seconds": 60},
+        {"label": "e2", "service": "checkout", "expected_rule_ids": ["r"],
+         "expect_fire": True, "offset_seconds": 600, "duration_seconds": 60},
+    ]
+    ir._assign_observed_window(events, 1000.0, 1660.0)
+    assert events[0]["t_end"] < events[1]["t_start"], (
+        "hai su kien phai chiem hai khoang thoi gian ROI NHAU"
+    )
+    assert events[0]["t_start"] == 1000.0
+    assert events[1]["t_end"] == 1660.0
+
+
+def test_one_alert_cannot_satisfy_two_events_from_external_scenario(tmp_path):
+    """Dang chay duoc cua khang dinh tren, qua ca duong cham diem that."""
+    history = tmp_path / "alerter_history.jsonl"
+    _write_jsonl(history, [
+        {"ts": 1030.0, "rule_id": "r", "service": "checkout"},  # chi nam trong e1
+    ])
+    events = [
+        {"label": "e1", "service": "checkout", "expected_rule_ids": ["r"],
+         "expect_fire": True, "offset_seconds": 0, "duration_seconds": 60},
+        {"label": "e2", "service": "checkout", "expected_rule_ids": ["r"],
+         "expect_fire": True, "offset_seconds": 600, "duration_seconds": 60},
+    ]
+    ir._assign_observed_window(events, 1000.0, 1660.0)
+    score = ir.score_events(events, str(history), settle_seconds=0)
+    fired = [pe["fired"] for pe in score["per_event"]]
+    assert fired == [True, False], f"chi su kien 1 duoc tinh la bat duoc, thuc te {fired}"
+    ok, _ = ir.verdict_for_type("masking", score["per_event"])
+    assert ok is False, "su co thu hai bi bo sot thi ca masking phai FAIL"
+
+
+def test_single_event_external_scenario_uses_the_whole_window():
+    """Ca mot su kien giu nguyen hanh vi cu — do la ca da chay dung tu truoc."""
+    events = [{"label": "e", "service": "checkout", "expected_rule_ids": ["r"],
+               "expect_fire": True, "offset_seconds": 0, "duration_seconds": 60}]
+    ir._assign_observed_window(events, 1000.0, 1700.0)
+    assert (events[0]["t_start"], events[0]["t_end"]) == (1000.0, 1700.0)
+
+
+def test_identical_offsets_fall_back_to_shared_window_with_a_warning(capsys):
+    """Khong tach duoc bang timeline thi phai NOI RA thay vi am tham cham sai."""
+    events = [
+        {"label": "e1", "expected_rule_ids": ["r"], "offset_seconds": 0, "duration_seconds": 60},
+        {"label": "e2", "expected_rule_ids": ["r"], "offset_seconds": 0, "duration_seconds": 60},
+    ]
+    ir._assign_observed_window(events, 1000.0, 1660.0)
+    assert "CANH BAO" in capsys.readouterr().err
+
+
+def test_unknown_rule_id_in_external_scenario_is_warned_loudly(tmp_path, capsys):
+    """Rule id sai khong gay loi gi ca — su kien chi bi cham la 'silent' -> FAIL,
+    va khong dau hieu nao noi rang nguyen nhan la go sai ten chu khong phai detector mu.
+
+    Dung lop loi da tra gia hai lan: rule kafka sai ten metric nam cam hang tuan, va
+    lan doi ten grpc-error-rate-high -> service-error-rate-high lam 5 scenario cham sai.
+    """
+    rules = tmp_path / "rules.yaml"
+    rules.write_text("rules:\n  - id: service-error-rate-high\n  - id: latency-p95-high\n",
+                     encoding="utf-8")
+    events = [{"label": "e", "expected_rule_ids": ["rule-go-sai"], "expect_fire": True}]
+    unknown = ir.warn_unknown_rule_ids(events, str(rules))
+    assert unknown == ["rule-go-sai"]
+    err = capsys.readouterr().err
+    assert "CANH BAO" in err and "rule-go-sai" in err
+
+
+def test_known_rule_ids_are_not_warned(tmp_path, capsys):
+    rules = tmp_path / "rules.yaml"
+    rules.write_text("rules:\n  - id: service-error-rate-high\n", encoding="utf-8")
+    events = [{"label": "e", "expected_rule_ids": ["service-error-rate-high"]}]
+    assert ir.warn_unknown_rule_ids(events, str(rules)) == []
+    assert "CANH BAO" not in capsys.readouterr().err
+
+
+def test_missing_rules_yaml_does_not_break_scoring(tmp_path):
+    """Kich ban ngoai co the duoc cham o may khong co repo day du — khong duoc no."""
+    events = [{"label": "e", "expected_rule_ids": ["bat-ky"]}]
+    assert ir.warn_unknown_rule_ids(events, str(tmp_path / "khong-ton-tai.yaml")) == []
+
+
+def test_the_real_rules_yaml_is_readable_by_the_harness():
+    """Bo doc dong don gian phai doc duoc rules.yaml that — neu dinh dang doi thi hong."""
+    ids = ir.known_rule_ids()
+    assert ids and "service-error-rate-high" in ids, f"doc duoc: {ids}"
