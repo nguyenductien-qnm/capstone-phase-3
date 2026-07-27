@@ -287,9 +287,9 @@ module "backup" {
   project_name = var.project_name
   environment  = var.environment
 
-  # Vault dùng KMS key nội bộ của module backup (count luôn là 1, known at plan time).
-  # IAM Deny từ module backup_protection bảo vệ recovery point khỏi bị xoá,
-  # không cần share cùng KMS key với backup_protection.
+  # Mandate 20 (CDO-259): vault mã hoá bằng KMS key của backup_protection —
+  # key đó có policy chặn kms:ScheduleKeyDeletion + kms:DisableKey (guardrail).
+  kms_key_arn = module.backup_protection.kms_key_arn
 }
 
 # Mandate 20 (CDO-247): Bảo vệ backup — KMS key riêng + IAM Policy Explicit Deny chống xoá backup

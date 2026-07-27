@@ -214,6 +214,19 @@ jobs:
             -backend-config="encrypt=true" \
             -backend-config="use_lockfile=true"
 
+      - name: "Pre-apply: backup_protection KMS key (M20 CDO-259)"
+        # Mandate 20: module.backup dùng count = kms_key_arn == null ? 1 : 0.
+        # kms_key_arn lấy từ module.backup_protection — (known after apply) ở lần đầu.
+        # Terraform không evaluate được count lúc plan nếu value chưa biết.
+        # Fix: apply backup_protection trước để KMS ARN tồn tại thật trên AWS,
+        # sau đó plan chính mới nhìn thấy ARN, count evaluate được bình thường.
+        # Lần 2+ (key đã tồn tại): bước này là no-op, không tạo thêm gì.
+        run: |
+          terraform apply -input=false -auto-approve \
+            -lock-timeout="$TF_LOCK_TIMEOUT" \
+            -var-file="develop-capacity.tfvars" \
+            -target=module.backup_protection
+
       - name: Terraform plan
         id: plan
         run: |
