@@ -1083,6 +1083,11 @@ services:
       - VALKEY_ADDR
       - VALKEY_TLS
       - VALKEY_AUTH_TOKEN
+      # L2 semantic cache TẮT — đo 27/07 (docs/ai/evals/param_sweep_m23.md): cặp câu
+      # khác nghĩa đạt similarity 0.9191 còn cặp cùng ý chỉ 0.6587, hai nhóm chồng lấn
+      # nên không ngưỡng nào vừa bắt paraphrase vừa không trả sai. Chạy L1 exact.
+      - SEMANTIC_CACHE_ENABLED=false
+      - SEMANTIC_CACHE_MIN_SIM=0.92
       - DB_CONNECTION_STRING=host=${POSTGRES_HOST} user=otelu password=otelp dbname=${POSTGRES_DB}
     volumes:
       - ~/.aws:/app/.aws:ro

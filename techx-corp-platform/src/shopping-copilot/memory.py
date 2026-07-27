@@ -48,6 +48,40 @@ def _get_conn():
         logger.error("Failed to connect to Postgres for memory: %s", e)
         return None
 
+def fetch_data_fingerprint() -> str:
+    """Fingerprint của TOÀN BỘ nguồn mà câu trả lời copilot có thể dựa vào:
+    catalog **và** review.
+
+    Chỉ dùng catalog_fp là chưa đủ — đo 27/07: sửa một review của OLJCESPC7Z rồi hỏi
+    lại, copilot vẫn `hit_exact` và trả điểm 3.8 cũ. MANDATE-23 ghi rõ "nguồn đã đổi mà
+    cache vẫn trả kết quả cũ = fail", nên key phải ghim cả hai nguồn.
+    """
+    import hashlib
+    return hashlib.md5(
+        f"{fetch_catalog_fingerprint()}:{fetch_reviews_global_fingerprint()}".encode()
+    ).hexdigest()[:12]
+
+
+def fetch_reviews_global_fingerprint() -> str:
+    """Fingerprint toàn bảng reviews.productreviews (50 dòng — 1 aggregate query rẻ)."""
+    conn = _get_conn()
+    if conn is None:
+        return "nocache"
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT COUNT(*), COALESCE(MAX(id), 0), "
+                "COALESCE(MD5(STRING_AGG(description || '|' || score::text, ',' ORDER BY id)), '') "
+                "FROM reviews.productreviews"
+            )
+            count, max_id, content_md5 = cur.fetchone()
+            import hashlib
+            return hashlib.md5(f"{count}:{max_id}:{content_md5}".encode()).hexdigest()[:12]
+    except Exception as e:
+        logger.error("Failed to fetch reviews fingerprint: %s", e)
+        return "nocache"
+
+
 def fetch_catalog_fingerprint() -> str:
     """Content fingerprint cua catalog.products — cho content-addressed cache key."""
     conn = _get_conn()
@@ -186,8 +220,15 @@ _USE_CASE_PATTERNS = {
 
 
 def extract_user_preferences(question: str, answer: str) -> dict[str, str]:
-    """Rule-based extraction of user preferences from Q&A pair."""
-    text = f"{question} {answer}"
+    """Rule-based extraction of user preferences — CHỈ từ lời của khách.
+
+    Không đọc `answer`: câu trả lời của bot luôn nhắc tên sản phẩm và trình độ, gộp vào
+    sẽ ghi nhầm thành sở thích của khách. Đo 27/07: user chỉ hỏi giá ống nhòm mà memory
+    sinh ra `preferred_category=telescope`, `experience_level=beginner`. Hai hệ quả:
+    memory sai, và fingerprint memory đổi sau mỗi lượt nên cache L1 không bao giờ trúng.
+    Memory phải là điều KHÁCH nói, không phải điều BOT nói.
+    """
+    text = question
     prefs: dict[str, str] = {}
 
     # Category

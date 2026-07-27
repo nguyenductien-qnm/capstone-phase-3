@@ -35,6 +35,9 @@ COPY ./src/shopping-copilot/bedrock_client.py bedrock_client.py
 COPY ./src/shopping-copilot/model_router.py model_router.py
 COPY ./src/shopping-copilot/tools.py tools.py
 COPY ./src/shopping-copilot/agent.py agent.py
+# MANDATE-23: cache L2 + memory ngắn/dài hạn. Thiếu dòng này thì copilot_server.py
+# crash ngay khi start (ModuleNotFoundError: No module named 'memory').
+COPY ./src/shopping-copilot/memory.py memory.py
 COPY ./src/shopping-copilot/copilot_server.py copilot_server.py
 
 # MANDATE-05: no container runs as root

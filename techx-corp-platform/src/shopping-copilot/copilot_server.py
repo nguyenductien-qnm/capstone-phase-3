@@ -40,7 +40,7 @@ import model_router
 import shopping_copilot_pb2 as pb
 import shopping_copilot_pb2_grpc as pb_grpc
 import demo_pb2
-from memory import extract_user_preferences, save_user_memory, load_user_memory, format_memory_for_prompt, fetch_catalog_fingerprint, get_semantic_cache, insert_semantic_cache
+from memory import extract_user_preferences, save_user_memory, load_user_memory, format_memory_for_prompt, fetch_data_fingerprint, get_semantic_cache, insert_semantic_cache
 
 tracer = trace.get_tracer_provider().get_tracer("shopping-copilot")
 
@@ -59,7 +59,15 @@ CONFIRM_TTL_SECONDS = int(os.environ.get("COPILOT_CONFIRM_TTL", "300"))
 MAX_SESSION_MESSAGES = int(os.environ.get("COPILOT_MAX_SESSION_MESSAGES", "20"))
 COPILOT_CACHE_TTL = int(os.environ.get("COPILOT_CACHE_TTL", "3600"))
 SESSION_TTL = int(os.environ.get("COPILOT_SESSION_TTL", "3600"))
-SEMANTIC_CACHE_MIN_SIM = float(os.environ.get("SEMANTIC_CACHE_MIN_SIM", "0.93"))
+SEMANTIC_CACHE_MIN_SIM = float(os.environ.get("SEMANTIC_CACHE_MIN_SIM", "0.92"))
+# L2 semantic cache TẮT mặc định — quyết định dựa trên số đo, không phải cảm tính.
+# `param_sweep_m23.py` (đo thật bằng Titan trên 9 cặp câu có nhãn) cho thấy hai nhóm
+# CHỒNG LẤN: cặp cùng ý thấp nhất 0.6587, cặp khác nghĩa cao nhất 0.9191
+# ("dưới 200 USD" vs "trên 200 USD"). Không tồn tại ngưỡng nào vừa bắt paraphrase vừa
+# không trả sai: ≤0.91 → false-hit 20%; ≥0.92 → false-hit 0% nhưng recall 0%.
+# MANDATE-23 cấm "trả cũ sai", nên chọn L1 exact và tắt L2. Bật lại khi có embedding
+# tiếng Việt tốt hơn, hoặc thêm rule guard cho phủ định/mốc giá.
+SEMANTIC_CACHE_ENABLED = os.environ.get("SEMANTIC_CACHE_ENABLED", "false").lower() == "true"
 
 
 class _PendingStore:
@@ -155,6 +163,17 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
             return blocked_resp
 
 
+        # Rút sở thích từ CHÍNH câu hỏi này và ghi TRƯỚC khi nạp memory.
+        # Ghi sau khi trả lời (như trước) làm memory của lượt 1 và lượt 2 khác nhau →
+        # mem_fp khác → key L1 khác → yêu cầu lặp lần 2 luôn miss, fail đúng tiêu chí
+        # "gửi cùng 1 yêu cầu 2 lần, lần 2 phải hit" của MANDATE-23.
+        try:
+            _prefs = extract_user_preferences(sanitized_question, "")
+            if _prefs:
+                save_user_memory(request.user_id, {k: redact_pii(v) for k, v in _prefs.items()})
+        except Exception as e:
+            logger.error("save_user_memory (pre-load) failed: %s", e)
+
         # Load long-term memory
         long_term_mem = load_user_memory(request.user_id)
         mem_context = format_memory_for_prompt(long_term_mem)
@@ -168,14 +187,22 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
         cache_status = "miss"
         cached_response = None
         similarity = 0.0
-        catalog_fp = fetch_catalog_fingerprint()
-        question_fp = hashlib.md5(enriched_question.encode()).hexdigest()[:12]
-        
+        # Fingerprint gồm CẢ catalog LẪN review: sửa review mà key không đổi thì cache
+        # trả nội dung cũ — vi phạm "không trả cũ sai" của MANDATE-23 (đo được 27/07).
+        catalog_fp = fetch_data_fingerprint()
+        # Băm CÂU HỎI THUẦN, không băm enriched_question: memory context được nối vào
+        # câu hỏi và đổi sau mỗi lượt, nên băm nó thì key L1 đổi mỗi lần → không bao
+        # giờ hit exact (đo 27/07: câu hỏi lặp nguyên văn vẫn rơi xuống L2).
+        question_fp = hashlib.md5(sanitized_question.encode()).hexdigest()[:12]
+        # Memory vào key dưới dạng FINGERPRINT: ổn định khi sở thích không đổi, tự đổi
+        # khi memory đổi — giữ tính xác định mà vẫn không trả câu cũ sai ngữ cảnh.
+        mem_fp = hashlib.md5((mem_context or "").encode()).hexdigest()[:8]
+
         model_ver = MAIN_MODEL.replace(":", "-")
         prompt_ver = "v1"
-        
-        l1_key = f"copilot:answer:{request.user_id}:{model_ver}:{prompt_ver}:{catalog_fp}:{question_fp}"
-        scope_key = f"copilot:{request.user_id}:{model_ver}:{prompt_ver}:{catalog_fp}"
+
+        l1_key = f"copilot:answer:{request.user_id}:{model_ver}:{prompt_ver}:{catalog_fp}:{mem_fp}:{question_fp}"
+        scope_key = f"copilot:{request.user_id}:{model_ver}:{prompt_ver}:{catalog_fp}:{mem_fp}"
 
         if self._valkey:
             try:
@@ -187,8 +214,9 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
                 logger.error("Valkey get cache failed: %s", e)
 
         embedding = None
-        if not cached_response:
-            # Try L2 Semantic Cache
+        if not cached_response and SEMANTIC_CACHE_ENABLED:
+            # Try L2 Semantic Cache — chỉ chạy khi bật tường minh. Tắt thì bỏ luôn lần
+            # gọi Titan, tiết kiệm cả latency lẫn tiền cho mọi request miss.
             try:
                 embed_resp = self._bedrock.invoke_model(
                     modelId="amazon.titan-embed-text-v2:0",
@@ -244,11 +272,8 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
         session.append({"role": "assistant", "content": [{"text": text_resp}]})
         self._save_session(session_id, request.user_id, session)
         
-        # Save long-term memory
-        prefs = extract_user_preferences(sanitized_question, text_resp)
-        if prefs:
-             redacted_prefs = {k: redact_pii(v) for k, v in prefs.items()}
-             save_user_memory(request.user_id, redacted_prefs)
+        # Memory đã được rút + ghi ở đầu request (xem chú thích trước khi load) để
+        # fingerprint memory ổn định trong cùng một câu hỏi lặp.
 
         resp = pb.ChatWithCopilotResponse(response=text_resp, degraded=degraded,
                                            trace_id=trace_id, trace_steps=trace_steps,
