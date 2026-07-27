@@ -13,9 +13,20 @@ spec:
         - key: kubernetes.io/os
           operator: In
           values: ["linux"]
+        # Mandate-13 (mở rộng sandbox, 27-07-2026): cho phép pool default nhận cả
+        # spot lẫn on-demand, thay vì chỉ on-demand như trước. Mọi service luồng
+        # tiền + service fragile (session in-memory, Kafka consumer ghép chặt data
+        # cart) đều đã được ép nodeSelector karpenter.sh/capacity-type=on-demand
+        # tường minh trong platform/gitops/environments/sandbox/values-application.yaml
+        # — service KHÔNG có override đó (vd accounting, fraud-detection — async
+        # Kafka consumer, chấp nhận gián đoạn ngắn) sẽ tự do rơi vào cả 2 loại,
+        # Karpenter ưu tiên spot khi rẻ hơn. Đây là mô hình "an toàn = phải khai
+        # báo loại trừ", khác opt-in cũ (an toàn = mặc định, phải khai báo mới được
+        # spot) — rủi ro: service MỚI thêm sau này nếu quên khai báo on-demand sẽ
+        # tự động thành spot-eligible ngay từ đầu.
         - key: karpenter.sh/capacity-type
           operator: In
-          values: ["on-demand"]
+          values: ["spot", "on-demand"]
         - key: karpenter.k8s.aws/instance-family
           operator: In
           values: ["m6a", "c6a", "c7i"]
