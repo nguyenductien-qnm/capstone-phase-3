@@ -1,6 +1,6 @@
 # docs/ai — bản đồ tài liệu Nhóm AI (AIO03)
 
-Cập nhật 12/07/2026. Map theo khung evidence-pack của course (6 doc chuẩn) + tài liệu bổ trợ.
+Cập nhật 25/07/2026. Map theo khung evidence-pack của course (6 doc chuẩn) + tài liệu bổ trợ.
 Quy ước: mọi con số trong docs phải là **số đo/tái tạo được** hoặc mang nhãn *assumption* —
 xem "Sổ đăng ký con số" cuối `05_adrs.md`.
 
@@ -12,8 +12,8 @@ xem "Sổ đăng ký con số" cuối `05_adrs.md`.
 | 02 Solution Design | `02_solution_design.md` | W1 — kèm phương án đã loại |
 | 03 AI Engine Spec | `03_specs/` (9 file, xem dưới) | Phân mảnh theo chủ đề — mỗi spec có "Phụ lục kiểm chứng 12/07" |
 | 04 Eval Report | `04_eval_report.md` | Đã đo Eval cho cả Copilot và Reviews |
-| 05 ADRs | `05_adrs.md` | ADR-001→011 + Phụ lục kiểm chứng + Sổ đăng ký con số |
-| 06 Contracts | `contracts/` | copilot ✓; product-reviews ✓ |
+| 05 ADRs | `05_adrs.md` | ADR-001→015 + Phụ lục kiểm chứng + Sổ đăng ký con số. Mới nhất: ADR-014 (ML Guard cascade thay Bedrock Guardrails làm primary), ADR-015 (ml-guard v2 — async gRPC central policy service). Bedrock Guardrail flip **ON** 24/07 (`LLM_BEDROCK_GUARDRAIL=true`, layer-3). |
+| 06 Contracts | `docs/shared/integration-contracts/` | product-reviews ✓; shopping-copilot (gRPC) ✓; recommendation ✓; ml-guard gRPC (`pb/ml_guard.proto`) |
 
 ## Specs (`03_specs/`) — index: `03_ai_engine_spec.md`
 `fallback_retry` · `valkey_caching` · `semantic_search` (pgvector) · `shopping_copilot` (Đã có code thật) ·
@@ -30,6 +30,9 @@ xem "Sổ đăng ký con số" cuối `05_adrs.md`.
 - `evals/` — dataset (34 case) + 6 script đo/eval; chạy được từ repo sạch
 
 ## Code
-- `techx-corp-platform/src/product-reviews/` — service chính (Bedrock + resilience)
+- `techx-corp-platform/src/product-reviews/` — service chính (Bedrock Nova + resilience); guardrail gọi ml-guard qua shim `guardrails.py` → `pb/ml_guard_client.py`
+- `techx-corp-platform/src/shopping-copilot/` — AI Agent gRPC (Bedrock Nova Pro, tool-calling, confirmation gate); guardrail chung ml-guard
+- `techx-corp-platform/src/ml-guard/` — central trust-safety policy service (async gRPC, `pb/ml_guard.proto`: CheckInput/CheckOutput/SanitizeReviews; cascade regex → Presidio PII → NLI grounding → Nova judge). ADR-011/014/015
+- `techx-corp-platform/src/recommendation/` — pgvector similarity (ADR-009)
 - `copilot-poc/` — PoC Streamlit copilot (gom từ root 12/07)
-- `aiops/detector/` + `aiops/log_clustering/` — AIOps
+- `aiops/detector/` + `aiops/remediation/` + `aiops/log_clustering/` — AIOps (detect → closed-loop remediation, ADR-012/013)

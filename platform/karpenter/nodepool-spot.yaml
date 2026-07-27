@@ -45,9 +45,16 @@ spec:
         name: default
       expireAfter: 168h
       terminationGracePeriod: 24h
+  # Mandate-13 (mở rộng sandbox spot, 27-07-2026): nâng trần từ 8 -> 32 vCPU,
+  # memory 32Gi -> 64Gi. Trước đây pool này chỉ có ad+product-reviews (max 4
+  # replica x 200m/500m limit = 2.8 vCPU đỉnh). Sau khi thêm image-provider, llm,
+  # ml-guard (2 replica cố định x 2000m limit/pod = 4 vCPU riêng ml-guard), tổng
+  # limit đỉnh của cả pool ước tính ~8.8 vCPU — đã sát/vượt trần cũ 8, Karpenter
+  # sẽ ngừng launch node mới dù còn pod Pending nếu không nâng. 32 cho dư khoảng
+  # 3.6x so với ước tính đỉnh hiện tại, tính lại nếu thêm service mới vào pool này.
   limits:
-    cpu: "8"
-    memory: 32Gi
+    cpu: "32"
+    memory: 64Gi
   disruption:
     consolidationPolicy: WhenEmptyOrUnderutilized
     consolidateAfter: 1m

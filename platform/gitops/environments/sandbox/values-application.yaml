@@ -10,12 +10,29 @@ default:
   topologySpreadWhenUnsatisfiable: ScheduleAnyway
   topologySpreadZoneWhenUnsatisfiable: DoNotSchedule
   topologySpreadZoneMinDomains: 2
+  # Mandate-13 Phương án B, đơn giản hoá (27-07-2026): an toàn mặc định = on-demand
+  # cho MỌI component, đặt ở đây thay vì lặp lại nodeSelector ở từng service (cách
+  # cũ, đã bỏ — xem git history nếu cần đối chiếu). Component nào có
+  # `schedulingRules.nodeSelector` riêng (6 service Nhóm B bên dưới) sẽ override
+  # đúng theo cơ chế `_objects.tpl` (component-level luôn thắng default). Component
+  # KHÔNG khai báo gì — kể cả service mới thêm sau này mà quên cấu hình — sẽ tự
+  # động rơi vào nhánh an toàn này thay vì lộ ra spot. Đánh đổi: accounting/
+  # fraud-detection (Kafka consumer async, ngoài critical path) trước đây được để
+  # tự do rơi vào pool mixed, giờ cũng bị pin theo default — mất phần đóng góp nhỏ
+  # (~150m/3090m) vào tỷ lệ spot, đổi lấy việc xoá sạch rủi ro "quên pin service
+  # mới" (fail-open) ở cấp từng service.
+  schedulingRules:
+    nodeSelector:
+      karpenter.sh/capacity-type: on-demand
 
 components:
-  # Karpenter spot pilot: 2 service ngoài money-path (không cart/checkout/payment/
-  # currency/shipping/frontend), ad có sẵn circuit breaker + graceful fallback
-  # (M17-R1) nên chịu gián đoạn spot tốt. Toleration khớp taint NodePool `spot`
-  # (platform/karpenter/nodepool-spot.yaml).
+  # === Mandate-13 Phương án B (27-07-2026): NodePool `default` cho phép cả spot
+  # lẫn on-demand (platform/karpenter/nodepool-default.yaml), nhưng an toàn mặc
+  # định (on-demand) đã chuyển lên block `default:` ở trên — CHỈ 6 service dưới
+  # đây được opt-in tường minh vào NodePool `spot` riêng (taint, đã vá đủ PDB/
+  # topologySpread/graceful-drain/replicas≥2 trong values.yaml dùng chung trước
+  # khi thêm ở đây). Mọi service khác (luồng tiền, fragile, hoặc chưa tồn tại)
+  # đều an toàn theo mặc định mà không cần khai báo gì thêm.
   ad:
     schedulingRules:
       tolerations:
@@ -25,6 +42,30 @@ components:
       nodeSelector:
         techx.io/capacity: spot
   product-reviews:
+    schedulingRules:
+      tolerations:
+        - key: techx.io/capacity
+          value: spot
+          effect: NoSchedule
+      nodeSelector:
+        techx.io/capacity: spot
+  recommendation:
+    schedulingRules:
+      tolerations:
+        - key: techx.io/capacity
+          value: spot
+          effect: NoSchedule
+      nodeSelector:
+        techx.io/capacity: spot
+  image-provider:
+    schedulingRules:
+      tolerations:
+        - key: techx.io/capacity
+          value: spot
+          effect: NoSchedule
+      nodeSelector:
+        techx.io/capacity: spot
+  llm:
     schedulingRules:
       tolerations:
         - key: techx.io/capacity
@@ -122,6 +163,15 @@ components:
   # Số 400m là ước lượng từ snapshot — phải đo lại lúc có inference traffic thật
   # (bài học mandate-19: ml-guard bị exclude khỏi loadtest baseline).
   ml-guard:
+    # Mandate-13 (mở rộng sandbox spot, 27-07-2026): thêm vào NodePool spot riêng —
+    # xem comment đầu file `components:`. Đã có PDB/topologySpread/preStop từ trước.
+    schedulingRules:
+      tolerations:
+        - key: techx.io/capacity
+          value: spot
+          effect: NoSchedule
+      nodeSelector:
+        techx.io/capacity: spot
     resources:
       requests:
         cpu: 400m   # dùng thật ~290m/pod có tải (was 1000m = over-request 345%)

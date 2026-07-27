@@ -153,7 +153,7 @@ def test_reasoning_in_trace_steps():
              ]}}},
             _end("Đã kiểm tra giỏ hàng xong.")
         ]), "m", [{"role": "user", "content": [{"text": "kiểm tra giỏ hàng"}]}], "u1")
-        
+
         assert len(res.trace_steps) >= 1
         detail = json.loads(res.trace_steps[0]["detail"])
         assert "reasoning" in detail

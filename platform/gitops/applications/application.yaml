@@ -5,6 +5,21 @@ metadata:
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
+  annotations:
+    # Mandate-13 Phương án B (27-07-2026): sync-wave "0" tường minh (trước đây
+    # ngầm định 0, không ghi ra) — PHẢI đứng trước karpenter-nodepool (wave "1",
+    # xem karpenter-nodepool.yaml) để 13+ Deployment nhận nodeSelector
+    # karpenter.sh/capacity-type=on-demand và rollout Healthy TRƯỚC KHI NodePool
+    # `default` được phép nhận spot. Tránh cửa sổ thời gian pod luồng tiền mới
+    # sinh ra (do HPA scale-out/crash-restart) chưa có nodeSelector lúc NodePool
+    # đã cho phép spot. LƯU Ý: cả 2 app đều có syncPolicy.automated riêng (tự
+    # sync độc lập khi phát hiện git drift, không phải do 1 lần sync chung do app
+    # cha điều phối) — sync-wave giữa 2 Application độc lập kiểu này chỉ giảm rủi
+    # ro, KHÔNG đảm bảo tuyệt đối như sync-wave giữa các resource trong cùng 1
+    # Application. Lần đầu bật NodePool spot vẫn nên tách 2 PR/2 lần merge riêng
+    # (xem docs/cdo09/evidence-mandate-13/ nếu có ghi runbook) thay vì chỉ dựa
+    # vào annotation này.
+    argocd.argoproj.io/sync-wave: "0"
 spec:
   project: default
 

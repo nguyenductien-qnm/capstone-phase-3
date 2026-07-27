@@ -632,9 +632,21 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                     span.set_status(Status(StatusCode.ERROR, description=str(e)))
                     # Genuine 429: giu "Rate limit reached" cho rule llm-rate-limit-429 + marker G6.
                     logger.error("Rate limit reached. AI_SUMMARY_FALLBACK stage=mock-llm reason=rate_limit_exceeded")
-                    ai_assistant_response.response = MOCK_SUMMARY_VI
-                    ai_assistant_response.trace_steps.extend(trace_steps)
-                    return ai_assistant_response
+                    
+                    # Trigger Circuit Breaker manually to simulate proper fallback to Nova Micro
+                    with _cb_lock:
+                        _cb_state["failures"] = CB_FAILURE_THRESHOLD
+                        _cb_state["open_until"] = time.time() + CB_COOLDOWN_SECONDS
+                    
+                    trace_steps.append(demo_pb2.TraceStep(
+                        step_name="Fallback Triggered",
+                        latency_ms=0,
+                        status="error",
+                        detail=json.dumps({"error": "Rate limit 429 exceeded", "fallback": "amazon.nova-micro-v1:0"})
+                    ))
+                    
+                    # Allow to fall through to the real Bedrock flow to process the fallback
+                    is_mock_rate_limit = False
 
         start_llm = time.time()
         if not is_mock_rate_limit:

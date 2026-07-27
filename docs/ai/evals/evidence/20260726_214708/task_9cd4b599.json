@@ -1,0 +1,134 @@
+{
+  "category": "task",
+  "input": [
+    "Tìm kính thiên văn giá rẻ",
+    [
+      "search_products"
+    ],
+    "task-search"
+  ],
+  "latency": 31.909144639968872,
+  "tokens": {
+    "input": 11218,
+    "output": 706,
+    "embedding": 6
+  },
+  "usd_cost": 0.00084228,
+  "embed_cost": 1.2000000000000002e-07,
+  "passed": true,
+  "reason": "All expected tools called successfully: ['search_products']",
+  "response": {
+    "response": "Tôi đã tìm thấy một số kính thiên văn giá rẻ cho bạn. Dưới đây là một số lựa chọn:\n\n1. **National Park Foundation Explorascope**\n   - Giá: $101.96\n   - Mô tả: Đây là một kính thiên văn 60mm thích hợp cho quan sát thiên văn di động. Bạn có thể quan sát các hành tinh, mặt trăng, cụm sao và các đối tượng sáng sủa trong vũ trụ như Tinh vân Orion và Thiên hà Andromeda.\n\n2. **Eclipsmart Travel Refractor Telescope**\n   - Giá: $129.95\n   - Mô tả: Đây là một kính thiên văn dành riêng cho quan sát sự kiện liên quan đến Mặt trời. Kính này sử dụng vật liệu lọc đầy đủ màu trắng an toàn, tuân thủ tiêu chuẩn ISO để đảm bảo tầm nhìn an toàn của các sự kiện liên quan đến Mặt trời. Bộ kính này bao gồm tất cả mọi thứ bạn cần, bao gồm kính thiên văn dành riêng cho sự kiện liên quan đến Mặt trời, kính tìm kiếm Solar Safe, bệ, ống nhòm 20mm (18x) Kellner và một cặp balo nylon để mang theo mọi thứ. Kính này giúp bạn dễ dàng chia sẻ sự kiện liên quan đến Mặt trời cũng như những nhật thực khiếu và nhật thực toàn phần với cả gia đình và cung cấp độ phóng đại cao hơn nhiều so với việc sử dụng máy xem Mặt trời hoặc ống nhòm cầm tay.\n\nBạn muốn tìm hiểu thêm về bất kỳ sản phẩm nào hay thêm vào giỏ hàng không?",
+    "actionsTaken": [
+      {
+        "toolName": "search_products",
+        "argumentsJson": "{\"query\": \"gi\\u00e1 r\\u1ebb\", \"category\": \"Telescopes\"}",
+        "succeeded": true,
+        "startedAtUnix": 1785077557,
+        "durationMs": 466
+      }
+    ],
+    "degraded": false,
+    "traceId": "bb37992b8a209bcf3464ca41b2e9d00a",
+    "citations": [],
+    "traceSteps": [
+      {
+        "stepName": "Input Guardrail (PII/Prompt Guard)",
+        "latencyMs": 930,
+        "status": "pass",
+        "detail": "{\"question\": \"T\\u00ecm k\\u00ednh thi\\u00ean v\\u0103n gi\\u00e1 r\\u1ebb\", \"blocked\": false}"
+      },
+      {
+        "stepName": "Model Gateway & Bedrock Nova",
+        "latencyMs": 30941,
+        "status": "ok",
+        "detail": "{\"routed_model\": \"amazon.nova-lite-v1:0\"}"
+      },
+      {
+        "stepName": "LLM → gọi tool: search_products",
+        "latencyMs": 1287,
+        "status": "ok",
+        "detail": "{\"decided_tools\": [\"search_products\"], \"stop_reason\": \"tool_use\", \"reasoning\": \"<thinking>Kh\\u00e1ch h\\u00e0ng mu\\u1ed1n t\\u00ecm k\\u00ednh thi\\u00ean v\\u0103n gi\\u00e1 r\\u1ebb. T\\u00f4i c\\u1ea7n s\\u1eed d\\u1ee5ng tool `search_products` \\u0111\\u1ec3 t\\u00ecm ki\\u1ebfm s\\u1ea3n ph\\u1ea9m trong danh m\\u1ee5c \\\"Telescopes\\\" v\\u1edbi t\\u1eeb kh\\u00f3a \\\"gi\\u00e1 r\\u1ebb\\\".</thinking>\"}"
+      },
+      {
+        "stepName": "Tool: search_products (giá rẻ)",
+        "latencyMs": 466,
+        "status": "ok",
+        "detail": "{\"args\": {\"query\": \"gi\\u00e1 r\\u1ebb\", \"category\": \"Telescopes\"}, \"succeeded\": true}"
+      },
+      {
+        "stepName": "LLM → trả lời trực tiếp",
+        "latencyMs": 4174,
+        "status": "ok",
+        "detail": "{\"decided_tools\": [], \"stop_reason\": \"end_turn\", \"reasoning\": \"T\\u00f4i \\u0111\\u00e3 t\\u00ecm th\\u1ea5y m\\u1ed9t s\\u1ed1 k\\u00ednh thi\\u00ean v\\u0103n gi\\u00e1 r\\u1ebb cho b\\u1ea1n. D\\u01b0\\u1edbi \\u0111\\u00e2y l\\u00e0 m\\u1ed9t s\\u1ed1 l\\u1ef1a ch\\u1ecdn:\\n\\n1. **National Park Foundation Explorascope**\\n   - Gi\\u00e1: $101.96\\n   - M\\u00f4 t\\u1ea3: \\u0110\\u00e2y l\\u00e0 m\\u1ed9t k\\u00ednh thi\\u00ean v\\u0103n 60mm th\\u00edch h\\u1ee3p cho quan s\\u00e1t thi\\u00ean v\\u0103n di \\u0111\\u1ed9ng. B\\u1ea1n c\\u00f3 th\\u1ec3 quan s\\u00e1t c\\u00e1c h\\u00e0nh tinh, m\\u1eb7t tr\\u0103ng, c\\u1ee5m sao v\\u00e0 c\\u00e1c \\u0111\\u1ed1i t\\u01b0\\u1ee3ng s\\u00e1ng s\\u1ee7a trong v\\u0169 tr\\u1ee5 nh\\u01b0 Tinh v\\u00e2n Orion v\\u00e0 Thi\\u00ean h\\u00e0 Andromeda.\\n\\n2. **Eclipsmart Travel Refractor Telescope**\\n   - Gi\\u00e1: $129.95\\n   - M\\u00f4 t\\u1ea3: \\u0110\\u00e2y l\\u00e0 m\\u1ed9t k\\u00ednh thi\\u00ean v\\u0103n d\\u00e0nh ri\\u00eang cho quan s\\u00e1t s\\u1ef1 ki\\u1ec7n li\\u00ean quan \\u0111\\u1ebfn M\\u1eb7t tr\\u1eddi. K\\u00ednh n\\u00e0y s\\u1eed d\\u1ee5ng v\\u1eadt li\\u1ec7u l\\u1ecdc \\u0111\\u1ea7y \\u0111\\u1ee7 m\\u00e0u tr\\u1eafng an to\\u00e0n, tu\\u00e2n th\\u1ee7 ti\\u00eau chu\\u1ea9n ISO \\u0111\\u1ec3 \\u0111\\u1ea3m b\\u1ea3o t\\u1ea7m nh\\u00ecn an to\\u00e0n c\\u1ee7a c\\u00e1c s\\u1ef1 ki\\u1ec7n li\\u00ean quan \\u0111\\u1ebfn M\\u1eb7t tr\\u1eddi. B\\u1ed9 k\\u00ednh n\\u00e0y bao g\\u1ed3m t\\u1ea5t c\\u1ea3 m\\u1ecdi th\\u1ee9 b\\u1ea1n c\\u1ea7n, bao g\\u1ed3m k\\u00ednh thi\\u00ean v\\u0103n d\\u00e0nh ri\\u00eang cho s\\u1ef1 ki\\u1ec7n li\\u00ean quan \\u0111\\u1ebfn M\\u1eb7t tr\\u1eddi, k\\u00ednh t\\u00ecm ki\\u1ebfm Solar Safe, b\\u1ec7, \\u1ed1ng nh\\u00f2m 20mm (18x) Kellner v\\u00e0 m\\u1ed9t c\\u1eb7p balo nylon \\u0111\\u1ec3 mang theo m\\u1ecdi th\\u1ee9. K\\u00ednh n\\u00e0y gi\\u00fap b\\u1ea1n d\\u1ec5 d\\u00e0ng chia s\\u1ebb s\\u1ef1 ki\\u1ec7n li\\u00ean quan \\u0111\\u1ebfn M\\u1eb7t tr\\u1eddi c\\u0169ng nh\\u01b0 nh\\u1eefng nh\\u1eadt th\\u1ef1c khi\\u1ebfu v\\u00e0 nh\\u1eadt th\\u1ef1c to\\u00e0n ph\\u1ea7n v\\u1edbi c\\u1ea3 gia \\u0111\\u00ecnh v\\u00e0 cung c\\u1ea5p \\u0111\\u1ed9 ph\\u00f3ng \\u0111\\u1ea1i cao h\\u01a1n nhi\\u1ec1u so v\\u1edbi vi\\u1ec7c s\\u1eed d\\u1ee5ng m\\u00e1y xem M\\u1eb7t tr\\u1eddi ho\\u1eb7c \\u1ed1ng nh\\u00f2m c\\u1ea7m tay.\\n\\nB\\u1ea1n mu\\u1ed1n t\\u00ecm hi\\u1ec3u th\\u00eam v\\u1ec1 b\\u1ea5t k\\u1ef3 s\\u1ea3n ph\\u1ea9m n\\u00e0o hay th\\u00eam v\\u00e0o gi\\u1ecf h\\u00e0ng kh\\u00f4ng?\"}"
+      },
+      {
+        "stepName": "Output Guardrail (Grounding)",
+        "latencyMs": 25008,
+        "status": "pass",
+        "detail": "{\"blocked\": false}"
+      }
+    ]
+  },
+  "spans": [
+    {
+      "name": "bedrock_converse",
+      "attributes": {
+        "gen_ai.request.model": "amazon.nova-lite-v1:0",
+        "gen_ai.response.finish_reason": "tool_use",
+        "gen_ai.usage.input_tokens": 5327,
+        "gen_ai.usage.output_tokens": 110
+      }
+    },
+    {
+      "name": "guardrail_citation_validation",
+      "attributes": {
+        "guardrail.citation_valid": true
+      }
+    },
+    {
+      "name": "bedrock_converse",
+      "attributes": {
+        "gen_ai.request.model": "amazon.nova-lite-v1:0",
+        "gen_ai.response.finish_reason": "end_turn",
+        "gen_ai.usage.input_tokens": 5885,
+        "gen_ai.usage.output_tokens": 596
+      }
+    },
+    {
+      "name": "guardrail_input",
+      "attributes": {
+        "guardrail.blocked": false
+      }
+    },
+    {
+      "name": "bedrock_embed",
+      "attributes": {
+        "gen_ai.request.model": "amazon.titan-embed-text-v2:0",
+        "gen_ai.usage.input_tokens": 6
+      }
+    },
+    {
+      "name": "tool_call",
+      "attributes": {
+        "tool.arguments": "{\"query\": \"gi\\u00e1 r\\u1ebb\", \"category\": \"Telescopes\"}",
+        "tool.name": "search_products",
+        "tool.result_preview": "{\"status\": \"ok\", \"count\": 3, \"products\": [{\"product_id\": \"1YMWWN1N4O\", \"name\": \"Eclipsmart Travel Refractor Telescope\", \"price\": \"$129.95\", \"category\": \"telescopes\", \"description\": \"Dedicated white-light solar scope for the observer on the go. The 50mm refracting solar scope uses Solar Safe, ISO com",
+        "tool.succeeded": true
+      }
+    },
+    {
+      "name": "oteldemo.ProductCatalogService/SearchProducts",
+      "attributes": {
+        "app.products_search.count": 10,
+        "app.search.mode": "semantic"
+      }
+    },
+    {
+      "name": "guardrail_output_grounding",
+      "attributes": {
+        "guardrail.blocked": false
+      }
+    }
+  ]
+}

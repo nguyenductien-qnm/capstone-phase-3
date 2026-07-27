@@ -1,0 +1,120 @@
+{
+  "category": "task",
+  "input": [
+    "Giỏ hàng của tôi có gì?",
+    [
+      "get_cart"
+    ],
+    "task-cart"
+  ],
+  "latency": 16.276222705841064,
+  "tokens": {
+    "input": 10749,
+    "output": 104,
+    "embedding": 0
+  },
+  "usd_cost": 0.0006699,
+  "embed_cost": 0.0,
+  "passed": true,
+  "reason": "All expected tools called successfully: ['get_cart']",
+  "response": {
+    "response": "Hiện tại giỏ hàng của bạn không có sản phẩm nào. Bạn có muốn tìm kiếm và thêm sản phẩm vào giỏ hàng không?",
+    "actionsTaken": [
+      {
+        "toolName": "get_cart",
+        "argumentsJson": "{}",
+        "succeeded": true,
+        "startedAtUnix": 1785076793,
+        "durationMs": 39
+      }
+    ],
+    "degraded": false,
+    "traceId": "273b4be39586d0ace2915a9399a57919",
+    "citations": [],
+    "traceSteps": [
+      {
+        "stepName": "Input Guardrail (PII/Prompt Guard)",
+        "latencyMs": 982,
+        "status": "pass",
+        "detail": "{\"question\": \"Gi\\u1ecf h\\u00e0ng c\\u1ee7a t\\u00f4i c\\u00f3 g\\u00ec?\", \"blocked\": false}"
+      },
+      {
+        "stepName": "Model Gateway & Bedrock Nova",
+        "latencyMs": 15241,
+        "status": "ok",
+        "detail": "{\"routed_model\": \"amazon.nova-lite-v1:0\"}"
+      },
+      {
+        "stepName": "LLM → gọi tool: get_cart",
+        "latencyMs": 1108,
+        "status": "ok",
+        "detail": "{\"decided_tools\": [\"get_cart\"], \"stop_reason\": \"tool_use\", \"reasoning\": \"<thinking>The user wants to know what's in their shopping cart. I need to call the `get_cart` tool to retrieve the current contents of the cart.</thinking>\"}"
+      },
+      {
+        "stepName": "Tool: get_cart",
+        "latencyMs": 39,
+        "status": "ok",
+        "detail": "{\"args\": {}, \"succeeded\": true}"
+      },
+      {
+        "stepName": "LLM → trả lời trực tiếp",
+        "latencyMs": 1264,
+        "status": "ok",
+        "detail": "{\"decided_tools\": [], \"stop_reason\": \"end_turn\", \"reasoning\": \"Hi\\u1ec7n t\\u1ea1i gi\\u1ecf h\\u00e0ng c\\u1ee7a b\\u1ea1n kh\\u00f4ng c\\u00f3 s\\u1ea3n ph\\u1ea9m n\\u00e0o. B\\u1ea1n c\\u00f3 mu\\u1ed1n t\\u00ecm ki\\u1ebfm v\\u00e0 th\\u00eam s\\u1ea3n ph\\u1ea9m v\\u00e0o gi\\u1ecf h\\u00e0ng kh\\u00f4ng?\"}"
+      },
+      {
+        "stepName": "Output Guardrail (Grounding)",
+        "latencyMs": 12819,
+        "status": "pass",
+        "detail": "{\"blocked\": false}"
+      }
+    ]
+  },
+  "spans": [
+    {
+      "name": "guardrail_citation_validation",
+      "attributes": {
+        "guardrail.citation_valid": true
+      }
+    },
+    {
+      "name": "tool_call",
+      "attributes": {
+        "tool.arguments": "{}",
+        "tool.name": "get_cart",
+        "tool.result_preview": "{\"status\": \"ok\", \"user_id\": \"eval-user\", \"items\": []}",
+        "tool.succeeded": true
+      }
+    },
+    {
+      "name": "bedrock_converse",
+      "attributes": {
+        "gen_ai.request.model": "amazon.nova-lite-v1:0",
+        "gen_ai.response.finish_reason": "end_turn",
+        "gen_ai.usage.input_tokens": 5423,
+        "gen_ai.usage.output_tokens": 53
+      }
+    },
+    {
+      "name": "guardrail_input",
+      "attributes": {
+        "guardrail.blocked": false
+      }
+    },
+    {
+      "name": "bedrock_converse",
+      "attributes": {
+        "gen_ai.request.model": "amazon.nova-lite-v1:0",
+        "gen_ai.response.finish_reason": "tool_use",
+        "gen_ai.usage.input_tokens": 5326,
+        "gen_ai.usage.output_tokens": 51
+      }
+    },
+    {
+      "name": "guardrail_output_grounding",
+      "attributes": {
+        "guardrail.blocked": false
+      }
+    }
+  ]
+}

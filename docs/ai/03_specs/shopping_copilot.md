@@ -1,8 +1,8 @@
 # Shopping Copilot Agent Specification
 
-> **Trạng thái:** Implemented  
-> **Ngày:** 2026-07-14  
-> **ADR liên quan:** ADR-006, ADR-011 (AI Safety & Guardrails)
+> **Trạng thái:** Implemented (LLM thật = AWS Bedrock Nova Pro, không còn Mock LLM)  
+> **Ngày:** 2026-07-25  
+> **ADR liên quan:** ADR-004 (routing), ADR-006/011/014/015 (AI Safety & Guardrails — guardrail nay tập trung ở service `ml-guard` qua gRPC)
 
 Dịch vụ **Shopping Copilot** là một AI Agent thông minh hỗ trợ người dùng mua sắm trực tiếp trên storefront của TechX Corp. Agent có khả năng gọi các công cụ (tool calling) để tra cứu danh mục sản phẩm, quản lý giỏ hàng, và lấy dữ liệu đánh giá sản phẩm nhằm đưa ra phản hồi chính xác và hữu ích nhất cho khách hàng.
 
@@ -10,7 +10,7 @@ Dịch vụ **Shopping Copilot** là một AI Agent thông minh hỗ trợ ngư�
 
 ## 1. Kiến Trúc Hệ Thống & Luồng Hoạt Động (Architecture & Workflows)
 
-Dịch vụ chạy dưới dạng một gRPC server viết bằng Python trên cổng `:50051`. Envoy Proxy (`frontend-proxy`) chịu trách nhiệm định tuyến các request gRPC-Web từ client storefront vào dịch vụ này.
+Dịch vụ chạy dưới dạng một gRPC server viết bằng Python trên cổng `:50051` (env `SHOPPING_COPILOT_PORT`). Envoy Proxy (`frontend-proxy`) chịu trách nhiệm định tuyến các request gRPC-Web từ client storefront vào dịch vụ này. LLM là **AWS Bedrock Nova Pro** (`LLM_COPILOT_MODEL`, fallback Nova Lite) gọi qua boto3 Converse — `bedrock_client.py` dùng IRSA / assume-role cross-account. Guardrail input/output đi qua service `ml-guard` (gRPC, xem §5).
 
 ### Sơ đồ tuần tự (Sequence Diagram)
 
@@ -19,7 +19,7 @@ sequenceDiagram
     participant Client as Storefront Client
     participant Envoy as Envoy Proxy
     participant Copilot as Shopping Copilot Agent
-    participant LLM as Mock LLM Service
+    participant LLM as AWS Bedrock (Nova Pro)
     participant Cache as Valkey Cache
     participant Catalog as Product Catalog
     participant Reviews as Product Reviews
@@ -29,7 +29,7 @@ sequenceDiagram
     Envoy->>Copilot: Forward gRPC to :50051
     Note over Copilot: Build System Prompt + Tool Definitions
 
-    Copilot->>LLM: POST /v1/chat/completions (Timeout: 5s)
+    Copilot->>LLM: Bedrock Converse (Timeout: 6.9s, LLM_COPILOT_TIMEOUT)
     alt LLM responds normally
         LLM-->>Copilot: tool_call: search_products(query)
         Copilot->>Catalog: gRPC SearchProducts (Timeout: 2s)
@@ -39,12 +39,12 @@ sequenceDiagram
 
         Copilot->>Cache: GET reviews:summary:L9ECAV7KIM:{model_ver}:{prompt_ver}
         alt Cache Hit
-            Cache-->>Copilot: Cached Review Data (Dynamic TTL 4h–7d)
+            Cache-->>Copilot: Cached Review Data (TTL phẳng 7d, content-addressed key)
         else Cache Miss
             Copilot->>Reviews: gRPC GetProductReviews (Timeout: 2s)
             alt Reviews OK
                 Reviews-->>Copilot: Review Summary (avg 4.8)
-                Copilot->>Cache: SET reviews:summary:L9ECAV7KIM:{model_ver}:{prompt_ver} (Dynamic TTL 4h–7d)
+                Copilot->>Cache: SET reviews:summary:L9ECAV7KIM:{model_ver}:{prompt_ver} (TTL phẳng 7d)
             else Reviews Error (429 / 503)
                 Copilot->>Copilot: Fallback to Static Review Data
                 Note over Copilot: Increment Circuit Breaker Failure Count
@@ -155,7 +155,7 @@ message ChatWithCopilotResponse {
 
 ## 3. Đặc Tả Các Công Cụ Agent Hỗ Trợ (Tool Specifications)
 
-Agent tích hợp mô hình OpenAI-compatible API hỗ trợ định nghĩa Function Calling. Các tool bao gồm:
+Agent dùng AWS Bedrock Converse tool-use (Nova Pro) để định nghĩa Function Calling. Giới hạn tối đa **5 vòng gọi tool/turn** (`agent.py`). Các tool bao gồm:
 
 > **Phân loại Core vs Extend** (khớp với 3 Tier của ADR-006):
 > - **[Core]** — bốn tool dưới đây phục vụ trực tiếp 3 intent cốt lõi (tìm sản phẩm / hỏi-đáp grounded / giỏ hàng có kiểm soát). Bắt buộc có ở tuần 1.
@@ -209,11 +209,13 @@ Agent tích hợp mô hình OpenAI-compatible API hỗ trợ định nghĩa Func
 
 ## 5. Tầng Bảo mật & Giám sát (Input/Output Guardrails)
 
-Để đáp ứng đầy đủ yêu cầu an toàn của **AI_FEATURE.md §2 Phần B** và chống lại các rủi ro từ **OWASP LLM06:2025 (Excessive Agency)**, trợ lý Shopping Copilot tích hợp cấu trúc bảo mật 3 lớp:
+Để đáp ứng đầy đủ yêu cầu an toàn của **AI_FEATURE.md §2 Phần B** và chống lại các rủi ro từ **OWASP LLM06:2025 (Excessive Agency)**, guardrail input/output **được tập trung ở service `ml-guard`** (ADR-011/014/015). `copilot_server.py` gọi `apply_guardrail_input()` / `redact_pii()` — shim `guardrails.py` re-export `pb/ml_guard_client.py` (gRPC `CheckInput`/`CheckOutput` tới `ml-guard:8090`). Cascade nhiều tầng:
 
-1. **Input Guardrail (Chặn Prompt Injection & Jailbreak):**
-   - Áp dụng bộ lọc Regex để loại bỏ các từ khóa độc hại, chỉ thị ghi đè prompt hệ thống (system overrides), lọc PII trước khi đưa vào context LLM.
-   - ~~Mô hình classifier nhẹ (Nova Micro)~~ **Đã loại bỏ** (xem ADR-011 §Alternatives Considered): gọi thêm một LLM sẽ tăng latency ~80ms/request, vi phạm SLO <1s của trang sản phẩm. L1 Regex + System Prompt Engineering đã đủ hiệu quả với chi phí 0đ và delay 0ms. Code (`guardrails.py`) giữ lại hàm `detect_prompt_injection_llm()` để dùng offline/audit, không nằm trên đường nóng.
+1. **Input Guardrail (Chặn Prompt Injection & Jailbreak):** — chạy trong `ml-guard`
+   - **T0 in-process:** regex VN/EN loại keyword override + normalize Unicode (NFKC, strip zero-width) + length cap, 0ms.
+   - **T1 `ml-guard` pod:** Presidio PII redact + ProtectAI DeBERTa injection + NLI grounding (mDeBERTa-XNLI).
+   - **T2 Nova judge:** injection = Nova Lite (7/7 VN), grounding neutral-zone = Nova Micro. Fail-open có chủ đích khi judge/pod chết (regex T0 đã chặn thô, PII luôn mask).
+   - **Layer-3 (bật ON 24/07):** Bedrock Guardrail `crbxw41dbmxp` (us-east-1), flag `LLM_BEDROCK_GUARDRAIL=true` — defense-in-depth, không thay primary.
 
 2. **Output Guardrail (Lọc PII & System Prompt Leak):**
    - **PII Redaction:** Tự động lọc và che giấu các thông tin nhạy cảm của khách hàng như Email, Số điện thoại, Số thẻ tín dụng trước khi hiển thị câu trả lời ra Storefront.
@@ -233,7 +235,7 @@ Agent tích hợp mô hình OpenAI-compatible API hỗ trợ định nghĩa Func
    - CPU request `200m` / limit `1000m`.
    - Memory request `256Mi` / limit `1024Mi`.
 2. **Khả năng phục hồi (Resilience)**:
-   - Các lệnh gọi ra các microservice khác hoặc LLM mock phải được bọc trong cơ chế **Timeout** (tối đa 5 giây cho cuộc gọi LLM, 2 giây cho microservices) và **Retry với Exponential Backoff**.
+   - Các lệnh gọi ra các microservice khác hoặc Bedrock LLM phải được bọc trong cơ chế **Timeout** (`LLM_COPILOT_TIMEOUT` mặc định **6.9s** cho cuộc gọi LLM theo P95 tool-loop 21/07, 2 giây cho microservices) và **Retry với Exponential Backoff**.
    - Phục hồi khi LLM trả về lỗi 429 thông qua cơ chế Fallback (trả về câu trả lời định sẵn hoặc gợi ý tĩnh từ local).
 3. **Giám sát (Telemetry)**:
    - Tích hợp OpenTelemetry SDK, tự động liên kết (correlate) trace context qua các span gọi đến LLM và các microservices khác.

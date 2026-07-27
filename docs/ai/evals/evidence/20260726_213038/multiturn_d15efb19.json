@@ -1,0 +1,67 @@
+{
+  "category": "multiturn",
+  "input": [
+    "Cái đầu tiên giá bao nhiêu?",
+    "multiturn-reference"
+  ],
+  "latency": 2.4545793533325195,
+  "tokens": {
+    "input": 6246,
+    "output": 54,
+    "embedding": 0
+  },
+  "usd_cost": 0.0051696,
+  "embed_cost": 0.0,
+  "passed": true,
+  "reason": "Hiểu được tham chiếu và trả lời",
+  "response": {
+    "response": "Giá của Starsense Explorer Refractor Telescope là $349.95. Nếu bạn muốn thêm sản phẩm này vào giỏ hàng, hãy cho tôi biết!",
+    "actionsTaken": [],
+    "degraded": false,
+    "traceId": "72f924358f32ef45783c131abea09ab5",
+    "citations": [],
+    "traceSteps": [
+      {
+        "stepName": "Input Guardrail (PII/Prompt Guard)",
+        "latencyMs": 1041,
+        "status": "pass",
+        "detail": "{\"question\": \"C\\u00e1i \\u0111\\u1ea7u ti\\u00ean gi\\u00e1 bao nhi\\u00eau?\", \"blocked\": false}"
+      },
+      {
+        "stepName": "Model Gateway & Bedrock Nova",
+        "latencyMs": 1350,
+        "status": "ok",
+        "detail": "{\"routed_model\": \"amazon.nova-pro-v1:0\"}"
+      },
+      {
+        "stepName": "LLM → trả lời trực tiếp",
+        "latencyMs": 1346,
+        "status": "ok",
+        "detail": "{\"decided_tools\": [], \"stop_reason\": \"end_turn\", \"reasoning\": \"Gi\\u00e1 c\\u1ee7a Starsense Explorer Refractor Telescope l\\u00e0 $349.95. N\\u1ebfu b\\u1ea1n mu\\u1ed1n th\\u00eam s\\u1ea3n ph\\u1ea9m n\\u00e0y v\\u00e0o gi\\u1ecf h\\u00e0ng, h\\u00e3y cho t\\u00f4i bi\\u1ebft!\"}"
+      }
+    ]
+  },
+  "spans": [
+    {
+      "name": "guardrail_citation_validation",
+      "attributes": {
+        "guardrail.citation_valid": true
+      }
+    },
+    {
+      "name": "guardrail_input",
+      "attributes": {
+        "guardrail.blocked": false
+      }
+    },
+    {
+      "name": "bedrock_converse",
+      "attributes": {
+        "gen_ai.request.model": "amazon.nova-pro-v1:0",
+        "gen_ai.response.finish_reason": "end_turn",
+        "gen_ai.usage.input_tokens": 6246,
+        "gen_ai.usage.output_tokens": 54
+      }
+    }
+  ]
+}

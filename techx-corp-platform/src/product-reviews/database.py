@@ -11,8 +11,11 @@ import time
 import simplejson as json
 
 # Postgres
+# Postgres
 import psycopg2
+from psycopg2 import pool
 from psycopg2 import OperationalError, InterfaceError
+import threading
 
 # CDO-TBD1: absorb short DB blips (RDS failover / replica restart) without 5xx.
 _DB_RETRY_MAX_ATTEMPTS = 5
@@ -29,6 +32,29 @@ def must_map_env(key: str):
 
 # Retrieve Postgres environment variables
 db_connection_str = must_map_env('DB_CONNECTION_STRING')
+
+_pool = None
+_pool_lock = threading.Lock()
+
+# Cỡ pool nhỏ có chủ đích (đo hạ tầng 26/07): app đã đi qua RDS Proxy
+# (`ecommerce-dev-rds-proxy`, MaxConnectionsPercent 100) nên tầng gộp connection
+# nằm ở proxy. Instance là db.t4g.micro (~100 max_connections); mỗi pod ôm 10
+# connection thì 10 pod chạm trần. 3 đủ cho gRPC ThreadPoolExecutor(10) vì công
+# việc DB rất ngắn, phần lớn thời gian request nằm ở LLM.
+_POOL_MIN = 1
+_POOL_MAX = int(os.environ.get('DB_POOL_MAX', '3'))
+
+
+def get_connection_pool():
+    global _pool
+    if _pool is None:
+        with _pool_lock:
+            if _pool is None:
+                # ThreadedConnectionPool, KHÔNG phải SimpleConnectionPool: server chạy
+                # grpc.server(ThreadPoolExecutor(max_workers=10)) nên nhiều thread dùng
+                # chung pool, mà SimpleConnectionPool không thread-safe (tài liệu psycopg2).
+                _pool = psycopg2.pool.ThreadedConnectionPool(_POOL_MIN, _POOL_MAX, db_connection_str)
+    return _pool
 
 
 def _is_transient_db_error(exc: BaseException) -> bool:
@@ -63,44 +89,32 @@ def _backoff_seconds(attempt: int) -> float:
     return random.uniform(exp / 2.0, exp)
 
 
-def connect_with_retry():
-    """Open a psycopg2 connection with exponential backoff on transient errors."""
-    last_err = None
-    for attempt in range(1, _DB_RETRY_MAX_ATTEMPTS + 1):
-        try:
-            return psycopg2.connect(db_connection_str)
-        except Exception as e:
-            last_err = e
-            if not _is_transient_db_error(e) or attempt == _DB_RETRY_MAX_ATTEMPTS:
-                raise
-            sleep_s = _backoff_seconds(attempt)
-            time.sleep(sleep_s)
-    raise last_err
-
-
 def execute_with_retry(work):
     """
-    Run work(connection) with connect + execute retry on transient blips.
+    Run work(connection) with pool acquire + execute retry on transient blips.
     work must be idempotent (SELECT-only paths in this service).
     """
     last_err = None
     for attempt in range(1, _DB_RETRY_MAX_ATTEMPTS + 1):
         connection = None
+        broken = False
+        pool_obj = get_connection_pool()
         try:
-            connection = connect_with_retry()
+            connection = pool_obj.getconn()
             return work(connection)
         except Exception as e:
             last_err = e
-            if not _is_transient_db_error(e) or attempt == _DB_RETRY_MAX_ATTEMPTS:
+            # RDS failover giết connection đang mở. Trả nó về pool nguyên vẹn thì
+            # lần retry sau bốc trúng lại chính connection chết đó — vòng lặp thất
+            # bại. Đánh dấu để đóng hẳn; lỗi SQL logic thì connection vẫn dùng được.
+            broken = _is_transient_db_error(e)
+            if not broken or attempt == _DB_RETRY_MAX_ATTEMPTS:
                 raise
             sleep_s = _backoff_seconds(attempt)
             time.sleep(sleep_s)
         finally:
             if connection is not None:
-                try:
-                    connection.close()
-                except Exception:
-                    pass
+                pool_obj.putconn(connection, close=broken)
     raise last_err
 
 
