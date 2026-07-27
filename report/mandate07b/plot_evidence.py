@@ -30,7 +30,14 @@ SCENARIOS = os.path.join(REPO, "aiops", "incident_scenarios")
 RAW_JSON = os.path.join(HERE, "image", "error_ratio_raw.json")
 OUT_PNG = os.path.join(HERE, "image", "error-ratio-timeline.png")
 
-# The exact expression `grpc-error-rate-high` evaluates (aiops/detector/rules.yaml).
+# The expression `grpc-error-rate-high` evaluated AT THE TIME OF THE #7b MEASUREMENT.
+#
+# Deliberately frozen. On 27/07 that rule was replaced by `service-error-rate-high` on the
+# spanmetrics metric family, because rpc_server_duration_milliseconds only exists on 3 of 20
+# services and health-check traffic was 89% of its denominator (see
+# report/mandate22-detection-gaps/verify.md). Repointing this script at the new expression
+# would silently redraw a chart that is supposed to reproduce what was measured back then —
+# so it keeps the old query, and this note keeps the reader from assuming it is current.
 QUERY = (
     'sum by (service_name) (rate(rpc_server_duration_milliseconds_count'
     '{rpc_grpc_status_code=~"2|4|13|14"}[5m]))'
