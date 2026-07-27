@@ -26,16 +26,16 @@ spec:
           drop:
             - ALL
       env:
-        - name: PGPASSWORD
+        - name: PGURL
           valueFrom:
             secretKeyRef:
               name: db-secret
-              key: password
+              key: catalog-db-conn
       command:
         - sh
         - -c
         - |
-          psql -h ecommerce-develop-dev-postgres.cgduc4gcisdx.us-east-1.rds.amazonaws.com -U db_admin -d ecommerce_db <<'EOF'
+          psql "$PGURL" <<'EOF'
           CREATE SCHEMA IF NOT EXISTS drill_m20;
 
           CREATE TABLE IF NOT EXISTS drill_m20.orders_audit (
