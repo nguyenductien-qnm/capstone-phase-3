@@ -10,6 +10,9 @@ components:
   cart:
     imageOverride:
       tag: 1.0-cart-4986041
+  cart-consumer-worker:
+    imageOverride:
+      tag: 1.0-cart-4986041
   checkout:
     imageOverride:
       tag: 1.0-checkout-6beefa4
