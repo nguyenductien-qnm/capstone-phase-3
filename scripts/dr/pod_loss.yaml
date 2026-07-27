@@ -25,10 +25,15 @@ spec:
         capabilities:
           drop:
             - ALL
+      env:
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: password
       command:
         - sh
         - -c
         - |
-          export PGPASSWORD='fWX2.+v%S6VY)vrG+Ol.rwR*5EWpd+XD'
           psql -h ecommerce-develop-dev-postgres.cgduc4gcisdx.us-east-1.rds.amazonaws.com -U db_admin -d ecommerce_db -c "DROP SCHEMA IF EXISTS drill_m20 CASCADE;"
           echo "DATA_LOSS_EVENT_COMPLETED"
