@@ -78,7 +78,15 @@ internal class Consumer : IDisposable
                 {
                     using var activity = MyActivitySource.StartActivity("order-consumed",  ActivityKind.Internal);
                     var consumeResult = _consumer.Consume();
-                    ProcessMessage(consumeResult.Message).GetAwaiter().GetResult();
+                    if (ProcessMessage(consumeResult.Message).GetAwaiter().GetResult())
+                    {
+                        _consumer.StoreOffset(consumeResult);
+                    }
+                    else
+                    {
+                        _consumer.Seek(consumeResult.TopicPartitionOffset);
+                        Thread.Sleep(TimeSpan.FromSeconds(1));
+                    }
                 }
                 catch (ConsumeException e)
                 {
@@ -99,7 +107,24 @@ internal class Consumer : IDisposable
 
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, OrderFulfillmentJoinState> _pendingJoins = new();
 
-    private async Task ProcessMessage(Message<string, byte[]> message)
+    private static string CurrentOrderSchemaPhase()
+    {
+        return (Environment.GetEnvironmentVariable("ACCOUNTING_ORDER_SCHEMA_PHASE") ?? "legacy")
+            .Trim()
+            .ToLowerInvariant();
+    }
+
+    private static string CheckoutOrderPayloadSql()
+    {
+        return CurrentOrderSchemaPhase() switch
+        {
+            "dual_read" => "SELECT COALESCE(order_payload, order_metadata)::text AS \"Value\" FROM checkout.orders WHERE order_id = {0}",
+            "read_new" => "SELECT order_payload::text AS \"Value\" FROM checkout.orders WHERE order_id = {0}",
+            _ => "SELECT order_metadata::text AS \"Value\" FROM checkout.orders WHERE order_id = {0}"
+        };
+    }
+
+    private async Task<bool> ProcessMessage(Message<string, byte[]> message)
     {
         try
         {
@@ -157,7 +182,7 @@ internal class Consumer : IDisposable
             if (string.IsNullOrEmpty(orderId))
             {
                 _logger.LogWarning("Accounting consumed message on {Topic} without a valid orderId key", TopicName);
-                return;
+                return true;
             }
 
             var joinState = _pendingJoins.GetOrAdd(orderId, id => new OrderFulfillmentJoinState { OrderId = id });
@@ -193,34 +218,59 @@ internal class Consumer : IDisposable
             if (joinState.HasPaymentEvent && joinState.HasShippingEvent)
             {
                 _logger.LogInformation("Accounting Stream Join completed successfully for order {OrderId}. Both payment and shipping fulfillment events received.", orderId);
-                
-                if (_dbContext != null)
-                {
-                    // 1. Claim check: Query checkout.orders using orderId to get JSON metadata
-                    var rawJson = await _dbContext.Database
-                        .SqlQuery<string>($"SELECT order_metadata::text AS \"Value\" FROM checkout.orders WHERE order_id = {orderId}")
-                        .FirstOrDefaultAsync();
 
-                    if (!string.IsNullOrEmpty(rawJson))                                                                                                  
-                    {                                                                                                                                    
-                        // 2. Deserialize JSON string into C# DTO object                                                                                
-                        var orderData = JsonSerializer.Deserialize<CheckoutOrderMetadata>(
-                            rawJson, JsonOptions
-                        );                                                                                                     
-              
-                        if (orderData != null)
-                        {
-                            // 3. Write order details to accounting database tables
-                            PersistOrderFromMetadata(orderId, orderData);
-                        }
-                    }
+                if (_dbContext == null)
+                {
+                    _logger.LogError(
+                        "Accounting database is unavailable for completed order {OrderId}; retrying",
+                        orderId
+                    );
+                    return false;
                 }
+
+                // 1. Claim check: Query checkout.orders using orderId to get JSON metadata
+                var rawJson = await _dbContext.Database
+                    .SqlQueryRaw<string>(CheckoutOrderPayloadSql(), orderId)
+                    .FirstOrDefaultAsync();
+
+                if (string.IsNullOrWhiteSpace(rawJson))
+                {
+                    // A mixed-version pod may temporarily be unable to read the
+                    // column used by checkout. Preserve the join and retry the Kafka
+                    // record instead of storing its offset and losing accounting data.
+                    _logger.LogWarning(
+                        "Checkout payload for order {OrderId} is not visible in accounting schema phase {SchemaPhase}; retrying",
+                        orderId,
+                        CurrentOrderSchemaPhase()
+                    );
+                    return false;
+                }
+
+                // 2. Deserialize and validate before writing any accounting rows.
+                var orderData = JsonSerializer.Deserialize<CheckoutOrderMetadata>(
+                    rawJson, JsonOptions
+                );
+                var validationError = ValidateCheckoutOrderMetadata(orderData);
+                if (validationError != null)
+                {
+                    _logger.LogWarning(
+                        "Checkout payload for order {OrderId} is invalid ({ValidationError}); retrying",
+                        orderId,
+                        validationError
+                    );
+                    return false;
+                }
+
+                // 3. Write order details to accounting database tables.
+                PersistOrderFromMetadata(orderId, orderData!);
                 _pendingJoins.TryRemove(orderId, out _);
             }
+            return true;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to process message in Accounting consumer:");
+            return false;
         }
     }
 
@@ -342,41 +392,78 @@ internal class OrderFulfillmentJoinState
         _dbContext!.Add(orderEntity);
 
         // 2. Map items from orderItems JSON array
-        if (metadata.OrderItems != null)
+        foreach (var item in metadata.OrderItems!)
         {
-            foreach (var item in metadata.OrderItems)
+            var cartItem = item.Item!;
+            var cost = item.Cost!;
+            var orderItem = new OrderItemEntity
             {
-                var orderItem = new OrderItemEntity
-                {
-                    OrderId = orderId,
-                    ProductId = item.Item?.ProductId ?? "",
-                    Quantity = item.Item?.Quantity ?? 1,
-                    ItemCostCurrencyCode = item.Cost?.CurrencyCode ?? "USD",
-                    ItemCostUnits = item.Cost?.Units ?? 0,
-                    ItemCostNanos = item.Cost?.Nanos ?? 0
-                };
-                _dbContext.Add(orderItem);
-            }
+                OrderId = orderId,
+                ProductId = cartItem.ProductId,
+                Quantity = cartItem.Quantity,
+                ItemCostCurrencyCode = cost.CurrencyCode,
+                ItemCostUnits = cost.Units,
+                ItemCostNanos = cost.Nanos
+            };
+            _dbContext.Add(orderItem);
         }
 
         // 3. Map shipping details
+        var shippingCost = metadata.ShippingCostLocalized!;
+        var address = metadata.Address!;
         var shipping = new ShippingEntity
         {
             OrderId = orderId,
             ShippingTrackingId = orderId,
-            ShippingCostCurrencyCode = metadata.ShippingCostLocalized?.CurrencyCode ?? "USD",
-            ShippingCostUnits = metadata.ShippingCostLocalized?.Units ?? 0,
-            ShippingCostNanos = metadata.ShippingCostLocalized?.Nanos ?? 0,
-            StreetAddress = metadata.Address?.StreetAddress ?? "",
-            City = metadata.Address?.City ?? "",
-            State = metadata.Address?.State ?? "",
-            Country = metadata.Address?.Country ?? "",
-            ZipCode = metadata.Address?.ZipCode ?? ""
+            ShippingCostCurrencyCode = shippingCost.CurrencyCode,
+            ShippingCostUnits = shippingCost.Units,
+            ShippingCostNanos = shippingCost.Nanos,
+            StreetAddress = address.StreetAddress,
+            City = address.City,
+            State = address.State,
+            Country = address.Country,
+            ZipCode = address.ZipCode
         };
         _dbContext.Add(shipping);
 
         // 4. Commit all INSERTs to PostgreSQL under 'accounting' schema
         _dbContext.SaveChanges();
+    }
+
+    internal static string? ValidateCheckoutOrderMetadata(CheckoutOrderMetadata? metadata)
+    {
+        if (metadata == null)
+            return "payload is null";
+        if (metadata.Address == null)
+            return "address is missing";
+        if (metadata.ShippingCostLocalized == null)
+            return "shipping cost is missing";
+        if (metadata.Total == null)
+            return "total is missing";
+        if (metadata.OrderItems == null || metadata.OrderItems.Count == 0)
+            return "order items are missing";
+        if (string.IsNullOrWhiteSpace(metadata.UserId))
+            return "user ID is missing";
+        if (string.IsNullOrWhiteSpace(metadata.UserCurrency))
+            return "user currency is missing";
+        if (string.IsNullOrWhiteSpace(metadata.ShippingCostLocalized.CurrencyCode))
+            return "shipping currency is missing";
+        if (string.IsNullOrWhiteSpace(metadata.Total.CurrencyCode))
+            return "total currency is missing";
+
+        foreach (var item in metadata.OrderItems)
+        {
+            if (item.Item == null)
+                return "order item identity is missing";
+            if (string.IsNullOrWhiteSpace(item.Item.ProductId))
+                return "order item product ID is missing";
+            if (item.Item.Quantity <= 0)
+                return "order item quantity must be positive";
+            if (item.Cost == null || string.IsNullOrWhiteSpace(item.Cost.CurrencyCode))
+                return "order item cost is missing";
+        }
+
+        return null;
     }
 
     private static bool IsLikelyTransientDbFailure(Exception ex)
@@ -432,6 +519,7 @@ internal class OrderFulfillmentJoinState
             BootstrapServers = servers,
             // https://github.com/confluentinc/confluent-kafka-dotnet/tree/07de95ed647af80a0db39ce6a8891a630423b952#basic-consumer-example
             AutoOffsetReset = AutoOffsetReset.Earliest,
+            EnableAutoOffsetStore = false,
             EnableAutoCommit = true,
             SecurityProtocol = SecurityProtocol.SaslSsl,
             SaslMechanism = SaslMechanism.ScramSha512,
