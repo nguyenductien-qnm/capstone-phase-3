@@ -71,3 +71,8 @@ docs/ai/gap_analysis.md
 
 # Jira Agent package (contains .env with API tokens)
 Jira_Agent_Week2_Package/
+
+# aiops/remediation/audit_log.jsonl: file runtime cua vong tu dap (TF1-112).
+# Tren EKS no nam o emptyDir /data; o may ca nhan thi mac dinh ghi canh module.
+# Khong commit — no la du lieu chay, khong phai ma nguon.
+aiops/remediation/audit_log.jsonl

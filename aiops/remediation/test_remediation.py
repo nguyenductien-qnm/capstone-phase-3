@@ -274,3 +274,133 @@ def test_no_flagd_or_helm_reference_anywhere_in_remediation_module():
         code_only = "\n".join(code_lines)
         assert "flagd" not in code_only, f"{py_file.name}: co code (khong phai comment) nhac flagd"
         assert "helm rollback" not in code_only, f"{py_file.name}: co code goi helm rollback"
+
+
+# ---------------------------------------------------------------------------
+# Audit log (TF1-112 / MANDATE-22)
+#
+# DoD cua MANDATE-22 doi "audit log lan do". Truoc TF1-112 remediation KHONG ghi
+# lai gi: dau vet duy nhat la alert Slack + stdout cua pod, ma stdout mat sach khi
+# pod restart. Nang hon, incident_replay.py DA mong doi aiops/remediation/audit_log.jsonl
+# (DEFAULT_AUDIT_LOG, check_remediation()) nhung khong module nao ghi ra no.
+# ---------------------------------------------------------------------------
+import json as _json
+
+import audit
+
+
+@pytest.fixture(autouse=True)
+def audit_file(tmp_path, monkeypatch):
+    """Tro audit log sang tmp cho MOI test.
+
+    autouse vi cac test cu cung goi process_oom_policy, ma ham do gio co ghi audit —
+    khong co fixture nay thi chay bo test se ghi ban aiops/remediation/audit_log.jsonl
+    vao repo.
+    """
+    path = tmp_path / "audit_log.jsonl"
+    monkeypatch.setenv("REMEDIATION_AUDIT_FILE", str(path))
+    return path
+
+
+def _read_audit(path):
+    if not path.exists():
+        return []
+    return [_json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def test_audit_log_ghi_tung_cong_chu_khong_chi_ket_qua_cuoi(audit_file):
+    """Khi vong tu dap KHONG hanh dong, cau hoi luon la "no bi chan o cong nao".
+    Chi ghi ket qua cuoi thi khong tra loi duoc."""
+    prom, osc, core_v1, alerter = _mocks()
+    remediation.process_oom_policy(
+        POLICY, RULE, CFG, prom, osc, core_v1, alerter,
+        BlastRadiusGuard(1, 3600), CircuitBreaker(3, 86400), dry_run=True,
+    )
+    stages = [r["stage"] for r in _read_audit(audit_file)]
+    # Di het cac cong truoc do roi dung o dry-run.
+    assert stages == [
+        audit.STAGE_DETECT,
+        audit.STAGE_CIRCUIT_BREAKER,
+        audit.STAGE_ERROR_BUDGET,
+        audit.STAGE_BLAST_RADIUS,
+        audit.STAGE_DRY_RUN,
+    ], stages
+
+
+def test_audit_log_ghi_ro_cong_nao_da_chan(audit_file):
+    """Blast radius het han muc -> phai truy duoc chinh xac cong do tu choi."""
+    prom, osc, core_v1, alerter = _mocks()
+    guard = BlastRadiusGuard(1, 3600)
+    guard.record("techx-tf1")  # tieu het han muc truoc
+    remediation.process_oom_policy(
+        POLICY, RULE, CFG, prom, osc, core_v1, alerter,
+        guard, CircuitBreaker(3, 86400), dry_run=False,
+    )
+    records = _read_audit(audit_file)
+    denied = [r for r in records if r["decision"] == "deny"]
+    assert len(denied) == 1
+    assert denied[0]["stage"] == audit.STAGE_BLAST_RADIUS
+    assert denied[0]["max_actions"] == 1
+    assert denied[0]["scope_key"] == "techx-tf1"
+    # Khong duoc di tiep sang hanh dong.
+    assert not [r for r in records if r["stage"] == audit.STAGE_ACTION]
+
+
+@patch("remediation.verify_oom_recovery", return_value=False)
+def test_audit_log_ghi_hanh_dong_that_va_verify_fail(_mock_verify, audit_file):
+    prom, osc, core_v1, alerter = _mocks()
+    remediation.process_oom_policy(
+        POLICY, RULE, CFG, prom, osc, core_v1, alerter,
+        BlastRadiusGuard(1, 3600), CircuitBreaker(3, 86400), dry_run=False,
+    )
+    records = _read_audit(audit_file)
+    acted = [r for r in records if r["stage"] == audit.STAGE_ACTION]
+    assert len(acted) == 1
+    assert acted[0]["decision"] == "acted"
+    assert acted[0]["action"] == "k8s_restart_pod"
+    assert acted[0]["dry_run"] is False
+    assert acted[0]["pod"] == "email-abc123"
+
+    verified = [r for r in records if r["stage"] == audit.STAGE_VERIFY]
+    assert len(verified) == 1
+    assert verified[0]["decision"] == "fail"
+    assert "elapsed_seconds" in verified[0]
+
+
+@patch("remediation.verify_oom_recovery", return_value=False)
+def test_audit_log_ghi_lai_luc_circuit_breaker_vua_mo(_mock_verify, audit_file):
+    """Vet quan trong nhat cua ca "rollback": breaker mo -> tu choi tu dong tu do."""
+    prom, osc, core_v1, alerter = _mocks()
+    breaker = CircuitBreaker(1, 86400)  # mo ngay sau 1 fail cho gon test
+    remediation.process_oom_policy(
+        POLICY, RULE, CFG, prom, osc, core_v1, alerter,
+        BlastRadiusGuard(5, 3600), breaker, dry_run=False,
+    )
+    opened = [r for r in _read_audit(audit_file) if r["decision"] == "opened"]
+    assert len(opened) == 1
+    assert opened[0]["stage"] == audit.STAGE_CIRCUIT_BREAKER
+    assert opened[0]["reset_timeout_seconds"] == 86400
+
+
+def test_audit_ghi_hong_khong_lam_chet_vong_lap(monkeypatch, capsys):
+    """Audit la thu yeu so voi viec dap su co. Dia day / mount read-only thi log
+    warning roi di tiep, KHONG duoc nem exception lam sap tien trinh remediation."""
+    monkeypatch.setenv("REMEDIATION_AUDIT_FILE", "/khong/ton/tai/audit.jsonl")
+    assert audit.record(audit.STAGE_ACTION, "acted", "oom-detected", "email", "pod-1", False) is None
+
+    prom, osc, core_v1, alerter = _mocks()
+    # Khong duoc nem exception du audit ghi hong.
+    remediation.process_oom_policy(
+        POLICY, RULE, CFG, prom, osc, core_v1, alerter,
+        BlastRadiusGuard(1, 3600), CircuitBreaker(3, 86400), dry_run=True,
+    )
+    alerter.send.assert_called()  # van chay het duong di binh thuong
+
+
+def test_audit_log_dung_dung_duong_dan_ma_incident_replay_mong_doi(monkeypatch):
+    """incident_replay.py da tro san vao aiops/remediation/audit_log.jsonl tu truoc.
+    Neu doi ten mac dinh o day thi ca duong cham diem remediation cua harness chet im."""
+    import pathlib
+    monkeypatch.delenv("REMEDIATION_AUDIT_FILE", raising=False)
+    expected = pathlib.Path(__file__).parent / "audit_log.jsonl"
+    assert pathlib.Path(audit.audit_path()) == expected
