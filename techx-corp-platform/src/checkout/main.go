@@ -72,7 +72,10 @@ var initResourcesOnce sync.Once
 
 const (
 	checkoutDependencyTimeout = 750 * time.Millisecond
-	maxOrderItemConcurrency   = 4
+	// One retry, not more: a second attempt covers a cold-cache read while still
+	// leaving the 10s checkout deadline enough room to persist the order.
+	checkoutDependencyAttempts = 2
+	maxOrderItemConcurrency    = 4
 	// Readiness polls faster than the kubelet probe (periodSeconds: 5) so a real
 	// outage is noticed within one probe cycle, with a ping timeout under the
 	// interval so a stuck ping cannot stall the loop.
@@ -716,10 +719,53 @@ func (cs *checkout) quoteShipping(ctx context.Context, address *pb.Address, item
 	return quoteResp.CostUsd, nil
 }
 
+// readDependency runs a read-only dependency call, retrying a transient failure
+// once. An online index build or a failover evicts the shared buffer cache, and
+// a single cold read can then outlast checkoutDependencyTimeout even though the
+// dependency itself is healthy — that is one dropped order for a blip that a
+// second attempt serves in milliseconds.
+//
+// Widening checkoutDependencyTimeout instead is not affordable: the worst-case
+// serial chain (cart, shipping quote plus its conversion, charge, empty cart)
+// already spends about 6s of the 10s the frontend allows, and the order still
+// has to be persisted after that.
+//
+// Only reads go through here. Charge and EmptyCart change state and must not be
+// repeated. The per-attempt context is derived from ctx, so the caller's
+// deadline still caps the total, and a retry can never overrun the budget.
+func readDependency[T any](ctx context.Context, call func(context.Context) (T, error)) (T, error) {
+	var zero T
+	var err error
+	for attempt := 1; attempt <= checkoutDependencyAttempts; attempt++ {
+		var value T
+		rpcCtx, cancel := context.WithTimeout(ctx, checkoutDependencyTimeout)
+		value, err = call(rpcCtx)
+		cancel()
+		if err == nil {
+			return value, nil
+		}
+		// A cancelled parent means the order is already failing elsewhere, or the
+		// caller gave up; retrying would only burn budget that is no longer ours.
+		if ctx.Err() != nil || !isRetryableDependencyError(err) {
+			return zero, err
+		}
+	}
+	return zero, err
+}
+
+func isRetryableDependencyError(err error) bool {
+	switch status.Code(err) {
+	case codes.DeadlineExceeded, codes.Unavailable, codes.ResourceExhausted, codes.Aborted:
+		return true
+	default:
+		return false
+	}
+}
+
 func (cs *checkout) getUserCart(ctx context.Context, userID string) ([]*pb.CartItem, error) {
-	rpcCtx, cancel := context.WithTimeout(ctx, checkoutDependencyTimeout)
-	defer cancel()
-	cart, err := cs.cartSvcClient.GetCart(rpcCtx, &pb.GetCartRequest{UserId: userID})
+	cart, err := readDependency(ctx, func(rpcCtx context.Context) (*pb.Cart, error) {
+		return cs.cartSvcClient.GetCart(rpcCtx, &pb.GetCartRequest{UserId: userID})
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user cart during checkout: %+v", err)
 	}
@@ -744,9 +790,9 @@ func (cs *checkout) prepOrderItems(ctx context.Context, items []*pb.CartItem, us
 		itemIndex, cartItem := i, item
 		group.Go(func() error {
 			v, err, _ := cs.productCatalogGroup.Do(cartItem.GetProductId(), func() (interface{}, error) {
-				rpcCtx, cancel := context.WithTimeout(groupCtx, checkoutDependencyTimeout)
-				defer cancel()
-				return cs.productCatalogSvcClient.GetProduct(rpcCtx, &pb.GetProductRequest{Id: cartItem.GetProductId()})
+				return readDependency(groupCtx, func(rpcCtx context.Context) (*pb.Product, error) {
+					return cs.productCatalogSvcClient.GetProduct(rpcCtx, &pb.GetProductRequest{Id: cartItem.GetProductId()})
+				})
 			})
 			if err != nil {
 				return fmt.Errorf("failed to get product #%q: %w", cartItem.GetProductId(), err)
@@ -772,11 +818,11 @@ func (cs *checkout) prepOrderItems(ctx context.Context, items []*pb.CartItem, us
 func (cs *checkout) convertCurrency(ctx context.Context, from *pb.Money, toCurrency string) (*pb.Money, error) {
 	key := fmt.Sprintf("%s:%d:%d:%s", from.GetCurrencyCode(), from.GetUnits(), from.GetNanos(), toCurrency)
 	v, err, _ := cs.currencyGroup.Do(key, func() (interface{}, error) {
-		rpcCtx, cancel := context.WithTimeout(ctx, checkoutDependencyTimeout)
-		defer cancel()
-		return cs.currencySvcClient.Convert(rpcCtx, &pb.CurrencyConversionRequest{
-			From:   from,
-			ToCode: toCurrency})
+		return readDependency(ctx, func(rpcCtx context.Context) (*pb.Money, error) {
+			return cs.currencySvcClient.Convert(rpcCtx, &pb.CurrencyConversionRequest{
+				From:   from,
+				ToCode: toCurrency})
+		})
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert currency: %+v", err)

@@ -1,11 +1,16 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"log/slog"
 	"testing"
+	"time"
 
 	"go.opentelemetry.io/otel"
+	"google.golang.org/grpc/codes"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/status"
 )
 
 func init() {
@@ -54,3 +59,86 @@ func TestReadinessGateWithdrawsAndRecovers(t *testing.T) {
 	}
 }
 
+func TestReadDependencyRetriesOneTransientFailure(t *testing.T) {
+	t.Parallel()
+
+	calls := 0
+	got, err := readDependency(context.Background(), func(context.Context) (string, error) {
+		calls++
+		if calls == 1 {
+			// What an index build looks like to the caller: the dependency is up,
+			// the one cold read just outran the per-attempt timeout.
+			return "", status.Error(codes.DeadlineExceeded, "cold read")
+		}
+		return "product", nil
+	})
+	if err != nil {
+		t.Fatalf("second attempt must succeed, got %v", err)
+	}
+	if got != "product" {
+		t.Fatalf("got %q, want %q", got, "product")
+	}
+	if calls != 2 {
+		t.Fatalf("made %d calls, want 2", calls)
+	}
+}
+
+func TestReadDependencyDoesNotRetryPermanentFailure(t *testing.T) {
+	t.Parallel()
+
+	calls := 0
+	_, err := readDependency(context.Background(), func(context.Context) (string, error) {
+		calls++
+		return "", status.Error(codes.NotFound, "no such product")
+	})
+	if status.Code(err) != codes.NotFound {
+		t.Fatalf("want NotFound, got %v", err)
+	}
+	if calls != 1 {
+		t.Fatalf("made %d calls, want 1: a missing product does not appear on a retry", calls)
+	}
+}
+
+func TestReadDependencyStopsWhenCallerGaveUp(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	calls := 0
+	_, err := readDependency(ctx, func(context.Context) (string, error) {
+		calls++
+		cancel()
+		return "", status.Error(codes.Unavailable, "dependency restarting")
+	})
+	if err == nil {
+		t.Fatal("want the transient error back, got nil")
+	}
+	if calls != 1 {
+		t.Fatalf("made %d calls, want 1: retrying spends budget the caller no longer owns", calls)
+	}
+}
+
+func TestReadDependencyStaysInsideCallerDeadline(t *testing.T) {
+	t.Parallel()
+
+	// Half of one attempt: the retry must not be able to push past the parent.
+	budget := checkoutDependencyTimeout / 2
+	ctx, cancel := context.WithTimeout(context.Background(), budget)
+	defer cancel()
+
+	start := time.Now()
+	_, err := readDependency(ctx, func(rpcCtx context.Context) (string, error) {
+		<-rpcCtx.Done()
+		return "", status.FromContextError(rpcCtx.Err()).Err()
+	})
+	elapsed := time.Since(start)
+
+	if err == nil {
+		t.Fatal("want an error once the caller deadline expires")
+	}
+	if elapsed > checkoutDependencyTimeout {
+		t.Fatalf("spent %v, which is past the caller budget of %v", elapsed, budget)
+	}
+	if !errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		t.Fatalf("caller context should be the thing that expired, got %v", ctx.Err())
+	}
+}
