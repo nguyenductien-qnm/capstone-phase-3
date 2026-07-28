@@ -246,16 +246,39 @@ jobs:
           if [ -z "$TRACE_SERVICE" ] || [ "$TRACE_SERVICE" = "unknown" ]; then
             TRACE_SERVICE="$CONTAINER"
           fi
+          # MULTI-ARCH: app-build dựng MỖI service thành NHIỀU job — một job cho mỗi
+          # kiến trúc, tên dạng "Build <svc> (amd64)" / "Build <svc> (arm64)" — rồi một
+          # job "Merge <svc>" gộp chúng thành manifest list và ký INDEX digest.
+          #
+          # So khớp tên chính xác như trước sẽ KHÔNG tìm thấy job nào (tên đã đổi), và
+          # nếu chỉ nới thành so-khớp-tiền-tố rồi lấy phần tử [0] thì gate chỉ soi được
+          # MỘT kiến trúc ngẫu nhiên — nửa còn lại đỏ vẫn lọt. Nên: bắt buộc phải có
+          # >= 2 job build, TẤT CẢ phải success, và job Merge cũng phải success.
           SERVICE_BUILD_JOB="Build ${TRACE_SERVICE}"
-          SERVICE_JOB_CONCLUSION="$(
-            jq -r --arg name "$SERVICE_BUILD_JOB" '
+          BUILD_JOBS_JSON="$(
+            jq -c --arg prefix "$SERVICE_BUILD_JOB (" '
+              [.jobs[]? | select(.name | startswith($prefix)) | {name, conclusion}]
+            ' run-jobs.json
+          )"
+          BUILD_JOBS_COUNT="$(jq 'length' <<<"$BUILD_JOBS_JSON")"
+          [ "$BUILD_JOBS_COUNT" -ge 2 ] || fail "build run $RUN_ID có $BUILD_JOBS_COUNT job '$SERVICE_BUILD_JOB (<arch>)', cần >= 2 (amd64 + arm64)"
+          BUILD_JOBS_BAD="$(jq -r '[.[] | select(.conclusion != "success") | "\(.name)=\(.conclusion)"] | join(", ")' <<<"$BUILD_JOBS_JSON")"
+          [ -z "$BUILD_JOBS_BAD" ] || fail "job build không xanh: $BUILD_JOBS_BAD"
+          BUILD_JOBS_LIST="$(jq -r '[.[].name] | join(", ")' <<<"$BUILD_JOBS_JSON")"
+
+          SERVICE_MERGE_JOB="Merge ${TRACE_SERVICE}"
+          MERGE_JOB_CONCLUSION="$(
+            jq -r --arg name "$SERVICE_MERGE_JOB" '
               [.jobs[]? | select(.name == $name)][0].conclusion // empty
             ' run-jobs.json
           )"
-          [ -n "$SERVICE_JOB_CONCLUSION" ] || fail "build run $RUN_ID did not include expected traced-service job: $SERVICE_BUILD_JOB"
-          [ "$SERVICE_JOB_CONCLUSION" = "success" ] || fail "$SERVICE_BUILD_JOB conclusion=$SERVICE_JOB_CONCLUSION"
-          pass_line "service build job" "$SERVICE_BUILD_JOB conclusion=success"
-          echo "| Traced service build/scan/sign job | \`${SERVICE_BUILD_JOB}\` conclusion=success |" >> "$GITHUB_STEP_SUMMARY"
+          [ -n "$MERGE_JOB_CONCLUSION" ] || fail "build run $RUN_ID thiếu job gộp manifest list: $SERVICE_MERGE_JOB"
+          [ "$MERGE_JOB_CONCLUSION" = "success" ] || fail "$SERVICE_MERGE_JOB conclusion=$MERGE_JOB_CONCLUSION"
+
+          pass_line "service build jobs" "$BUILD_JOBS_COUNT job, tất cả success: $BUILD_JOBS_LIST"
+          pass_line "service merge job" "$SERVICE_MERGE_JOB conclusion=success"
+          echo "| Traced service build jobs | \`${BUILD_JOBS_LIST}\` (${BUILD_JOBS_COUNT} kiến trúc, đều success) |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Traced service merge/sign job | \`${SERVICE_MERGE_JOB}\` conclusion=success |" >> "$GITHUB_STEP_SUMMARY"
 
           echo "== Pull request and reviewer =="
           gh api \
