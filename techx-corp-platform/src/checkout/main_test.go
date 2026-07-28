@@ -63,7 +63,7 @@ func TestReadDependencyRetriesOneTransientFailure(t *testing.T) {
 	t.Parallel()
 
 	calls := 0
-	got, err := readDependency(context.Background(), func(context.Context) (string, error) {
+	got, err := readDependency(context.Background(), checkoutDependencyTimeout, func(context.Context) (string, error) {
 		calls++
 		if calls == 1 {
 			// What an index build looks like to the caller: the dependency is up,
@@ -87,7 +87,7 @@ func TestReadDependencyDoesNotRetryPermanentFailure(t *testing.T) {
 	t.Parallel()
 
 	calls := 0
-	_, err := readDependency(context.Background(), func(context.Context) (string, error) {
+	_, err := readDependency(context.Background(), checkoutDependencyTimeout, func(context.Context) (string, error) {
 		calls++
 		return "", status.Error(codes.NotFound, "no such product")
 	})
@@ -104,7 +104,7 @@ func TestReadDependencyStopsWhenCallerGaveUp(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	calls := 0
-	_, err := readDependency(ctx, func(context.Context) (string, error) {
+	_, err := readDependency(ctx, checkoutDependencyTimeout, func(context.Context) (string, error) {
 		calls++
 		cancel()
 		return "", status.Error(codes.Unavailable, "dependency restarting")
@@ -126,7 +126,7 @@ func TestReadDependencyStaysInsideCallerDeadline(t *testing.T) {
 	defer cancel()
 
 	start := time.Now()
-	_, err := readDependency(ctx, func(rpcCtx context.Context) (string, error) {
+	_, err := readDependency(ctx, checkoutDependencyTimeout, func(rpcCtx context.Context) (string, error) {
 		<-rpcCtx.Done()
 		return "", status.FromContextError(rpcCtx.Err()).Err()
 	})
@@ -140,5 +140,41 @@ func TestReadDependencyStaysInsideCallerDeadline(t *testing.T) {
 	}
 	if !errors.Is(ctx.Err(), context.DeadlineExceeded) {
 		t.Fatalf("caller context should be the thing that expired, got %v", ctx.Err())
+	}
+}
+
+func TestDependencyChainLeavesRoomToPersistTheOrder(t *testing.T) {
+	t.Parallel()
+
+	// GrpcDeadline.ts gives checkout 10s for the whole PlaceOrder call. Raising
+	// the product read has to stay inside that with room left to write the row,
+	// otherwise a slow dependency turns into a lost order instead of a slow one.
+	retried := func(perAttempt time.Duration) time.Duration {
+		return perAttempt * time.Duration(checkoutDependencyAttempts)
+	}
+	convert := retried(checkoutDependencyTimeout)
+
+	// prepareOrderItemsAndShippingQuoteFromCart fans these two out and waits for
+	// both, so the slower one sets the pace.
+	productBranch := retried(checkoutProductReadTimeout) + convert
+	shippingBranch := 3*time.Second + convert
+	prepare := productBranch
+	if shippingBranch > prepare {
+		prepare = shippingBranch
+	}
+
+	// getUserCart, then the fan-out, then charging the card and emptying the cart.
+	worstCase := retried(checkoutDependencyTimeout) + prepare +
+		checkoutDependencyTimeout + checkoutDependencyTimeout
+
+	const placeOrderDeadline = 10 * time.Second
+	if worstCase >= placeOrderDeadline {
+		t.Fatalf("dependency chain spans %s of the %s deadline, leaving nothing to persist the order",
+			worstCase, placeOrderDeadline)
+	}
+	// The persist path retries too, and waitForDBRetry needs more than the last
+	// gasp of the budget to be worth entering at all.
+	if left := placeOrderDeadline - worstCase; left < dbRetryBaseDelay*4 {
+		t.Fatalf("only %s left to persist the order after dependencies; raise a timeout back down", left)
 	}
 }
