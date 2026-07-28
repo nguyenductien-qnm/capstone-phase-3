@@ -12,7 +12,7 @@ interface IContext {
   cart: IProductCart;
   addItem(item: CartItem): void;
   emptyCart(): void;
-  placeOrder(order: PlaceOrderRequest): Promise<OrderResult>;
+  placeOrder(order: PlaceOrderRequest, idempotencyKey: string): Promise<OrderResult>;
 }
 
 export const Context = createContext<IContext>({
@@ -65,7 +65,8 @@ const CartProvider = ({ children }: IProps) => {
   );
   const emptyCart = useCallback(() => emptyCartMutation.mutateAsync(), [emptyCartMutation]);
   const placeOrder = useCallback(
-    (order: PlaceOrderRequest) => placeOrderMutation.mutateAsync({ ...order, currencyCode: selectedCurrency }),
+    (order: PlaceOrderRequest, idempotencyKey: string) =>
+      placeOrderMutation.mutateAsync({ ...order, currencyCode: selectedCurrency, idempotencyKey }),
     [placeOrderMutation, selectedCurrency]
   );
 

@@ -1,0 +1,72 @@
+====================================================================
+Karpenter Node Scaling Evidence — Mandate 13 (BẢN ĐẦY ĐỦ, lấy trực tiếp
+từ live cluster ngày 28-07-2026 lúc 06:27 UTC bằng:
+kubectl logs -n kube-system pod/karpenter-86cd4db5df-jm45j -c controller
+  --since-time=2026-07-27T00:00:00Z | grep '"time":"2026-07-28T0[23]:'
+Cluster  : ecommerce-dev-eks (sandbox, account 804372444787)
+Namespace: techx-tf1
+====================================================================
+
+--- 02:53:34 — SPOT-KILL TEST BẮT ĐẦU (không phải tải tăng) ---
+
+{"level":"INFO","time":"2026-07-28T02:53:34.007Z","logger":"controller","message":"initiating delete from interruption message","controller":"interruption","queue":"ecommerce-dev-eks-karpenter","messageKind":"instance_terminated","NodeClaim":{"name":"spot-bzcdj"},"action":"CordonAndDrain","Node":{"name":"ip-10-0-92-23.ec2.internal"}}
+{"level":"INFO","time":"2026-07-28T02:53:34.068Z","logger":"controller","message":"tainted node","controller":"node.termination","Node":{"name":"ip-10-0-92-23.ec2.internal"},"NodeClaim":{"name":"spot-bzcdj"},"taint.Key":"karpenter.sh/disrupted"}
+
+--- 02:53:35 — Node mới #1 (spot-nfj5n): TẠO ĐỂ XẾP LẠI POD BỊ ĐUỔI khỏi node vừa bị kill ---
+
+{"level":"INFO","time":"2026-07-28T02:53:35.694Z","logger":"controller","message":"found provisionable pod(s)","controller":"provisioner","Pods":"techx-tf1/accounting-56b4d85c6-vfrb4, techx-tf1/product-reviews-fc899959f-v8vq4, techx-tf1/ad-654b8cbbf-smd7f, techx-tf1/fraud-detection-67cb99fd96-9vx2j"}
+{"level":"INFO","time":"2026-07-28T02:53:35.712Z","logger":"controller","message":"created nodeclaim","controller":"provisioner","NodePool":{"name":"spot"},"NodeClaim":{"name":"spot-nfj5n"},"requests":{"cpu":"380m","memory":"488Mi","pods":"7"}}
+{"level":"INFO","time":"2026-07-28T02:53:38.214Z","logger":"controller","message":"launched nodeclaim","NodeClaim":{"name":"spot-nfj5n"},"provider-id":"aws:///us-east-1b/i-0061142b4e84c16dc","instance-type":"c6a.large","zone":"us-east-1b","capacity-type":"spot"}
+
+--- 02:53:38 — Node mới #2 (spot-hsnm8): TẠO VÌ TopologySpreadConstraint, KHÔNG PHẢI vì pod bị đuổi ---
+
+{"level":"INFO","time":"2026-07-28T02:53:38.690Z","logger":"controller","message":"pod(s) have a preferred TopologySpreadConstraint which can prevent consolidation","controller":"provisioner","pods":"techx-tf1/image-provider-6cd6c76cfb-cmpjz, techx-tf1/ad-654b8cbbf-24cst, techx-tf1/llm-6dd946b9bb-smmjs, techx-tf1/cart-consumer-worker-8549996cbd-254dw, techx-tf1/product-reviews-fc899959f-4hxhj, techx-tf1/ml-guard-5b49677fd8-5xlmd, techx-tf1/recommendation-585f676d7-2p7pp"}
+{"level":"INFO","time":"2026-07-28T02:53:38.998Z","logger":"controller","message":"created nodeclaim","controller":"provisioner","NodePool":{"name":"spot"},"NodeClaim":{"name":"spot-hsnm8"},"requests":{"cpu":"330m","memory":"360Mi","pods":"6"}}
+{"level":"INFO","time":"2026-07-28T02:53:41.076Z","logger":"controller","message":"launched nodeclaim","NodeClaim":{"name":"spot-hsnm8"},"provider-id":"aws:///us-east-1c/i-08e04882f515cd53c","instance-type":"c6a.large","zone":"us-east-1c","capacity-type":"spot"}
+
+--- 02:53:56–02:54:11 — Cả 2 node mới registered + initialized (Ready) ---
+
+{"level":"INFO","time":"2026-07-28T02:53:56.875Z","logger":"controller","message":"registered nodeclaim","NodeClaim":{"name":"spot-nfj5n"},"Node":{"name":"ip-10-0-77-230.ec2.internal"}}
+{"level":"INFO","time":"2026-07-28T02:53:58.731Z","logger":"controller","message":"registered nodeclaim","NodeClaim":{"name":"spot-hsnm8"},"Node":{"name":"ip-10-0-95-128.ec2.internal"}}
+{"level":"INFO","time":"2026-07-28T02:54:11.058Z","logger":"controller","message":"initialized nodeclaim","NodeClaim":{"name":"spot-nfj5n"},"Node":{"name":"ip-10-0-77-230.ec2.internal"},"allocatable":{"cpu":"1930m"}}
+{"level":"INFO","time":"2026-07-28T02:54:11.556Z","logger":"controller","message":"initialized nodeclaim","NodeClaim":{"name":"spot-hsnm8"},"Node":{"name":"ip-10-0-95-128.ec2.internal"},"allocatable":{"cpu":"1930m"}}
+
+--- 02:55:22 — Node bị kill (spot-bzcdj / ip-10-0-92-23) dọn dẹp xong (KHÔNG PHẢI consolidation do ít tải) ---
+
+{"level":"INFO","time":"2026-07-28T02:55:22.688Z","logger":"controller","message":"deleted node","controller":"node.termination","Node":{"name":"ip-10-0-92-23.ec2.internal"},"NodeClaim":{"name":"spot-bzcdj"}}
+{"level":"INFO","time":"2026-07-28T02:55:22.935Z","logger":"controller","message":"deleted nodeclaim","NodeClaim":{"name":"spot-bzcdj"},"provider-id":"aws:///us-east-1c/i-0eda3b5efef7f31ce"}
+
+--- 03:02:59–03:04:03 — DUY NHẤT 1 sự kiện consolidation THẬT (Karpenter tự quyết định, không ai ra lệnh) ---
+
+{"level":"INFO","time":"2026-07-28T03:02:59.362Z","logger":"controller","message":"disrupting node(s)","controller":"disruption","command":"Underutilized/06554d94-188a-4ce0-ad57-b8060c7907cf: delete: nodepools=[spot]: [ip-10-0-95-128.ec2.internal] (savings: $0.03)","decision":"delete","disrupted-node-count":1,"replacement-node-count":0,"pod-count":1}
+{"level":"INFO","time":"2026-07-28T03:02:59.460Z","logger":"controller","message":"tainted node","Node":{"name":"ip-10-0-95-128.ec2.internal"},"NodeClaim":{"name":"spot-hsnm8"},"taint.Key":"karpenter.sh/disrupted"}
+{"level":"INFO","time":"2026-07-28T03:04:03.319Z","logger":"controller","message":"deleted node","Node":{"name":"ip-10-0-95-128.ec2.internal"},"NodeClaim":{"name":"spot-hsnm8"}}
+{"level":"INFO","time":"2026-07-28T03:04:03.566Z","logger":"controller","message":"deleted nodeclaim","NodeClaim":{"name":"spot-hsnm8"},"provider-id":"aws:///us-east-1c/i-08e04882f515cd53c"}
+
+====================================================================
+KHÔNG CÓ sự kiện nào khác trong toàn bộ cửa sổ 02:00–04:00 UTC.
+Xác nhận bằng 2 cách:
+1. Toàn bộ log pod karpenter-86cd4db5df-jm45j (còn lưu từ 27-07 05:07 UTC
+   tới 28-07 05:37 UTC) chỉ có đúng 26 dòng khớp "2026-07-28T0[23]:" —
+   toàn bộ liệt kê ở trên, không có dòng nào bị lược bớt.
+2. K8s Events (ScalingReplicaSet/HorizontalPodAutoscaler) cho namespace
+   techx-tf1 đã hết hạn TTL (~1h) tại thời điểm truy vấn (06:27 UTC,
+   ~3h sau cửa sổ test) — không thể xác nhận/bác bỏ việc HPA có scale
+   pod theo tải 10→300→450→10 user hay không trong khung giờ này.
+   Không tìm thấy Job Locust nào còn tồn tại trong namespace để đối chiếu.
+
+====================================================================
+TÓM TẮT NODE COUNT TIMELINE (đã xác minh nguyên nhân từng thay đổi)
+====================================================================
+
+02:30 UTC  →  4 Karpenter node (baseline, trước khi có bất kỳ sự kiện nào)
+02:53 UTC  →  spot-kill test bắt đầu (không phải tải tăng)
+02:54 UTC  →  6 Karpenter node (2 node mới, cả 2 đều là hệ quả spot-kill:
+              #1 xếp lại pod bị đuổi, #2 vì TopologySpreadConstraint)
+02:55 UTC  →  5 Karpenter node (node cũ bị kill dọn dẹp xong)
+03:04 UTC  →  4 Karpenter node (Karpenter TỰ consolidate 1 node — sự kiện
+              độc lập, thật, không liên quan spot-kill)
+
+KHÔNG có bằng chứng log nào cho thấy node được thêm do tải tăng lên
+300-450 user — toàn bộ 2 node "scale up" đều truy được nguyên nhân về
+đúng 1 sự kiện spot-kill duy nhất.

@@ -13,7 +13,7 @@ export const GrpcDeadlineMs = {
   cart: 750,
   catalog: 1_000,
   recommendation: 1_000,
-  checkout: 2_000,
+  checkout: 10_000,
   productReview: 25_000,
   productSearch: 5_000,
 } as const;
@@ -33,12 +33,13 @@ type UnaryRpc<TRequest, TResponse> = (
 export function unaryWithDeadline<TRequest, TResponse>(
   invoke: UnaryRpc<TRequest, TResponse>,
   request: TRequest,
-  timeoutMs: number
+  timeoutMs: number,
+  metadata = new Metadata()
 ): Promise<TResponse> {
   const deadline = new Date(Date.now() + timeoutMs);
 
   return new Promise<TResponse>((resolve, reject) => {
-    invoke(request, new Metadata(), { deadline }, (error, response) => {
+    invoke(request, metadata, { deadline }, (error, response) => {
       if (error) {
         reject(error);
         return;

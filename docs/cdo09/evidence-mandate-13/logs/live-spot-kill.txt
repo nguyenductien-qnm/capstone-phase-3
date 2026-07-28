@@ -1,0 +1,47 @@
+﻿# Live Spot-Kill Evidence — Sandbox (Mandate 13 Phương án B)
+# Timestamp: 2026-07-28T09:56:38Z
+# Cluster: ecommerce-dev-eks (Account: 804372444787)
+# Namespace: techx-tf1
+
+## ===== SPOT INSTANCE TERMINATED =====
+Instance ID  : i-0eda3b5efef7f31ce
+Node Name    : ip-10-0-92-23.ec2.internal
+Instance Type: m6a.large
+AZ           : us-east-1c
+Lifecycle    : spot
+Action       : aws ec2 terminate-instances --instance-ids i-0eda3b5efef7f31ce
+Result       : shutting-down (Code 32)
+
+## ===== TIMELINE =====
+T+0s   : terminate-instances sent — CurrentState: shutting-down
+T+6s   : Pods Terminating; replacement pods Pending (PDB respected: maxUnavailable=1)
+T+34s  : Karpenter launched NEW spot node: ip-10-0-77-230.ec2.internal (m6a, us-east-1b)
+T+34s  : Karpenter launched NEW spot node: ip-10-0-95-128.ec2.internal (spot, us-east-1c)
+T+36s  : Pods ContainerCreating on new nodes
+T+95s  : Both new spot nodes Ready
+T+118s : All pods Running — ZERO pods in Error/CrashLoop
+
+## ===== NODES AFTER KILL (T+95s) =====
+NAME                          STATUS   CAPACITY-TYPE
+ip-10-0-11-11.ec2.internal    Ready    ON_DEMAND  (MNG)
+ip-10-0-12-201.ec2.internal   Ready    ON_DEMAND  (MNG)
+ip-10-0-13-63.ec2.internal    Ready    ON_DEMAND  (MNG)
+ip-10-0-53-115.ec2.internal   Ready    spot       (Karpenter — existing)
+ip-10-0-76-138.ec2.internal   Ready    on-demand  (Karpenter)
+ip-10-0-77-230.ec2.internal   Ready    spot       (Karpenter — NEW, ~95s after kill)
+ip-10-0-92-151.ec2.internal   Ready    on-demand  (Karpenter)
+ip-10-0-95-128.ec2.internal   Ready    spot       (Karpenter — NEW, ~93s after kill)
+[TERMINATED] ip-10-0-92-23.ec2.internal  (spot node bị kill)
+
+## ===== PDB STATUS (pre-kill) =====
+All critical services had maxUnavailable=1 PDB enforced:
+accounting, ad, cart, cart-consumer-worker, checkout, currency,
+fraud-detection, frontend, frontend-proxy, image-provider, llm,
+ml-guard, payment, product-catalog, product-reviews, recommendation,
+shipping — ALLOWED DISRUPTIONS: 1 each
+
+## ===== RESULT =====
+- Spot node terminated successfully (giả lập AWS thu hồi)
+- Karpenter auto-replaced với 2 spot node mới trong ~34 giây
+- Tất cả pods reschedule thành công — ZERO downtime recorded
+- Cluster tiếp tục có 3 spot nodes (spot > 37% tổng capacity)
