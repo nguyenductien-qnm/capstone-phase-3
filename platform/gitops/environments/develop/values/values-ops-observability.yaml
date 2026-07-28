@@ -191,8 +191,13 @@ opensearch:
 
 components:
   load-generator:
-    # Continuous low background traffic keeps Develop telemetry active.
-    # HTTP-only Locust autostarts 10 users at 1 user/s from chart defaults.
+    # Continuous background traffic keeps Develop telemetry active and is the
+    # load the MANDATE-09 migration/upgrade drills run under.
+    # MANDATE-09: mentor đánh giá 10 user là quá nhẹ để chứng minh "0 request rớt".
+    # Nâng nền lên 40 user — đúng mức mandate-19 đã đo được sau khi nới limit
+    # frontend/email/payment, nên nằm trong vùng đã chứng minh giữ SLO.
+    # 40 user HTTP thuần ~400Mi RSS, sát limit 512Mi cũ -> nâng 1Gi. cpu 750m giữ
+    # nguyên: Locust HTTP-only single-process đo ~300m ở mức này.
     enabled: true
     schedulingRules:
       nodeSelector:
@@ -202,10 +207,15 @@ components:
           operator: Equal
           value: observability
           effect: NoSchedule
+    envOverrides:
+      - name: LOCUST_USERS
+        value: "40"
+      - name: LOCUST_SPAWN_RATE
+        value: "5"
     resources:
       requests:
         cpu: 100m
         memory: 128Mi
       limits:
         cpu: 750m
-        memory: 512Mi
+        memory: 1Gi
