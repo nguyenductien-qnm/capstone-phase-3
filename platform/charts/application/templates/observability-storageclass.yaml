@@ -5,10 +5,13 @@ metadata:
   name: {{ .Values.observabilityStorage.name }}
   labels:
     {{- include "techx-corp.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-options: Replace=true
 provisioner: ebs.csi.aws.com
 reclaimPolicy: {{ .Values.observabilityStorage.reclaimPolicy }}
 volumeBindingMode: {{ .Values.observabilityStorage.volumeBindingMode }}
 allowVolumeExpansion: {{ .Values.observabilityStorage.allowVolumeExpansion }}
 parameters:
+  tagSpecification_1: "Backup=true"
   {{- toYaml .Values.observabilityStorage.parameters | nindent 2 }}
 {{- end }}
