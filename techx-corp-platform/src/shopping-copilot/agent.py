@@ -35,11 +35,16 @@ from botocore.exceptions import ClientError, ConnectTimeoutError, ReadTimeoutErr
 from opentelemetry import trace
 
 import tools
+import model_router
 from bedrock_client import create_bedrock_runtime_client
 from guardrails import (
     sanitize_json_for_llm, redact_pii, leaks_system_prompt, validate_citations,
     apply_guardrail_output,
 )
+from llm_trace import build_trace_record, record_trace
+from output_validator import validate_tool_calls as _validate_tool_calls
+
+from concurrent.futures import ThreadPoolExecutor
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer_provider().get_tracer("shopping-copilot")
@@ -489,7 +494,33 @@ def invoke_bedrock_converse_with_fallback(primary_client, model_id, system, mess
                 attempt += 1
             else:
                 raise e
-def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> AgentResult:
+def _record_model_trace(vc, trace_id, session_id, model_id, usage, latency_s, outcome, blocks, messages):
+    """Fire-and-forget trace record. Never blocks the main path."""
+    if not trace_id or vc is None:
+        return
+    try:
+        tool_names = [b["toolUse"]["name"] for b in blocks if "toolUse" in b]
+        trace_data = build_trace_record(
+            trace_id=trace_id, session_id=session_id, model_id=model_id,
+            usage=usage, latency_s=latency_s, outcome=outcome,
+            tool_calls=tool_names, surface="copilot", messages=messages,
+        )
+        _executor.submit(record_trace, vc, trace_data)
+    except Exception:
+        logger.exception("_record_model_trace")
+
+def _check_flag(name: str, default: bool = False) -> bool:
+    """Delegate to model_router's flagd client. Returns default on any error."""
+    try:
+        return model_router.check_feature_flag(name, default)
+    except Exception:
+        logger.debug("check_feature_flag(%s) failed, defaulting to %s", name, default)
+        return default
+
+_executor = ThreadPoolExecutor(max_workers=2)
+
+def run_agent(bedrock_client, model_id: str, messages: list, user_id: str,
+              *, valkey_client=None, session_id: str = "") -> AgentResult:
     """Run one Bedrock agent turn. Falls back to a degraded reply on LLM failure."""
     actions: list[ToolCall] = []
     pending: PendingAction | None = None
@@ -543,6 +574,20 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
             bedrock_span.set_attribute("gen_ai.usage.output_tokens", usage.get("outputTokens", 0))
             logger.info("audit bedrock_usage model=%s input_tokens=%s output_tokens=%s",
                         model_id, usage.get("inputTokens", "?"), usage.get("outputTokens", "?"))
+            # MANDATE-24: record trace for every model call
+            _record_model_trace(valkey_client, trace_id_hex, session_id, model_id, usage,
+                                time.time() - t_converse, "ok", blocks, current)
+
+        # MANDATE-25: validate output before processing tool calls
+        _blocks = blocks
+        if _check_flag("llmFaultGarbageOutput"):
+            _blocks = [{"toolUse": {"name": "bad_tool", "input": "not_a_dict"}}]
+            logger.warning("M25 fault injection: garbage output → testing output validator")
+        _tool_ok, _tool_err = _validate_tool_calls(_blocks)
+        if not _tool_ok:
+            logger.error("Garbage output blocked: %s — degraded fallback", _tool_err)
+            return AgentResult(text=_fallback_text(), actions_taken=actions, degraded=True, trace_id=trace_id_hex)
+        blocks = _blocks
 
         # Trace UI: show the model's DECISION this turn (what the AI "thinks" it should do next) —
         # either it chose to call tool(s), or it produced a direct answer.

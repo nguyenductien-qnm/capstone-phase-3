@@ -39,7 +39,9 @@ COPY ./src/shopping-copilot/agent.py agent.py
 # MANDATE-23: cache L2 + memory ngắn/dài hạn. Thiếu dòng này thì copilot_server.py
 # crash ngay khi start (ModuleNotFoundError: No module named 'memory').
 COPY ./src/shopping-copilot/memory.py memory.py
+COPY ./src/shopping-copilot/llm_trace.py llm_trace.py
 COPY ./src/shopping-copilot/copilot_server.py copilot_server.py
+COPY ./pb/output_validator.py output_validator.py
 
 # MANDATE-05: no container runs as root
 RUN useradd -u 10001 -m copilot

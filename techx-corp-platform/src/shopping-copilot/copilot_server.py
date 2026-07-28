@@ -274,7 +274,8 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
             pending = None
         else:
             start_llm = time.time()
-            result = agent.run_agent(self._bedrock, routed_model, session, request.user_id)
+            result = agent.run_agent(self._bedrock, routed_model, session, request.user_id,
+                                     valkey_client=self._valkey, session_id=session_id)
             lat_llm = int((time.time() - start_llm) * 1000)
             trace_steps.append(demo_pb2.TraceStep(
                 step_name="Model Gateway & Bedrock Nova",
