@@ -12,7 +12,11 @@ const Input = ({ type, id = '', children, label, ...props }: IProps) => (
   <div className="flex flex-col gap-2">
     <Label htmlFor={id}>{label}</Label>
     {type === 'select' ? (
-      <select id={id} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...props}>
+      <select
+        id={id}
+        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+        {...props}
+      >
         {children}
       </select>
     ) : (

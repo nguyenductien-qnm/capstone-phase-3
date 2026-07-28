@@ -1,29 +1,17 @@
-// Copyright The OpenTelemetry Authors
-// SPDX-License-Identifier: Apache-2.0
-
 import { CypressFields } from '../../utils/enums/CypressFields';
 import { useAd } from '../../providers/Ad.provider';
 import ProductCard from '../ProductCard';
-import * as S from './Recommendations.styled';
 
 const Recommendations = () => {
   const { recommendedProductList } = useAd();
-
-  if (!recommendedProductList || recommendedProductList.length === 0) {
-    return null;
-  }
-
+  if (!recommendedProductList?.length) return null;
   return (
-    <S.Recommendations data-cy={CypressFields.RecommendationList}>
-      <S.TitleContainer>
-        <S.Title>You May Also Like</S.Title>
-      </S.TitleContainer>
-      <S.ProductList>
-        {recommendedProductList.map(product => (
-          <ProductCard key={product.id} product={product} />
-        ))}
-      </S.ProductList>
-    </S.Recommendations>
+    <section data-cy={CypressFields.RecommendationList} className="mt-8">
+      <h3 className="mb-4 text-xl font-bold">You May Also Like</h3>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {recommendedProductList.map(product => <ProductCard key={product.id} product={product} />)}
+      </div>
+    </section>
   );
 };
 
