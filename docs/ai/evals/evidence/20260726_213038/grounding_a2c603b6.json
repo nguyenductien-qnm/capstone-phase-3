@@ -1,0 +1,235 @@
+{
+  "category": "grounding",
+  "input": [
+    "Kính National Park Foundation Explorascope được khách đánh giá thế nào?",
+    [
+      "search_products",
+      "get_product_reviews"
+    ],
+    "review-by-name"
+  ],
+  "latency": 34.96074938774109,
+  "tokens": {
+    "input": 25299,
+    "output": 448,
+    "embedding": 7
+  },
+  "usd_cost": 0.00162518,
+  "embed_cost": 1.4e-07,
+  "passed": true,
+  "reason": "Tool ['search_products', 'get_product_reviews'] chạy ok, output rail không chặn",
+  "response": {
+    "response": "The National Park Foundation Explorascope has received 5 reviews with an average score of 3.8. Here are some highlights from the reviews:\n\n- \"Great entry-level telescope! Easy to set up and provides clear views of the moon and brighter planets. Highly recommend for new astronomers.\" (4.5 stars)\n- \"For the price, this Explorascope delivers excellent performance. I was able to see Jupiter's moons clearly. A fantastic purchase for casual viewing.\" (4.0 stars)\n- \"A bit tricky to get used to the manual controls, but once you do, it's very rewarding. Saw the Orion Nebula for the first time! Good value.\" (3.5 stars)\n- \"Perfect for camping trips. It's lightweight and portable, making it easy to take anywhere. The views are surprisingly good for its size.\" (4.0 stars)\n- \"Not the most powerful scope, but it's great for kids and beginners. My children love looking at the moon with it. A solid choice for family fun.\" (3.0 stars)\n\nOverall, the telescope is praised for its ease of use, portability, and value for money, though some users found the manual controls a bit challenging.",
+    "actionsTaken": [
+      {
+        "toolName": "get_product_reviews",
+        "argumentsJson": "{\"product_id\": \"National Park Foundation Explorascope\"}",
+        "succeeded": false,
+        "startedAtUnix": 1785076533,
+        "durationMs": 0
+      },
+      {
+        "toolName": "search_products",
+        "argumentsJson": "{\"query\": \"National Park Foundation Explorascope\"}",
+        "succeeded": true,
+        "startedAtUnix": 1785076534,
+        "durationMs": 1621
+      },
+      {
+        "toolName": "get_product_reviews",
+        "argumentsJson": "{\"product_id\": \"OLJCESPC7Z\"}",
+        "succeeded": true,
+        "startedAtUnix": 1785076537,
+        "durationMs": 819
+      }
+    ],
+    "degraded": false,
+    "traceId": "22744d6c8e2f71b16d03ec9a7fbe78fd",
+    "citations": [
+      {
+        "reviewId": "stargazer_mike",
+        "snippet": "Great entry-level telescope! Easy to set up and provides clear views of the moon and brighter planets. Highly recommend for new astronomers.",
+        "score": "4.5"
+      },
+      {
+        "reviewId": "nightskylover",
+        "snippet": "For the price, this Explorascope delivers excellent performance. I was able to see Jupiter's moons clearly. A fantastic purchase for casual viewing.",
+        "score": "4.0"
+      },
+      {
+        "reviewId": "beginner_astro",
+        "snippet": "A bit tricky to get used to the manual controls, but once you do, it's very rewarding. Saw the Orion Nebula for the first time! Good value.",
+        "score": "3.5"
+      },
+      {
+        "reviewId": "celestial_explorer",
+        "snippet": "Perfect for camping trips. It's lightweight and portable, making it easy to take anywhere. The views are surprisingly good for its size.",
+        "score": "4.0"
+      },
+      {
+        "reviewId": "telescope_fan",
+        "snippet": "Not the most powerful scope, but it's great for kids and beginners. My children love looking at the moon with it. A solid choice for family fun.",
+        "score": "3.0"
+      }
+    ],
+    "traceSteps": [
+      {
+        "stepName": "Input Guardrail (PII/Prompt Guard)",
+        "latencyMs": 1074,
+        "status": "pass",
+        "detail": "{\"question\": \"K\\u00ednh National Park Foundation Explorascope \\u0111\\u01b0\\u1ee3c kh\\u00e1ch \\u0111\\u00e1nh gi\\u00e1 th\\u1ebf n\\u00e0o?\", \"blocked\": false}"
+      },
+      {
+        "stepName": "Model Gateway & Bedrock Nova",
+        "latencyMs": 33773,
+        "status": "ok",
+        "detail": "{\"routed_model\": \"amazon.nova-lite-v1:0\"}"
+      },
+      {
+        "stepName": "LLM → gọi tool: get_product_reviews",
+        "latencyMs": 1169,
+        "status": "ok",
+        "detail": "{\"decided_tools\": [\"get_product_reviews\"], \"stop_reason\": \"tool_use\", \"reasoning\": \"<thinking>The user is asking for a review of a specific product, the National Park Foundation Explorascope. I need to call the `get_product_reviews` tool to get the review information.</thinking>\"}"
+      },
+      {
+        "stepName": "Tool: get_product_reviews (National Park Foundation Explorascope)",
+        "latencyMs": 0,
+        "status": "error",
+        "detail": "{\"args\": {\"product_id\": \"National Park Foundation Explorascope\"}, \"succeeded\": false}"
+      },
+      {
+        "stepName": "LLM → gọi tool: search_products",
+        "latencyMs": 1462,
+        "status": "ok",
+        "detail": "{\"decided_tools\": [\"search_products\"], \"stop_reason\": \"tool_use\", \"reasoning\": \"<thinking>The tool returned an error because I used the product name instead of the product ID. I need to call the `search_products` tool to find the correct product ID for the National Park Foundation Explorascope.</thinking>\"}"
+      },
+      {
+        "stepName": "Tool: search_products (National Park Foundation Explorascope)",
+        "latencyMs": 1621,
+        "status": "ok",
+        "detail": "{\"args\": {\"query\": \"National Park Foundation Explorascope\"}, \"succeeded\": true}"
+      },
+      {
+        "stepName": "LLM → gọi tool: get_product_reviews",
+        "latencyMs": 1293,
+        "status": "ok",
+        "detail": "{\"decided_tools\": [\"get_product_reviews\"], \"stop_reason\": \"tool_use\", \"reasoning\": \"<thinking>I have found the product ID for the National Park Foundation Explorascope. Now I can call the `get_product_reviews` tool to get the review information.</thinking>\"}"
+      },
+      {
+        "stepName": "Tool: get_product_reviews (OLJCESPC7Z)",
+        "latencyMs": 819,
+        "status": "ok",
+        "detail": "{\"args\": {\"product_id\": \"OLJCESPC7Z\"}, \"succeeded\": true}"
+      },
+      {
+        "stepName": "LLM → trả lời trực tiếp",
+        "latencyMs": 2370,
+        "status": "ok",
+        "detail": "{\"decided_tools\": [], \"stop_reason\": \"end_turn\", \"reasoning\": \"The National Park Foundation Explorascope has received 5 reviews with an average score of 3.8. Here are some highlights from the reviews:\\n\\n- \\\"Great entry-level telescope! Easy to set up and provides clear views of the moon and brighter planets. Highly recommend for new astronomers.\\\" (4.5 stars)\\n- \\\"For the price, this Explorascope delivers excellent performance. I was able to see Jupiter's moons clearly. A fantastic purchase for casual viewing.\\\" (4.0 stars)\\n- \\\"A bit tricky to get used to the manual controls, but once you do, it's very rewarding. Saw the Orion Nebula for the first time! Good value.\\\" (3.5 stars)\\n- \\\"Perfect for camping trips. It's lightweight and portable, making it easy to take anywhere. The views are surprisingly good for its size.\\\" (4.0 stars)\\n- \\\"Not the most powerful scope, but it's great for kids and beginners. My children love looking at the moon with it. A solid choice for family fun.\\\" (3.0 stars)\\n\\nOverall, the telescope is praised for its ease of use, portability, and value for money, though some users found the manual controls a bit challenging.\"}"
+      },
+      {
+        "stepName": "Output Guardrail (Grounding)",
+        "latencyMs": 25020,
+        "status": "pass",
+        "detail": "{\"blocked\": false}"
+      }
+    ]
+  },
+  "spans": [
+    {
+      "name": "bedrock_converse",
+      "attributes": {
+        "gen_ai.request.model": "amazon.nova-lite-v1:0",
+        "gen_ai.response.finish_reason": "tool_use",
+        "gen_ai.usage.input_tokens": 5335,
+        "gen_ai.usage.output_tokens": 67
+      }
+    },
+    {
+      "name": "tool_call",
+      "attributes": {
+        "tool.arguments": "{\"product_id\": \"National Park Foundation Explorascope\"}",
+        "tool.name": "get_product_reviews",
+        "tool.result_preview": "{\"error\": \"L\\u1ed6I: B\\u1ea1n \\u0111ang truy\\u1ec1n T\\u00caN s\\u1ea3n ph\\u1ea9m. B\\u1ea1n PH\\u1ea2I g\\u1ecdi 'search_products' tr\\u01b0\\u1edbc \\u0111\\u1ec3 t\\u00ecm 'product_id' ch\\u00ednh x\\u00e1c.\"}",
+        "tool.succeeded": false
+      }
+    },
+    {
+      "name": "oteldemo.ProductCatalogService/SearchProducts",
+      "attributes": {
+        "app.products_search.count": 10,
+        "app.search.mode": "semantic"
+      }
+    },
+    {
+      "name": "bedrock_converse",
+      "attributes": {
+        "gen_ai.request.model": "amazon.nova-lite-v1:0",
+        "gen_ai.response.finish_reason": "tool_use",
+        "gen_ai.usage.input_tokens": 5494,
+        "gen_ai.usage.output_tokens": 67
+      }
+    },
+    {
+      "name": "bedrock_converse",
+      "attributes": {
+        "gen_ai.request.model": "amazon.nova-lite-v1:0",
+        "gen_ai.response.finish_reason": "tool_use",
+        "gen_ai.usage.input_tokens": 6952,
+        "gen_ai.usage.output_tokens": 63
+      }
+    },
+    {
+      "name": "guardrail_citation_validation",
+      "attributes": {
+        "guardrail.citation_valid": true
+      }
+    },
+    {
+      "name": "tool_call",
+      "attributes": {
+        "tool.arguments": "{\"query\": \"National Park Foundation Explorascope\"}",
+        "tool.name": "search_products",
+        "tool.result_preview": "{\"status\": \"ok\", \"count\": 10, \"products\": [{\"product_id\": \"OLJCESPC7Z\", \"name\": \"National Park Foundation Explorascope\", \"price\": \"$101.96\", \"category\": \"telescopes\", \"description\": \"The National Park Foundation's (NPF) Explorascope 60AZ is a manual alt-azimuth, refractor telescope perfect for celes",
+        "tool.succeeded": true
+      }
+    },
+    {
+      "name": "bedrock_embed",
+      "attributes": {
+        "gen_ai.request.model": "amazon.titan-embed-text-v2:0",
+        "gen_ai.usage.input_tokens": 7
+      }
+    },
+    {
+      "name": "tool_call",
+      "attributes": {
+        "tool.arguments": "{\"product_id\": \"OLJCESPC7Z\"}",
+        "tool.name": "get_product_reviews",
+        "tool.result_preview": "{\"status\": \"ok\", \"product_id\": \"OLJCESPC7Z\", \"average_score\": 3.8, \"review_count\": 5, \"summary\": \"Great entry-level telescope! Easy to set up and provides clear views of the moon and brighter planets. Highly recommend for new astronomers. | For the price, this Explorascope delivers excellent perform",
+        "tool.succeeded": true
+      }
+    },
+    {
+      "name": "bedrock_converse",
+      "attributes": {
+        "gen_ai.request.model": "amazon.nova-lite-v1:0",
+        "gen_ai.response.finish_reason": "end_turn",
+        "gen_ai.usage.input_tokens": 7511,
+        "gen_ai.usage.output_tokens": 251
+      }
+    },
+    {
+      "name": "guardrail_output_grounding",
+      "attributes": {
+        "guardrail.blocked": false
+      }
+    },
+    {
+      "name": "guardrail_input",
+      "attributes": {
+        "guardrail.blocked": false
+      }
+    }
+  ]
+}

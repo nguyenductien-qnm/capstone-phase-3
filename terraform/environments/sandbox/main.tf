@@ -77,6 +77,7 @@ module "eks" {
 
   project_name       = var.project_name
   environment        = var.environment
+  app_namespace      = "techx-tf1"
   cluster_version    = var.eks_cluster_version
   private_subnet_ids = values(module.vpc.private_app_subnet_ids)
 
@@ -128,6 +129,11 @@ module "rds" {
   enable_rotation                         = var.rds_enable_rotation
   rotation_rules_automatically_after_days = var.rds_rotation_rules_automatically_after_days
   enable_logical_replication              = true
+
+  # Mandate 20: bảo vệ data khách trên production (sandbox). Đối xứng với develop.
+  deletion_protection   = true
+  copy_tags_to_snapshot = true
+  enable_aws_backup_tag = true
 }
 
 module "elasticache" {
@@ -142,6 +148,29 @@ module "elasticache" {
   node_type                  = var.valkey_node_type
   num_cache_clusters         = var.valkey_num_cache_clusters
   eks_node_security_group_id = module.eks.cluster_security_group_id
+
+  # Mandate 20: cart có backup trên production. cache.t4g.micro hỗ trợ snapshot.
+  snapshot_retention_limit = 7
+  snapshot_window          = "03:00-04:00"
+}
+
+# Mandate 20 (CDO-254/259): AWS Backup Vault (Governance Vault Lock) + KMS CMK cho EBS/PV.
+module "backup" {
+  source = "../../modules/backup"
+
+  project_name = var.project_name
+  environment  = var.environment
+}
+
+# Mandate 20 (CDO-260): IAM explicit Deny chống xoá backup cho role vận hành.
+# operator_role_names để trống mặc định -> policy được tạo nhưng gắn qua Identity Center
+# (permission set span nhiều account); tên policy sandbox = ecommerce-dev-dr-backup-protection-deny.
+module "backup_protection" {
+  source = "../../modules/backup_protection"
+
+  project_name        = var.project_name
+  environment         = var.environment
+  operator_role_names = var.audit_operator_role_names
 }
 
 module "ecr" {

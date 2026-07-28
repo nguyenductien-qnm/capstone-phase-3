@@ -3,7 +3,10 @@
   "type": "real",
   "description": "MANDATE-15 / TF1-98: do lai tren EKS that (cluster ecommerce-dev-eks, namespace techx-tf1) thay vi docker-compose. flagd tren EKS dong bo tu server trung tam cua BTC (xem platform/gitops/applications/application.yaml -> sandbox/values-flagd-sync.yaml) nen KHONG bom duoc su co bang flag o day; dung inject type=command voi kubectl thay the. Dua payment ve 0 replica -> checkout goi sang that bai that -> checkout ghi rpc_grpc_status_code=13 tren chinh metric server-side cua no -> grpc-error-rate-high phai keu.",
   "service": "checkout",
-  "expected_rule_ids": ["grpc-error-rate-high", "error-budget-burn-fast-checkout"],
+  "expected_rule_ids": [
+    "service-error-rate-high",
+    "error-budget-burn-fast-checkout"
+  ],
   "expect_fire": true,
   "inject": {
     "type": "command",

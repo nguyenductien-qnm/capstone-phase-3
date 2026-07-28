@@ -1,0 +1,39 @@
+{
+  "id": "case-healthy-load-001",
+  "type": "healthy_load",
+  "description": "MANDATE-15 ca 'ban chu khong hong', ban cho EKS. Tao tai HOP LE that su bang cach nhan ban chinh load-generator cua he (khong co flag loi nao dinh vao) roi xac nhan detector KHONG keu oan. PASS = khong rule nao trong monitored_rule_ids ban trong cua so. Day la nua con lai cua cau hoi ma ca quiet-window khong tra loi duoc: quiet-window chi hoi 'binh thuong co keu nham khong', ca nay hoi 'BAN co bi nham la HONG khong'.",
+  "service": null,
+  "expected_rule_ids": [],
+  "monitored_rule_ids": [
+    "latency-p95-high",
+    "service-error-rate-high",
+    "service-traffic-collapse",
+    "error-budget-burn-fast-standard",
+    "error-budget-burn-fast-checkout",
+    "error-budget-burn-slow-standard",
+    "error-budget-burn-slow-checkout",
+    "memory-saturation-high",
+    "kafka-consumer-lag-high",
+    "genai-latency-high",
+    "bedrock-cost-high",
+    "llm-rate-limit-429",
+    "db-pool-exhaustion",
+    "oom-detected"
+  ],
+  "expect_fire": false,
+  "inject": {
+    "type": "command",
+    "on": "kubectl scale deploy/load-generator -n techx-tf1 --replicas=4",
+    "off": "kubectl scale deploy/load-generator -n techx-tf1 --replicas=1"
+  },
+  "duration_seconds": 420,
+  "settle_seconds": 180,
+  "notes": [
+    "BAN COMPOSE CU chay locust tu may ca nhan (`cd techx-corp-platform/src/load-generator && locust ...`). Khong dung tren EKS vi ba ly do: locust khong duoc ghim truc tiep ma keo theo locust-plugins[playwright] (tai ca trinh duyet ~hang tram MB); locustfile.py goi flagd OFREP luc khoi dong (locustfile.py:78) ma flagd tren EKS khong voi toi tu may ngoai; va no can LOCUST_HOST tro vao frontend co dia chi cong khai.",
+    "Thay bang nhan ban chinh deployment load-generator DANG CHAY SAN trong cum. No co 1 replica va KHONG co HPA (platform/charts/application/values.yaml — khong co block hpa cho load-generator), nen kubectl scale la an toan, khong danh nhau voi autoscaler. Moi pod chay LOCUST_USERS=10 nen 4 replica ~ 4x tai.",
+    "CHON nhan ban thay vi doi bien LOCUST_USERS: `kubectl set env` gay rollout, pod restart lam traffic tut mot nhip — ma nhip tut do co the tu no lam service-traffic-collapse keu, tao dung mot bao dong gia tren chinh ca dung de chung minh khong co bao dong gia.",
+    "KHONG day len qua ~50 user mot pod: resources.limits.memory cua load-generator la 500Mi, right-size cho 10 user HTTP thuan. OOMKill load-generator se lam oom-detected keu va lai tao bao dong gia. Nhan ban trai bo nho ra nhieu pod nen tranh duoc.",
+    "monitored_rule_ids liet ke DU 14 rule dang co trong rules.yaml (khong chi 3 nhu ban cu), gom ca service-traffic-collapse — rule nay dac biet dang theo doi vi tai tang roi tut ve muc cu la dung hinh dang ma no bat.",
+    "duration 420s de tai cao phu tron mot cua so rate(...[5m]) va con du bien; settle 180s de alert cham (neu co) van kip roi vao cua so cham diem."
+  ]
+}

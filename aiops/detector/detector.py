@@ -175,8 +175,30 @@ def eval_metric_rule(rule, prom):
                 elif op == "lt" and value < dynamic_threshold and (mean - value) > 0.001:
                     dynamic_fired = True
 
-            # Keep rolling window of 30 samples
-            history.append(value)
+            # Keep rolling window of 30 samples. Winsorize TRUOC khi append
+            # (MANDATE-15 masking-resistance, y tuong goc cua TienThanh o PR #343).
+            #
+            # Mot outlier tho neu duoc ghi nguyen se keo mean/std ve phia no suot ~30 chu
+            # ky sau, nang cao ranh phat hien va che mat mot su co thu hai NHO HON ngay
+            # sau do. Do that tren EKS 27/07: gian doan `cart` day ti le loi cua checkout
+            # len 1.0; nhoi 12 mau 1.0 vao cua so 30 lam mean~0.4 va mean+3sigma~1.87, nen
+            # mot su co that o 0.068 sau do khong con cua nao vuot nguong dong.
+            #
+            # Kep ve dynamic_threshold chu khong bo mau: mot bat thuong KEO DAI van dan dan
+            # keo baseline theo thay vi bi ghim cung. Chi kep khi da co baseline (len>=5).
+            #
+            # GIOI HAN da biet, ghi ra chu khong giau: tren chuoi PHUONG SAI BANG KHONG
+            # (mean=0, std=0 -> dynamic_threshold=0) thi min(value, 0) = 0 voi moi gia tri,
+            # nen baseline bi ghim o 0 vinh vien chu khong "dan dan keo theo". Chuoi ti le
+            # loi cua checkout dung la nhu vay khi he khoe (do duoc: 0.0000 suot 121/121
+            # mau trong 1 gio). Voi rule nay do lai la dieu MONG MUON — no giu ranh phat
+            # hien sat day nen su co nho van noi len — nhung dung ap dung mu cho rule khac
+            # ma khong do lai.
+            history_value = value
+            if len(history) >= 5:
+                history_value = (min(value, dynamic_threshold) if op == "gt"
+                                 else max(value, dynamic_threshold))
+            history.append(history_value)
             if len(history) > 30:
                 history.pop(0)
 

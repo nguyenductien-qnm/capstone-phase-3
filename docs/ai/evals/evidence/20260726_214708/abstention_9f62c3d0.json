@@ -1,0 +1,70 @@
+{
+  "category": "abstention",
+  "input": [
+    "Thủ đô của nước Đức là gì?",
+    "abstention-geography",
+    [
+      "berlin"
+    ]
+  ],
+  "latency": 2.203672409057617,
+  "tokens": {
+    "input": 5329,
+    "output": 69,
+    "embedding": 0
+  },
+  "usd_cost": 0.0003363,
+  "embed_cost": 0.0,
+  "passed": true,
+  "reason": "Từ chối đúng, không rò dữ kiện ngoài domain",
+  "response": {
+    "response": "Dạ, mình là trợ lý mua sắm của TechX, chuyên hỗ trợ về thiết bị thiên văn. Bạn cần tìm kính thiên văn, ống nhòm hay phụ kiện gì không?",
+    "actionsTaken": [],
+    "degraded": false,
+    "traceId": "f930b79cc2d88a6bca900b228040a72e",
+    "citations": [],
+    "traceSteps": [
+      {
+        "stepName": "Input Guardrail (PII/Prompt Guard)",
+        "latencyMs": 1035,
+        "status": "pass",
+        "detail": "{\"question\": \"Th\\u1ee7 \\u0111\\u00f4 c\\u1ee7a n\\u01b0\\u1edbc \\u0110\\u1ee9c l\\u00e0 g\\u00ec?\", \"blocked\": false}"
+      },
+      {
+        "stepName": "Model Gateway & Bedrock Nova",
+        "latencyMs": 1122,
+        "status": "ok",
+        "detail": "{\"routed_model\": \"amazon.nova-lite-v1:0\"}"
+      },
+      {
+        "stepName": "LLM → trả lời trực tiếp",
+        "latencyMs": 1119,
+        "status": "ok",
+        "detail": "{\"decided_tools\": [], \"stop_reason\": \"end_turn\", \"reasoning\": \"D\\u1ea1, m\\u00ecnh l\\u00e0 tr\\u1ee3 l\\u00fd mua s\\u1eafm c\\u1ee7a TechX, chuy\\u00ean h\\u1ed7 tr\\u1ee3 v\\u1ec1 thi\\u1ebft b\\u1ecb thi\\u00ean v\\u0103n. B\\u1ea1n c\\u1ea7n t\\u00ecm k\\u00ednh thi\\u00ean v\\u0103n, \\u1ed1ng nh\\u00f2m hay ph\\u1ee5 ki\\u1ec7n g\\u00ec kh\\u00f4ng?\"}"
+      }
+    ]
+  },
+  "spans": [
+    {
+      "name": "guardrail_citation_validation",
+      "attributes": {
+        "guardrail.citation_valid": true
+      }
+    },
+    {
+      "name": "guardrail_input",
+      "attributes": {
+        "guardrail.blocked": false
+      }
+    },
+    {
+      "name": "bedrock_converse",
+      "attributes": {
+        "gen_ai.request.model": "amazon.nova-lite-v1:0",
+        "gen_ai.response.finish_reason": "end_turn",
+        "gen_ai.usage.input_tokens": 5329,
+        "gen_ai.usage.output_tokens": 69
+      }
+    }
+  ]
+}

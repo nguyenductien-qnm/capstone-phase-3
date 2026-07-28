@@ -42,17 +42,17 @@ class TestRecommendationServer(unittest.TestCase):
         with patch.dict(os.environ, {'DB_CONNECTION_STRING': 'postgresql://dummy:dummy@localhost:5432/dummy'}):
             try:
                 results = recommendation_server._get_ai_recommendations(["source_product"], max_results=5)
-                
+
                 # Assertions
                 self.assertEqual(len(results), 5)
                 self.assertEqual(results[0], "p1")
-                
+
                 # Check if pgvector <=> distance was used in the query
                 query_calls = mock_cursor.execute.call_args_list
                 self.assertTrue(len(query_calls) >= 2)
                 second_query = query_calls[1][0][0].lower()
                 self.assertTrue("<=>" in second_query)
-                
+
                 print("✅ PASSED: Recommendation pgvector logic is correct.")
             except Exception as e:
                 print(f"❌ FAILED: {e}")

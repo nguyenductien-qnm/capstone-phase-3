@@ -1,0 +1,43 @@
+{
+  "id": "case-masking-001",
+  "type": "masking",
+  "description": "MANDATE-15 masking case, ban cho EKS. Hai su co RIENG BIET tren CUNG rule+service (service-error-rate-high / checkout) nen chung dung MOT xo metric_history trong detector.py — dung cho xo bi nhiem doc. Su co 1 la gian doan lon, tu khoi phuc. Su co 2, ~4 phut sau, NHO HON nhieu va co y nam trong khoang (0.05, 0.10): TREN cong SLO nhung DUOI nguong tinh, tuc CHI tang 3-sigma bat duoc. Neu su co 1 keo mean/std len thi su co 2 bi che va ca nay FAIL. Xem report/mandate15/calibration.md de biet vi sao chon 15s, va aiops/detector/test_detector.py::test_dynamic_detection_not_masked_by_prior_spike cho ban unit-test tuong duong.",
+  "settle_seconds": 300,
+  "events": [
+    {
+      "label": "noise-spike",
+      "service": "checkout",
+      "expected_rule_ids": ["service-error-rate-high"],
+      "expect_fire": true,
+      "offset_seconds": 0,
+      "duration_seconds": 360,
+      "inject": {
+        "type": "command",
+        "on": "kubectl scale deploy/cart -n techx-tf1 --replicas=0",
+        "off": "kubectl scale deploy/cart -n techx-tf1 --replicas=2"
+      }
+    },
+    {
+      "label": "subtle-incident",
+      "service": "checkout",
+      "expected_rule_ids": ["service-error-rate-high"],
+      "expect_fire": true,
+      "offset_seconds": 900,
+      "duration_seconds": 15,
+      "inject": {
+        "type": "command",
+        "on": "kubectl scale deploy/cart -n techx-tf1 --replicas=0",
+        "off": "kubectl scale deploy/cart -n techx-tf1 --replicas=2"
+      }
+    }
+  ],
+  "notes": [
+    "BAN COMPOSE CU KHONG CHAY DUOC TREN EKS, hai ly do doc lap: (1) no bom qua flagd, ma flagd tren EKS dong bo tu server BTC nen patch ConfigMap vo tac dung (xem report/mandate15-eks/report.md muc 2); (2) no nham rule latency-p95-high + service frontend, nhung do 27/07 cho thay rule do CHI tra ve `cart` — frontend khong xuat http_server_request_duration_seconds. Ca cu se FAIL vi khong co du lieu chu khong phai vi bi che.",
+    "Su co 2 chi dai 15s nhung duration_seconds cua harness la 15s trong khi ANH HUONG keo dai ~4 phut: rate(...[5m]) lam ti le loi len dan roi tut. Hieu chinh do duoc: 20s gian doan -> dinh 0.0909 giu trong dai (0.05,0.10) suot 167s. Chon 15s de bien an toan can hai phia.",
+    "offset_seconds 900 (chu khong 240 nhu ban compose): su co 1 dai 360s, cong them thoi gian de ti le loi cua no tut han ve 0 (do duoc ~335s sau khi khoi phuc). Bat dau su co 2 qua som thi hai su co dinh nhau va khong con la hai su kien rieng biet.",
+    "duration cua su co 1 la 360s chu khong 90s: rule dung rate(...[5m]) nen cua so bom phai vuot 5 phut. Bai hoc da tra gia o #7b (150s khong du) va da xac nhan lai o #434.",
+    "settle_seconds 300 chu khong 120: score_events kep cua so khop alert cua moi su kien o t_end + settle. Su co 2 chi dai 15s, nen voi settle 120 thi cua so chi rong 135s — trong khi hieu chinh cho thay ti le MAI t=85s moi vao dai va dinh o t=210s. Alert se roi ra ngoai cua so va bi cham la 'bi che' OAN. Voi settle 300, cua so rong 315s, om tron ca dinh. Cua so su co 1 la [0, 660] con su co 2 bat dau o 900 nen hai cua so khong chong nhau.",
+    "off scale ve 2 = dung minReplicas cua HPA cart (2/6). Sau moi lan bom HPA se day len ~5 replica de tieu hoa luong don roi tu thu ve 2.",
+    "Tong thoi gian mot lan chay: 900 + 15 + 300 = 1215s (~20 phut)."
+  ]
+}

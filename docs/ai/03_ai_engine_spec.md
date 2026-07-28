@@ -6,16 +6,16 @@
 ## Model & routing
 | Tác vụ | Primary | Fallback | Timeout/call | Spec |
 |---|---|---|---|---|
-| Reviews summary | `amazon.nova-lite-v1:0` | `nova-micro` → mock | 4.0s / 2.0s | `03_specs/fallback_retry.md` |
-| Shopping Copilot | `amazon.nova-pro-v1:0` | `nova-lite` → thông báo lỗi | 5.7s / 2.5s | `03_specs/shopping_copilot.md` |
+| Reviews summary | `amazon.nova-lite-v1:0` (env `LLM_REVIEWS_MAIN_MODEL`) | `nova-micro` → mock | 2.6s / 2.3s (`LLM_REVIEWS_TIMEOUT` / `_FALLBACK_TIMEOUT`, P95 21/07) | `03_specs/fallback_retry.md` |
+| Shopping Copilot | `amazon.nova-pro-v1:0` (env `LLM_COPILOT_MODEL`) | `nova-lite` → thông báo lỗi | 6.9s (`LLM_COPILOT_TIMEOUT`, P95 tool-loop 21/07) | `03_specs/shopping_copilot.md` |
 
-Inference params: `INFERENCE_CONFIG` trong `product_reviews_server.py` (maxTokens 1024 = trần chống runaway; temp 0.1 = bám nguồn; topP 0.9 — justification trong code + Sổ đăng ký con số ở `05_adrs.md`).
+Inference params: `INFERENCE_CONFIG` trong `product_reviews_server.py` (maxTokens **2048** `LLM_MAX_TOKENS` = trần chống runaway; temp 0.1 = bám nguồn; topP 0.9 — justification trong code + Sổ đăng ký con số ở `05_adrs.md`).
 
 ## Resilience (đã verify runtime 12/07)
 Retry (2/1) + full jitter → fallback ladder → mock; bulkhead non-blocking size 6; circuit breaker 3-fail/30s **theo lỗi quan sát được** (mentor xác nhận 12/07: đọc cờ sự cố flagd để bypass là PHẠM LUẬT — bản cũ đã gỡ trước đó); deadline fail-fast; marker `AI_SUMMARY_FALLBACK`.
 
 ## Safety
-Confirmation gate cho cart-write (bắt buộc theo đề); guardrail prompt-injection/PII: `05_adrs.md` ADR-006, eval probe trong `evals/golden_qa_dataset.json` (4 case injection).
+Confirmation gate cho cart-write (bắt buộc theo đề, giữ ở `agent.py` — app code, không đổi). Guardrail prompt-injection/PII/grounding **tập trung ở service `ml-guard`** (ADR-011/014/015): async gRPC `pb/ml_guard.proto` (`CheckInput`/`CheckOutput`/`SanitizeReviews`), cascade regex → Presidio PII → NLI grounding (mDeBERTa-XNLI) → Nova judge. `product-reviews` + `shopping-copilot` gọi qua shim `guardrails.py` → `pb/ml_guard_client.py` (fail-open khi ml-guard chưa sẵn sàng; PII vẫn mask bằng regex). Bedrock Guardrail là layer-3 defense-in-depth, flag `LLM_BEDROCK_GUARDRAIL` **bật ON 24/07** (us-east-1, `crbxw41dbmxp`). Eval probe: `evals/mandate06_cases.py` + `eval_mandate06_v6.py` (25 case injection/grounding/PII/leak).
 
 ## Data & cache
 PostgreSQL read-only (10 sản phẩm / 50 reviews — đo từ DB); Valkey cache 10 key, TTL phẳng 7d, versioned key theo model env + prompt hash (`03_specs/valkey_caching.md`).
