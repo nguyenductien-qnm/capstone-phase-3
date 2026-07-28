@@ -1,0 +1,13 @@
+### Replay offline ca masking tren service=frontend
+### 57 diem, step 30s, nguong tinh 0.1, cong SLO 0.5 (san 0.05)
+
+### KHONG winsorize (truoc #455): 1 lan keu
+###   noise-spike        BAT DUOC (dynamic, lead 120s)
+###   subtle-incident    BI CHE
+###   -> VERDICT (masking): FAIL
+
+### CO winsorize (sau #455): 2 lan keu
+###   noise-spike        BAT DUOC (dynamic, lead 120s)
+###   subtle-incident    BAT DUOC (dynamic, lead 119s)
+###   -> VERDICT (masking): PASS
+

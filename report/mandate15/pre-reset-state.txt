@@ -1,0 +1,17 @@
+=== TRUOC KHI RESET (2026-07-28T03:34:00Z) ===
+load-generator: 211 user / ~48 req/s (do nguoi khac de lai, da xac nhan ho chay xong)
+  hpa ad                       cpu: replicas=2
+  hpa cart                     cpu: replicas=2
+  hpa cart-consumer-worker     cpu: replicas=2
+  hpa checkout                 cpu: replicas=2
+  hpa currency                 cpu: replicas=2
+  hpa email                    cpu: replicas=2
+  hpa frontend                 cpu: replicas=6
+  hpa frontend-proxy           cpu: replicas=2
+  hpa ml-guard                 cpu: replicas=2
+  hpa payment                  cpu: replicas=2
+  hpa product-catalog          cpu: replicas=2
+  hpa product-reviews          cpu: replicas=2
+  hpa quote                    cpu: replicas=2
+  hpa recommendation           cpu: replicas=2
+  hpa shipping                 cpu: replicas=2

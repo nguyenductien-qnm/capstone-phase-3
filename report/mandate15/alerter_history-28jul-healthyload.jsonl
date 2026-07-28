@@ -1,0 +1,13 @@
+{"ts": 1785207711.7312703, "rule_id": "genai-assistant-failure", "service": "log", "severity": "critical", "fingerprint": "log:5950692"}
+{"ts": 1785207934.210716, "rule_id": "oom-detected", "service": "unknown", "severity": "critical", "fingerprint": "unknown:5950693"}
+{"ts": 1785207964.5573635, "rule_id": "latency-p95-high", "service": "cart", "severity": "warning", "fingerprint": "cart:5950693"}
+{"ts": 1785208313.1163485, "rule_id": "genai-assistant-failure", "service": "log", "severity": "critical", "fingerprint": "log:5950694"}
+{"ts": 1785210270.9092975, "rule_id": "oom-detected", "service": "unknown", "severity": "critical", "fingerprint": "unknown:5950700"}
+{"ts": 1785211465.3625574, "rule_id": "detector-silent-rule", "service": "error-budget-burn-fast-standard", "severity": "info", "fingerprint": "error-budget-burn-fast-standard:5950704"}
+{"ts": 1785211465.3688366, "rule_id": "detector-silent-rule", "service": "error-budget-burn-fast-checkout", "severity": "info", "fingerprint": "error-budget-burn-fast-checkout:5950704"}
+{"ts": 1785211465.375802, "rule_id": "detector-silent-rule", "service": "error-budget-burn-slow-standard", "severity": "info", "fingerprint": "error-budget-burn-slow-standard:5950704"}
+{"ts": 1785211465.381691, "rule_id": "detector-silent-rule", "service": "error-budget-burn-slow-checkout", "severity": "info", "fingerprint": "error-budget-burn-slow-checkout:5950704"}
+{"ts": 1785211465.3856328, "rule_id": "detector-silent-rule", "service": "bedrock-cost-high", "severity": "info", "fingerprint": "bedrock-cost-high:5950704"}
+{"ts": 1785211465.4154449, "rule_id": "detector-silent-rule", "service": "genai-latency-high", "severity": "info", "fingerprint": "genai-latency-high:5950704"}
+{"ts": 1785211467.1209884, "rule_id": "detector-silent-rule", "service": "error-budget-burn-fast", "severity": "info", "fingerprint": "error-budget-burn-fast:5950704"}
+{"ts": 1785211467.139373, "rule_id": "detector-silent-rule", "service": "memory-saturation-high", "severity": "info", "fingerprint": "memory-saturation-high:5950704"}

@@ -1,0 +1,89 @@
+# Pod moi cho TF1-107 — validate nguong trong aiops/remediation/remediation_policy.yaml
+# bang OOM chaos THAT tren EKS.
+#
+# Ke thua nguyen ban mttr-canary.yaml cua TF1-106, doi ten de khong dam len phep do cu.
+#
+# VI SAO POD MOI thay vi ep OOM service that:
+#   - flagd tren EKS sync READ-ONLY tu nguon trung tam cua BTC. Chinh
+#     values-flagd-sync.yaml ghi: "TF khong tu doi duoc flag vi nguon trung tam sync
+#     de len". Da kiem 28/07: flag `emailMemoryLeak` co ton tai, gia tri 0, khong bat
+#     duoc. Nen phuong phap ghi trong ticket TF1-107 (bat emailMemoryLeak) KHONG chay
+#     duoc — day la ly do phai doi cach, khong phai tuy tien doi.
+#   - Ha memory limit cua service that thi ArgoCD selfHeal revert (do duoc 17/07: 2/3
+#     lan bi revert truoc khi kip doc), va no anh huong nguoi khac dang dung cum.
+#   - Pod nay KHONG phuc vu traffic nao nen blast radius bang KHONG, nhung mang DUNG
+#     nhan `opentelemetry.io/name` ma find_oom_pods() doc, nen duong di qua detector va
+#     remediation la Y HET pod that.
+#
+# TINH CHAT QUAN TRONG cho TF1-107: pod nay OOM LAI sau ~25s ke tu khi khoi dong.
+# verify_oom_recovery() tra False NGAY khi thay bat ky OOMKilled MOI nao trong cua so
+# cho (verifier.py). Nen pod nay tao ra ca "verify FAIL" mot cach tu nhien — dung thu
+# chua ai do duoc, va la tien de de circuit breaker dem duoc fail lien tiep.
+#
+# HAN CHE phai ghi vao report: day la pod moi, khong phai service production. No chung
+# minh duoc CO CHE (verify fail, breaker dem, blast radius chan) chu khong chung minh
+# duoc hanh vi cua mot service that dang phuc vu khach.
+#
+# XOA SAU KHI DO XONG:
+#   kubectl -n techx-tf1 delete -f report/mandate22-thresholds/canary-oom.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tf1107-canary
+  namespace: techx-tf1
+  labels:
+    opentelemetry.io/name: tf1107-canary
+    app.kubernetes.io/managed-by: manual-experiment-TF1-107
+  annotations:
+    experiment: "TF1-107 validate nguong remediation — XOA SAU KHI DO XONG"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      opentelemetry.io/name: tf1107-canary
+  template:
+    metadata:
+      labels:
+        opentelemetry.io/name: tf1107-canary
+    spec:
+      terminationGracePeriodSeconds: 5
+      # Cum co ValidatingAdmissionPolicy 'deny-privilege-escalation' — theo dung chuan
+      # restricted ma aiops-detector/remediation dang dung.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: memhog
+          # ECR Public thay vi Docker Hub: registry-1.docker.io tung khong phan hoi
+          # trong CI (ghi chu cua TF1-106).
+          image: public.ecr.aws/docker/library/busybox:1.36
+          command: ["sh", "-c"]
+          args:
+            - |
+              echo "[canary] len, se OOM sau ~25s"
+              sleep 25
+              echo "[canary] bat dau cap phat"
+              A=$(yes CANARYFILLCANARYFILL | head -c 400000000)
+              echo "[canary] khong nen toi day duoc"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              # 128Mi: du cho runc init (64Mi lam container init bi OOM-kill ngay),
+              # nhung cap phat cham tran trong vai giay.
+              memory: 128Mi
+          readinessProbe:
+            exec:
+              command: ["true"]
+            initialDelaySeconds: 3
+            periodSeconds: 2

@@ -1,0 +1,88 @@
+{
+  "scenario_id": "case-healthy-load-001",
+  "type": "healthy_load",
+  "events": [
+    {
+      "label": "case-healthy-load-001",
+      "service": null,
+      "expected_rule_ids": [
+        "latency-p95-high",
+        "service-error-rate-high",
+        "service-traffic-collapse",
+        "error-budget-burn-fast-standard",
+        "error-budget-burn-fast-checkout",
+        "error-budget-burn-slow-standard",
+        "error-budget-burn-slow-checkout",
+        "memory-saturation-high",
+        "kafka-consumer-lag-high",
+        "genai-latency-high",
+        "bedrock-cost-high",
+        "llm-rate-limit-429",
+        "db-pool-exhaustion",
+        "oom-detected",
+        "genai-assistant-failure",
+        "dns-resolution-error",
+        "error-budget-burn-fast"
+      ],
+      "expect_fire": false,
+      "inject": {
+        "type": "command",
+        "on": "kubectl -n techx-tf1 exec deploy/load-generator -- python3 -c 'import urllib.request,urllib.parse;urllib.request.urlopen(\"http://localhost:8089/swarm\",urllib.parse.urlencode({\"user_count\":100,\"spawn_rate\":20}).encode(),timeout=15)'",
+        "off": "kubectl -n techx-tf1 exec deploy/load-generator -- python3 -c 'import urllib.request,urllib.parse;urllib.request.urlopen(\"http://localhost:8089/swarm\",urllib.parse.urlencode({\"user_count\":22,\"spawn_rate\":20}).encode(),timeout=15)'"
+      },
+      "offset_seconds": 0,
+      "duration_seconds": 420,
+      "t_start": 1785211029.769702,
+      "t_end": 1785211455.995113
+    }
+  ],
+  "score": {
+    "window": {
+      "start": 1785211029.769702,
+      "end": 1785211635.995113
+    },
+    "per_event": [
+      {
+        "label": "case-healthy-load-001",
+        "service": null,
+        "expected_rule_ids": [
+          "latency-p95-high",
+          "service-error-rate-high",
+          "service-traffic-collapse",
+          "error-budget-burn-fast-standard",
+          "error-budget-burn-fast-checkout",
+          "error-budget-burn-slow-standard",
+          "error-budget-burn-slow-checkout",
+          "memory-saturation-high",
+          "kafka-consumer-lag-high",
+          "genai-latency-high",
+          "bedrock-cost-high",
+          "llm-rate-limit-429",
+          "db-pool-exhaustion",
+          "oom-detected",
+          "genai-assistant-failure",
+          "dns-resolution-error",
+          "error-budget-burn-fast"
+        ],
+        "expect_fire": false,
+        "fired": false,
+        "correct": true,
+        "lead_time_seconds": null,
+        "matched_alert": null
+      }
+    ],
+    "metrics": {
+      "K_incidents": 0,
+      "recall": null,
+      "precision": null,
+      "total_fires_observed": 0,
+      "correct_fires": 0
+    },
+    "raw_alerts_in_window": []
+  },
+  "verdict": {
+    "pass": true,
+    "reason": "no false alarm under load"
+  },
+  "remediation_records": null
+}

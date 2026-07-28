@@ -1,0 +1,17 @@
+  [inject] running: kubectl scale deploy/load-generator -n techx-tf1 --replicas=4
+deployment.apps/load-generator scaled
+  [inject] running: kubectl scale deploy/load-generator -n techx-tf1 --replicas=1
+deployment.apps/load-generator scaled
+  [inject] settling 180s before scoring...
+
+======================================================================
+SCENARIO: case-healthy-load-001 [healthy_load]
+MANDATE-15 ca 'ban chu khong hong', ban cho EKS. Tao tai HOP LE that su bang cach nhan ban chinh load-generator cua he (khong co flag loi nao dinh vao) roi xac nhan detector KHONG keu oan. PASS = khong rule nao trong monitored_rule_ids ban trong cua so. Day la nua con lai cua cau hoi ma ca quiet-window khong tra loi duoc: quiet-window chi hoi 'binh thuong co keu nham khong', ca nay hoi 'BAN co bi nham la HONG khong'.
+----------------------------------------------------------------------
+  [case-healthy-load-001] expect_fire=False -> silent (lead_time=n/a) OK
+----------------------------------------------------------------------
+  K incidents = 0 | recall = None | precision = None (correct=0/total=0)
+  VERDICT (healthy_load): PASS — no false alarm under load
+======================================================================
+
+  result written to aiops/incident_scenarios/case_healthy_load.result.json
