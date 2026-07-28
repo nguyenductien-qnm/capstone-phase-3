@@ -1,4 +1,4 @@
-name: App Build (ECR + Trivy + Cosign + GitOps bump)
+name: "2 · Build — Ảnh app → ECR (Trivy + Cosign + bump GitOps)"
 
 # CDO-140 (build+push ECR, tag convention, immutable) + CDO-146 (Trivy + Cosign ký
 # digest) + CDO-142 (bump tag vào Git -> ArgoCD selfHeal sync).

@@ -1,4 +1,4 @@
-name: Infrastructure CI
+name: "1 · CI — Kiểm tra cú pháp Terraform"
 
 on:
   pull_request:

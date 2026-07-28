@@ -1,4 +1,4 @@
-name: Platform CI
+name: "1 · CI — Chất lượng code & gate bắt buộc"
 
 # CDO-145 (gate stage 0): secret scan + unit test + helm lint chạy trên MỌI push/PR.
 # CDO-141: helm lint + template render làm gate validate manifest TRƯỚC khi deploy.

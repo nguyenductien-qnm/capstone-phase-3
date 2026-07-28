@@ -1,4 +1,4 @@
-name: App Promote (develop -> prod, PR by digest)
+name: "4 · Release — Promote develop → prod"
 
 # Bước D của deploy model build-once-promote (xem app-build.yaml + app-attest.yaml):
 # dispatch -> đọc tag đang chạy ở develop (values-image-tags.yaml develop) ->

@@ -1,4 +1,4 @@
-name: Infra CD (Terraform + ArgoCD bootstrap)
+name: "3 · Deploy — Hạ tầng PROD (Terraform + ArgoCD)"
 
 # CDO-147: fmt/validate/scan -> plan (PR comment) -> apply (gated) -> bootstrap ArgoCD.
 # QUAN TRỌNG: Terraform CHỈ dựng hạ tầng (EKS/VPC/RDS/MSK/ECR...). ArgoCD KHÔNG cài

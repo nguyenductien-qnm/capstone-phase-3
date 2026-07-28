@@ -1,4 +1,4 @@
-name: Develop Infra (Terraform + optional ArgoCD bootstrap)
+name: "3 · Deploy — Hạ tầng DEVELOP (Terraform)"
 
 on:
   pull_request:
