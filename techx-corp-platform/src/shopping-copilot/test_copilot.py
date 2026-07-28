@@ -15,6 +15,7 @@ Run: ``python test_copilot.py``
 
 import os
 os.environ["LLM_INJECTION_JUDGE"] = "false"
+os.environ["ML_GUARD_URL"] = ""  # offline test: no ml-guard, skip gRPC
 
 import copilot_server as srv
 import agent
@@ -66,7 +67,7 @@ def test_confirmation_gate_two_phase():
             _tool_use("add_item_to_cart", {"product_id": "OLJCESPC7Z", "quantity": 2}),
             _end("Tôi đã chuẩn bị thêm vào giỏ. Vui lòng xác nhận."),
         ])
-        servicer = srv.ShoppingCopilotServicer(bedrock)
+        servicer = srv.ShoppingCopilotServicer(bedrock, None)  # valkey_client=None: offline test
 
         # Phase 1: prepare — must NOT execute the write.
         r1 = servicer.ChatWithCopilot(_Req(question="thêm OLJCESPC7Z"), None)
@@ -113,7 +114,8 @@ def test_read_tool_routing_and_audit():
 
 def test_max_loop_limit():
     # Always ask for another tool -> must stop at MAX_TOOL_CALLS, not loop forever.
-    scripted = [_tool_use("get_cart", {}) for _ in range(agent.MAX_TOOL_CALLS + 3)]
+    # Use unique args per call so dedup doesn't fire before MAX_TOOL_CALLS.
+    scripted = [_tool_use("get_cart", {"n": i}) for i in range(agent.MAX_TOOL_CALLS + 3)]
     orig = tools.get_cart
     tools.get_cart = lambda uid: '{"status":"ok","items":[]}'
     try:
