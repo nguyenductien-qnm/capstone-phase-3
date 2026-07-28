@@ -1,0 +1,20 @@
+#!/bin/bash
+# repro_m25.sh — MANDATE-25: controlled degradation
+set -euo pipefail
+cd "$(dirname "$0")/techx-corp-platform"
+echo "=== MANDATE-25 Repro ==="
+echo ""
+echo "A. Output validator: pb/output_validator.py blocks malformed toolUse blocks"
+echo "   (required fields: name, toolUseId, input; input must be dict)"
+echo "   Fault inject: llmFaultGarbageOutput flag in agent.py"
+echo ""
+echo "B. Circuit-breaker: _cb_state (agent.py:399, product_reviews_server.py:228)"
+echo "   Threshold=3 failures, Cooldown=30s, self-recovery"
+echo ""
+echo "C. Fallback ladder: primary→fallback model→cache→abstain"
+echo "   Retry capped with full jitter: random.uniform(0, base*(1.5**attempt))"
+echo ""
+echo "D. Honest degradation: _fallback_text() + degraded=True, không bịa nội dung"
+echo ""
+echo "Log check: docker compose logs shopping-copilot | grep -E 'Garbage|degraded|Circuit Breaker'"
+echo "=== Done ==="
