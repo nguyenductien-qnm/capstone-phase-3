@@ -5,6 +5,8 @@ metadata:
   name: {{ .Values.observabilityStorage.name }}
   labels:
     {{- include "techx-corp.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-options: Replace=true
 provisioner: ebs.csi.aws.com
 reclaimPolicy: {{ .Values.observabilityStorage.reclaimPolicy }}
 volumeBindingMode: {{ .Values.observabilityStorage.volumeBindingMode }}
