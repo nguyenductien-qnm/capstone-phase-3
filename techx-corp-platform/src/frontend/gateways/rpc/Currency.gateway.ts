@@ -9,7 +9,7 @@ import {
   CurrencyServiceClient,
   Money,
 } from '../../protos/demo';
-import { GrpcDeadlineMs, unaryWithDeadline } from './GrpcDeadline';
+import { GrpcDeadlineMs, unaryWithRetry } from './GrpcDeadline';
 
 const { CURRENCY_ADDR = '' } = process.env;
 
@@ -17,14 +17,14 @@ const client = new CurrencyServiceClient(CURRENCY_ADDR, ChannelCredentials.creat
 
 const CurrencyGateway = () => ({
   convert(from: Money, toCode: string) {
-    return unaryWithDeadline<CurrencyConversionRequest, Money>(
+    return unaryWithRetry<CurrencyConversionRequest, Money>(
       (request, metadata, options, callback) => client.convert(request, metadata, options, callback),
       { from, toCode },
       GrpcDeadlineMs.catalog
     );
   },
   getSupportedCurrencies() {
-    return unaryWithDeadline<Empty, GetSupportedCurrenciesResponse>(
+    return unaryWithRetry<Empty, GetSupportedCurrenciesResponse>(
       (request, metadata, options, callback) =>
         client.getSupportedCurrencies(request, metadata, options, callback),
       {},

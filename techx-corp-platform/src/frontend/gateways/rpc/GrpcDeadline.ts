@@ -50,6 +50,35 @@ export function unaryWithDeadline<TRequest, TResponse>(
   });
 }
 
+/**
+ * Executes a read-only unary RPC, retrying a transient failure once.
+ *
+ * The catalog deadline is 1s and a cache miss that lands during heavy database
+ * work can outlast it even though the upstream is healthy. grpcErrorHttpStatus
+ * then turns that into a 504 for the browser, so a blip that a second attempt
+ * serves in milliseconds is served as a failed page instead.
+ *
+ * Only for calls that are safe to repeat. The caller's route timeout still caps
+ * the total: two attempts of the catalog deadline stay far inside the 15s Envoy
+ * allows /api/products.
+ */
+export async function unaryWithRetry<TRequest, TResponse>(
+  invoke: UnaryRpc<TRequest, TResponse>,
+  request: TRequest,
+  timeoutMs: number,
+  metadata = new Metadata()
+): Promise<TResponse> {
+  try {
+    return await unaryWithDeadline(invoke, request, timeoutMs, metadata);
+  } catch (error) {
+    if (!isTransientGrpcError(error)) {
+      throw error;
+    }
+
+    return unaryWithDeadline(invoke, request, timeoutMs, metadata);
+  }
+}
+
 export function isTransientGrpcError(error: unknown): error is ServiceError {
   if (!isGrpcError(error)) {
     return false;
