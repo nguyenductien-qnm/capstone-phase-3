@@ -1,0 +1,9 @@
+{
+  "group": "numbers",
+  "case": "cost-before-after",
+  "passed": false,
+  "reason": "token 0 → 0 (-0) · USD $0.000000 → $0.000000 (-0%)",
+  "latency": 0.0,
+  "cache_status": null,
+  "response": ""
+}

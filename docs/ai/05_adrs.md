@@ -904,11 +904,10 @@ Cần tạo khung đánh giá (evaluation harness) có khả năng định lư�
 
 2. **Kiến trúc chấm điểm — phân biệt harness vs ml-guard:**
 
-   **Harness (`eval_mandate14.py`) KHÔNG dùng LLM-judge.** Chấm theo cấu trúc:
-   - `actionsTaken`: tool nào đã chạy, `succeeded` hay không.
-   - Span attributes từ OpenTelemetry: `guardrail.blocked`, `app.search.mode`, `gen_ai.usage.*`.
-   - `citations` trả về từ `get_product_reviews`.
-   - Lý do: đo an toàn bằng hành động (tool call, span), không bằng câu chữ — tránh thiên kiến khi LLM chấm LLM.
+   **Harness (`eval_mandate14.py`) chấm lai cấu trúc + semantic:**
+   - Safety/task dùng bằng chứng xác định: `actionsTaken`, `succeeded`, span `guardrail.blocked`, citations.
+   - Faithfulness của câu trả lời review đọc lại `/api/product-reviews/{product_id}`, đối chiếu từng citation với review nguồn, rồi gọi live Bedrock judge theo `JUDGE_HUMAN_RUBRIC.md`.
+   - Không fallback sang keyword/mock nếu nguồn hoặc judge lỗi; case phải fail để tránh điểm xanh giả.
 
    **LLM-judge nằm trong `ml-guard`**, là một rail của hệ thống (không phải thước đo):
    - Grounding judge: `amazon.nova-micro-v1:0` (`LLM_JUDGE_MODEL` env var).
@@ -934,10 +933,38 @@ Cần tạo khung đánh giá (evaluation harness) có khả năng định lư�
 ## Alternatives Considered
 - **Đánh giá thủ công (Human evaluation):** Quá tốn thời gian, không scale được khi số lượng test cases lớn, độ trễ phản hồi khi thay đổi code quá cao. Bị loại.
 - **Dùng LLM tự sinh (Self-eval):** Model bịa ra tự chấm điểm chính mình. Dễ bị thiên kiến (bias) và điểm số không đáng tin cậy. Bị loại.
-- **Dùng LLM-as-a-Judge trong harness:** Đã cân nhắc và bác bỏ cho harness — harness đo hành vi (tool call đúng/sai, span ghi nhận chặn/không chặn) vốn đã xác định, không cần thêm lớp suy luận. LLM-judge được giữ bên trong ml-guard như một rail runtime, nơi nó phục vụ mục đích khác (chấm grounding real-time cho từng request).
+- **Dùng LLM-as-a-Judge cho mọi rail:** Bác bỏ. Các rail xác định (tool call, PII leak, write, span chặn) vẫn chấm bằng cấu trúc; chỉ faithfulness semantic cần judge sau khi đối chiếu nguồn độc lập.
 
 ## Consequences
 - Hệ thống có khả năng tự chấm điểm mỗi lần cập nhật model hoặc guardrail (Automated Evals).
 - Đảm bảo tuân thủ tính minh bạch, cung cấp Evidence Audit rõ ràng thông qua Trace và Report JSON.
 - Đội ngũ tự tin A/B test LLM models vì đã có metric định lượng.
 - Bảng giá LLM được ghi cả trong ADR lẫn trong code (`PRICING` dict) — cập nhật phải sửa cả hai.
+
+---
+
+# ADR-017: GenAI Caching & Memory (MANDATE-23)
+
+**Status:** Accepted · **Date:** 2026-07-27 (2026-07-28 đính chính) · **Author:** Nguyễn Hữu Dinh (AIO03 – TF1)
+**Toàn văn:** [`adr/ADR-017-genai-cache-memory.md`](adr/ADR-017-genai-cache-memory.md)
+
+Tóm tắt quyết định:
+1. **L1 exact** ở Valkey, **L2 semantic** — Valkey Search FT.SEARCH cho cả copilot lẫn
+   product-reviews (index riêng, prefix riêng); **L3** là Bedrock prompt cache.
+2. Key L1 7 phần `user_id:model_ver:code_fp:catalog_fp:mem_fp:sess_fp:question_fp` —
+   mỗi phần chặn một kiểu trả sai (rò chéo user, cache của build cũ, nguồn đổi, memory
+   đổi, ngữ cảnh phiên khác).
+3. **Ngưỡng similarity không đủ**: thêm rule-guard (`pb/semantic_guard.py`) → false-hit 0%,
+   chốt `SEMANTIC_CACHE_MIN_SIM = 0.85`.
+4. Câu chạm giỏ hàng → `bypass`, không cache. Fallback/rail-block → `cacheable=False`.
+5. Cache envelope `{v, t, c, a}` giữ citations + tool records khi hit.
+
+## Đính chính ADR-014 §7 (27/07)
+
+Guardrail `crbxw41dbmxp` **không nằm trong** account Phase3 (`804372444787` /
+`458580846647` — quét us-east-1/2, us-west-2 đều rỗng). Nó thuộc account
+**`384511757667`**; prod truy cập qua `BEDROCK_AWS_ROLE_ARN` +
+`BEDROCK_AWS_EXTERNAL_ID` (secret `bedrock-config`, namespace `techx-tf1`), local dùng
+creds của chính account đó. Chạy stack bằng creds SSO Phase3 thì `ApplyGuardrail` trả
+`ValidationException`, mà `ml-guard/server.py:435` **fail-closed** → chặn sạch mọi câu
+hỏi, kể cả câu lành. Lỗi cấu hình này đã tốn một vòng debug ngày 27/07.

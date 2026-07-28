@@ -26,6 +26,23 @@
       "groupSlug": "pin-docker"
     },
     {
+      "description": "Accounting targets net8.0; EF provider majors 10+ require net10.0.",
+      "matchPackageNames": ["Npgsql.EntityFrameworkCore.PostgreSQL", "EFCore.NamingConventions"],
+      "allowedVersions": "<10.0.0"
+    },
+    {
+      "description": "eslint-plugin-react 7.x does not declare ESLint 10 peer compatibility yet.",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["eslint"],
+      "allowedVersions": "<10.0.0"
+    },
+    {
+      "description": "php-http/guzzle7-adapter requires Guzzle 7; exclude Guzzle 8 until an adapter is available.",
+      "matchManagers": ["composer"],
+      "matchPackageNames": ["guzzlehttp/guzzle"],
+      "allowedVersions": "<8.0.0"
+    },
+    {
       "description": "PR3 - VERSION: gom moi nang version (major/minor/patch) cua MOI manager vao 1 PR rieng, tach khoi 2 PR pin tren.",
       "matchUpdateTypes": ["major", "minor", "patch"],
       "groupName": "version updates",

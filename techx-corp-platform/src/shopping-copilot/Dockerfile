@@ -31,6 +31,7 @@ COPY ./src/shopping-copilot/guardrails.py guardrails.py
 COPY ./src/shopping-copilot/ml_guard_pb2.py ml_guard_pb2.py
 COPY ./src/shopping-copilot/ml_guard_pb2_grpc.py ml_guard_pb2_grpc.py
 COPY ./pb/ml_guard_client.py ml_guard_client.py
+COPY ./pb/semantic_guard.py semantic_guard.py
 COPY ./src/shopping-copilot/bedrock_client.py bedrock_client.py
 COPY ./src/shopping-copilot/model_router.py model_router.py
 COPY ./src/shopping-copilot/tools.py tools.py

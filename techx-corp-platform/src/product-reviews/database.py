@@ -174,3 +174,36 @@ def fetch_avg_product_review_score_from_db(request_product_id):
             return f"{average_score:.1f}"
 
     return execute_with_retry(_work)
+
+def get_semantic_cache(scope_key: str, embedding: list, threshold: float = 0.1):
+    def _work(connection):
+        with connection.cursor() as cursor:
+            vec_str = "[" + ",".join(str(f) for f in embedding) + "]"
+            query = """
+                SELECT answer, 1 - (question_embedding <=> %s::vector) AS similarity
+                FROM ai.semantic_cache
+                WHERE scope_key = %s AND (question_embedding <=> %s::vector) < %s
+                ORDER BY question_embedding <=> %s::vector
+                LIMIT 1
+            """
+            cursor.execute(query, (vec_str, scope_key, vec_str, threshold, vec_str))
+            row = cursor.fetchone()
+            if row:
+                return row[0], float(row[1])
+            return None, 0.0
+
+    return execute_with_retry(_work)
+
+def insert_semantic_cache(scope_key: str, question: str, embedding: list, answer: str):
+    def _work(connection):
+        with connection.cursor() as cursor:
+            vec_str = "[" + ",".join(str(f) for f in embedding) + "]"
+            query = """
+                INSERT INTO ai.semantic_cache (scope_key, question, question_embedding, answer)
+                VALUES (%s, %s, %s::vector, %s)
+            """
+            cursor.execute(query, (scope_key, question, vec_str, answer))
+        connection.commit()
+
+    return execute_with_retry(_work)
+

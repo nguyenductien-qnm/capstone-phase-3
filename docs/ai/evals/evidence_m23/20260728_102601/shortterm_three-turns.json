@@ -1,0 +1,9 @@
+{
+  "group": "shortterm",
+  "case": "three-turns",
+  "passed": true,
+  "reason": "lượt 3 nhắc lại sản phẩm của lượt trước: ['Starsense Explorer Refractor Telescope']",
+  "latency": 20.39,
+  "cache_status": "miss",
+  "response": "Có, \"Starsense Explorer Refractor Telescope\" rất phù hợp cho người mới. Đánh giá của khách hàng cho thấy sản phẩm này có giao diện người dùng thân thiện và các hướng dẫn chi tiết của ứng dụng giúp tìm kiếm các đối tượng thiên văn dễ dàng hơn. Đây là một sản phẩm tiên tiến cho người mới bắt đầu quan "
+}

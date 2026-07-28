@@ -42,8 +42,9 @@ resource "aws_elasticache_replication_group" "this" {
   num_cache_clusters   = var.num_cache_clusters
   port                 = 6379
 
-  engine         = "valkey"
-  engine_version = "7.2"
+  engine = "valkey"
+  # MANDATE-23: Valkey Search vector index for L2 semantic cache.
+  engine_version = "8.2"
 
   subnet_group_name  = aws_elasticache_subnet_group.this.name
   security_group_ids = [aws_security_group.valkey.id]

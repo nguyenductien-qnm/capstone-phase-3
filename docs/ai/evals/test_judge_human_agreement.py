@@ -40,9 +40,35 @@ def test_load_human_cases():
         assert case["human_label"] in ("PASS", "FAIL")
 
 
-def test_full_pipeline_execution():
+class FakeBedrock:
+    def __init__(self, labels):
+        self.labels = iter(labels)
+
+    def converse(self, **kwargs):
+        label = next(self.labels)
+        return {"output": {"message": {"content": [{
+            "text": '{"label": "%s", "rationale": "Evidence-based test response"}' % label
+        }]}}}
+
+
+def test_live_judge_pipeline_with_injected_client():
     cases = m.load_human_cases()
-    judge_labels = [m.evaluate_judge_prediction(c) for c in cases]
+    client = FakeBedrock([c["human_label"] for c in cases])
+    results = [m.judge_case(c, client=client) for c in cases]
+    judge_labels = [r["label"] for r in results]
     p_o, p_e, kappa, matrix = m.compute_cohens_kappa([c["human_label"] for c in cases], judge_labels)
-    assert p_o >= 0.8
-    assert kappa >= 0.7
+    assert p_o == 1.0
+    assert kappa == 1.0
+
+
+def test_judge_rejects_invalid_model_output():
+    class BadBedrock:
+        def converse(self, **kwargs):
+            return {"output": {"message": {"content": [{"text": "PASS"}]}}}
+
+    try:
+        m.judge_case({"category": "leak", "prompt": "x", "llm_output": "y"}, client=BadBedrock())
+    except ValueError as exc:
+        assert "JSON" in str(exc)
+    else:
+        raise AssertionError("invalid judge output must fail closed")

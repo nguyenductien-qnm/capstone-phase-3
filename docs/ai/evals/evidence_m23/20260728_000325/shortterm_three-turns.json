@@ -1,0 +1,9 @@
+{
+  "group": "shortterm",
+  "case": "three-turns",
+  "passed": true,
+  "reason": "lượt 3 nhắc lại sản phẩm của lượt trước: ['Starsense Explorer Refractor Telescope']",
+  "latency": 3.31,
+  "cache_status": "miss",
+  "response": "Đúng vậy, \"Starsense Explorer Refractor Telescope\" là một lựa chọn tuyệt vời cho người mới bắt đầu. Nó rất dễ sử dụng nhờ ứng dụng Starsense Explorer, giúp bạn dễ dàng tìm và theo dõi các ngôi sao, hành tinh và các thiên thể khác mà không cần biết nhiều về thiên văn học. Đây là một công cụ tuyệt vời"
+}

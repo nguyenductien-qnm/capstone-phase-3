@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 import logging
 import hashlib
+from pathlib import Path
 import redis
 import os
 import time
@@ -40,7 +41,9 @@ import model_router
 import shopping_copilot_pb2 as pb
 import shopping_copilot_pb2_grpc as pb_grpc
 import demo_pb2
-from memory import extract_user_preferences, save_user_memory, load_user_memory, format_memory_for_prompt, fetch_data_fingerprint, get_semantic_cache, insert_semantic_cache
+from memory import (ensure_semantic_index, extract_user_preferences, save_user_memory,
+                    load_user_memory, format_memory_for_prompt, fetch_data_fingerprint,
+                    get_semantic_cache, insert_semantic_cache)
 
 tracer = trace.get_tracer_provider().get_tracer("shopping-copilot")
 
@@ -59,15 +62,28 @@ CONFIRM_TTL_SECONDS = int(os.environ.get("COPILOT_CONFIRM_TTL", "300"))
 MAX_SESSION_MESSAGES = int(os.environ.get("COPILOT_MAX_SESSION_MESSAGES", "20"))
 COPILOT_CACHE_TTL = int(os.environ.get("COPILOT_CACHE_TTL", "3600"))
 SESSION_TTL = int(os.environ.get("COPILOT_SESSION_TTL", "3600"))
-SEMANTIC_CACHE_MIN_SIM = float(os.environ.get("SEMANTIC_CACHE_MIN_SIM", "0.92"))
-# L2 semantic cache TẮT mặc định — quyết định dựa trên số đo, không phải cảm tính.
-# `param_sweep_m23.py` (đo thật bằng Titan trên 9 cặp câu có nhãn) cho thấy hai nhóm
-# CHỒNG LẤN: cặp cùng ý thấp nhất 0.6587, cặp khác nghĩa cao nhất 0.9191
-# ("dưới 200 USD" vs "trên 200 USD"). Không tồn tại ngưỡng nào vừa bắt paraphrase vừa
-# không trả sai: ≤0.91 → false-hit 20%; ≥0.92 → false-hit 0% nhưng recall 0%.
-# MANDATE-23 cấm "trả cũ sai", nên chọn L1 exact và tắt L2. Bật lại khi có embedding
-# tiếng Việt tốt hơn, hoặc thêm rule guard cho phủ định/mốc giá.
-SEMANTIC_CACHE_ENABLED = os.environ.get("SEMANTIC_CACHE_ENABLED", "false").lower() == "true"
+SEMANTIC_CACHE_MIN_SIM = float(os.environ.get("SEMANTIC_CACHE_MIN_SIM", "0.85"))
+
+
+def _code_fingerprint() -> str:
+    """Băm chính code sinh câu trả lời, dùng làm prompt_ver trong key cache.
+
+    Deploy bản mới mà key không đổi thì cache vẫn phục vụ câu trả lời của build cũ —
+    đúng thứ MANDATE-23 gọi là "trả cũ sai" (đo 27/07: sau khi vá bộ lọc category,
+    câu hỏi cũ vẫn ra câu trả lời sinh lúc search còn hỏng). Băm file thay vì bump
+    tay một hằng số vì hằng số đó chắc chắn có ngày bị quên."""
+    h = hashlib.md5()
+    for name in ("copilot_server.py", "agent.py", "tools.py", "memory.py"):
+        try:
+            h.update(Path(__file__).with_name(name).read_bytes())
+        except OSError:
+            pass
+    return h.hexdigest()[:8]
+
+
+CODE_FP = _code_fingerprint()
+# L2 uses Valkey Search (ElastiCache Valkey 8.2) plus the measured rule guard.
+SEMANTIC_CACHE_ENABLED = os.environ.get("SEMANTIC_CACHE_ENABLED", "true").lower() == "true"
 
 
 class _PendingStore:
@@ -117,7 +133,7 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
         if self._valkey:
             try:
                 data = json.dumps({"owner_user_id": user_id, "messages": messages})
-                self._valkey.setex(f"copilot:session:{session_id}", SESSION_TTL, data)
+                self._valkey.set(f"copilot:session:{session_id}", data, ex=SESSION_TTL)
                 return
             except Exception as e:
                 logger.error("Valkey set session failed: %s", e)
@@ -179,7 +195,7 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
         mem_context = format_memory_for_prompt(long_term_mem)
         
         if mem_context and not any(m.get("role") == "user" and mem_context in m["content"][0]["text"] for m in session):
-             enriched_question = mem_context + "\\n\\n" + sanitized_question
+             enriched_question = mem_context + "\n\n" + sanitized_question
         else:
              enriched_question = sanitized_question
 
@@ -199,10 +215,18 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
         mem_fp = hashlib.md5((mem_context or "").encode()).hexdigest()[:8]
 
         model_ver = MAIN_MODEL.replace(":", "-")
-        prompt_ver = "v1"
+        prompt_ver = CODE_FP
 
-        l1_key = f"copilot:answer:{request.user_id}:{model_ver}:{prompt_ver}:{catalog_fp}:{mem_fp}:{question_fp}"
-        scope_key = f"copilot:{request.user_id}:{model_ver}:{prompt_ver}:{catalog_fp}:{mem_fp}"
+        # Ngữ cảnh phiên vào key: câu phụ thuộc lượt trước ("Nó có phù hợp không?")
+        # mà chỉ băm chữ thì phiên khác hỏi y hệt sẽ nhận lại câu trả lời của phiên
+        # trước — "nó" trỏ sản phẩm khác → trả sai im lặng (đo 27/07: lượt 3 ra
+        # hit_exact với nội dung phiên cũ). Lượt đầu session rỗng → fp cố định nên
+        # yêu cầu lặp nguyên văn vẫn hit bình thường.
+        sess_fp = hashlib.md5(
+            json.dumps(session, ensure_ascii=False, sort_keys=True).encode()).hexdigest()[:8]
+
+        l1_key = f"copilot:answer:{request.user_id}:{model_ver}:{prompt_ver}:{catalog_fp}:{mem_fp}:{sess_fp}:{question_fp}"
+        scope_key = f"copilot:{request.user_id}:{model_ver}:{prompt_ver}:{catalog_fp}:{mem_fp}:{sess_fp}"
 
         if self._valkey:
             try:
@@ -224,7 +248,10 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
                 )
                 embedding = json.loads(embed_resp["body"].read())["embedding"]
                 
-                ans, sim = get_semantic_cache(scope_key, embedding, threshold=1.0 - SEMANTIC_CACHE_MIN_SIM)
+                ans, sim = get_semantic_cache(
+                    self._valkey, scope_key, embedding,
+                    threshold=1.0 - SEMANTIC_CACHE_MIN_SIM,
+                    question=sanitized_question)
                 if ans:
                     cached_response = ans
                     cache_status = "hit_semantic"
@@ -237,12 +264,13 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
         routed_model = model_router.get_routed_model("copilot", MAIN_MODEL)
         logger.info(f"Routed model for copilot: {routed_model}")
 
+        cached_records = []
+        cacheable = True
         if cached_response:
-            text_resp = cached_response
+            text_resp, citations, cached_records = _unpack_cache(cached_response)
             degraded = False
             trace_id = ""
             actions = []
-            citations = []
             pending = None
         else:
             start_llm = time.time()
@@ -268,6 +296,7 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
             actions = result.actions_taken
             citations = result.citations
             pending = result.pending
+            cacheable = result.cacheable
 
         session.append({"role": "assistant", "content": [{"text": text_resp}]})
         self._save_session(session_id, request.user_id, session)
@@ -279,7 +308,7 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
                                            trace_id=trace_id, trace_steps=trace_steps,
                                            cache_status=cache_status, similarity=similarity,
                                            source_fingerprint=catalog_fp)
-        resp.actions_taken.extend(_to_records(actions))
+        resp.actions_taken.extend(cached_records or _to_records(actions))
         for c in citations:
             resp.citations.add(review_id=c.get("review_id", ""), snippet=c.get("snippet", ""),
                                 score=str(c.get("score", "")))
@@ -302,14 +331,20 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
         if cache_status == "miss":
             if has_cart_op or pending:
                 resp.cache_status = "bypass"
+            elif degraded or not cacheable or not text_resp.strip():
+                # Câu trả lời hỏng/rỗng/bị rail thay thế mà đem cache thì một lần
+                # ml-guard chậm sẽ được phục vụ lại suốt TTL.
+                logger.info("Không cache câu trả lời degraded/fallback/rỗng")
             else:
+                payload = _pack_cache(text_resp, citations, actions)
                 if self._valkey:
                     try:
-                        self._valkey.setex(l1_key, COPILOT_CACHE_TTL, text_resp)
+                        self._valkey.set(l1_key, payload, ex=COPILOT_CACHE_TTL)
                     except Exception as e:
                         logger.error("Valkey set cache failed: %s", e)
-                if embedding:
-                    insert_semantic_cache(scope_key, sanitized_question, embedding, text_resp)
+                if embedding and self._valkey:
+                    insert_semantic_cache(
+                        self._valkey, scope_key, sanitized_question, embedding, payload)
 
         return resp
 
@@ -342,6 +377,33 @@ def _to_records(actions: list[agent.ToolCall]) -> list:
         started_at_unix=a.started_at_unix, duration_ms=a.duration_ms) for a in actions]
 
 
+# Cache phải giữ CẢ provenance, không chỉ chữ: entry chỉ-chữ khi hit sẽ trả về
+# citations rỗng và actionsTaken rỗng — khách mất trích dẫn, MANDATE-14 chấm
+# trượt grounding/citation/task dù nội dung đúng (đo 27/07: 7 ca fail đều là hit).
+def _pack_cache(text: str, citations: list[dict], actions: list[agent.ToolCall]) -> str:
+    return json.dumps({
+        "v": 1,
+        "t": text,
+        "c": citations or [],
+        "a": [{"tool_name": a.tool_name, "arguments_json": a.arguments_json,
+               "succeeded": a.succeeded, "started_at_unix": a.started_at_unix,
+               "duration_ms": a.duration_ms} for a in actions],
+    }, ensure_ascii=False)
+
+
+def _unpack_cache(raw: str) -> tuple[str, list[dict], list]:
+    """Trả (text, citations, tool records). Entry đời cũ chỉ có chữ → không provenance."""
+    try:
+        env = json.loads(raw)
+        if isinstance(env, dict) and env.get("v") == 1:
+            return (env.get("t") or "",
+                    env.get("c") or [],
+                    [pb.ToolCallRecord(**rec) for rec in (env.get("a") or [])])
+    except (ValueError, TypeError) as e:
+        logger.warning("Cache entry không đọc được dạng envelope, dùng như text thuần: %s", e)
+    return raw, [], []
+
+
 def serve():
     main_timeout = float(os.environ.get('LLM_COPILOT_TIMEOUT', '6.9'))
     primary_config = Config(connect_timeout=1.0, read_timeout=main_timeout, retries={'max_attempts': 0})
@@ -360,6 +422,8 @@ def serve():
     valkey_client = redis.Redis(host=valkey_host, port=valkey_port, decode_responses=True,
                                 socket_timeout=0.5, socket_connect_timeout=0.5,
                                 password=valkey_password, ssl=valkey_ssl)
+    if SEMANTIC_CACHE_ENABLED:
+        ensure_semantic_index(valkey_client)
 
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=MAX_WORKERS))
     pb_grpc.add_ShoppingCopilotServiceServicer_to_server(

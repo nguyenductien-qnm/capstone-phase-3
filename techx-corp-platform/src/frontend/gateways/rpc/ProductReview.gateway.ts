@@ -41,6 +41,9 @@ const ProductReviewGateway = () => ({
       traceId: response.traceId,
       citations: response.citations,
       traceSteps: response.traceSteps,
+      cacheStatus: response.cacheStatus,
+      similarity: response.similarity,
+      sourceFingerprint: response.sourceFingerprint,
     }));
   },
 });

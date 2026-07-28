@@ -2732,11 +2732,20 @@ class PaymentService final {
     std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::ChargeResponse>> PrepareAsyncCharge(::grpc::ClientContext* context, const ::oteldemo::ChargeRequest& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::ChargeResponse>>(PrepareAsyncChargeRaw(context, request, cq));
     }
+    virtual ::grpc::Status Validate(::grpc::ClientContext* context, const ::oteldemo::ValidatePaymentRequest& request, ::oteldemo::ValidatePaymentResponse* response) = 0;
+    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::ValidatePaymentResponse>> AsyncValidate(::grpc::ClientContext* context, const ::oteldemo::ValidatePaymentRequest& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::ValidatePaymentResponse>>(AsyncValidateRaw(context, request, cq));
+    }
+    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::ValidatePaymentResponse>> PrepareAsyncValidate(::grpc::ClientContext* context, const ::oteldemo::ValidatePaymentRequest& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::ValidatePaymentResponse>>(PrepareAsyncValidateRaw(context, request, cq));
+    }
     class async_interface {
      public:
       virtual ~async_interface() {}
       virtual void Charge(::grpc::ClientContext* context, const ::oteldemo::ChargeRequest* request, ::oteldemo::ChargeResponse* response, std::function<void(::grpc::Status)>) = 0;
       virtual void Charge(::grpc::ClientContext* context, const ::oteldemo::ChargeRequest* request, ::oteldemo::ChargeResponse* response, ::grpc::ClientUnaryReactor* reactor) = 0;
+      virtual void Validate(::grpc::ClientContext* context, const ::oteldemo::ValidatePaymentRequest* request, ::oteldemo::ValidatePaymentResponse* response, std::function<void(::grpc::Status)>) = 0;
+      virtual void Validate(::grpc::ClientContext* context, const ::oteldemo::ValidatePaymentRequest* request, ::oteldemo::ValidatePaymentResponse* response, ::grpc::ClientUnaryReactor* reactor) = 0;
     };
     typedef class async_interface experimental_async_interface;
     virtual class async_interface* async() { return nullptr; }
@@ -2744,6 +2753,8 @@ class PaymentService final {
    private:
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::ChargeResponse>* AsyncChargeRaw(::grpc::ClientContext* context, const ::oteldemo::ChargeRequest& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::ChargeResponse>* PrepareAsyncChargeRaw(::grpc::ClientContext* context, const ::oteldemo::ChargeRequest& request, ::grpc::CompletionQueue* cq) = 0;
+    virtual ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::ValidatePaymentResponse>* AsyncValidateRaw(::grpc::ClientContext* context, const ::oteldemo::ValidatePaymentRequest& request, ::grpc::CompletionQueue* cq) = 0;
+    virtual ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::ValidatePaymentResponse>* PrepareAsyncValidateRaw(::grpc::ClientContext* context, const ::oteldemo::ValidatePaymentRequest& request, ::grpc::CompletionQueue* cq) = 0;
   };
   class Stub final : public StubInterface {
    public:
@@ -2755,11 +2766,20 @@ class PaymentService final {
     std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::oteldemo::ChargeResponse>> PrepareAsyncCharge(::grpc::ClientContext* context, const ::oteldemo::ChargeRequest& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::oteldemo::ChargeResponse>>(PrepareAsyncChargeRaw(context, request, cq));
     }
+    ::grpc::Status Validate(::grpc::ClientContext* context, const ::oteldemo::ValidatePaymentRequest& request, ::oteldemo::ValidatePaymentResponse* response) override;
+    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::oteldemo::ValidatePaymentResponse>> AsyncValidate(::grpc::ClientContext* context, const ::oteldemo::ValidatePaymentRequest& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::oteldemo::ValidatePaymentResponse>>(AsyncValidateRaw(context, request, cq));
+    }
+    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::oteldemo::ValidatePaymentResponse>> PrepareAsyncValidate(::grpc::ClientContext* context, const ::oteldemo::ValidatePaymentRequest& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::oteldemo::ValidatePaymentResponse>>(PrepareAsyncValidateRaw(context, request, cq));
+    }
     class async final :
       public StubInterface::async_interface {
      public:
       void Charge(::grpc::ClientContext* context, const ::oteldemo::ChargeRequest* request, ::oteldemo::ChargeResponse* response, std::function<void(::grpc::Status)>) override;
       void Charge(::grpc::ClientContext* context, const ::oteldemo::ChargeRequest* request, ::oteldemo::ChargeResponse* response, ::grpc::ClientUnaryReactor* reactor) override;
+      void Validate(::grpc::ClientContext* context, const ::oteldemo::ValidatePaymentRequest* request, ::oteldemo::ValidatePaymentResponse* response, std::function<void(::grpc::Status)>) override;
+      void Validate(::grpc::ClientContext* context, const ::oteldemo::ValidatePaymentRequest* request, ::oteldemo::ValidatePaymentResponse* response, ::grpc::ClientUnaryReactor* reactor) override;
      private:
       friend class Stub;
       explicit async(Stub* stub): stub_(stub) { }
@@ -2773,7 +2793,10 @@ class PaymentService final {
     class async async_stub_{this};
     ::grpc::ClientAsyncResponseReader< ::oteldemo::ChargeResponse>* AsyncChargeRaw(::grpc::ClientContext* context, const ::oteldemo::ChargeRequest& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::oteldemo::ChargeResponse>* PrepareAsyncChargeRaw(::grpc::ClientContext* context, const ::oteldemo::ChargeRequest& request, ::grpc::CompletionQueue* cq) override;
+    ::grpc::ClientAsyncResponseReader< ::oteldemo::ValidatePaymentResponse>* AsyncValidateRaw(::grpc::ClientContext* context, const ::oteldemo::ValidatePaymentRequest& request, ::grpc::CompletionQueue* cq) override;
+    ::grpc::ClientAsyncResponseReader< ::oteldemo::ValidatePaymentResponse>* PrepareAsyncValidateRaw(::grpc::ClientContext* context, const ::oteldemo::ValidatePaymentRequest& request, ::grpc::CompletionQueue* cq) override;
     const ::grpc::internal::RpcMethod rpcmethod_Charge_;
+    const ::grpc::internal::RpcMethod rpcmethod_Validate_;
   };
   static std::unique_ptr<Stub> NewStub(const std::shared_ptr< ::grpc::ChannelInterface>& channel, const ::grpc::StubOptions& options = ::grpc::StubOptions());
 
@@ -2782,6 +2805,7 @@ class PaymentService final {
     Service();
     virtual ~Service();
     virtual ::grpc::Status Charge(::grpc::ServerContext* context, const ::oteldemo::ChargeRequest* request, ::oteldemo::ChargeResponse* response);
+    virtual ::grpc::Status Validate(::grpc::ServerContext* context, const ::oteldemo::ValidatePaymentRequest* request, ::oteldemo::ValidatePaymentResponse* response);
   };
   template <class BaseClass>
   class WithAsyncMethod_Charge : public BaseClass {
@@ -2803,7 +2827,27 @@ class PaymentService final {
       ::grpc::Service::RequestAsyncUnary(0, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
-  typedef WithAsyncMethod_Charge<Service > AsyncService;
+  template <class BaseClass>
+  class WithAsyncMethod_Validate : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithAsyncMethod_Validate() {
+      ::grpc::Service::MarkMethodAsync(1);
+    }
+    ~WithAsyncMethod_Validate() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Validate(::grpc::ServerContext* /*context*/, const ::oteldemo::ValidatePaymentRequest* /*request*/, ::oteldemo::ValidatePaymentResponse* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    void RequestValidate(::grpc::ServerContext* context, ::oteldemo::ValidatePaymentRequest* request, ::grpc::ServerAsyncResponseWriter< ::oteldemo::ValidatePaymentResponse>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
+      ::grpc::Service::RequestAsyncUnary(1, context, request, response, new_call_cq, notification_cq, tag);
+    }
+  };
+  typedef WithAsyncMethod_Charge<WithAsyncMethod_Validate<Service > > AsyncService;
   template <class BaseClass>
   class WithCallbackMethod_Charge : public BaseClass {
    private:
@@ -2831,7 +2875,34 @@ class PaymentService final {
     virtual ::grpc::ServerUnaryReactor* Charge(
       ::grpc::CallbackServerContext* /*context*/, const ::oteldemo::ChargeRequest* /*request*/, ::oteldemo::ChargeResponse* /*response*/)  { return nullptr; }
   };
-  typedef WithCallbackMethod_Charge<Service > CallbackService;
+  template <class BaseClass>
+  class WithCallbackMethod_Validate : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithCallbackMethod_Validate() {
+      ::grpc::Service::MarkMethodCallback(1,
+          new ::grpc::internal::CallbackUnaryHandler< ::oteldemo::ValidatePaymentRequest, ::oteldemo::ValidatePaymentResponse>(
+            [this](
+                   ::grpc::CallbackServerContext* context, const ::oteldemo::ValidatePaymentRequest* request, ::oteldemo::ValidatePaymentResponse* response) { return this->Validate(context, request, response); }));}
+    void SetMessageAllocatorFor_Validate(
+        ::grpc::MessageAllocator< ::oteldemo::ValidatePaymentRequest, ::oteldemo::ValidatePaymentResponse>* allocator) {
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(1);
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::oteldemo::ValidatePaymentRequest, ::oteldemo::ValidatePaymentResponse>*>(handler)
+              ->SetMessageAllocator(allocator);
+    }
+    ~WithCallbackMethod_Validate() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Validate(::grpc::ServerContext* /*context*/, const ::oteldemo::ValidatePaymentRequest* /*request*/, ::oteldemo::ValidatePaymentResponse* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    virtual ::grpc::ServerUnaryReactor* Validate(
+      ::grpc::CallbackServerContext* /*context*/, const ::oteldemo::ValidatePaymentRequest* /*request*/, ::oteldemo::ValidatePaymentResponse* /*response*/)  { return nullptr; }
+  };
+  typedef WithCallbackMethod_Charge<WithCallbackMethod_Validate<Service > > CallbackService;
   typedef CallbackService ExperimentalCallbackService;
   template <class BaseClass>
   class WithGenericMethod_Charge : public BaseClass {
@@ -2846,6 +2917,23 @@ class PaymentService final {
     }
     // disable synchronous version of this method
     ::grpc::Status Charge(::grpc::ServerContext* /*context*/, const ::oteldemo::ChargeRequest* /*request*/, ::oteldemo::ChargeResponse* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+  };
+  template <class BaseClass>
+  class WithGenericMethod_Validate : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithGenericMethod_Validate() {
+      ::grpc::Service::MarkMethodGeneric(1);
+    }
+    ~WithGenericMethod_Validate() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Validate(::grpc::ServerContext* /*context*/, const ::oteldemo::ValidatePaymentRequest* /*request*/, ::oteldemo::ValidatePaymentResponse* /*response*/) override {
       abort();
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
@@ -2871,6 +2959,26 @@ class PaymentService final {
     }
   };
   template <class BaseClass>
+  class WithRawMethod_Validate : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithRawMethod_Validate() {
+      ::grpc::Service::MarkMethodRaw(1);
+    }
+    ~WithRawMethod_Validate() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Validate(::grpc::ServerContext* /*context*/, const ::oteldemo::ValidatePaymentRequest* /*request*/, ::oteldemo::ValidatePaymentResponse* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    void RequestValidate(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
+      ::grpc::Service::RequestAsyncUnary(1, context, request, response, new_call_cq, notification_cq, tag);
+    }
+  };
+  template <class BaseClass>
   class WithRawCallbackMethod_Charge : public BaseClass {
    private:
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
@@ -2890,6 +2998,28 @@ class PaymentService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     virtual ::grpc::ServerUnaryReactor* Charge(
+      ::grpc::CallbackServerContext* /*context*/, const ::grpc::ByteBuffer* /*request*/, ::grpc::ByteBuffer* /*response*/)  { return nullptr; }
+  };
+  template <class BaseClass>
+  class WithRawCallbackMethod_Validate : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithRawCallbackMethod_Validate() {
+      ::grpc::Service::MarkMethodRawCallback(1,
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+            [this](
+                   ::grpc::CallbackServerContext* context, const ::grpc::ByteBuffer* request, ::grpc::ByteBuffer* response) { return this->Validate(context, request, response); }));
+    }
+    ~WithRawCallbackMethod_Validate() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Validate(::grpc::ServerContext* /*context*/, const ::oteldemo::ValidatePaymentRequest* /*request*/, ::oteldemo::ValidatePaymentResponse* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    virtual ::grpc::ServerUnaryReactor* Validate(
       ::grpc::CallbackServerContext* /*context*/, const ::grpc::ByteBuffer* /*request*/, ::grpc::ByteBuffer* /*response*/)  { return nullptr; }
   };
   template <class BaseClass>
@@ -2919,9 +3049,36 @@ class PaymentService final {
     // replace default version of method with streamed unary
     virtual ::grpc::Status StreamedCharge(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::oteldemo::ChargeRequest,::oteldemo::ChargeResponse>* server_unary_streamer) = 0;
   };
-  typedef WithStreamedUnaryMethod_Charge<Service > StreamedUnaryService;
+  template <class BaseClass>
+  class WithStreamedUnaryMethod_Validate : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithStreamedUnaryMethod_Validate() {
+      ::grpc::Service::MarkMethodStreamed(1,
+        new ::grpc::internal::StreamedUnaryHandler<
+          ::oteldemo::ValidatePaymentRequest, ::oteldemo::ValidatePaymentResponse>(
+            [this](::grpc::ServerContext* context,
+                   ::grpc::ServerUnaryStreamer<
+                     ::oteldemo::ValidatePaymentRequest, ::oteldemo::ValidatePaymentResponse>* streamer) {
+                       return this->StreamedValidate(context,
+                         streamer);
+                  }));
+    }
+    ~WithStreamedUnaryMethod_Validate() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable regular version of this method
+    ::grpc::Status Validate(::grpc::ServerContext* /*context*/, const ::oteldemo::ValidatePaymentRequest* /*request*/, ::oteldemo::ValidatePaymentResponse* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    // replace default version of method with streamed unary
+    virtual ::grpc::Status StreamedValidate(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::oteldemo::ValidatePaymentRequest,::oteldemo::ValidatePaymentResponse>* server_unary_streamer) = 0;
+  };
+  typedef WithStreamedUnaryMethod_Charge<WithStreamedUnaryMethod_Validate<Service > > StreamedUnaryService;
   typedef Service SplitStreamedService;
-  typedef WithStreamedUnaryMethod_Charge<Service > StreamedService;
+  typedef WithStreamedUnaryMethod_Charge<WithStreamedUnaryMethod_Validate<Service > > StreamedService;
 };
 
 // -------------Email service-----------------

@@ -1,0 +1,9 @@
+{
+  "group": "crossuser",
+  "case": "no-session-borrow",
+  "passed": true,
+  "reason": "session người khác không lộ ngữ cảnh",
+  "latency": 19.76,
+  "cache_status": "miss",
+  "response": "Tôi tìm thấy một mẫu ống nhòm rất phù hợp với sở thích của bạn. Đây là \"Roof Binoculars\", một sản phẩm linh hoạt, phù hợp cho nhiều hoàn cảnh khác nhau. Nó có kính ED giúp bạn nhìn rõ các chi tiết nhỏ và có khả năng nhìn gần tới 6.5 feet. Giá của nó là $209.95. Bạn có muốn tìm hiểu thêm về sản phẩm "
+}

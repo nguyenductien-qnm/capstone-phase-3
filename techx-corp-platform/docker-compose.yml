@@ -582,6 +582,9 @@ services:
       - LLM_HOST
       - LLM_PORT
       - ML_GUARD_URL=ml-guard:8090
+      # CheckOutput fail-closed khi quá deadline: 25s cũ giết câu trả lời đúng
+      # lúc Bedrock chậm (đo 28/07: 5 lần/vòng). Grounding vẫn chặn như cũ.
+      - ML_GUARD_TIMEOUT=40
       - LLM_LOCAL_ML_GUARD=true
       - AWS_SHARED_CREDENTIALS_FILE=/app/.aws/credentials
     volumes:
@@ -850,7 +853,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 20M
+          # Valkey Search module needs headroom; prod ElastiCache is managed.
+          memory: 256M
     restart: unless-stopped
     ports:
       - "${VALKEY_PORT}"
@@ -1061,6 +1065,9 @@ services:
     environment:
       - SHOPPING_COPILOT_PORT=3552
       - ML_GUARD_URL=ml-guard:8090
+      # CheckOutput fail-closed khi quá deadline: 25s cũ giết câu trả lời đúng
+      # lúc Bedrock chậm (đo 28/07: 5 lần/vòng). Grounding vẫn chặn như cũ.
+      - ML_GUARD_TIMEOUT=40
       - LLM_LOCAL_ML_GUARD=true
       - PRODUCT_CATALOG_ADDR
       - PRODUCT_REVIEWS_ADDR
@@ -1083,11 +1090,14 @@ services:
       - VALKEY_ADDR
       - VALKEY_TLS
       - VALKEY_AUTH_TOKEN
-      # L2 semantic cache TẮT — đo 27/07 (docs/ai/evals/param_sweep_m23.md): cặp câu
-      # khác nghĩa đạt similarity 0.9191 còn cặp cùng ý chỉ 0.6587, hai nhóm chồng lấn
-      # nên không ngưỡng nào vừa bắt paraphrase vừa không trả sai. Chạy L1 exact.
-      - SEMANTIC_CACHE_ENABLED=false
-      - SEMANTIC_CACHE_MIN_SIM=0.92
+      # L2 semantic BẬT kèm rule-guard. Đo 27/07 (docs/ai/evals/param_sweep_m23.md):
+      # riêng cosine thì cặp khác nghĩa đạt 0.9191 còn cặp cùng ý chỉ 0.6587 — hai nhóm
+      # chồng lấn, mọi ngưỡng bắt được paraphrase đều kéo theo 20% false-hit. Thêm
+      # pb/semantic_guard.py (phủ định / mốc giá / con số / tên riêng) thì false-hit về
+      # 0 ở mọi ngưỡng; chọn 0.85 theo luật "recall cao nhất, hoà thì lấy ngưỡng cao
+      # nhất" để cosine vẫn còn tác dụng chứ không phó mặc toàn bộ cho guard.
+      - SEMANTIC_CACHE_ENABLED=true
+      - SEMANTIC_CACHE_MIN_SIM=0.85
       - DB_CONNECTION_STRING=host=${POSTGRES_HOST} user=otelu password=otelp dbname=${POSTGRES_DB}
     volumes:
       - ~/.aws:/app/.aws:ro

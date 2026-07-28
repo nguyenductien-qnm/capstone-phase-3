@@ -7,7 +7,7 @@ Dưới đây là bảng tổng hợp toàn bộ ngữ cảnh (context) và nh�
 *   **Tích hợp Semantic Search:** Đảm bảo hệ thống Vector DB hoạt động trơn tru và thực hiện truy xuất mượt mà bằng *Amazon Titan Text Embeddings*. Cập nhật script `embed_products.py` để tương thích.
 
 ### 2. Thiết lập & Chạy bộ Đánh giá Tự động (Phase 3 & 4)
-*   **Structural Evals (không dùng LLM-as-a-judge):** Hoàn thiện kịch bản test `eval_mandate14.py` chấm theo cấu trúc (`actionsTaken` + span + citations) — tự động đo đạc 6 tiêu chí: Injection Block Rate, False Block Rate, Faithfulness, Hallucination, Abstention, và Task Success. Endpoint thật: `/api/copilot`.
+*   **Hybrid Evals (structural safety/task + live judge for review faithfulness):** Hoàn thiện kịch bản test `eval_mandate14.py` chấm theo cấu trúc (`actionsTaken` + span + citations) — tự động đo đạc 6 tiêu chí: Injection Block Rate, False Block Rate, Faithfulness, Hallucination, Abstention, và Task Success. Endpoint thật: `/api/copilot`.
 *   **Kết quả Test:** Số liệu pass rate xem trong evidence directory của run mới nhất.
 *   **Sửa lỗi Trace Audit:** `trace_audit.py` trước đó quét **mọi** thư mục evidence nên check xanh chỉ vì *run nào đó trong quá khứ* từng có span — không phải vì run hiện tại đạt. Đã sửa: mặc định chỉ audit run mới nhất, mỗi check ghi rõ thư mục nào đã thoả.
 

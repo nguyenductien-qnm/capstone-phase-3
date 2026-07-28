@@ -1,0 +1,9 @@
+{
+  "group": "longterm",
+  "case": "stored",
+  "passed": true,
+  "reason": "memory đã ghi: preferred_category=books |  experience_level=beginner |  use_case=stargazing",
+  "latency": 0.0,
+  "cache_status": null,
+  "response": ""
+}

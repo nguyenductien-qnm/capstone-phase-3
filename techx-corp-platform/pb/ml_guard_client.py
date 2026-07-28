@@ -80,8 +80,10 @@ def apply_guardrail_output(bedrock_client, answer, source_text, query):
         resp = stub.CheckOutput(req, timeout=ML_GUARD_TIMEOUT)
         return (resp.blocked, resp.sanitized_text)
     except Exception as e:
-        logger.warning("CheckOutput fallback (error): %s", e)
-        return (False, redact_pii(answer))
+        # Grounding is a safety boundary. Fail closed so an ml-guard outage
+        # cannot silently return an unchecked tool-grounded answer.
+        logger.warning("CheckOutput fail-closed (error): %s", e)
+        return (True, redact_pii(answer))
 
 
 def sanitize_json_for_llm(json_str):

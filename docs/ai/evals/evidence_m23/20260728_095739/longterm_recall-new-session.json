@@ -1,0 +1,9 @@
+{
+  "group": "longterm",
+  "case": "recall-new-session",
+  "passed": true,
+  "reason": "phiên mới nhớ trình độ=True, mục đích=True",
+  "latency": 20.78,
+  "cache_status": "miss",
+  "response": "Có đúng rồi, bạn là người mới bắt đầu và sẽ sử dụng kính thiên văn để ngắm sao. Bạn có muốn tôi giúp tìm kiếm kính thiên văn phù hợp cho mục đích này không?"
+}

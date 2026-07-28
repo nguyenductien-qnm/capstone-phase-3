@@ -1,0 +1,9 @@
+{
+  "group": "longterm",
+  "case": "recall-new-session",
+  "passed": true,
+  "reason": "phiên mới nhớ trình độ=True, mục đích=True",
+  "latency": 3.92,
+  "cache_status": "miss",
+  "response": "Dạ, trong phiên trước bạn đã cho biết bạn là người mới bắt đầu (beginner) và mục đích sử dụng thiết bị thiên văn của bạn là ngắm sao (stargazing)."
+}

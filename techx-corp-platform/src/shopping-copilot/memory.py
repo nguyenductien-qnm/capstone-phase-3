@@ -12,9 +12,14 @@ Pipeline kiểu Mem0 rút gọn:
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 import re
+import struct
+import time
+
+from semantic_guard import same_question
 
 logger = logging.getLogger(__name__)
 
@@ -109,55 +114,101 @@ def fetch_catalog_fingerprint() -> str:
 
 
 
-def get_semantic_cache(scope_key: str, embedding: list, threshold: float = 0.1):
-    conn = _get_conn()
-    if conn is None:
-        return None, 0.0
-    try:
-        with conn.cursor() as cur:
-            vec_str = "[" + ",".join(str(f) for f in embedding) + "]"
-            query = """
-                SELECT answer, 1 - (question_embedding <=> %s::vector) AS similarity
-                FROM ai.semantic_cache
-                WHERE scope_key = %s AND (question_embedding <=> %s::vector) < %s
-                ORDER BY question_embedding <=> %s::vector
-                LIMIT 1
-            """
-            # Wait, threshold in product-reviews is passed as 1 - similarity.
-            # If similarity >= min_sim, then distance < 1 - min_sim.
-            # Here threshold is distance threshold. 
-            cur.execute(query, (vec_str, scope_key, vec_str, threshold, vec_str))
-            row = cur.fetchone()
-            if row:
-                return row[0], float(row[1])
-            return None, 0.0
-    except Exception as e:
-        logger.error("Failed to fetch semantic cache: %s", e)
-        try:
-            conn.rollback()
-        except:
-            pass
-        return None, 0.0
+SEMANTIC_INDEX = "copilot-semantic-idx"
+SEMANTIC_PREFIX = "copilot:semantic:item:"
+SEMANTIC_TTL = int(os.environ.get("COPILOT_CACHE_TTL", "3600"))
+SEMANTIC_MAX_PER_SCOPE = int(os.environ.get("SEMANTIC_CACHE_MAX_PER_SCOPE", "200"))
 
-def insert_semantic_cache(scope_key: str, question: str, embedding: list, answer: str):
-    conn = _get_conn()
-    if conn is None:
-        return
+
+def _scope_hash(scope_key: str) -> str:
+    return hashlib.md5(scope_key.encode()).hexdigest()
+
+
+def _vector_bytes(embedding: list[float]) -> bytes:
+    return struct.pack(f"<{len(embedding)}f", *embedding)
+
+
+def _parse_semantic_results(raw) -> list[tuple[str, str, float]]:
+    rows = []
+    for i in range(2, len(raw), 2):
+        fields = raw[i]
+        data = {
+            str(fields[j], "utf-8") if isinstance(fields[j], bytes) else fields[j]:
+            str(fields[j + 1], "utf-8") if isinstance(fields[j + 1], bytes) else fields[j + 1]
+            for j in range(0, len(fields), 2)
+        }
+        rows.append((data.get("question", ""), data.get("answer", ""),
+                     float(data.get("distance", 1.0))))
+    return rows
+
+
+def ensure_semantic_index(client) -> bool:
+    """Create the Valkey Search index once; safe to call on every process start."""
     try:
-        with conn.cursor() as cur:
-            vec_str = "[" + ",".join(str(f) for f in embedding) + "]"
-            query = """
-                INSERT INTO ai.semantic_cache (scope_key, question, question_embedding, answer)
-                VALUES (%s, %s, %s::vector, %s)
-            """
-            cur.execute(query, (scope_key, question, vec_str, answer))
-        conn.commit()
-    except Exception as e:
-        logger.error("Failed to insert semantic cache: %s", e)
-        try:
-            conn.rollback()
-        except:
-            pass
+        client.execute_command(
+            "FT.CREATE", SEMANTIC_INDEX, "ON", "HASH", "PREFIX", 1, SEMANTIC_PREFIX,
+            "SCHEMA", "scope", "TAG", "embedding", "VECTOR", "HNSW", 6,
+            "TYPE", "FLOAT32", "DIM", 1024, "DISTANCE_METRIC", "COSINE",
+        )
+        logger.info("Created Valkey semantic cache index %s", SEMANTIC_INDEX)
+        return True
+    except Exception as exc:
+        if "already exists" in str(exc).lower() or "index exists" in str(exc).lower():
+            return True
+        logger.error("Valkey Search unavailable; L2 disabled: %s", exc)
+        return False
+
+
+def get_semantic_cache(client, scope_key: str, embedding: list, threshold: float = 0.1,
+                       question: str | None = None):
+    """Return the first safe Valkey vector hit within the cosine-distance threshold."""
+    try:
+        raw = client.execute_command(
+            "FT.SEARCH", SEMANTIC_INDEX,
+            f"@scope:{{{_scope_hash(scope_key)}}}=>[KNN 5 @embedding $query_vec AS distance]",
+            "PARAMS", 2, "query_vec", _vector_bytes(embedding),
+            "RETURN", 3, "question", "answer", "distance",
+            "LIMIT", 0, 5, "DIALECT", 2,
+        )
+        for cached_q, answer, distance in _parse_semantic_results(raw):
+            if distance > threshold:
+                continue
+            if question and not same_question(question, cached_q):
+                logger.info("L2 guard blocked %r != %r (similarity=%.4f)",
+                            question[:60], cached_q[:60], 1.0 - distance)
+                continue
+            return answer, 1.0 - distance
+    except Exception as exc:
+        logger.error("Failed to fetch Valkey semantic cache: %s", exc)
+    return None, 0.0
+
+
+def insert_semantic_cache(client, scope_key: str, question: str,
+                          embedding: list, answer: str):
+    """Store one bounded, TTL'd L2 entry in Valkey Search."""
+    scope = _scope_hash(scope_key)
+    key = f"{SEMANTIC_PREFIX}{scope}:{hashlib.md5(question.encode()).hexdigest()}"
+    order_key = f"copilot:semantic:order:{scope}"
+    now = time.time()
+    try:
+        pipe = client.pipeline()
+        pipe.hset(key, mapping={
+            "scope": scope,
+            "question": question,
+            "answer": answer,
+            "embedding": _vector_bytes(embedding),
+        })
+        pipe.expire(key, SEMANTIC_TTL)
+        pipe.zadd(order_key, {key: now})
+        pipe.zremrangebyscore(order_key, 0, now - SEMANTIC_TTL)
+        pipe.expire(order_key, SEMANTIC_TTL)
+        pipe.execute()
+        overflow = client.zcard(order_key) - SEMANTIC_MAX_PER_SCOPE
+        if overflow > 0:
+            for old_key, _ in client.zpopmin(order_key, overflow):
+                client.delete(old_key)
+    except Exception as exc:
+        logger.error("Failed to insert Valkey semantic cache: %s", exc)
 
 # ---------------------------------------------------------------------------
 # Extract — rule-based slot extraction
@@ -173,7 +224,9 @@ _CATEGORY_PATTERNS = {
     "accessories": re.compile(
         r"(phụ kiện|accessori|filter|lens|flashlight|imager|eyepiece)", re.IGNORECASE
     ),
-    "books": re.compile(r"(sách|book|comet book)", re.IGNORECASE),
+    # "ngân sách" (budget) chứa chữ "sách" — không loại trừ thì khách nói ngân sách
+    # lại bị ghi thành thích sách (đo 27/07).
+    "books": re.compile(r"(?<!ngân )\b(sách|book|comet book)\b", re.IGNORECASE),
 }
 
 _BUDGET_RE = re.compile(
@@ -182,6 +235,16 @@ _BUDGET_RE = re.compile(
 )
 _BUDGET_RANGE_RE = re.compile(
     r"(\d[\d,.]*)\s*[-–]\s*(\d[\d,.]*)\s*(usd|đồng|vnd|\$)?",
+    re.IGNORECASE,
+)
+
+# Dấu hiệu khách đang NÓI VỀ MÌNH chứ không chỉ tra cứu: ngôi thứ nhất + động từ ý
+# muốn. Không có dấu hiệu này thì câu hỏi chỉ là một lượt tìm kiếm.
+_INTENT_MARKER = re.compile(
+    r"(mình|tôi|em|tớ|chúng tôi|nhà tôi|\bi\b|\bmy\b|\bme\b)[^.?!]{0,40}"
+    r"(thích|muốn|cần|đang tìm|tìm mua|quan tâm|mua|chơi|dùng|sử dụng|sưu tầm|là|"
+    r"gợi ý|recommend|looking for|want|need|prefer)"
+    r"|(gợi ý|tư vấn|recommend)[^.?!]{0,20}(cho mình|cho tôi|for me)",
     re.IGNORECASE,
 )
 
@@ -231,11 +294,19 @@ def extract_user_preferences(question: str, answer: str) -> dict[str, str]:
     text = question
     prefs: dict[str, str] = {}
 
+    # CHỦ ĐỀ CÂU HỎI KHÔNG PHẢI SỞ THÍCH. "Ống nhòm giá bao nhiêu?" là một lượt tra
+    # cứu, không phải tuyên bố "tôi thích ống nhòm". Ghi bừa gây hai hỏng: memory sai
+    # người dùng, và mem_fp đổi sau MỖI lượt nên key L1 đổi theo → câu hỏi lặp không
+    # bao giờ hit (đo 27/07: hit-rate 0/12 trên bộ 50% lặp). Vì vậy category và
+    # use_case chỉ ghi khi khách nói rõ ý muốn ở ngôi thứ nhất.
+    stated = bool(_INTENT_MARKER.search(text))
+
     # Category
-    for cat, pat in _CATEGORY_PATTERNS.items():
-        if pat.search(text):
-            prefs["preferred_category"] = cat
-            break
+    if stated:
+        for cat, pat in _CATEGORY_PATTERNS.items():
+            if pat.search(text):
+                prefs["preferred_category"] = cat
+                break
 
     # Budget
     m = _BUDGET_RE.search(text)
@@ -252,11 +323,13 @@ def extract_user_preferences(question: str, answer: str) -> dict[str, str]:
             prefs["experience_level"] = level
             break
 
-    # Use case
-    for uc, pat in _USE_CASE_PATTERNS.items():
-        if pat.search(text):
-            prefs["use_case"] = uc
-            break
+    # Use case — cùng lý do với category: chỉ ghi khi khách nói rõ mục đích của MÌNH,
+    # không ghi vì câu hỏi tình cờ chứa chữ "thiên văn".
+    if stated:
+        for uc, pat in _USE_CASE_PATTERNS.items():
+            if pat.search(text):
+                prefs["use_case"] = uc
+                break
 
     return prefs
 

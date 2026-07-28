@@ -1,0 +1,124 @@
+{
+  "before_no_cache": {
+    "n": 12,
+    "hit_exact": 0,
+    "hit_semantic": 0,
+    "p50_hit": 0,
+    "p95_hit": 0,
+    "p50_miss": 4.58,
+    "p95_miss": 24.35,
+    "tin": 130478,
+    "tout": 2108,
+    "usd": 0.0083346
+  },
+  "after_with_cache": {
+    "n": 12,
+    "hit_exact": 6,
+    "hit_semantic": 0,
+    "p50_hit": 1.03,
+    "p95_hit": 1.2,
+    "p50_miss": 5.28,
+    "p95_miss": 14.25,
+    "tin": 65237,
+    "tout": 982,
+    "usd": 0.021111440000000002
+  },
+  "rows_after": [
+    {
+      "q": "Kính thiên văn nào rẻ nhất?",
+      "lat": 4.69,
+      "status": "miss",
+      "tin": 10854,
+      "tout": 97,
+      "usd": 0.0006745200000000001
+    },
+    {
+      "q": "Ống nhòm Roof Binoculars giá bao nhiêu?",
+      "lat": 14.25,
+      "status": "miss",
+      "tin": 10936,
+      "tout": 142,
+      "usd": 0.009203200000000002
+    },
+    {
+      "q": "Có sách thiên văn nào không?",
+      "lat": 3.99,
+      "status": "miss",
+      "tin": 10842,
+      "tout": 159,
+      "usd": 0.0006886800000000001
+    },
+    {
+      "q": "Kính lúp có mấy loại?",
+      "lat": 12.3,
+      "status": "miss",
+      "tin": 10916,
+      "tout": 223,
+      "usd": 0.0007084799999999999
+    },
+    {
+      "q": "Máy ảnh phim nào đang bán?",
+      "lat": 5.2,
+      "status": "miss",
+      "tin": 10832,
+      "tout": 221,
+      "usd": 0.00070296
+    },
+    {
+      "q": "Địa cầu quay có sẵn không?",
+      "lat": 5.28,
+      "status": "miss",
+      "tin": 10857,
+      "tout": 140,
+      "usd": 0.0091336
+    },
+    {
+      "q": "Kính thiên văn nào rẻ nhất?",
+      "lat": 1.2,
+      "status": "hit_exact",
+      "tin": 0,
+      "tout": 0,
+      "usd": 0.0
+    },
+    {
+      "q": "Ống nhòm Roof Binoculars giá bao nhiêu?",
+      "lat": 1.03,
+      "status": "hit_exact",
+      "tin": 0,
+      "tout": 0,
+      "usd": 0.0
+    },
+    {
+      "q": "Có sách thiên văn nào không?",
+      "lat": 0.95,
+      "status": "hit_exact",
+      "tin": 0,
+      "tout": 0,
+      "usd": 0.0
+    },
+    {
+      "q": "Kính lúp có mấy loại?",
+      "lat": 0.9,
+      "status": "hit_exact",
+      "tin": 0,
+      "tout": 0,
+      "usd": 0.0
+    },
+    {
+      "q": "Máy ảnh phim nào đang bán?",
+      "lat": 1.15,
+      "status": "hit_exact",
+      "tin": 0,
+      "tout": 0,
+      "usd": 0.0
+    },
+    {
+      "q": "Địa cầu quay có sẵn không?",
+      "lat": 0.91,
+      "status": "hit_exact",
+      "tin": 0,
+      "tout": 0,
+      "usd": 0.0
+    }
+  ]
+}

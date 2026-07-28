@@ -18,6 +18,11 @@ import sys
 
 import boto3
 
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "techx-corp-platform" / "pb"))
+from semantic_guard import same_question  # noqa: E402
+
 REGION = os.environ.get("AWS_REGION", "us-east-1")
 MODEL = "amazon.titan-embed-text-v2:0"
 
@@ -80,25 +85,39 @@ def main():
     print(f"similarity nhỏ nhất nhóm hit : {min(r[3] for r in hits):.4f}")
     print(f"similarity lớn nhất nhóm miss: {max(r[3] for r in misses):.4f}")
 
-    print("\n| Ngưỡng | Recall | False-hit |")
-    print("|---|---|---|")
+    # Cột "+guard" mô phỏng đúng đường chạy thật: ứng viên phải vượt CẢ ngưỡng cosine
+    # LẪN rule-guard (pb/semantic_guard.py) mới được coi là hit.
+    print("\n| Ngưỡng | Recall (cosine) | False-hit (cosine) | Recall (+guard) | False-hit (+guard) |")
+    print("|---|---|---|---|---|")
     table = []
     th = 0.70
     while th <= 0.995:
         recall = sum(1 for r in hits if r[3] >= th) / len(hits)
         false_hit = sum(1 for r in misses if r[3] >= th) / len(misses)
-        table.append((round(th, 2), recall, false_hit))
-        print(f"| {th:.2f} | {recall*100:.0f}% | {false_hit*100:.0f}% |")
+        recall_g = sum(1 for r in hits if r[3] >= th and same_question(r[0], r[1])) / len(hits)
+        false_g = sum(1 for r in misses if r[3] >= th and same_question(r[0], r[1])) / len(misses)
+        table.append((round(th, 2), recall, false_hit, recall_g, false_g))
+        print(f"| {th:.2f} | {recall*100:.0f}% | {false_hit*100:.0f}% | "
+              f"{recall_g*100:.0f}% | {false_g*100:.0f}% |")
         th += 0.01
 
-    safe = [t for t in table if t[2] == 0.0]
+    cosine_only_safe = [t for t in table if t[2] == 0.0 and t[1] > 0]
+    print(f"\nChỉ cosine: {'có' if cosine_only_safe else 'KHÔNG có'} ngưỡng nào vừa "
+          f"bắt paraphrase vừa false-hit = 0.")
+
+    safe = [t for t in table if t[4] == 0.0 and t[3] > 0]
     if not safe:
-        print("\nKhông ngưỡng nào cho false-hit = 0 → TẮT L2, chạy L1 thôi.")
+        print("Kể cả có guard cũng không ngưỡng nào đạt → TẮT L2, nộp bằng L1.")
         return 1
-    best_recall = max(t[1] for t in safe)
-    chosen = min(t[0] for t in safe if t[1] == best_recall)
-    print(f"\nCHỌN SEMANTIC_CACHE_MIN_SIM = {chosen:.2f} "
-          f"(recall {best_recall*100:.0f}%, false-hit 0%) — luật: thấp nhất có false-hit = 0")
+    # Luật chọn (viết trước khi chạy): trong các ngưỡng có false-hit = 0, lấy ngưỡng
+    # cho recall cao nhất; HOÀ thì lấy ngưỡng CAO NHẤT. Guard đưa false-hit về 0 ở mọi
+    # ngưỡng, nên nếu tie-break lấy thấp nhất thì hệ phó mặc toàn bộ an toàn cho guard
+    # — cosine mất tác dụng. Hai lớp phải cùng còn hiệu lực.
+    best_recall = max(t[3] for t in safe)
+    chosen = max(t[0] for t in safe if t[3] == best_recall)
+    print(f"CHỌN SEMANTIC_CACHE_MIN_SIM = {chosen:.2f} (kèm rule-guard) — recall "
+          f"{best_recall*100:.0f}%, false-hit 0%. Luật: recall cao nhất trong nhóm "
+          f"false-hit = 0, hoà thì lấy ngưỡng CAO NHẤT.")
     return 0
 
 

@@ -9,6 +9,19 @@ export JAEGER_BASE_URL="${JAEGER_BASE_URL:-http://localhost:${JAEGER_PORT}}"
 
 echo "=== MANDATE-14 Reproducibility Script ==="
 
+COMPOSE="../../../techx-corp-platform/docker-compose.yml"
+
+# load-generator bắn traffic liên tục vào storefront → product-reviews → ml-guard.
+# Đo 28/07: CheckOutput idle 3-4s nhưng dưới tải đó vượt deadline 25s của client →
+# fail-closed 11-12 lần/vòng → câu trả lời đúng bị thay bằng fallback. Dừng khi đo
+# rồi bật lại, để số của mentor tái lập được.
+echo "0a. Tạm dừng load-generator trong lúc đo"
+docker compose -f "$COMPOSE" stop load-generator >/dev/null 2>&1 || true
+trap 'docker compose -f "$COMPOSE" start load-generator >/dev/null 2>&1 || true' EXIT
+
+echo "0. Self-test judge: cổng chống ảo giác có thật sự bắt lỗi không"
+python3 judge_selftest.py || { echo "❌ Judge không phân biệt được câu bịa — dừng, số faithfulness vô nghĩa."; exit 1; }
+
 echo "1. Chạy Built-in Cases"
 TMP_OUT_BUILTIN=$(mktemp)
 BUILTIN_STATUS=0
@@ -27,8 +40,8 @@ echo "3. Kiểm toán Evidence (Trace Audit)"
 python3 trace_audit.py --dirs "$BUILTIN_DIR" "$HIDDEN_DIR"
 
 echo "4. Báo cáo Chi phí & Độ trễ"
-if [ -f "cost_before_after.py" ]; then
-    python3 cost_before_after.py
+if [ -f "aggregate_cost_history.py" ]; then
+    python3 aggregate_cost_history.py
 fi
 
 echo ""

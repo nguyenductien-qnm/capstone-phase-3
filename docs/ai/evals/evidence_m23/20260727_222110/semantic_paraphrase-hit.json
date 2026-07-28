@@ -1,0 +1,9 @@
+{
+  "group": "semantic",
+  "case": "paraphrase-hit",
+  "passed": true,
+  "reason": "diễn đạt khác cùng ý: hit_semantic (similarity=0.8862338662147522)",
+  "latency": 1.35,
+  "cache_status": "hit_semantic",
+  "response": "Ống nhòm Roof Binoculars có giá $209.95. Bạn có muốn biết thêm thông tin về sản phẩm này không?"
+}
