@@ -404,3 +404,44 @@ def test_audit_log_dung_dung_duong_dan_ma_incident_replay_mong_doi(monkeypatch):
     monkeypatch.delenv("REMEDIATION_AUDIT_FILE", raising=False)
     expected = pathlib.Path(__file__).parent / "audit_log.jsonl"
     assert pathlib.Path(audit.audit_path()) == expected
+
+
+def test_moi_module_python_deu_duoc_copy_vao_image():
+    """Dockerfile liet ke TUNG FILE thay vi COPY ca thu muc.
+
+    Loi that 28/07 (TF1-112): them audit.py vao remediation/ nhung quen them vao
+    Dockerfile -> image thieu file -> pod CrashLoopBackOff voi "ModuleNotFoundError:
+    No module named 'audit'" NGAY tren cum. CI khong bat duoc vi test chay tren
+    source tree, con image lai thieu file.
+
+    Test nay dong lo do: moi file .py trong remediation/ (tru test) phai xuat hien
+    trong Dockerfile.
+    """
+    import pathlib
+    here = pathlib.Path(__file__).parent
+
+    # Chi doc cac dong COPY, KHONG doc ca file: comment trong Dockerfile co nhac ten
+    # file (vd giai thich chinh su co nay) se lam phep kiem "ten co trong file khong"
+    # luon dung -> test vo dung. Da dinh dung bay do luc viet test nay.
+    copy_lines = []
+    continuation = False
+    for raw in (here / "Dockerfile").read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if line.startswith("#"):
+            continuation = False
+            continue
+        if line.upper().startswith("COPY ") or continuation:
+            copy_lines.append(line)
+            continuation = line.endswith("\\")
+        else:
+            continuation = False
+    copied = "\n".join(copy_lines)
+
+    missing = [
+        py.name for py in sorted(here.glob("*.py"))
+        if py.name != "test_remediation.py" and py.name not in copied
+    ]
+    assert not missing, (
+        "module co trong remediation/ nhung KHONG duoc COPY trong Dockerfile -> "
+        "pod se CrashLoopBackOff voi ModuleNotFoundError: " + ", ".join(missing)
+    )
