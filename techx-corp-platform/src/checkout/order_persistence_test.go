@@ -301,20 +301,21 @@ func TestWaitForDBRetryGivesUpWhenBudgetExhausted(t *testing.T) {
 func TestDBRetryBudgetFitsCheckoutDeadline(t *testing.T) {
 	t.Parallel()
 
-	// GrpcDeadline.ts gives checkout 10s. The six waits between seven attempts
-	// must spend most of it without pushing the final attempt past it.
-	var total time.Duration
+	// GrpcDeadline.ts gives checkout 10s. waitForDBRetry draws each wait from
+	// [half, full], so the attempt count must survive the LOWEST draw: measuring
+	// the full-length waits would hide a sequence that runs out of attempts with
+	// seconds of the request budget still unspent. Overrun is not checked here —
+	// the clamp in waitForDBRetry is what keeps the loop inside the deadline.
+	var lowestDraw time.Duration
 	for attempt := 1; attempt < dbRetryMaxAttempts; attempt++ {
 		delay := dbRetryBaseDelay * time.Duration(1<<uint(attempt-1))
 		if delay > dbRetryMaxDelay {
 			delay = dbRetryMaxDelay
 		}
-		total += delay
+		lowestDraw += delay / 2
 	}
-	if total > 10*time.Second-dbRetryFinalAttemptBudget {
-		t.Fatalf("retry budget %s overruns the 10s checkout deadline", total)
-	}
-	if total < 8*time.Second {
-		t.Fatalf("retry budget %s leaves too much of the 10s deadline unused", total)
+	if usable := 10*time.Second - dbRetryFinalAttemptBudget; lowestDraw < usable {
+		t.Fatalf("unluckiest retry sequence spans %s and gives up %s before the deadline",
+			lowestDraw, usable-lowestDraw)
 	}
 }

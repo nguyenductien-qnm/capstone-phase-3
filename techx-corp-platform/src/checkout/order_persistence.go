@@ -25,13 +25,14 @@ import (
 
 const (
 	idempotencyMetadataKey = "x-idempotency-key"
-	dbRetryMaxAttempts     = 7
-	// Six backoff waits (200ms 400ms 800ms 1.6s 3s 3s) spend up to 9s of the 10s
-	// checkout deadline set in GrpcDeadline.ts, so the last attempt still fires
-	// inside the request budget. A managed switchover blackout outlasting that is
-	// no longer a retry problem: the caller's deadline is the ceiling.
-	dbRetryBaseDelay = 200 * time.Millisecond
-	dbRetryMaxDelay  = 3 * time.Second
+	// The caller's deadline is what ends the retry loop, not this counter. Ten
+	// waits (200ms 400ms 800ms 1.6s then 3s each) run 10.5s even on the lowest
+	// jitter draw, so they outlast the 10s checkout deadline in GrpcDeadline.ts
+	// and waitForDBRetry's clamp is what stops the loop. Seven attempts let an
+	// unlucky sequence give up around 4.5s with half the request budget unspent.
+	dbRetryMaxAttempts = 11
+	dbRetryBaseDelay   = 200 * time.Millisecond
+	dbRetryMaxDelay    = 3 * time.Second
 	// Time reserved for the attempt that follows a wait. Sleeping right up to the
 	// deadline burns the last attempt for nothing.
 	dbRetryFinalAttemptBudget = 300 * time.Millisecond
