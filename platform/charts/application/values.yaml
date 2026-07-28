@@ -929,6 +929,14 @@ components:
       env: true
     # Consumer Kafka async, KHÔNG HPA (scale nên theo lag, không phải CPU) và ngoài
     # critical path storefront → không cần PDB/spread (gián đoạn ngắn được Kafka đệm).
+    # Mandate-13: develop không pin service nào vào on-demand (1 NodePool duy nhất,
+    # Karpenter tự cân đối spot/on-demand) -> fraud-detection có thể rơi vào spot
+    # bất kỳ lúc nào. Thiếu preStop/grace thì message Kafka đang xử lý dở bị cắt
+    # ngang khi node bị drain/thu hồi, khác accounting (đã có field này từ trước).
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep: { seconds: 5 }
     podAnnotations:
       resource.opentelemetry.io/service.namespace: techx-corp
     env:
