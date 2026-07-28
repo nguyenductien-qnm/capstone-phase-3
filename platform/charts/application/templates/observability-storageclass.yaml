@@ -10,5 +10,6 @@ reclaimPolicy: {{ .Values.observabilityStorage.reclaimPolicy }}
 volumeBindingMode: {{ .Values.observabilityStorage.volumeBindingMode }}
 allowVolumeExpansion: {{ .Values.observabilityStorage.allowVolumeExpansion }}
 parameters:
+  tagSpecification_1: "Backup=true"
   {{- toYaml .Values.observabilityStorage.parameters | nindent 2 }}
 {{- end }}
