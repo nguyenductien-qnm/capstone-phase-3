@@ -73,6 +73,11 @@ var initResourcesOnce sync.Once
 const (
 	checkoutDependencyTimeout = 750 * time.Millisecond
 	maxOrderItemConcurrency   = 4
+	// Readiness re-checks the database on the same cadence as the kubelet probe
+	// (periodSeconds: 5), with a ping timeout under it so a stuck ping cannot
+	// stall the loop past one interval.
+	dbReadinessInterval    = 5 * time.Second
+	dbReadinessPingTimeout = 2 * time.Second
 )
 
 func initResource() *sdkresource.Resource {
@@ -223,16 +228,11 @@ func main() {
 			if err != nil {
 				logger.Error(fmt.Sprintf("Unable to create connection pool: %v", err))
 			} else {
-				pingCtx, pingCancel := context.WithTimeout(context.Background(), 5*time.Second)
-				pingErr := dbPool.Ping(pingCtx)
-				pingCancel()
-				if pingErr != nil {
-					logger.Error(fmt.Sprintf("Unable to reach database: %v", pingErr))
-					dbPool.Close()
-				} else {
-					svc.dbPool = dbPool
-					defer dbPool.Close()
-				}
+				// Reachability is decided by watchDatabaseReadiness, not by a single
+				// ping here: a pod that starts during a failover or switchover must be
+				// able to become ready once the database returns, without a restart.
+				svc.dbPool = dbPool
+				defer dbPool.Close()
 			}
 		}
 	} else {
@@ -284,11 +284,15 @@ func main() {
 	)
 	pb.RegisterCheckoutServiceServer(srv, svc)
 
-	healthcheck := newCheckoutHealthServer(svc.dbPool != nil)
+	healthcheck := newCheckoutHealthServer()
 	healthpb.RegisterHealthServer(srv, healthcheck)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGKILL)
 	defer cancel()
+
+	if svc.dbPool != nil {
+		go watchDatabaseReadiness(ctx, svc.dbPool, healthcheck)
+	}
 
 	logger.Info(fmt.Sprintf("starting to listen on tcp: %q", lis.Addr().String()))
 	go func() {
@@ -303,20 +307,56 @@ func main() {
 	logger.Info("Checkout gRPC server stopped")
 }
 
-func newCheckoutHealthServer(databaseReady bool) *health.Server {
+func newCheckoutHealthServer() *health.Server {
 	healthcheck := health.NewServer()
 	// Kafka post-processing is degraded independently through publisher metrics
 	// and logs. It must not remove the revenue path from service endpoints.
 	healthcheck.SetServingStatus("liveness", healthpb.HealthCheckResponse_SERVING)
-	readiness := healthpb.HealthCheckResponse_NOT_SERVING
-	if databaseReady {
-		readiness = healthpb.HealthCheckResponse_SERVING
-	}
-	healthcheck.SetServingStatus("readiness", readiness)
-	// Keep compatibility with probes that omit the service name. Checkout is
-	// not ready to accept revenue traffic until durable persistence is ready.
-	healthcheck.SetServingStatus("", readiness)
+	// Checkout is not ready to accept revenue traffic until durable persistence
+	// answers. Without DATABASE_URL nothing ever flips this; with it,
+	// watchDatabaseReadiness does. The "" entry keeps probes that omit the
+	// service name in step with "readiness".
+	healthcheck.SetServingStatus("readiness", healthpb.HealthCheckResponse_NOT_SERVING)
+	healthcheck.SetServingStatus("", healthpb.HealthCheckResponse_NOT_SERVING)
 	return healthcheck
+}
+
+// watchDatabaseReadiness keeps readiness in step with what the pool can actually
+// reach. Deciding once at startup meant a pod booted during a switchover stayed
+// NOT_SERVING until the startup probe killed it 150s later, and a pod that was
+// already running kept reporting ready long after the database stopped answering.
+func watchDatabaseReadiness(ctx context.Context, pool *pgxpool.Pool, healthcheck *health.Server) {
+	ticker := time.NewTicker(dbReadinessInterval)
+	defer ticker.Stop()
+
+	reported := healthpb.HealthCheckResponse_NOT_SERVING
+	for {
+		pingCtx, pingCancel := context.WithTimeout(ctx, dbReadinessPingTimeout)
+		pingErr := pool.Ping(pingCtx)
+		pingCancel()
+
+		observed := healthpb.HealthCheckResponse_SERVING
+		if pingErr != nil {
+			observed = healthpb.HealthCheckResponse_NOT_SERVING
+		}
+
+		if observed != reported {
+			if pingErr != nil {
+				logger.Warn(fmt.Sprintf("database unreachable, checkout is not ready: %v", pingErr))
+			} else {
+				logger.Info("database reachable, checkout is ready")
+			}
+			healthcheck.SetServingStatus("readiness", observed)
+			healthcheck.SetServingStatus("", observed)
+			reported = observed
+		}
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
 }
 
 func mustMapEnv(target *string, envKey string) {
