@@ -1092,8 +1092,27 @@ jobs:
     # push VÀ workflow_dispatch đều bump (dispatch build-all mà không bump thì
     # image lên ECR nhưng ArgoCD không bao giờ biết — lỗi phát hiện 2026-07-19,
     # phải bump tay đợt 5e03ae7). Chỉ PR là không bump (không push image).
+    #
+    # KHOÁ VỀ develop: bước "Commit & push" bên dưới đẩy về `github.ref_name`, tức
+    # ĐÚNG NHÁNH ĐANG CHẠY, không ghim cứng develop. Trigger `push` đã lọc
+    # branches:[develop] nên luôn đúng; nhưng `workflow_dispatch` chạy được từ ref
+    # BẤT KỲ, và khi đó bump ghi tag vào nhánh feature đang dispatch.
+    #
+    # Vì sao commit lạc chỗ đó nguy hiểm: Cosign keyless ghi CẢ TÊN NHÁNH vào danh
+    # tính chữ ký, nên ảnh build từ nhánh feature mang subject
+    # `app-build.yaml@refs/heads/<nhánh>` — không khớp attestor Kyverno ghim
+    # `@refs/heads/develop` (platform/policies/kyverno/verify-image-signature.yaml).
+    # Commit đó nằm trên nhánh thì vô hại vì ArgoCD chỉ theo dõi targetRevision
+    # develop; nhưng merge nhánh ấy là mang nó vào develop, ArgoCD sync tag đó và
+    # Kyverno Enforce CHẶN Pod ở admission. Gặp thật 2026-07-28 khi dispatch thử
+    # multi-arch trên feat/arm64-multiarch: sinh commit bump 2b483468 phải reset tay.
+    #
+    # Guard này KHÔNG lấy mất khả năng bump tay của 5e03ae7 — dispatch từ develop
+    # vẫn bump như cũ. Dispatch từ nhánh khác vẫn build/scan/sign/merge đầy đủ để
+    # kiểm chứng, chỉ không ghi tag vào Git nữa.
     if: >-
       ${{ always() && github.event_name != 'pull_request'
+      && github.ref == 'refs/heads/develop'
       && (needs.merge.result == 'success' || needs.merge-aiops.result == 'success') }}
     runs-on: ubuntu-latest
     permissions:
