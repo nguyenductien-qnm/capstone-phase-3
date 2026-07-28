@@ -1,5 +1,8 @@
 \set ON_ERROR_STOP on
 
+-- Run only after every ready checkout pod is dual_write and no legacy
+-- ReplicaSet can receive traffic. The NOT VALID check below still constrains
+-- new writes immediately, so a legacy writer would fail as soon as it exists.
 SET lock_timeout = '2s';
 SET statement_timeout = '30min';
 

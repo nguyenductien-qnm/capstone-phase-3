@@ -28,7 +28,6 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	otelhooks "github.com/open-feature/go-sdk-contrib/hooks/open-telemetry/pkg"
 	flagd "github.com/open-feature/go-sdk-contrib/providers/flagd/pkg"
@@ -356,16 +355,12 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		}
 	}()
 
-	if cs.dbPool == nil {
-		return nil, status.Error(codes.Unavailable, "order persistence is unavailable")
-	}
 	idempotencyKey, err := idempotencyKeyFromContext(ctx)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid idempotency key: %v", err)
 	}
-	if idempotencyKey == "" {
-		idempotencyKey = "legacy-" + uuid.NewString()
-		logger.Warn("PlaceOrder called without x-idempotency-key; generated a non-replayable compatibility key")
+	if cs.dbPool == nil {
+		return nil, status.Error(codes.Unavailable, "order persistence is unavailable")
 	}
 
 	requestHash, err := checkoutRequestHash(req)
@@ -373,24 +368,22 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		return nil, status.Errorf(codes.Internal, "failed to hash checkout request: %v", err)
 	}
 
-	if currentOrderSchemaPhase() != orderSchemaLegacy {
-		if existing, found, lookupErr := cs.findOrderByIdempotency(
-			ctx, req.UserId, idempotencyKey, requestHash,
-		); lookupErr != nil {
-			if errors.Is(lookupErr, errIdempotencyConflict) {
-				return nil, status.Error(codes.AlreadyExists, lookupErr.Error())
-			}
-			if !isTransientDBError(lookupErr) {
-				return nil, status.Errorf(codes.Internal, "failed idempotency lookup: %v", lookupErr)
-			}
-		} else if found {
-			return &pb.PlaceOrderResponse{Order: existing}, nil
+	phase := currentOrderSchemaPhase()
+	orderID := idempotentOrderID(req.UserId, idempotencyKey)
+	if existing, found, lookupErr := cs.findPersistedOrder(ctx, phase, orderPersistenceRecord{
+		OrderID:        orderID,
+		UserID:         req.UserId,
+		IdempotencyKey: idempotencyKey,
+		RequestHash:    requestHash,
+	}); lookupErr != nil {
+		if errors.Is(lookupErr, errIdempotencyConflict) {
+			return nil, status.Error(codes.AlreadyExists, lookupErr.Error())
 		}
-	}
-
-	orderID, err := uuid.NewUUID()
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to generate order uuid")
+		if !isTransientDBError(lookupErr) {
+			return nil, status.Errorf(codes.Internal, "failed idempotency lookup: %v", lookupErr)
+		}
+	} else if found {
+		return &pb.PlaceOrderResponse{Order: existing}, nil
 	}
 
 	prep, err := cs.prepareOrderItemsAndShippingQuoteFromCart(ctx, req.UserId, req.UserCurrency, req.Address)
@@ -422,30 +415,32 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 	span.AddEvent("prepared")
 
 	orderResult := &pb.OrderResult{
-		OrderId:            orderID.String(),
+		OrderId:            orderID,
 		ShippingTrackingId: "",
 		ShippingCost:       prep.shippingCostLocalized,
 		ShippingAddress:    req.Address,
 		Items:              prep.orderItems,
 	}
 
+	orderResultBytes, err := marshalOrderResult(orderResult)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to marshal order result: %v", err)
+	}
 	orderMetadataBytes, err := marshalOrderMetadata(
 		req,
 		prep.orderItems,
 		prep.cartItems,
 		prep.shippingCostLocalized,
 		total,
+		requestHash,
+		orderResultBytes,
 	)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to marshal order metadata: %v", err)
 	}
-	orderResultBytes, err := marshalOrderResult(orderResult)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to marshal order result: %v", err)
-	}
 
 	orderResult, err = cs.persistOrderWithRetry(ctx, orderPersistenceRecord{
-		OrderID:           orderID.String(),
+		OrderID:           orderID,
 		UserID:            req.UserId,
 		CurrencyCode:      req.UserCurrency,
 		OrderMetadataJSON: orderMetadataBytes,
@@ -484,11 +479,14 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 func idempotencyKeyFromContext(ctx context.Context) (string, error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
-		return "", nil
+		return "", fmt.Errorf("%s metadata is required", idempotencyMetadataKey)
 	}
 	values := md.Get(idempotencyMetadataKey)
-	if len(values) == 0 || strings.TrimSpace(values[0]) == "" {
-		return "", nil
+	if len(values) != 1 || strings.TrimSpace(values[0]) == "" {
+		if len(values) > 1 {
+			return "", fmt.Errorf("%s metadata must contain exactly one value", idempotencyMetadataKey)
+		}
+		return "", fmt.Errorf("%s metadata is required", idempotencyMetadataKey)
 	}
 	key := strings.TrimSpace(values[0])
 	if err := validateIdempotencyKey(key); err != nil {

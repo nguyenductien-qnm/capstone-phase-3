@@ -17,7 +17,10 @@ const handler = async ({ method, body, query, headers }: NextApiRequest, res: Ne
     case 'POST': {
       const { currencyCode = '' } = query;
       const rawKey = headers['idempotency-key'];
-      const idempotencyKey = Array.isArray(rawKey) ? rawKey[0] : rawKey;
+      if (Array.isArray(rawKey)) {
+        return res.status(400).json({} as Empty);
+      }
+      const idempotencyKey = rawKey;
       if (!idempotencyKey || !IDEMPOTENCY_KEY_PATTERN.test(idempotencyKey)) {
         return res.status(400).json({} as Empty);
       }

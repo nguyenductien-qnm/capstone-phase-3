@@ -1,5 +1,9 @@
 \set ON_ERROR_STOP on
 
+-- Pre-write_new verification.
+-- Run after every checkout writer is dual_write and backfill step 13 reports
+-- zero rows. At this gate both columns must still match. Do not reuse this
+-- script after write_new starts; use 16b-orders-verify-pre-contract.sql.
 SELECT COUNT(*) AS total_rows,
        COUNT(*) FILTER (WHERE order_payload IS NULL) AS payload_missing,
        COUNT(*) FILTER (

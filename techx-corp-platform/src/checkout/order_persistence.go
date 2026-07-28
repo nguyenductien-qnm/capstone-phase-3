@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	pb "github.com/open-telemetry/techx-corp/src/checkout/genproto/oteldemo"
@@ -30,9 +31,9 @@ const (
 )
 
 var (
-	errIdempotencyConflict   = errors.New("idempotency key was already used with a different request")
-	errAmbiguousLegacyCommit = errors.New("legacy-schema commit outcome is ambiguous")
-	idempotencyKeyPattern    = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$`)
+	errIdempotencyConflict = errors.New("idempotency key was already used with a different request")
+	idempotencyKeyPattern  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$`)
+	orderIDNamespace       = uuid.MustParse("48e00b14-3f8a-4df6-8a70-5481e45cd9b0")
 )
 
 type orderSchemaPhase string
@@ -74,9 +75,7 @@ func orderInsertSQL(phase orderSchemaPhase) string {
 				 order_metadata, order_payload, idempotency_key,
 				 idempotency_request_hash, order_result)
 			VALUES ($1, $2, $3, 'PROCESSING', $4, $4, $5, $6, $7)
-			ON CONFLICT (user_id, idempotency_key)
-				WHERE idempotency_key IS NOT NULL
-			DO NOTHING`
+			ON CONFLICT DO NOTHING`
 	case orderSchemaWriteNew:
 		return `
 			INSERT INTO checkout.orders
@@ -84,14 +83,13 @@ func orderInsertSQL(phase orderSchemaPhase) string {
 				 order_payload, idempotency_key,
 				 idempotency_request_hash, order_result)
 			VALUES ($1, $2, $3, 'PROCESSING', $4, $5, $6, $7)
-			ON CONFLICT (user_id, idempotency_key)
-				WHERE idempotency_key IS NOT NULL
-			DO NOTHING`
+			ON CONFLICT DO NOTHING`
 	default:
 		return `
 			INSERT INTO checkout.orders
 				(order_id, user_id, currency_code, status, order_metadata)
-			VALUES ($1, $2, $3, 'PROCESSING', $4)`
+			VALUES ($1, $2, $3, 'PROCESSING', $4)
+			ON CONFLICT DO NOTHING`
 	}
 }
 
@@ -137,13 +135,24 @@ func cardLastFour(number string) string {
 	return number[len(number)-4:]
 }
 
+func idempotentOrderID(userID string, key string) string {
+	return uuid.NewSHA1(orderIDNamespace, []byte(userID+"\x00"+key)).String()
+}
+
 func marshalOrderMetadata(
 	req *pb.PlaceOrderRequest,
 	orderItems []*pb.OrderItem,
 	cartItems []*pb.CartItem,
 	shippingCost *pb.Money,
 	total *pb.Money,
+	requestHash string,
+	orderResultJSON []byte,
 ) ([]byte, error) {
+	type idempotencyEnvelope struct {
+		Version     int             `json:"version"`
+		RequestHash string          `json:"requestHash"`
+		OrderResult json.RawMessage `json:"orderResult"`
+	}
 	sanitized := struct {
 		UserID       string          `json:"userId"`
 		UserCurrency string          `json:"userCurrency"`
@@ -153,6 +162,9 @@ func marshalOrderMetadata(
 		CartItems    []*pb.CartItem  `json:"cartItems"`
 		ShippingCost *pb.Money       `json:"shippingCostLocalized"`
 		Total        *pb.Money       `json:"total"`
+		Checkout     struct {
+			Idempotency idempotencyEnvelope `json:"idempotency"`
+		} `json:"_checkout"`
 	}{
 		UserID:       req.GetUserId(),
 		UserCurrency: req.GetUserCurrency(),
@@ -162,6 +174,11 @@ func marshalOrderMetadata(
 		CartItems:    cartItems,
 		ShippingCost: shippingCost,
 		Total:        total,
+	}
+	sanitized.Checkout.Idempotency = idempotencyEnvelope{
+		Version:     1,
+		RequestHash: requestHash,
+		OrderResult: json.RawMessage(orderResultJSON),
 	}
 	payload, err := json.Marshal(sanitized)
 	if err != nil {
@@ -215,24 +232,96 @@ func (cs *checkout) findOrderByIdempotency(
 	return result, true, nil
 }
 
+func (cs *checkout) findLegacyOrderByIdempotency(
+	ctx context.Context,
+	orderID string,
+	requestHash string,
+) (*pb.OrderResult, bool, error) {
+	var metadataJSON []byte
+	err := cs.dbPool.QueryRow(ctx, `
+		SELECT COALESCE(
+			NULLIF(to_jsonb(o) -> 'order_metadata', 'null'::jsonb),
+			NULLIF(to_jsonb(o) -> 'order_payload', 'null'::jsonb),
+			'null'::jsonb
+		)
+		FROM checkout.orders AS o
+		WHERE order_id = $1
+	`, orderID).Scan(&metadataJSON)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+
+	result, err := orderResultFromLegacyMetadata(metadataJSON, requestHash)
+	if err != nil {
+		return nil, true, err
+	}
+	return result, true, nil
+}
+
+func orderResultFromLegacyMetadata(metadataJSON []byte, requestHash string) (*pb.OrderResult, error) {
+	var metadata struct {
+		Checkout struct {
+			Idempotency struct {
+				Version     int             `json:"version"`
+				RequestHash string          `json:"requestHash"`
+				OrderResult json.RawMessage `json:"orderResult"`
+			} `json:"idempotency"`
+		} `json:"_checkout"`
+	}
+	if err := json.Unmarshal(metadataJSON, &metadata); err != nil {
+		return nil, fmt.Errorf("unmarshal legacy order metadata: %w", err)
+	}
+	envelope := metadata.Checkout.Idempotency
+	if envelope.Version != 1 || envelope.RequestHash == "" || len(envelope.OrderResult) == 0 {
+		return nil, fmt.Errorf("legacy order is missing a valid idempotency envelope")
+	}
+	if envelope.RequestHash != requestHash {
+		return nil, errIdempotencyConflict
+	}
+	result, err := unmarshalOrderResult(envelope.OrderResult)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (cs *checkout) findPersistedOrder(
+	ctx context.Context,
+	phase orderSchemaPhase,
+	record orderPersistenceRecord,
+) (*pb.OrderResult, bool, error) {
+	if phase != orderSchemaLegacy {
+		result, found, err := cs.findOrderByIdempotency(
+			ctx, record.UserID, record.IdempotencyKey, record.RequestHash,
+		)
+		if err != nil || found {
+			return result, found, err
+		}
+	}
+
+	// Rows created before the expand migration keep their replay envelope in
+	// order_metadata, which backfill copies to order_payload. to_jsonb(row)
+	// keeps this fallback valid before expand and after contract.
+	return cs.findLegacyOrderByIdempotency(ctx, record.OrderID, record.RequestHash)
+}
+
 func (cs *checkout) persistOrderWithRetry(
 	ctx context.Context,
 	record orderPersistenceRecord,
 ) (*pb.OrderResult, error) {
 	phase := currentOrderSchemaPhase()
-	if phase != orderSchemaLegacy {
-		if existing, found, err := cs.findOrderByIdempotency(
-			ctx, record.UserID, record.IdempotencyKey, record.RequestHash,
-		); err != nil {
-			if errors.Is(err, errIdempotencyConflict) {
-				return nil, err
-			}
-			if !isTransientDBError(err) {
-				return nil, err
-			}
-		} else if found {
-			return existing, nil
+	if existing, found, err := cs.findPersistedOrder(ctx, phase, record); err != nil {
+		if errors.Is(err, errIdempotencyConflict) {
+			return nil, err
 		}
+		if !isTransientDBError(err) {
+			return nil, err
+		}
+	} else if found {
+		return existing, nil
 	}
 
 	insertSQL := orderInsertSQL(phase)
@@ -270,9 +359,9 @@ func (cs *checkout) persistOrderWithRetry(
 			if execErr != nil {
 				rollbackTx(tx)
 				lastErr = execErr
-			} else if phase != orderSchemaLegacy && tag.RowsAffected() == 0 {
+			} else if tag.RowsAffected() == 0 {
 				rollbackTx(tx)
-				existing, found, lookupErr := cs.reconcileCommittedOrder(record)
+				existing, found, lookupErr := cs.reconcileCommittedOrder(phase, record)
 				if lookupErr != nil {
 					if errors.Is(lookupErr, errIdempotencyConflict) {
 						return nil, lookupErr
@@ -294,10 +383,7 @@ func (cs *checkout) persistOrderWithRetry(
 					lastErr = outboxErr
 				} else if commitErr := tx.Commit(ctx); commitErr != nil {
 					lastErr = commitErr
-					if phase == orderSchemaLegacy {
-						return nil, fmt.Errorf("%w: %v", errAmbiguousLegacyCommit, commitErr)
-					}
-					existing, found, lookupErr := cs.reconcileCommittedOrder(record)
+					existing, found, lookupErr := cs.reconcileCommittedOrder(phase, record)
 					if lookupErr != nil {
 						if errors.Is(lookupErr, errIdempotencyConflict) {
 							return nil, lookupErr
@@ -324,15 +410,14 @@ func (cs *checkout) persistOrderWithRetry(
 }
 
 func (cs *checkout) reconcileCommittedOrder(
+	phase orderSchemaPhase,
 	record orderPersistenceRecord,
 ) (*pb.OrderResult, bool, error) {
 	// The caller's deadline may fire immediately after PostgreSQL committed.
 	// Use an independent read-only budget to determine that outcome.
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	return cs.findOrderByIdempotency(
-		ctx, record.UserID, record.IdempotencyKey, record.RequestHash,
-	)
+	return cs.findPersistedOrder(ctx, phase, record)
 }
 
 func rollbackTx(tx pgx.Tx) {

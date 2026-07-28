@@ -6,7 +6,9 @@
 
 -- Pre-contract rollback path. Keep the legacy column until the rollback
 -- horizon expires and copy any write_new rows back in bounded batches.
--- Run 19 verify and 20 relax before rolling an old legacy-only image back.
+-- First roll every checkout pod back to dual_write and drain write_new traffic.
+-- Then run this step to zero, run 19 verify, and run 20 before rolling an old
+-- legacy-only image back.
 -- A phase-aware rollback may stay on dual_write/dual_read and skip step 20.
 -- Expanded columns remain in place during a live rollback.
 SET lock_timeout = '2s';

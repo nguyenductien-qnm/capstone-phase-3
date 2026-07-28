@@ -260,6 +260,58 @@ jobs:
         working-directory: techx-corp-platform/src/${{ matrix.service }}
         run: dotnet test --nologo --verbosity normal
 
+  accounting-release-build:
+    name: Accounting Release build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Prepare shared checkout proto
+        run: |
+          mkdir -p techx-corp-platform/src/accounting/src/protos
+          cp techx-corp-platform/pb/demo.proto \
+             techx-corp-platform/src/accounting/src/protos/demo.proto
+      - name: Restore Accounting
+        working-directory: techx-corp-platform/src/accounting
+        run: dotnet restore Accounting.csproj
+      - name: Build Accounting (Release)
+        working-directory: techx-corp-platform/src/accounting
+        run: dotnet build Accounting.csproj --configuration Release --no-restore
+
+  orders-migration-integration:
+    name: Orders migration integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16@sha256:33f923b05f64ca54ac4401c01126a6b92afe839a0aa0a52bc5aeb5cc958e5f20
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: PostgreSQL client version
+        run: psql --version
+      - name: Exercise forward, contract, and rollback migrations
+        run: bash .github/scripts/test-orders-migration.sh
+
   # ------------------------------------------------------------------ #
   # Job gác cổng — ĐÂY mới là cái đặt vào required status checks, KHÔNG #
   # phải từng job con.                                                  #
@@ -274,7 +326,13 @@ jobs:
   # ------------------------------------------------------------------ #
   unit-test:
     name: Unit tests
-    needs: [discover, unit-test-go, unit-test-python, unit-test-dotnet]
+    needs:
+      - discover
+      - unit-test-go
+      - unit-test-python
+      - unit-test-dotnet
+      - accounting-release-build
+      - orders-migration-integration
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -285,7 +343,9 @@ jobs:
           for r in "discover:${{ needs.discover.result }}" \
                    "go:${{ needs.unit-test-go.result }}" \
                    "python:${{ needs.unit-test-python.result }}" \
-                   "dotnet:${{ needs.unit-test-dotnet.result }}"; do
+                   "dotnet:${{ needs.unit-test-dotnet.result }}" \
+                   "accounting-release:${{ needs.accounting-release-build.result }}" \
+                   "orders-migration:${{ needs.orders-migration-integration.result }}"; do
             name=${r%%:*}; res=${r#*:}
             case "$res" in
               success)  echo "✅ $name: $res" ;;
