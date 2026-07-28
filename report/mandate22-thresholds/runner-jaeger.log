@@ -1,0 +1,2 @@
+2026-07-28 07:52:48,176 INFO aiops.remediation.k8s restart_pod: xoa pod techx-tf1/jaeger-7bc68fd759-ltrcd (grace=30s)
+2026-07-28 07:54:52,289 WARNING aiops.remediation.verifier verify: het 120s ma pod van chua Ready on dinh, FAIL

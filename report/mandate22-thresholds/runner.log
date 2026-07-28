@@ -1,0 +1,16 @@
+2026-07-28 07:28:46,337 INFO aiops.remediation AIOps remediation engine khoi dong | dry_run=False | 1 policy | poll=15s
+2026-07-28 07:28:47,498 INFO aiops.remediation.k8s restart_pod: xoa pod techx-tf1/tf1107-canary-6986d8bd78-v4fmm (grace=30s)
+2026-07-28 07:29:30,746 WARNING aiops.remediation.verifier verify: phat hien OOMKilled MOI trong luc cho hoi phuc: [{'pod_name': 'tf1107-canary-6986d8bd78-ktzlc', 'service_label': 'tf1107-canary', 'container_name': 'memhog', 'terminated_at': datetime.datetime(2026, 7, 28, 7, 29, 27, tzinfo=tzlocal())}]
+2026-07-28 07:29:46,835 INFO aiops.remediation.k8s restart_pod: xoa pod techx-tf1/tf1107-canary-6986d8bd78-ktzlc (grace=30s)
+2026-07-28 07:30:29,939 WARNING aiops.remediation.verifier verify: phat hien OOMKilled MOI trong luc cho hoi phuc: [{'pod_name': 'tf1107-canary-6986d8bd78-6kp99', 'service_label': 'tf1107-canary', 'container_name': 'memhog', 'terminated_at': datetime.datetime(2026, 7, 28, 7, 30, 26, tzinfo=tzlocal())}]
+2026-07-28 07:30:46,050 INFO aiops.remediation.k8s restart_pod: xoa pod techx-tf1/tf1107-canary-6986d8bd78-6kp99 (grace=30s)
+2026-07-28 07:31:29,355 WARNING aiops.remediation.verifier verify: phat hien OOMKilled MOI trong luc cho hoi phuc: [{'pod_name': 'tf1107-canary-6986d8bd78-9bpcl', 'service_label': 'tf1107-canary', 'container_name': 'memhog', 'terminated_at': datetime.datetime(2026, 7, 28, 7, 31, 26, tzinfo=tzlocal())}]
+2026-07-28 07:31:45,425 WARNING aiops.remediation circuit breaker DANG MO cho oom-detected:tf1107-canary - tu choi hanh dong, chi escalate
+2026-07-28 07:32:01,837 WARNING aiops.remediation circuit breaker DANG MO cho oom-detected:tf1107-canary - tu choi hanh dong, chi escalate
+2026-07-28 07:32:17,830 WARNING aiops.remediation circuit breaker DANG MO cho oom-detected:tf1107-canary - tu choi hanh dong, chi escalate
+2026-07-28 07:32:33,939 WARNING aiops.remediation circuit breaker DANG MO cho oom-detected:tf1107-canary - tu choi hanh dong, chi escalate
+2026-07-28 07:32:50,025 WARNING aiops.remediation circuit breaker DANG MO cho oom-detected:tf1107-canary - tu choi hanh dong, chi escalate
+2026-07-28 07:33:05,940 WARNING aiops.remediation circuit breaker DANG MO cho oom-detected:tf1107-canary - tu choi hanh dong, chi escalate
+2026-07-28 07:33:21,933 WARNING aiops.remediation circuit breaker DANG MO cho oom-detected:tf1107-canary - tu choi hanh dong, chi escalate
+2026-07-28 07:33:37,827 WARNING aiops.remediation circuit breaker DANG MO cho oom-detected:tf1107-canary - tu choi hanh dong, chi escalate
+2026-07-28 07:33:53,630 WARNING aiops.remediation circuit breaker DANG MO cho oom-detected:tf1107-canary - tu choi hanh dong, chi escalate

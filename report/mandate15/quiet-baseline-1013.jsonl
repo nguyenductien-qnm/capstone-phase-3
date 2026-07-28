@@ -1,0 +1,4 @@
+{"ts": 1785207711.7312703, "rule_id": "genai-assistant-failure", "service": "log", "severity": "critical", "fingerprint": "log:5950692"}
+{"ts": 1785207934.210716, "rule_id": "oom-detected", "service": "unknown", "severity": "critical", "fingerprint": "unknown:5950693"}
+{"ts": 1785207964.5573635, "rule_id": "latency-p95-high", "service": "cart", "severity": "warning", "fingerprint": "cart:5950693"}
+{"ts": 1785208313.1163485, "rule_id": "genai-assistant-failure", "service": "log", "severity": "critical", "fingerprint": "log:5950694"}

@@ -40,7 +40,7 @@ spec:
       containers:
         - name: aiops-remediation
           # MANDATE-05: pin tag co dinh, khong dung tag troi (:latest).
-          image: 804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.1-aiops-remediation-60c811e
+          image: 804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.1-aiops-remediation-75bf1e7
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false
@@ -52,20 +52,23 @@ spec:
               value: "http://prometheus:9090"
             - name: OPENSEARCH_URL
               value: "http://opensearch:9200"
-            # AN TOAN mac dinh la "true" (spec anomaly_remediation.md Sec4.1).
+            # AN TOAN mac dinh (spec anomaly_remediation.md Sec4.1) - doi tay sang
+            # "false" chi khi da san sang cho remediation act that len K8s.
             #
-            # TAM THOI dat "false" de do MTTR before/after cho TF1-106 (MANDATE-22).
-            # Khong the do "after" khi dry-run bat: cong dry-run nam TRUOC hanh dong
-            # that (remediation.py, buoc 4) va `continue` ngay, nen vong tu dap chua
-            # tung sua gi. Khong co "after" thi khong co so de so sanh.
+            # DA TRA VE "true" sau khi do xong MTTR cho TF1-106 (PR #459 tat tam thoi).
+            # So do duoc, tren pod moi mttr-canary da xoa:
+            #   MTTR before (kubelet CrashLoopBackOff) : 310.3s
+            #   MTTR after  (remediation xoa pod)      :  67.2s
+            #     trong do 61.0s la detector poll (30s) + remediation poll (~31s)
+            #     va 6.2s la khoi dong container
             #
-            # Da xac nhan hanh vi dung qua dry-run that tren EKS truoc khi bat:
-            # detector bat oom-detected tren pod moi mttr-canary luc 18:46:03, remediation
-            # phan ung sau 4 giay va in dung pod se restart — chi khong goi K8s API.
-            #
-            # PHAI TRA VE "true" sau khi do xong. PR tra lai la buoc cuoi cua TF1-106.
+            # Nhung con so 4.6x do CHI dung cho MOT lan: blast_radius cho toi da
+            # 1 hanh dong/gio/namespace, nen tren mot pod hong lap lai (OOM moi ~2 phut)
+            # vong tu dap chi cuu duoc 1 trong ~30 lan -> MTTR trung binh ~302s, gan nhu
+            # khong cai thien. Voi mot OOM DON LE thi con nguoc: kubelet restart lan dau
+            # chi ~10s, cham hon la vong tu dap voi 67s. Chi tiet o report/mandate15/.
             - name: REMEDIATION_DRY_RUN
-              value: "false"
+              value: "true"
             # Tai dung secret webhook cua aiops-detector - remediation gui audit/escalate
             # alert vao cung kenh Discord, phan biet qua title "remediation-*".
             - name: AIOPS_SLACK_WEBHOOK_CRITICAL

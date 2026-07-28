@@ -3,7 +3,7 @@
 components:
   accounting:
     imageOverride:
-      tag: 1.0-accounting-6beefa4
+      tag: 1.0-accounting-eb7c88b
   ad:
     imageOverride:
       tag: 1.0-ad-6beefa4
@@ -15,16 +15,16 @@ components:
       tag: 1.0-cart-4986041
   checkout:
     imageOverride:
-      tag: 1.0-checkout-6beefa4
+      tag: 1.0-checkout-eb7c88b
   currency:
     imageOverride:
       tag: 1.0-currency-8909351
   fraud-detection:
     imageOverride:
-      tag: 1.0-fraud-detection-6beefa4
+      tag: 1.0-fraud-detection-d4c2a03
   frontend:
     imageOverride:
-      tag: 1.0-frontend-6beefa4
+      tag: 1.0-frontend-eb7c88b
   frontend-proxy:
     imageOverride:
       tag: 1.0-frontend-proxy-a5902d8
@@ -36,7 +36,7 @@ components:
       tag: 1.0-llm-a5902d8
   load-generator:
     imageOverride:
-      tag: 1.0-load-generator-6beefa4
+      tag: 1.0-load-generator-eb7c88b
   ml-guard:
     imageOverride:
       tag: 1.0-ml-guard-a5902d8

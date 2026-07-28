@@ -1,0 +1,15 @@
+  [inject] running: kubectl -n techx-tf1 exec deploy/load-generator -- python3 -c 'import urllib.request,urllib.parse;urllib.request.urlopen("http://localhost:8089/swarm",urllib.parse.urlencode({"user_count":100,"spawn_rate":20}).encode(),timeout=15)'
+  [inject] running: kubectl -n techx-tf1 exec deploy/load-generator -- python3 -c 'import urllib.request,urllib.parse;urllib.request.urlopen("http://localhost:8089/swarm",urllib.parse.urlencode({"user_count":22,"spawn_rate":20}).encode(),timeout=15)'
+  [inject] settling 180s before scoring...
+
+======================================================================
+SCENARIO: case-healthy-load-001 [healthy_load]
+MANDATE-15 ca 'ban chu khong hong', ban cho EKS. Tao tai HOP LE that su bang cach nhan ban chinh load-generator cua he (khong co flag loi nao dinh vao) roi xac nhan detector KHONG keu oan. PASS = khong rule nao trong monitored_rule_ids ban trong cua so. Day la nua con lai cua cau hoi ma ca quiet-window khong tra loi duoc: quiet-window chi hoi 'binh thuong co keu nham khong', ca nay hoi 'BAN co bi nham la HONG khong'.
+----------------------------------------------------------------------
+  [case-healthy-load-001] expect_fire=False -> FIRED (lead_time=319.7s) MISMATCH
+----------------------------------------------------------------------
+  K incidents = 0 | recall = None | precision = 0.0 (correct=0/total=1)
+  VERDICT (healthy_load): FAIL — false alarm(s): ['case-healthy-load-001']
+======================================================================
+
+  result written to aiops/incident_scenarios/case_healthy_load.result.json

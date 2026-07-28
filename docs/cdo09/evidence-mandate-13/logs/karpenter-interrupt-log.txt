@@ -1,0 +1,45 @@
+﻿=== KARPENTER INTERRUPT LOG — Live Spot-Kill Evidence ===
+Cluster : ecommerce-dev-eks (804372444787)
+Time    : 2026-07-28T02:53:34Z (UTC)
+
+KEY EVENTS:
+[02:53:34Z] controller=interruption  message="initiating delete from interruption message"
+            queue=ecommerce-dev-eks-karpenter messageKind=instance_terminated
+            NodeClaim=spot-bzcdj Node=ip-10-0-92-23.ec2.internal action=CordonAndDrain
+
+[02:53:34Z] controller=node.termination message="tainted node"
+            Node=ip-10-0-92-23.ec2.internal taint=karpenter.sh/disrupted:NoSchedule
+
+[02:53:35Z] controller=provisioner message="created nodeclaim"
+            NodePool=spot NodeClaim=spot-nfj5n instance-types=c6a.large,c6a.xlarge,...
+
+[02:53:38Z] controller=nodeclaim.lifecycle message="launched nodeclaim"
+            NodeClaim=spot-nfj5n provider-id=aws:///us-east-1b/i-0061142b4e84c16dc
+            instance-type=c6a.large zone=us-east-1b capacity-type=spot
+
+[02:53:38Z] controller=provisioner message="created nodeclaim"
+            NodePool=spot NodeClaim=spot-hsnm8
+
+[02:53:41Z] controller=nodeclaim.lifecycle message="launched nodeclaim"
+            NodeClaim=spot-hsnm8 provider-id=aws:///us-east-1c/i-08e04882f515cd53c
+            instance-type=c6a.large zone=us-east-1c capacity-type=spot
+
+[02:53:56Z] controller=nodeclaim.lifecycle message="registered nodeclaim"
+            NodeClaim=spot-nfj5n Node=ip-10-0-77-230.ec2.internal  (+22s from kill)
+
+[02:53:58Z] controller=nodeclaim.lifecycle message="registered nodeclaim"
+            NodeClaim=spot-hsnm8 Node=ip-10-0-95-128.ec2.internal  (+24s from kill)
+
+[02:54:11Z] controller=nodeclaim.lifecycle message="initialized nodeclaim" (spot-nfj5n)
+[02:54:11Z] controller=nodeclaim.lifecycle message="initialized nodeclaim" (spot-hsnm8)
+
+[02:55:22Z] controller=node.termination  message="deleted node"
+            Node=ip-10-0-92-23.ec2.internal NodeClaim=spot-bzcdj
+
+[02:55:22Z] controller=nodeclaim.lifecycle message="deleted nodeclaim"
+            NodeClaim=spot-bzcdj provider-id=aws:///us-east-1c/i-0eda3b5efef7f31ce
+
+=== SUMMARY ===
+Interrupt detected → Cordon+Drain triggered: <1s
+New spot node registered        : 22s (spot-nfj5n), 24s (spot-hsnm8)
+Old node fully cleaned up       : ~108s

@@ -1,0 +1,42 @@
+poll_interval_seconds: 15
+sources:
+  prometheus_url_env: PROM_URL
+  opensearch_url_env: OPENSEARCH_URL
+  opensearch_index: otel-logs-*
+  opensearch_message_field: body
+  opensearch_time_field: observedTimestamp
+  http_timeout_seconds: 5
+k8s:
+  namespace: techx-tf1
+  service_label_key: opentelemetry.io/name
+alert:
+  provider: auto
+  webhook_env: ALERT_WEBHOOK_URL
+  cooldown_seconds: 600
+policies:
+- rule_id: oom-detected
+  trigger:
+    type: k8s_pod_status
+    lookback_seconds: 300
+  action:
+    type: k8s_restart_pod
+    grace_period_seconds: 30
+    require_readiness_gate: true
+  safety_boundaries:
+    dry_run: true
+    error_budget_check:
+      enabled: true
+      query: sum(rate(http_server_request_duration_seconds_count{service_namespace="techx-corp",
+        http_response_status_code=~"5.."}[5m])) / clamp_min(sum(rate(http_server_request_duration_seconds_count{service_namespace="techx-corp"}[5m])),
+        0.001)
+      max_ratio: 0.005
+    blast_radius:
+      max_actions: 10
+      time_window_seconds: 600
+      scope: namespace
+    verify:
+      duration_seconds: 120
+      poll_interval_seconds: 20
+    circuit_breaker:
+      max_consecutive_failures: 3
+      reset_timeout_seconds: 86400

@@ -1,4 +1,4 @@
-name: App Attest (đóng dấu promoted-develop theo digest)
+name: "4 · Release — Đóng dấu ảnh đã promote"
 
 # Bước C của deploy model build-once-promote (xem app-build.yaml): sau khi develop
 # chạy ổn định, operator dispatch workflow này để cosign attest predicate
