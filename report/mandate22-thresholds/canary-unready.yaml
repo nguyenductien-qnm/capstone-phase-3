@@ -1,0 +1,62 @@
+# Pod moi THU HAI cho TF1-107 — chi de kich hoat NHANH TIMEOUT cua verify.
+#
+# canary-oom.yaml OOM lai sau ~25s, nen verify luon thoat som qua nhanh "phat hien
+# OOMKilled MOI" (do duoc: 43.0s, 3/3 lan). Nghia la gia tri timeout 120s VAN CHUA
+# duoc kiem. Pod nay bit dung lo do:
+#   - readinessProbe luon THAT BAI  -> pod thay the KHONG BAO GIO Ready
+#   - sleep 300 truoc khi cap phat  -> pod thay the KHONG OOM trong cua so verify 120s
+# => verify buoc phai poll het 120s roi tra False qua nhanh "het gio".
+#
+# XOA SAU KHI DO XONG:
+#   kubectl -n techx-tf1 delete -f report/mandate22-thresholds/canary-unready.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tf1107-unready
+  namespace: techx-tf1
+  labels:
+    opentelemetry.io/name: tf1107-unready
+    app.kubernetes.io/managed-by: manual-experiment-TF1-107
+  annotations:
+    experiment: "TF1-107 nhanh timeout cua verify — XOA SAU KHI DO XONG"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      opentelemetry.io/name: tf1107-unready
+  template:
+    metadata:
+      labels:
+        opentelemetry.io/name: tf1107-unready
+    spec:
+      terminationGracePeriodSeconds: 5
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: memhog
+          image: public.ecr.aws/docker/library/busybox:1.36
+          command: ["sh", "-c"]
+          args:
+            - |
+              echo "[unready] len, se OOM sau ~300s"
+              sleep 300
+              echo "[unready] bat dau cap phat"
+              A=$(yes FILLFILLFILLFILL | head -c 400000000)
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests: {cpu: 10m, memory: 64Mi}
+            limits: {cpu: 200m, memory: 128Mi}
+          # CO Y that bai: is_service_ready() se khong bao gio dung.
+          readinessProbe:
+            exec:
+              command: ["false"]
+            initialDelaySeconds: 3
+            periodSeconds: 5
