@@ -18,7 +18,10 @@
     "bedrock-cost-high",
     "llm-rate-limit-429",
     "db-pool-exhaustion",
-    "oom-detected"
+    "oom-detected",
+    "genai-assistant-failure",
+    "dns-resolution-error",
+    "error-budget-burn-fast"
   ],
   "expect_fire": false,
   "inject": {
@@ -34,7 +37,8 @@
     "BAN NAY dung REST API cua locust (LOCUST_WEB_PORT=8089, LOCUST_HEADLESS=false nen web UI song). POST /swarm doi so user NGAY, KHONG restart pod. Do duoc: 22 -> 106 user cho thong luong 24.69 -> 94.80 req/s, tuc 3.84 LAN. Bo nho chi 100 -> 103 MiB tren limit 512Mi, con nhieu du dia.",
     "CHON REST API thay vi nhan ban pod vi hai le: (1) nhan ban chi cho 1.47x do pod moi can thoi gian ramp user; (2) `kubectl scale` va `kubectl set env` deu gay nhip traffic tut luc pod len/xuong, ma nhip tut do co the tu no lam service-traffic-collapse keu — tao dung mot bao dong gia tren chinh ca dung de chung minh khong co bao dong gia.",
     "off tra ve 22 user = dung muc nen luc bat dau do (khong phai 10 nhu LOCUST_USERS trong values.yaml — muc thuc te tren cum la 22).",
-    "monitored_rule_ids liet ke du 14 rule dang co trong rules.yaml, gom ca service-traffic-collapse va latency-p95-high — tai cao lam tang latency nen day la rule dang theo doi nhat.",
+    "monitored_rule_ids liet ke DU MOI rule trong rules.yaml, gom ca service-traffic-collapse va latency-p95-high — tai cao lam tang latency nen day la rule dang theo doi nhat. Danh sach nay phai bang so rule that: 28/07 rules.yaml len 17 rule trong khi danh sach con 14, tuc 3 rule (genai-assistant-failure, dns-resolution-error, error-budget-burn-fast) dang duoc mien tra loi cau hoi cua mandate ma khong ai quyet dinh nhu the. Da bo sung du 17. Bo sung nay lam bai KHO hon chu khong de hon.",
+    "DOC KET QUA CHO DUNG: mot rule keu trong cua so tai cao KHONG dong nghia 'tai cao lam no keu'. Truoc moi lan chay phai do mot cua so YEN TINH lam nen (report/mandate15/quiet-baseline-*.jsonl) va tru di nhung rule VON DA keu khi chua bom gi. Vi du do duoc 28/07: genai-assistant-failure ban ngay chu ky dau tien sau khi pod khoi dong, khi chua co bat ky tai them nao.",
     "duration 420s de tai cao phu tron mot cua so rate(...[5m]) va con du bien; settle 180s de alert cham (neu co) van kip roi vao cua so cham diem."
   ]
 }
