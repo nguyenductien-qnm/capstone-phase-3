@@ -290,6 +290,42 @@ def test_the_real_rules_yaml_is_valid():
     assert errors == [], _joined(errors)
 
 
+def test_no_log_rule_matches_a_bare_number():
+    """Cum tu chi gom chu so la sai — no khop TOKEN do o bat ky dau trong dong log.
+
+    Hoi quy cho su co do duoc 27/07 (MANDATE-15, ca healthy-load): rule
+    `llm-rate-limit-429` co cum tran "429". `message_field` la text da analyze nen
+    match_phrase khop token "429" o MOI vi tri, khong rieng o cho ma trang thai HTTP.
+    Dem tren toan bo index 7 ngay: 49 dong khop, 0 dong la 429 that (24 dong la truong
+    %DURATION% cua Envoy — 429 mili-giay; 25 dong la Kafka offset=429). Precision 0.00.
+
+    Hau qua that: khi bom tai 3.84x, do tre tang, mot request mat dung 429ms -> rule
+    ban CRITICAL -> ca healthy-load FAIL. Dung cai loi "ban bi nham la hong" ma
+    MANDATE-15 sinh ra de tim.
+
+    Cum tu dung phai NEO vao ngu canh: 'HTTP/1.1" 429' tach thanh [http, 1.1, 429]
+    lien tiep, chi khop khi status that su la 429.
+    """
+    with open(vr.DEFAULT_RULES, encoding="utf-8") as fh:
+        cfg = yaml.safe_load(fh)
+
+    offenders = []
+    for rule in cfg.get("rules", []):
+        if rule.get("type") != "log":
+            continue
+        phrases = rule.get("match_phrases") or rule.get("match_phrase") or []
+        if isinstance(phrases, str):
+            phrases = [phrases]
+        for p in phrases:
+            if str(p).strip().isdigit():
+                offenders.append(f"{rule['id']}: {p!r}")
+
+    assert not offenders, (
+        "cum tu chi gom chu so khop moi token trung so do (do tre ms, offset Kafka, "
+        "byte count...) -> bao dong gia: " + ", ".join(offenders)
+    )
+
+
 @requires_promtool
 def test_every_query_in_the_real_rules_yaml_parses():
     with open(vr.DEFAULT_RULES, encoding="utf-8") as fh:
