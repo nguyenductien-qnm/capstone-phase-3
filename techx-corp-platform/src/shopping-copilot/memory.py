@@ -103,7 +103,7 @@ def fetch_catalog_fingerprint() -> str:
             count, max_id, content_md5 = cur.fetchone()
             raw = f"{count}:{max_id}:{content_md5}"
             import hashlib
-            return hashlib.md5(raw.encode()).hexdigest()[:12]
+            return hashlib.sha256(raw.encode()).hexdigest()[:12]
     except Exception as e:
         logger.error("Failed to fetch catalog fingerprint: %s", e)
         try:
@@ -121,7 +121,7 @@ SEMANTIC_MAX_PER_SCOPE = int(os.environ.get("SEMANTIC_CACHE_MAX_PER_SCOPE", "200
 
 
 def _scope_hash(scope_key: str) -> str:
-    return hashlib.md5(scope_key.encode()).hexdigest()
+    return hashlib.sha256(scope_key.encode()).hexdigest()
 
 
 def _vector_bytes(embedding: list[float]) -> bytes:
