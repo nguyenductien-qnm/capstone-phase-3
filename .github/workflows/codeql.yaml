@@ -1,4 +1,4 @@
-name: CodeQL
+name: "1 · CI — Quét bảo mật mã nguồn (CodeQL)"
 
 # MANDATE-10 yêu cầu #2 (vế SAST): "Image CVE scan + IaC misconfig scan + secret/SAST là
 # CỔNG CHẶN, không phải hậu kiểm". Ba vế kia đã có gate riêng — Trivy image trong

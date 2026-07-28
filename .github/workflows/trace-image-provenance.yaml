@@ -1,4 +1,4 @@
-name: Trace Image Provenance
+name: "9 · Ops — Truy vết nguồn gốc ảnh"
 
 # Manual evidence workflow for Mandate 10. It starts from a running pod and a
 # claimed image digest, then reconstructs the supply-chain trail:
