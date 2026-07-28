@@ -1,0 +1,86 @@
+{
+  "scenario_id": "case-cart-outage-eks-001",
+  "type": "real",
+  "events": [
+    {
+      "label": "case-cart-outage-eks-001",
+      "service": "checkout",
+      "expected_rule_ids": [
+        "service-error-rate-high",
+        "error-budget-burn-fast-checkout"
+      ],
+      "expect_fire": true,
+      "inject": {
+        "type": "command",
+        "on": "kubectl scale deploy/cart -n techx-tf1 --replicas=0",
+        "off": "kubectl scale deploy/cart -n techx-tf1 --replicas=2"
+      },
+      "offset_seconds": 0,
+      "duration_seconds": 360,
+      "t_start": 1785212897.656501,
+      "t_end": 1785213260.854553
+    }
+  ],
+  "score": {
+    "window": {
+      "start": 1785212897.656501,
+      "end": 1785213380.854553
+    },
+    "per_event": [
+      {
+        "label": "case-cart-outage-eks-001",
+        "service": "checkout",
+        "expected_rule_ids": [
+          "service-error-rate-high",
+          "error-budget-burn-fast-checkout"
+        ],
+        "expect_fire": true,
+        "fired": true,
+        "correct": true,
+        "lead_time_seconds": 51.57697343826294,
+        "matched_alert": {
+          "ts": 1785212949.2334745,
+          "rule_id": "service-error-rate-high",
+          "service": "checkout",
+          "severity": "critical",
+          "fingerprint": "checkout:5950709"
+        }
+      }
+    ],
+    "metrics": {
+      "K_incidents": 1,
+      "recall": 1.0,
+      "precision": 0.3333333333333333,
+      "total_fires_observed": 3,
+      "correct_fires": 1
+    },
+    "raw_alerts_in_window": [
+      {
+        "ts": 1785212949.2334745,
+        "rule_id": "service-error-rate-high",
+        "service": "checkout",
+        "severity": "critical",
+        "fingerprint": "checkout:5950709"
+      },
+      {
+        "ts": 1785212981.1385674,
+        "rule_id": "service-error-rate-high",
+        "service": "frontend-proxy",
+        "severity": "critical",
+        "fingerprint": "frontend-proxy:5950709"
+      },
+      {
+        "ts": 1785212981.1385882,
+        "rule_id": "service-error-rate-high",
+        "service": "frontend",
+        "severity": "critical",
+        "fingerprint": "frontend:5950709"
+      }
+    ]
+  },
+  "verdict": {
+    "pass": true,
+    "reason": "real incident fired within window"
+  },
+  "remediation_records": null
+}
