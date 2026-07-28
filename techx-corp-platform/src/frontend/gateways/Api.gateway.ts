@@ -52,12 +52,20 @@ const Apis = () => ({
     });
   },
 
-  placeOrder({ currencyCode, ...order }: PlaceOrderRequest & { currencyCode: string }) {
+  placeOrder({
+    currencyCode,
+    idempotencyKey,
+    ...order
+  }: PlaceOrderRequest & { currencyCode: string; idempotencyKey: string }) {
     return request<IProductCheckout>({
       url: `${basePath}/checkout`,
       method: 'POST',
       queryParams: { currencyCode },
       body: order,
+      headers: {
+        'content-type': 'application/json',
+        'Idempotency-Key': idempotencyKey,
+      },
     });
   },
 

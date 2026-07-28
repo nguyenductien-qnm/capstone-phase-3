@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useRouter } from 'next/router';
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import CartItems from '../CartItems';
 import CheckoutForm from '../CheckoutForm';
 import { IFormData } from '../CheckoutForm/CheckoutForm';
@@ -21,6 +21,7 @@ const CartDetail = () => {
   } = useCart();
   const { selectedCurrency } = useCurrency();
   const { push } = useRouter();
+  const checkoutIdempotencyKey = useRef<string | null>(null);
 
   const onPlaceOrder = useCallback(
     async ({
@@ -35,24 +36,30 @@ const CartDetail = () => {
       creditCardExpirationYear,
       creditCardNumber,
     }: IFormData) => {
-      const order = await placeOrder({
-        userId,
-        email,
-        address: {
-          streetAddress,
-          state,
-          country,
-          city,
-          zipCode,
+      const idempotencyKey = checkoutIdempotencyKey.current ?? crypto.randomUUID();
+      checkoutIdempotencyKey.current = idempotencyKey;
+      const order = await placeOrder(
+        {
+          userId,
+          email,
+          address: {
+            streetAddress,
+            state,
+            country,
+            city,
+            zipCode,
+          },
+          userCurrency: selectedCurrency,
+          creditCard: {
+            creditCardCvv,
+            creditCardExpirationMonth,
+            creditCardExpirationYear,
+            creditCardNumber,
+          },
         },
-        userCurrency: selectedCurrency,
-        creditCard: {
-          creditCardCvv,
-          creditCardExpirationMonth,
-          creditCardExpirationYear,
-          creditCardNumber,
-        },
-      });
+        idempotencyKey
+      );
+      checkoutIdempotencyKey.current = null;
 
       push({
         pathname: `/cart/checkout/${order.orderId}`,
