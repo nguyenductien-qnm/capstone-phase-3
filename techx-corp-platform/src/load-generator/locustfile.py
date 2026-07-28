@@ -224,6 +224,42 @@ class WebsiteUser(HttpUser):
             self.client.post("/api/checkout", json=checkout_person, headers=checkout_headers())
             logging.info(f"Multi-item checkout completed for user {user}")
 
+    @task(1)
+    def checkout_replay(self):
+        # Sends the same body under the same Idempotency-Key twice, the way a
+        # client behaves when it loses the response and retries. The second call
+        # must replay the first order rather than place a new one, so this is the
+        # task that actually exercises idempotency while the database is being
+        # migrated, upgraded or failed over.
+        user = str(uuid.uuid1())
+        with self.tracer.start_as_current_span("user_checkout_replay", context=Context(), attributes={"user.id": user}):
+            self.add_to_cart(user=user)
+            checkout_person = dict(random.choice(people))
+            checkout_person["userId"] = user
+            headers = checkout_headers()
+
+            first_order_id = None
+            with self.client.post("/api/checkout", json=checkout_person, headers=headers,
+                                  name="checkout-replay", catch_response=True) as response:
+                if response.status_code != 202:
+                    response.failure(f"first checkout returned {response.status_code}")
+                else:
+                    first_order_id = response.json().get("orderId")
+                    if not first_order_id:
+                        response.failure("first checkout returned no orderId")
+
+            if not first_order_id:
+                return
+
+            with self.client.post("/api/checkout", json=checkout_person, headers=headers,
+                                  name="checkout-replay", catch_response=True) as response:
+                if response.status_code != 202:
+                    response.failure(f"replay returned {response.status_code}")
+                elif response.json().get("orderId") != first_order_id:
+                    response.failure("replay created a second order instead of returning the first")
+
+            logging.info(f"Checkout replay verified for user {user}")
+
     @task(5)
     def flood_home(self):
         flood_count = get_flagd_value("loadGeneratorFloodHomepage")
