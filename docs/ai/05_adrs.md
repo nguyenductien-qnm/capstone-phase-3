@@ -399,9 +399,9 @@ Tính năng AI (như tóm tắt review, shopping copilot) hiển thị trực ti
 
 - **Trạng thái:** Chấp nhận (Accepted)
 - **Ngày:** 2026-07-16
-- **Người ký:** Nhóm AI (AIO03) — Task Force 1 · Soạn thảo: Thanh Pham Huu Tien (owner TF1-53/TF1-62)
+- **Người ký:** **Thanh Pham Huu Tien** (`phamthanh.forwork@gmail.com`) — cá nhân chịu trách nhiệm về quyết định kỹ thuật này và về tính đúng của mọi con số trong ADR. Đổi từ "Nhóm AI (AIO03)" sang ký cá nhân ngày 2026-07-27 theo TF1-102: quyết định phát hiện bất thường phải quy được về một người, không núp sau tập thể.
 - **Trụ:** AI (AIOps) / Reliability / Operational Excellence
-- **Task:** TF1-53 (detector W1) · TF1-62 (deploy EKS) · MANDATE-07 `#7a`
+- **Task:** TF1-53 (detector W1) · TF1-62 (deploy EKS) · TF1-102 (ADR ký cá nhân) · MANDATE-07 `#7a`
 
 ## Context
 MANDATE-07 yêu cầu hệ thống tự phát hiện bất thường trên nhiều tín hiệu (sàn = univariate: mỗi service × 1 tín hiệu có baseline + luật riêng), cảnh báo theo mức ảnh hưởng, không spam. Detector (`aiops/detector/`) đã chạy liên tục trên EKS (ns `techx-tf1`, image `1.1-aiops-detector`), poll Prometheus + backend log mỗi 30s, alert về Discord.
@@ -415,12 +415,16 @@ MANDATE-07 yêu cầu hệ thống tự phát hiện bất thường trên nhi�
 
 ## Alternatives considered
 - **EWMA α=0.2 (spec TF1-49 gốc):** phản ứng có trọng số theo thời gian, tốt hơn rolling-mean với drift chậm. CHƯA thay vì cần backtest trên ≥24h dữ liệu Prometheus EKS thật để chọn α có căn cứ (kế hoạch `#7b`, TF1-71); rolling 3σ hiện tại cùng họ SPC, đơn giản, đủ cho sàn univariate của đề. → Defer sang #7b, không phải reject.
+  - **Trạng thái tính đến 2026-07-27 — EWMA VẪN CHƯA CÓ TRONG CODE.** `git grep -i ewma aiops/**/*.py` trên `develop` trả về **rỗng**: `detector.py` vẫn là SMA + 3σ trên cửa sổ trượt 30 mẫu. PR #257 (`feat/TF1-95-implement-EWMA`) còn **OPEN và CONFLICTING**, cập nhật lần cuối 21/07. Ghi rõ ở đây vì đúng ba tài liệu khác từng nói ngược lại (xem "Đính chính tài liệu" bên dưới) — người đọc ADR này phải kết luận được ngay là hệ thống **không** chạy EWMA.
+  - Điều kiện tiên quyết mà bullet trên đặt ra (**backtest trên dữ liệu EKS thật**) nay đã có nguyên liệu: phép đo TF1-98 ngày 26/07 cho baseline thật của lớp 3σ trên cụm — **10 báo động giả trong 188 phút (~3.2 lần/giờ)**, không lần nào chạm ngưỡng tĩnh. Đó là con số để so "trước/sau" khi thực sự bật EWMA. Xem addendum 2026-07-26 và `report/mandate15-eks/`.
+  - **→ ĐÃ CHỐT 2026-07-27: KHÔNG dùng EWMA.** Backtest đã chạy, EWMA α=0.2 **đo được là tệ hơn SMA đang chạy trên cả hai tín hiệu**; α=0.2 còn cho bộ nhớ **ngắn hơn** SMA30 ~4 lần nên không sửa được điểm yếu mà ADR này tự nêu. Thay vào đó gắn cổng SLO cho tầng 3σ (`dynamic_min_fraction`) — giảm 76% số alert, không mất phát hiện nào. Bullet này **không còn treo**; toàn bộ số đo và lập luận ở **addendum 2026-07-27** cuối ADR.
 - **Chỉ ngưỡng tĩnh:** mù với suy thoái dưới ngưỡng (slow burn 0.4%/ngày đốt 80% budget không kêu). → Loại, nhưng giữ làm lớp 1.
 - **Realtime stream consumer:** mua được ~15–30s MTTD bằng cả một service chạy 24/7 (state, reconnect, RAM trong trần $300) trong khi poll 30s đã pass target ≤2 phút với biên 3.4×. → Loại (trade-off sai).
 - **Multi-window burn-rate (SRE workbook):** ĐÚNG chuẩn hơn cho error budget — đã có rule DRAFT `error-budget-burn-fast` (14.4× ở cả 5m và 1h), chờ verify semantics trên EKS vì compose không sinh được 5xx thật. → Nâng cấp có kế hoạch ở #7b, không phát minh lại ngưỡng.
+  - **Trạng thái tính đến 2026-07-27 — vẫn DRAFT, chưa bật.** Các rule burn-rate trong `rules.yaml` còn nguyên nhãn DRAFT. Đợt đo 26/07 tìm ra một lý do cụ thể để **không** vội gỡ nhãn: rule `kafka-consumer-lag-high` query metric `kafka_consumer_group_lag`, mà tên đó **không tồn tại** trên Prometheus EKS (tên thật là `kafka_consumer_records_lag`). Query sai tên trong PromQL trả chuỗi rỗng **chứ không ném lỗi**, nên rule sai tên khi bật lên sẽ im lặng vĩnh viễn mà người vận hành tưởng đang được canh. → Quy tắc rút ra: **mọi rule DRAFT phải verify tên metric có series thật trước khi gỡ nhãn**, không chỉ review PromQL bằng mắt.
 
 ## Consequences
-- 13 rule config-driven (`rules.yaml`), thêm tín hiệu không sửa code; mỗi con số có nhãn đo/assumption trong "Sổ đăng ký con số" (05_adrs).
+- **16 rule** config-driven (`rules.yaml` — 11 metric, 4 log, 1 k8s_status; đếm lại 2026-07-27, ADR trước ghi 13 từ thời điểm ký 16/07), thêm tín hiệu không sửa code; mỗi con số có nhãn đo/assumption trong "Sổ đăng ký con số" (05_adrs).
 - Trả giá: rolling-mean nhớ ngắn (~15 phút) → baseline "bình thường" theo giờ-trong-ngày chưa mô hình hoá; chấp nhận ở W2, đánh giá lại sau FP-run 24h (TF1-71).
 - Phụ thuộc mở: backend log trên EKS chưa tồn tại (collector logs pipeline chỉ export debug) → 5 rule log + Drain3 tạm mù trên production; đã escalate CDO (quyết định thay OpenSearch), detector tự hồi phục khi backend lên, không cần redeploy.
 
@@ -614,6 +618,125 @@ nổi nó. Đây là cảnh báo ĐÚNG về một sự cố có thật không a
 sạch**, nên con số precision phải đọc là "trong điều kiện có nhiễu nền thật". Muốn baseline
 sạch phải rebuild image `email` (image local cũ hơn Dockerfile đã sửa trên `develop`) rồi
 chạy lại — ghi ra đây là việc còn thiếu, không lấp liếm bằng cách bỏ ca này khỏi bộ.
+
+### Addendum 2026-07-26 — MANDATE-15 / TF1-98: đo lại trên EKS thật, và 4 lỗ hổng phát hiện
+
+Báo cáo đầy đủ + dữ liệu thô: `report/mandate15-eks/`. Người đo: Thanh Pham Huu Tien.
+Đo trên cluster `ecommerce-dev-eks` / namespace `techx-tf1`, detector là pod
+`aiops-detector` đã đứng sẵn trong cụm 10 ngày (**không phải tiến trình do người đo dựng lên**).
+
+**Số mức bộ có nhãn (K=2): recall 0.500 · precision 0.077 · lead-time 380.0s.**
+So với compose `#7b` (K=3, 0.333 / 0.167 / 88.9s): recall khá hơn, **precision và lead-time
+đều tệ hơn rõ rệt**. So với số tổng hợp cũ của `evaluate_detector.py` (P=0.6875 / R=0.9167):
+số tổng hợp **lạc quan hơn thực tế ~9 lần về precision** — không dùng nó báo cáo năng lực nữa.
+
+**Quyết định — bơm bằng `kubectl`, không phải flagd.** flagd trên EKS đọc từ server BTC
+(`sandbox/values-flagd-sync.yaml` → `122.248.223.194.sslip.io`), patch ConfigMap vô tác dụng.
+Harness đã có sẵn `inject type=command` nên không phải sửa code đo trong lúc đang đo.
+
+**Lỗ hổng 1 (nghiêm trọng nhất) — detector mù hoàn toàn với hỏng-im-lặng.** Bơm `payment` →
+0 replica 367s: detector **không kêu một tiếng nào**. Bốn lớp xếp chồng, mỗi lớp kiểm chứng
+riêng: (a) `checkout` không còn gọi `payment` qua gRPC — kiến trúc đã chuyển sang Kafka
+(`domain.checkout.orders`), span `PaymentService/Charge` đứng yên từ 25/07 21:30 — nên giết
+payment không sinh lỗi ở đâu cả; (b) `payment` không xuất `rpc_server_duration_milliseconds`;
+(c) `payment` không xuất metric consumer lag; (d) rule `kafka-consumer-lag-high` sai tên metric
+— xem lỗ hổng 2. Rule error-ratio mù **về mặt cấu trúc** với hỏng-không-còn-tín-hiệu.
+Cần rule dạng `absent()`/throughput-về-0 cho service nghiệp vụ lõi.
+
+**Lỗ hổng 2 — chốt được câu hỏi bỏ ngỏ của TF1-71.** `kafka-consumer-lag-high` query
+`kafka_consumer_group_lag`; comment của chính rule đòi verify tên này trên Prometheus EKS.
+Verify xong: **tên đó không tồn tại**, tên thật là `kafka_consumer_records_lag(_avg|_max)`.
+Nguy hiểm ở chỗ query sai tên trả chuỗi rỗng chứ không ném lỗi — bật lên là **im lặng vĩnh
+viễn mà tưởng đang canh**. Phải sửa tên trước, rồi mới gỡ nhãn DRAFT.
+
+**Lỗ hổng 3 — ngưỡng 0.05 không có nghĩa như ta tưởng.** `grpc-error-rate-high` tính trên
+*toàn bộ* RPC. Đo trên cụm: `checkout` phục vụ `grpc.health.v1.Health/Check` 0.582 req/s so với
+`PlaceOrder` 0.071 req/s — health-check chiếm **89% mẫu số**. Nên 100% đơn hàng hỏng chỉ đẩy
+tỉ lệ lên ~0.11–0.18, và mất **380s** mới vượt ngưỡng (trên compose chỉ 88.9s vì tỉ lệ vọt lên
+0.9576). Phải loại health-check khỏi mẫu số hoặc tách rule theo `rpc_method`.
+
+**Lỗ hổng 4 — 3-sigma đang kêu nhảm 3.2 lần/giờ trên production.** Cửa sổ 188 phút không bơm
+gì: 10 alert. Tại thời điểm kêu, tỉ lệ lỗi là 0.0219 / 0.0125 / 0.0063 — **không lần nào chạm
+ngưỡng tĩnh 0.05**. Nguyên nhân: cửa sổ trượt 30 mẫu × poll 30s ⇒ baseline chỉ 15 phút, phương
+sai nền rất nhỏ nên một nhịp vô hại đã vượt `mean + 3σ`. Đây là bài toán mà winsorize/EWMA
+trong PR #343 nhắm tới; giờ đã có số nền để so trước/sau.
+
+**Bug harness phát hiện khi chấm, đã sửa.** `score_events` lọc alert theo `ts >= t_start` mà
+thiếu cận trên, nên trong scenario nhiều sự kiện, sự kiện sớm nuốt alert của sự kiện muộn —
+ca payment (thực tế im lặng) bị chấm thành caught với lead-time 1166.6s nhờ cướp alert của ca
+cart cách 19 phút. Ảnh hưởng thật nằm ở `case_masking.json` của MANDATE-15 vì nó **là scenario
+2 sự kiện theo thiết kế**. Đã kẹp cận trên `t_end + settle` + test hồi quy; 34/34 pass.
+
+---
+
+### Addendum 2026-07-27 — CHỐT: chỉ dùng 3-sigma, KHÔNG thêm EWMA; thay vào đó gắn cổng SLO
+
+Người quyết: Thanh Pham Huu Tien. Ticket: TF1-102. Đây là phần **kết luận** cho bullet
+"EWMA α=0.2 → Defer sang #7b" ở mục *Alternatives considered* — bullet đó không còn treo.
+
+Bullet gốc đặt điều kiện: *"cần backtest trên ≥24h dữ liệu Prometheus EKS thật để chọn α
+có căn cứ"*. Nay có quyền truy cập cụm nên đã chạy đúng backtest đó (12h, hai tín hiệu,
+step 30s = đúng nhịp poll, mô phỏng lại chính `eval_metric_rule` kèm cooldown 600s).
+
+**Kết quả — EWMA α=0.2 đo được là TỆ HƠN SMA đang chạy.**
+
+`checkout` error-ratio (SLO 0.05, 1391 điểm, có 1 sự cố thật là `cart` outage):
+
+| Phương án | Tổng alert | Bắt được sự cố | Số lần 3σ kêu |
+|---|---|---|---|
+| Hiện tại (SMA30 + 3σ) | 22 | 1 | 16 |
+| Chỉ ngưỡng tĩnh | 6 | 1 | 0 |
+| **EWMA α=0.2 + 3σ** | **25** | 1 | **19 ← tệ hơn** |
+| EWMA α=0.05 + 3σ | 11 | 1 | 5 |
+
+`cart` p95 latency (SLO 1.0s, 1433 điểm, không có sự cố nào → mọi lần kêu đều là giả):
+SMA30 **12**, EWMA α=0.2 **11**, EWMA α=0.05 **8**.
+
+**Lý do kỹ thuật, và nó ngược với giả định của cả nhóm:** EWMA α=0.2 có **bộ nhớ ngắn hơn
+SMA30 khoảng 4 lần** — center of mass `(1-α)/α = 4` mẫu ≈ 2 phút, so với SMA30 trễ trung
+bình 15 mẫu ≈ 7.5 phút (nhớ hết 15 phút). Nghĩa là EWMA ở α=0.2 **không** sửa được đúng
+điểm yếu mà chính ADR này nêu ở *Consequences* (*"rolling-mean nhớ ngắn ~15 phút"*) — nó
+làm điểm yếu đó tệ thêm. "EWMA = baseline tốt hơn" chỉ đúng khi α đủ nhỏ, mà α=0.2 thì không.
+
+**Phát hiện quan trọng hơn: tầng động đang không đóng góp gì.** Sự cố thật duy nhất bắt
+được là do tầng **tĩnh** (ratio 0.1325 > ngưỡng 0.05), không phải 3σ. Trong 12h, tầng động
+đóng góp **28 lần kêu và 0 phát hiện riêng**.
+
+**Nguyên nhân gốc không nằm ở cách làm mượt.** 3-sigma kêu vì bất thường **thống kê**, chứ
+không phải vì có ý nghĩa **vận hành**. Ví dụ rõ nhất: `cart` p95 đi từ 5ms lên 20ms là vượt
+3σ, trong khi SLO là 1000ms — cao gấp 28 lần giá trị lớn nhất từng quan sát. Không thuật
+toán làm mượt nào sửa được chuyện đó.
+
+**Quyết định — gắn tầng động vào chính SLO** bằng trường cấu hình mới `dynamic_min_fraction`
+(`rules.yaml`, đọc ở `detector.py::eval_metric_rule`): 3σ chỉ được kêu khi giá trị đã đạt
+một tỉ lệ nhất định của ngưỡng tĩnh. Đo lại bằng chính code đã sửa:
+
+| Tín hiệu | Trước | Sau | Bắt sự cố |
+|---|---|---|---|
+| `grpc-error-rate-high` (cổng 0.50) | 22 alert (16 do 3σ) | **8 alert (2 do 3σ)** | 1 → **1, không đổi** |
+| `latency-p95-high` (cổng 0.20) | 12 alert (12 do 3σ) | **0 alert** | 0 → 0 (đúng, không có sự cố) |
+
+**Tổng 34 → 8 alert trong 12h (giảm 76%), không mất một phát hiện nào.** Cách này cũng đưa
+tầng động về đúng mục đích ban đầu của nó: cảnh báo sớm khi **đang tiến gần** SLO, chứ không
+phải kêu mỗi lần có nhiễu thống kê.
+
+Trường này **không có mặc định** (`None` = hành vi y hệt trước). Chỉ 2/16 rule được bật, đúng
+2 rule có số đo. 14 rule còn lại không đổi hành vi — cố ý, để không đổi ngầm 11 rule metric
+cùng lúc.
+
+**Căng thẳng còn lại, ghi ra chứ không lờ đi:** cổng SLO mâu thuẫn một phần với yêu cầu
+masking của MANDATE-15 (*"sự cố nhỏ nấp dưới nhiễu vẫn phải bắt"*) — sự cố nhỏ nằm dưới cổng
+sẽ bị chặn. Đó chính là lý do cổng phải là **cấu hình per-rule** chứ không phải hằng số trong
+code: kịch bản masking chỉnh riêng được. Khi PR #343 (winsorize) về, phải đo lại tương tác
+giữa hai cơ chế này trên cùng bộ có nhãn.
+
+**Giới hạn của kết luận này:** 12h, 2 tín hiệu, 1 sự cố. Đủ để bác EWMA α=0.2 (nó tệ hơn
+trên **cả hai** tín hiệu) và đủ để chọn cổng SLO (giảm 76% mà không mất phát hiện). **Chưa**
+đủ để khẳng định tầng động là vô dụng — trong 12h đó đơn giản là không có ca suy thoái nào
+tiến gần SLO mà chưa vượt, tức đúng loại việc tầng động sinh ra để bắt. Giữ tầng động, có cổng.
+
+**Hệ quả cho PR #257** (`feat/TF1-95-implement-EWMA`, tác giả Nguyenngocgiao): đóng, kèm số đo.
+Đóng vì **có bằng chứng**, không phải vì code sai — và chính PR đó là thứ thúc đẩy việc đo.
 
 ---
 
@@ -968,3 +1091,98 @@ Guardrail `crbxw41dbmxp` **không nằm trong** account Phase3 (`804372444787` /
 creds của chính account đó. Chạy stack bằng creds SSO Phase3 thì `ApplyGuardrail` trả
 `ValidationException`, mà `ml-guard/server.py:435` **fail-closed** → chặn sạch mọi câu
 hỏi, kể cả câu lành. Lỗi cấu hình này đã tốn một vòng debug ngày 27/07.
+
+---
+
+### Addendum 2026-07-27 (b) — Đổi nền metric sang spanmetrics; và đo ra 9/11 rule đang câm
+
+**Bối cảnh.** Addendum (a) ở trên chốt thuật toán (3-sigma + cổng SLO). Addendum này về
+**nguồn tín hiệu** — và hoá ra đó mới là ràng buộc lớn hơn nhiều. Toàn bộ số đo trên cụm
+`ecommerce-dev-eks` ngày 27/07, chi tiết ở `report/mandate22-detection-gaps/verify.md`.
+
+**Phát hiện chính, và nó nghiêm trọng: 9 trong 11 metric rule đang trả về chuỗi rỗng.**
+Chỉ `latency-p95-high` và rule error-rate có dữ liệu. Trong 9 rule câm có **cả 4 rule
+`error-budget-burn-*`** — phần neo vào SLO hợp đồng, thứ vẫn được trình bày như lõi của hệ
+phát hiện. Nguyên nhân đo được:
+
+- `{service_name="checkout"}` trên `http_server_request_duration_seconds_count` là **rỗng** —
+  checkout không hề xuất metric đó
+- `{service_namespace="techx-corp"}` chỉ khớp **duy nhất `cart`**
+- `http_response_status_code=~"5.."` **rỗng toàn cụm** → tử số không bao giờ có dữ liệu
+
+Tức là **các rule burn-rate chưa từng có khả năng kêu**, và không ai biết vì detector nuốt
+im lặng kết quả rỗng. Chính cơ chế detector-tự-tố-cáo-rule-câm (thêm cùng đợt này) phát
+hiện ra điều này ngay lần chạy đầu tiên.
+
+**Quyết định 1 — chuyển error-rate sang spanmetrics.**
+`grpc-error-rate-high` → `service-error-rate-high` trên `traces_span_metrics_calls_total`.
+
+| | `rpc_server_duration_*` | `traces_span_metrics_*` |
+|---|---|---|
+| Số service phủ | **3** (ad, checkout, product-catalog) | **17** |
+| Nguồn | service tự xuất | collector sinh **từ trace** |
+
+Đồng thời loại `grpc.health.v1.Health/Check` khỏi **cả tử số lẫn mẫu số**: đo 26/07 trên
+checkout, health-check chiếm **89% mẫu số** (0.582 vs 0.071 req/s), nên kể cả khi 100% đơn
+hàng thất bại tỉ lệ chỉ bò lên 0.109–0.18 → mất 380s mới vượt ngưỡng.
+
+Ngưỡng **0.05 → 0.10**: bỏ health-check thì mẫu số nhỏ đi ~9 lần nên tỉ lệ nền của *chính
+trạng thái bình thường* cũng cao lên — đo 12h, checkout có p95 đúng bằng 0.0500, tức vượt
+ngưỡng cũ suốt **4.9% thời gian mà không có sự cố gì**. Backtest: 0.05 → 14 alert/12h,
+**0.10 → 3**, 0.15 → 3, 0.20 → 3. 0.10 là điểm gãy.
+
+**Quyết định 2 — thêm `service-traffic-collapse`, rule đầu tiên bắt "hỏng-không-còn-tín-hiệu".**
+Đo 26/07: giết pod `payment` → detector im lặng hoàn toàn. Mọi rule đều đo "hỏng mà vẫn trả
+lời"; không rule nào đo được "không còn trả lời gì cả".
+
+Ba điều **đo ra khác với thiết kế ban đầu**, ghi lại vì mỗi cái đều suýt thành lỗi:
+
+1. **`payment` là `SPAN_KIND_CONSUMER`, không phải `SERVER`** — nó làm việc qua Kafka. Lọc
+   `SPAN_KIND_SERVER` như dự định ban đầu sẽ bỏ sót đúng service mà cả đợt này nhắm vào.
+   Bộ lọc đúng: `SPAN_KIND_SERVER|SPAN_KIND_CONSUMER` (15 service).
+
+2. **Bỏ hẳn phương án `absent()`.** spanmetrics **không hết hạn chuỗi** — đo được 53/84 pod
+   đã chết mà series vẫn còn. Service chết thì chuỗi bị *đóng băng* chứ không biến mất, nên
+   `absent()` không bao giờ kêu. Giữ lại là giữ một rule chết.
+
+3. **Đo tỉ lệ so với phần còn lại của hệ, không so với quá khứ của chính service.** Cách
+   "tự thân" báo động đồng loạt 8 service lúc 06:17 — nguyên nhân thật là một nguồn tải
+   thượng nguồn đổi (load-generator 43.9 → 6.9 span/s, tổng hệ 236.6 → 54.7). `sum(up)` giữ
+   nguyên 23 suốt 12h nên không phải hố scrape: traffic thật sự tụt 6 lần. Cách "so bạn"
+   triệt tiêu đúng loại đó (`frontend` 0.191→0.828, `recommendation` 0.160→0.598).
+
+| cửa sổ ngắn | ngưỡng | tự thân | **so bạn** |
+|---|---|---|---|
+| 5m | 0.20 | 25 | 9 |
+| **15m** | **0.20** | 5 | **2** |
+| 30m | 0.20 | 2 | 2 |
+
+**Giá phải trả, không giấu:** cửa sổ `[15m]` nghĩa là service chết hẳn mất ~12–15 phút mới bị
+bắt — chậm hơn 380s của rule error-rate. Chấp nhận vì loại sự cố này hiện **không bao giờ**
+bị bắt. Cách sửa đúng là trường `for:` (đòi điều kiện kéo dài N chu kỳ) mà detector **không
+có** — hạn chế đã biết, để ticket riêng.
+
+**Quyết định 3 — sửa `kafka-consumer-lag-high`, vốn có ba lỗi chồng nhau chứ không phải một.**
+Tên metric sai (`kafka_consumer_group_lag` không tồn tại; tên thật `kafka_consumer_records_lag`);
+gom `by (group)` trong khi **không hề có nhãn `group`**; và bộ lọc `{namespace=...}` sai tên
+nhãn (thật là `k8s_namespace_name`). Sửa mỗi tên metric vẫn ra chuỗi rỗng. Nguyên nhân gốc:
+kafkametrics receiver trỏ vào `kafka:9092` — broker không tồn tại vì `kafka.enabled=false`;
+cụm dùng MSK và MSK tắt `open_monitoring`. **Phạm vi thật sau khi sửa: chỉ `fraud-detection`.**
+`payment`/`email`/`shipping` vẫn không quan sát được lag → ticket hạ tầng cho CDO.
+
+**Cố ý KHÔNG cho rule nào `expect_series: false`.** Kế hoạch ban đầu định cho
+`error-budget-burn-fast` opt-out vì tưởng nó "rỗng khi hệ khoẻ", nhưng đo ra nó **mù thật**.
+Cho opt-out là che đi một rule hỏng. Hệ quả đã biết trước: lần deploy đầu sẽ có **8 cảnh báo
+rule-câm** — danh sách đầy đủ và nguyên nhân từng cái ở `verify.md` §V7, báo trước để không
+ai bất ngờ.
+
+**Đổi `id` rule làm đứt mạch lịch sử alert.** `id` là khoá của `metric_history`, `dedup_key`
+và `alerter_history.jsonl`. Số liệu trước 27/07 nằm dưới `grpc-error-rate-high`, sau đó nằm
+dưới `service-error-rate-high`. Ghi ra đây để người đọc số cũ không bị lỡ.
+
+**Việc phát sinh, chưa làm:** viết lại hoặc bỏ 4 rule burn-rate; `bedrock-cost-high`
+(`bedrock_cost_usd_total` không tồn tại); `genai-latency-high` (lọc sai service);
+`memory-saturation-high` (join không ra kết quả); MSK `open_monitoring`; trường `for:`.
+
+**Người ký:** Thanh Pham Huu Tien (phamthanh.forwork@gmail.com) — cá nhân chịu trách nhiệm
+về quyết định kỹ thuật này và về tính đúng của mọi con số trong addendum.

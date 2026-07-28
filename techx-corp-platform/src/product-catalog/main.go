@@ -422,6 +422,12 @@ var (
 	cachedCredsMutex   sync.Mutex
 )
 
+type containerCredentialResponse struct {
+	AccessKeyId     string `json:"AccessKeyId"`
+	SecretAccessKey string `json:"SecretAccessKey"`
+	Token           string `json:"Token"`
+}
+
 type assumeRoleResponse struct {
 	XMLName          xml.Name `xml:"AssumeRoleResponse"`
 	AssumeRoleResult struct {
@@ -498,11 +504,60 @@ func signAWSV4WithCreds(req *http.Request, body []byte, region, service, accessK
 	req.Header.Set("Authorization", authHeader)
 }
 
+func fetchContainerAWSCredentials(ctx context.Context, client *http.Client, endpoint, token string) (string, string, string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return "", "", "", err
+	}
+	req.Header.Set("Authorization", token)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", "", "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", "", "", fmt.Errorf("container credential endpoint returned %d", resp.StatusCode)
+	}
+
+	var creds containerCredentialResponse
+	if err := json.NewDecoder(resp.Body).Decode(&creds); err != nil {
+		return "", "", "", err
+	}
+	if creds.AccessKeyId == "" || creds.SecretAccessKey == "" {
+		return "", "", "", fmt.Errorf("container credential endpoint returned empty credentials")
+	}
+	return creds.AccessKeyId, creds.SecretAccessKey, creds.Token, nil
+}
+
+func getContainerAWSCredentials() (string, string, string) {
+	endpoint := os.Getenv("AWS_CONTAINER_CREDENTIALS_FULL_URI")
+	tokenFile := os.Getenv("AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE")
+	parsed, err := url.Parse(endpoint)
+	if endpoint == "" || tokenFile == "" || err != nil || parsed.Scheme != "http" || parsed.Hostname() != "169.254.170.23" {
+		return "", "", ""
+	}
+	token, err := os.ReadFile(tokenFile)
+	if err != nil {
+		return "", "", ""
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	ak, sk, st, err := fetchContainerAWSCredentials(ctx, http.DefaultClient, endpoint, strings.TrimSpace(string(token)))
+	if err != nil {
+		return "", "", ""
+	}
+	return ak, sk, st
+}
+
 func getLocalAWSCredentials() (string, string, string) {
 	ak := os.Getenv("AWS_ACCESS_KEY_ID")
 	sk := os.Getenv("AWS_SECRET_ACCESS_KEY")
 	st := os.Getenv("AWS_SESSION_TOKEN")
 	if ak != "" && sk != "" {
+		return ak, sk, st
+	}
+	if ak, sk, st = getContainerAWSCredentials(); ak != "" && sk != "" {
 		return ak, sk, st
 	}
 	credFile := os.Getenv("AWS_SHARED_CREDENTIALS_FILE")

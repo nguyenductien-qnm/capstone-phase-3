@@ -1,0 +1,58 @@
+{
+  "scenario_id": "case-payment-outage-eks-001",
+  "type": "real",
+  "events": [
+    {
+      "label": "case-payment-outage-eks-001",
+      "service": "checkout",
+      "expected_rule_ids": [
+        "grpc-error-rate-high",
+        "error-budget-burn-fast-checkout"
+      ],
+      "expect_fire": true,
+      "inject": {
+        "type": "command",
+        "on": "kubectl scale deploy/payment -n techx-tf1 --replicas=0",
+        "off": "kubectl scale deploy/payment -n techx-tf1 --replicas=2"
+      },
+      "offset_seconds": 0,
+      "duration_seconds": 360,
+      "t_start": 1785082437.0,
+      "t_end": 1785082804.0
+    }
+  ],
+  "score": {
+    "window": {
+      "start": 1785082437.0,
+      "end": 1785082924.0
+    },
+    "per_event": [
+      {
+        "label": "case-payment-outage-eks-001",
+        "service": "checkout",
+        "expected_rule_ids": [
+          "grpc-error-rate-high",
+          "error-budget-burn-fast-checkout"
+        ],
+        "expect_fire": true,
+        "fired": false,
+        "correct": false,
+        "lead_time_seconds": null,
+        "matched_alert": null
+      }
+    ],
+    "metrics": {
+      "K_incidents": 1,
+      "recall": 0.0,
+      "precision": null,
+      "total_fires_observed": 0,
+      "correct_fires": 0
+    },
+    "raw_alerts_in_window": []
+  },
+  "verdict": {
+    "pass": false,
+    "reason": "real incident NOT caught"
+  },
+  "remediation_records": null
+}

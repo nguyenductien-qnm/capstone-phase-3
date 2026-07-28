@@ -176,7 +176,8 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA ai TO otelu;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA ai TO otelu;
 
 -- Product Catalog Service: grant permission to schema
-GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA catalog TO otelu;
+GRANT SELECT ON ALL TABLES IN SCHEMA catalog TO otelu;
+GRANT SELECT, INSERT, UPDATE ON catalog.product_embeddings_v2 TO otelu;
 
 -- Product Catalog Service: add product data
 INSERT INTO catalog.products (id, name, description, image_url, price_currency_code, price_units, price_nanos, categories)

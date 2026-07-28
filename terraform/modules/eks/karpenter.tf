@@ -274,13 +274,16 @@ resource "aws_cloudwatch_event_rule" "karpenter_interruption" {
       source      = ["aws.ec2"]
       detail-type = ["EC2 Instance State-change Notification"]
     }
-    capacity_reservation_interruption = {
+    capacity_reservation = {
       source      = ["aws.ec2"]
       detail-type = ["EC2 Capacity Reservation Instance Interruption Warning"]
     }
   }
 
-  name          = "${local.cluster_name}-karpenter-${each.key}"
+  # substr() giới hạn 64 ký tự (CloudWatch Events rule name limit) — cluster_name
+  # dài hơn ở một số environment (vd "ecommerce-develop-dev-eks") có thể vượt nếu
+  # không cắt, dù each.key đã rút gọn.
+  name          = substr("${local.cluster_name}-karpenter-${each.key}", 0, 64)
   event_pattern = jsonencode(each.value)
 }
 

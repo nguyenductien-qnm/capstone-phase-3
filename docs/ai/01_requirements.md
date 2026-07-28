@@ -56,10 +56,20 @@ Auto-remediation (detect-only), multi-region. (Semantic search bằng `pgvector`
 ### AIOps core (RULES.md §4: "đa tín hiệu ... + vòng xử lý, chạy liên tục")
 | Tín hiệu đề liệt kê | Rule | Trạng thái |
 |---|---|---|
-| Latency | `latency-p95-high` (đã lọc service SLO), `genai-latency-high` | ✅ chạy + FP-tested |
-| Error rate | `error-rate-high`, `checkout-failure-high`, **`grpc-error-rate-high`** (semantics verified chaos), `error-budget-burn-fast` (draft) | ✅/draft |
-| Saturation | `memory-saturation-high` (draft — cần kube-state-metrics EKS) | draft |
-| **Queue lag** | **`kafka-consumer-lag-high` (draft 12/07 tối — hệ có Kafka)** | draft, verify metric trên EKS |
+| Latency | `latency-p95-high` (đã lọc service SLO) | ✅ chạy (chỉ `cart` xuất histogram HTTP) |
+| Latency | `genai-latency-high` | ❌ **MÙ** — lọc `service_name="product-reviews"` nhưng service đó không xuất metric ấy |
+| Error rate | **`service-error-rate-high`** (nền spanmetrics, đã loại health-check) | ✅ chạy, phủ 17 service |
+| Error rate | 4 rule `error-budget-burn-*` | ❌ **MÙ** — `checkout` không xuất `http_server_request_duration_seconds`, và `http_response_status_code=~"5.."` rỗng toàn cụm |
+| **Hỏng-im-lặng** | **`service-traffic-collapse`** (mới 27/07) | ✅ chạy, phủ 15 service kể cả `payment` |
+| Saturation | `memory-saturation-high` (draft) | ❌ **MÙ** — join với `kube_pod_container_resource_limits` không ra kết quả |
+| **Queue lag** | **`kafka-consumer-lag-high`** | ✅ chạy sau khi sửa 3 lỗi, nhưng **chỉ phủ `fraud-detection`** (MSK tắt `open_monitoring`) |
+| Cost | `bedrock-cost-high` | ❌ **MÙ** — `bedrock_cost_usd_total` không tồn tại |
+
+> **Đính chính 2026-07-27.** Bảng trước ghi `error-rate-high` và `checkout-failure-high` — hai
+> rule **không còn trong `rules.yaml`** — và ghi `genai-latency-high` là "✅ chạy + FP-tested"
+> trong khi đo ra nó chưa từng đọc được chuỗi nào. Nhãn ✅/❌ ở trên là **kết quả chạy
+> `detector.py --once` trên Prometheus của cụm ngày 27/07**, không phải ý định thiết kế.
+> Toàn bộ số và nguyên nhân từng rule: `report/mandate22-detection-gaps/verify.md` mục V7.
 | Cost | Chưa có tín hiệu — W2: AWS Budgets/Cost anomaly + rule chi phí Bedrock từ token counter | ❌ gap ghi nhận, kế hoạch W2 |
 | Vòng remediation (dry-run→blast→verify→rollback→CB) | `03_specs/anomaly_remediation.md` khớp nguyên văn đề; W1 detect-only | ✅ spec, code W2 |
 | Log-based signals (429/OOM/DB/DNS/GenAI) | 5 rule log, marker-based | ✅ |

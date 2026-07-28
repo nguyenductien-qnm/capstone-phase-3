@@ -46,8 +46,10 @@
 
 <!-- slide -->
 ## Slide 5: Giải Pháp Vận Hành AIOps (AI Operations)
-* **EWMA Anomaly Detection:**
-  * Giám sát p95 Latency và Error Rate (ngưỡng 3 độ lệch chuẩn, hệ số làm mượt $\alpha = 0.2$) để lọc cảnh báo nhiễu.
+* **Phát hiện bất thường hai tầng (16 rule cấu hình được):**
+  * **Tầng 1 — ngưỡng tĩnh neo vào SLO hợp đồng** (`onboarding/SLO.md`), không phải số tự chọn: checkout 5xx > 1%, storefront 5xx > 0.5%, p95 > 1s.
+  * **Tầng 2 — 3σ động** trên cửa sổ trượt 30 mẫu theo từng `rule × service`, bắt suy thoái *chưa* chạm SLO. Backtest 12h trên cụm EKS thật cho thấy EWMA $\alpha = 0.2$ **tệ hơn** phương án này, nên đã bác có số đo (ADR-012).
+  * **Cổng SLO** cho tầng động: đo được **34 → 8 báo động/12h**, vẫn bắt đúng sự cố đã bơm.
 * **Drain3 Log Clustering:**
   * Phân cụm log tự động để phát hiện các mẫu log lỗi mới lạ (OOM, db pool exhaustion) thời gian thực.
 * **Vòng Tự Khắc Phục Khép Kín (Closed-loop Remediation):**
@@ -64,7 +66,7 @@
 | **TF1-46** | AIE | Valkey & Fallback Spec | Đặc tả spec caching & fallback routing |
 | **TF1-47** | AIE | [Extend] Copilot Spec & CDO Contracts | Đặc tả gRPC `:50051` và ký hợp đồng CDO |
 | **TF1-48** | AIE | [Extend] Copilot PoC & Evals Script | Mã nguồn Streamlit và `run_evals.py` |
-| **TF1-49** | AIOps | Golden Signal Spec | Đặc tả thuật toán EWMA phát hiện lỗi |
+| **TF1-49** | AIOps | Golden Signal Spec | Đặc tả golden signal (spec đề xuất EWMA; bản chạy chốt 3σ — ADR-012) |
 | **TF1-50** | AIOps | [Extend] Remediation Spec | Đặc tả an toàn vòng tự phục hồi |
 | **TF1-51** | AIOps | Telemetry Audit | Audit luồng trace GenAI không đứt đoạn |
 | **TF1-52** | AIOps | [Extend] Drain3 Log Clustering | Gom cụm log lỗi thực tế |

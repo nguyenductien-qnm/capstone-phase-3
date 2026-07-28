@@ -1,0 +1,154 @@
+name: CodeQL
+
+# MANDATE-10 yêu cầu #2 (vế SAST): "Image CVE scan + IaC misconfig scan + secret/SAST là
+# CỔNG CHẶN, không phải hậu kiểm". Ba vế kia đã có gate riêng — Trivy image trong
+# app-build.yaml, gitleaks trong platform-ci.yaml, Trivy+Checkov trong infra-cd.yaml.
+# Đây là vế cuối.
+#
+# Vì sao TÁCH FILE thay vì nhét vào platform-ci.yaml: gate ở đó là gate RẺ, chạy trong
+# giây và fail sớm. CodeQL chạy hàng phút cho 8 ngôn ngữ — gộp vào sẽ phá tính fail-fast
+# của gate rẻ, dev phải chờ SAST xong mới biết mình lộ secret.
+#
+# Vì sao KHÔNG có `paths:` filter: xem bài học đã ghi ở platform-ci.yaml (job unit-test).
+# Required status check là chuỗi cố định; PR nào không khớp paths thì job không tồn tại,
+# GitHub treo ở trạng thái Expected và PR không bao giờ merge được. Muốn giảm phạm vi
+# quét thì dùng `paths-ignore` trong .github/codeql/codeql-config.yml — nó giới hạn cái
+# CodeQL ĐỌC, không giới hạn job CHẠY.
+
+on:
+  pull_request:
+  push:
+    branches: [main, develop]
+  schedule:
+    # 10:07 ICT (UTC+7) thứ Hai hằng tuần — rule pack CodeQL cập nhật liên tục, code không
+    # đổi vẫn có thể lòi lỗ hổng mới. Lệch phút khỏi :00 để né giờ cao điểm runner GitHub.
+    - cron: "7 3 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  # Hủy run cũ CHỈ trên PR (dev push liên tiếp thì run trước thành vô nghĩa). Trên
+  # push/schedule thì KHÔNG hủy — theo đúng infra-cd.yaml, workflow có cron mà bật
+  # cancel-in-progress thì run theo lịch bị PR cùng ref giết giữa chừng, quét tuần
+  # không bao giờ hoàn tất.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # ------------------------------------------------------------------ #
+  # Quét từng ngôn ngữ song song. build-mode khai TƯỜNG MINH per        #
+  # language vì ràng buộc của CodeQL khác nhau theo từng loại:          #
+  #   - Ngôn ngữ thông dịch (js/ts, python, ruby, actions): BẮT BUỘC    #
+  #     `none`, không có lựa chọn khác.                                 #
+  #   - csharp, java-kotlin, rust: hỗ trợ `none`. CHỌN `none` có chủ ý  #
+  #     để né autobuild — repo có 3 .csproj (accounting, cart/src,      #
+  #     cart/tests) và 2 build tool Java khác nhau (ad dùng gradle,     #
+  #     fraud-detection dùng gradle.kts). Autobuild phải đoán đúng cả   #
+  #     ba hệ build; `none` bỏ hẳn rủi ro đó.                           #
+  #   - go: KHÔNG hỗ trợ `none` (docs chỉ liệt kê C/C++, C#, Java,      #
+  #     Rust) nên buộc phải autobuild.                                  #
+  # ------------------------------------------------------------------ #
+  analyze:
+    name: SAST (codeql, ${{ matrix.language }})
+    runs-on: ubuntu-latest
+    # Chặn job treo đốt phút runner. 30' là dư cho repo cỡ này (115 file .py, 84 .ts).
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      # Bắt buộc để upload SARIF lên tab Security.
+      security-events: write
+    strategy:
+      # Một ngôn ngữ đỏ KHÔNG được giết 7 ngôn ngữ còn lại — cần thấy hết finding trong
+      # một lần chạy để xử một lượt, thay vì sửa một cái rồi lòi cái tiếp theo.
+      fail-fast: false
+      matrix:
+        include:
+          - language: javascript-typescript
+            build-mode: none
+          - language: python
+            build-mode: none
+          - language: ruby
+            build-mode: none
+          # Quét chính GitHub Actions workflow: bắt script injection, lạm dụng
+          # pull_request_target, quyền token thừa. Bối cảnh DIRECTIVE #10 mở đầu bằng
+          # "Một pipeline bị chiếm..." — pipeline là bề mặt tấn công directive nêu tên
+          # đầu tiên, mà chính nó lại cầm quyền ký cosign và apply Terraform.
+          - language: actions
+            build-mode: none
+          - language: csharp
+            build-mode: none
+          - language: java-kotlin
+            build-mode: none
+          - language: rust
+            build-mode: none
+          - language: go
+            build-mode: autobuild
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Khởi tạo CodeQL
+        uses: github/codeql-action/init@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          config-file: ./.github/codeql/codeql-config.yml
+          # KHÔNG khai `queries:` — bỏ trống nghĩa là dùng suite mặc định, đúng thứ mình
+          # muốn. Spec của init/action.yml: queries là "Comma-separated list of ADDITIONAL
+          # queries to run", tức nó nhận query/suite BỔ SUNG chứ không nhận tên suite mặc
+          # định; viết `queries: default` làm CodeQL đi tìm một pack tên "default" và chết
+          # với "Query pack default cannot be found" (run 30202248243, cả 8 ngôn ngữ).
+          #
+          # Cũng KHÔNG dùng security-extended: docs GitHub mô tả suite mặc định là "highly
+          # precise, return few false positive", còn security-extended thêm query "slightly
+          # lower precision". Đây là gate CHẶN MERGE nên độ chính xác quan trọng hơn độ
+          # phủ — false positive nghĩa là cả team không merge được.
+
+      # Chỉ Go cần bước này. Các ngôn ngữ dùng build-mode `none` mà chạy autobuild là
+      # thừa và có thể xung đột.
+      - name: Autobuild (chỉ Go)
+        if: matrix.build-mode == 'autobuild'
+        uses: github/codeql-action/autobuild@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4
+
+      - name: Phân tích
+        uses: github/codeql-action/analyze@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4
+        with:
+          category: /language:${{ matrix.language }}
+
+  # ------------------------------------------------------------------ #
+  # Job gộp tên CỐ ĐỊNH để đưa vào required status checks.              #
+  # Lý do (giống job unit-test trong platform-ci.yaml): matrix sinh tên #
+  # động "SAST (codeql, python)"... mà required check là chuỗi cố định. #
+  # Thêm ngôn ngữ mới cũng không phải sửa ruleset.                      #
+  #                                                                    #
+  # KHÁC unit-test một điểm: ở đây `cancelled` KHÔNG cho qua. Với test  #
+  # thì skip nghĩa là không có gì cần chạy; với SAST thì bỏ qua nghĩa   #
+  # là KHÔNG AI QUÉT — đúng thứ directive gọi là "pipeline chạy cho     #
+  # vui". Chỉ 'success' mới được merge.                                 #
+  # ------------------------------------------------------------------ #
+  sast-gate:
+    name: SAST (codeql)
+    needs: analyze
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Tổng hợp kết quả
+        run: |
+          set -euo pipefail
+          # needs.<matrix-job>.result gộp mọi nhánh: 'success' chỉ khi TẤT CẢ success;
+          # một nhánh fail -> 'failure'; bị hủy -> 'cancelled'; bị skip -> 'skipped'.
+          res="${{ needs.analyze.result }}"
+          case "$res" in
+            success)
+              echo "✅ CodeQL pass toàn bộ 8 ngôn ngữ."
+              ;;
+            cancelled)
+              echo "::error::CodeQL bị hủy giữa chừng -> không có bằng chứng đã quét. Chạy lại."
+              exit 1
+              ;;
+            *)
+              echo "::error::CodeQL không pass (kết quả: $res). Xem tab Security để biết finding."
+              exit 1
+              ;;
+          esac

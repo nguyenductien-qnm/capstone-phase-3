@@ -1,0 +1,24 @@
+{
+  "id": "case-payment-outage-eks-001",
+  "type": "real",
+  "description": "MANDATE-15 / TF1-98: do lai tren EKS that (cluster ecommerce-dev-eks, namespace techx-tf1) thay vi docker-compose. flagd tren EKS dong bo tu server trung tam cua BTC (xem platform/gitops/applications/application.yaml -> sandbox/values-flagd-sync.yaml) nen KHONG bom duoc su co bang flag o day; dung inject type=command voi kubectl thay the. Dua payment ve 0 replica -> checkout goi sang that bai that -> checkout ghi rpc_grpc_status_code=13 tren chinh metric server-side cua no -> grpc-error-rate-high phai keu.",
+  "service": "checkout",
+  "expected_rule_ids": [
+    "service-error-rate-high",
+    "error-budget-burn-fast-checkout"
+  ],
+  "expect_fire": true,
+  "inject": {
+    "type": "command",
+    "on": "kubectl scale deploy/payment -n techx-tf1 --replicas=0",
+    "off": "kubectl scale deploy/payment -n techx-tf1 --replicas=2"
+  },
+  "duration_seconds": 360,
+  "settle_seconds": 120,
+  "notes": [
+    "duration 360s KHONG phai so tuy tien: rule dung rate(...[5m]), nen cua so bom phai VUOT 5 phut thi ti le loi moi kip chi phoi cua so truot. Bai hoc nay da tra gia o #7b (150s khong du).",
+    "Bien vuot nguong mong doi chi ~2.2x, khong phai gan 1.0: do do luc 26/07 tren cum, checkout phuc vu Check (health-check) 0.582 req/s va PlaceOrder chi 0.071 req/s. Mau so cua rule gom CA HAI, nen ke ca khi 100% don hang that bai thi ti le loi toi da chi dat 0.071/0.653 = 0.109 so voi nguong 0.05.",
+    "payment duoc chon vi day gan nhu la lua chon duy nhat kha thi: loi phai duoc ghi lai boi mot service VAN DANG SONG va co xuat metric gRPC server-side. Do tren cum chi co 3 service xuat rpc_server_duration_milliseconds (ad, checkout, product-catalog), va giet chinh service do thi no ngung xuat metric chu khong sinh metric loi.",
+    "aiops-remediation dang chay tren cum o che do REMEDIATION_DRY_RUN=true va chi co 1 policy cho oom-detected, nen no khong can thiep vao ca nay."
+  ]
+}
