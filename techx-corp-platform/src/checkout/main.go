@@ -73,11 +73,15 @@ var initResourcesOnce sync.Once
 const (
 	checkoutDependencyTimeout = 750 * time.Millisecond
 	maxOrderItemConcurrency   = 4
-	// Readiness re-checks the database on the same cadence as the kubelet probe
-	// (periodSeconds: 5), with a ping timeout under it so a stuck ping cannot
-	// stall the loop past one interval.
-	dbReadinessInterval    = 5 * time.Second
-	dbReadinessPingTimeout = 2 * time.Second
+	// Readiness polls faster than the kubelet probe (periodSeconds: 5) so a real
+	// outage is noticed within one probe cycle, with a ping timeout under the
+	// interval so a stuck ping cannot stall the loop.
+	dbReadinessInterval    = 2 * time.Second
+	dbReadinessPingTimeout = 1 * time.Second
+	// A single failed ping does not pull the pod out of the Service: a switchover
+	// blip is meant to be absorbed by the retry path in order_persistence.go, and
+	// flapping readiness during one would cost capacity exactly when it is needed.
+	dbReadinessFailureThreshold = 2
 )
 
 func initResource() *sdkresource.Resource {
@@ -329,26 +333,23 @@ func watchDatabaseReadiness(ctx context.Context, pool *pgxpool.Pool, healthcheck
 	ticker := time.NewTicker(dbReadinessInterval)
 	defer ticker.Stop()
 
-	reported := healthpb.HealthCheckResponse_NOT_SERVING
+	// Shutdown reports NOT_SERVING before the preStop drain so probes and the
+	// Service stop sending work to a pod that is on its way out.
+	defer setCheckoutReadiness(healthcheck, healthpb.HealthCheckResponse_NOT_SERVING)
+
+	gate := newReadinessGate()
 	for {
 		pingCtx, pingCancel := context.WithTimeout(ctx, dbReadinessPingTimeout)
 		pingErr := pool.Ping(pingCtx)
 		pingCancel()
 
-		observed := healthpb.HealthCheckResponse_SERVING
-		if pingErr != nil {
-			observed = healthpb.HealthCheckResponse_NOT_SERVING
-		}
-
-		if observed != reported {
+		if status, changed := gate.observe(pingErr == nil); changed {
 			if pingErr != nil {
 				logger.Warn(fmt.Sprintf("database unreachable, checkout is not ready: %v", pingErr))
 			} else {
 				logger.Info("database reachable, checkout is ready")
 			}
-			healthcheck.SetServingStatus("readiness", observed)
-			healthcheck.SetServingStatus("", observed)
-			reported = observed
+			setCheckoutReadiness(healthcheck, status)
 		}
 
 		select {
@@ -357,6 +358,45 @@ func watchDatabaseReadiness(ctx context.Context, pool *pgxpool.Pool, healthcheck
 		case <-ticker.C:
 		}
 	}
+}
+
+func setCheckoutReadiness(healthcheck *health.Server, status healthpb.HealthCheckResponse_ServingStatus) {
+	healthcheck.SetServingStatus("readiness", status)
+	// Probes that omit the service name must see the same answer.
+	healthcheck.SetServingStatus("", status)
+}
+
+// readinessGate turns a stream of ping results into readiness transitions. It
+// recovers on the first success but needs dbReadinessFailureThreshold failures
+// in a row before it withdraws the pod, so one blip does not flap the Service.
+type readinessGate struct {
+	reported healthpb.HealthCheckResponse_ServingStatus
+	failures int
+}
+
+func newReadinessGate() *readinessGate {
+	return &readinessGate{reported: healthpb.HealthCheckResponse_NOT_SERVING}
+}
+
+func (g *readinessGate) observe(pingOK bool) (healthpb.HealthCheckResponse_ServingStatus, bool) {
+	if pingOK {
+		g.failures = 0
+		return g.report(healthpb.HealthCheckResponse_SERVING)
+	}
+
+	g.failures++
+	if g.failures < dbReadinessFailureThreshold {
+		return g.reported, false
+	}
+	return g.report(healthpb.HealthCheckResponse_NOT_SERVING)
+}
+
+func (g *readinessGate) report(status healthpb.HealthCheckResponse_ServingStatus) (healthpb.HealthCheckResponse_ServingStatus, bool) {
+	if g.reported == status {
+		return status, false
+	}
+	g.reported = status
+	return status, true
 }
 
 func mustMapEnv(target *string, envKey string) {
