@@ -744,9 +744,9 @@ tiến gần SLO mà chưa vượt, tức đúng loại việc tầng động si
 
 - **Trạng thái:** Chấp nhận (Accepted)
 - **Ngày:** 2026-07-17
-- **Người ký:** Nhóm AI (AIO03) — Task Force 1 · Soạn thảo: Thanh Pham Huu Tien (assignee TF1-72)
+- **Người ký:** **Thanh Pham Huu Tien** (`phamthanh.forwork@gmail.com`) — cá nhân chịu trách nhiệm về quyết định kỹ thuật này và về tính đúng của mọi con số trong ADR. Đổi từ "Nhóm AI (AIO03) · Soạn thảo: Thanh Pham Huu Tien" sang ký cá nhân ngày 2026-07-28 theo TF1-108: một vòng tự động **xoá pod trên cụm thật** phải quy được về một người, không núp sau tập thể. "Soạn thảo" chỉ ghi ai gõ chữ, không ghi ai chịu trách nhiệm.
 - **Trụ:** AI (AIOps) / Reliability / Operational Excellence
-- **Task:** TF1-72 (con của TF1-78) · hiện thực hoá spec TF1-50 `03_specs/anomaly_remediation.md`
+- **Task:** TF1-72 (con của TF1-78) · TF1-108 (ADR ký cá nhân) · hiện thực hoá spec TF1-50 `03_specs/anomaly_remediation.md`
 
 ## Context
 `RULES.md §4` đặt "vòng tự động hoá xử lý sự cố" (phát hiện → dry-run/blast-radius →
@@ -825,7 +825,7 @@ pod-status + Prometheus — có test tường minh canh việc này
 **Chaos test thật đã chạy** (không phải `emailMemoryLeak` như dự kiến ban đầu —
 `email` bị loại khỏi CI build vì 2 CVE HIGH chưa vá upstream, xem
 `platform/build-exclusions.yaml`, chưa từng build thành công lần nào nên không có pod
-để test; đổi sang `ad`, service cô lập tốt — banner quảng cáo, không nằm trong luồng
+để test [**đính chính 28/07 — xem cuối addendum này**]; đổi sang `ad`, service cô lập tốt — banner quảng cáo, không nằm trong luồng
 browse/cart/checkout/payment, 1 replica, không PDB): tạm hạ `limits.memory` xuống
 20Mi → kernel OOMKilled thật 7 lần trong ~12 phút → **phát hiện gap nghiêm trọng**
 (xem addendum tương ứng ở ADR-012): trigger dựa vào log OpenSearch không bao giờ
@@ -864,6 +864,21 @@ detector/remediation — 2/3 lần patch bị Argo revert (xoá pod bằng chứ
 kịp đọc. Không phải lỗi code, nhưng là giới hạn thật của phương pháp chaos-test theo
 kiểu "patch tay lên resource do Argo quản lý": cần patch nhiều lần / theo dõi sát mới
 chắc chắn bắt được cửa sổ, chứ không phải lúc nào cũng ăn chắc lần đầu.
+
+#### Đính chính 28/07/2026 — lý do không dùng `emailMemoryLeak` đã đổi
+
+Đoạn trên ghi `email` *"bị loại khỏi CI build … chưa từng build thành công lần nào nên
+không có pod để test"*. **Nay không còn đúng:** kiểm 28/07 thì `platform/build-exclusions.yaml`
+**rỗng** và `email` đang chạy **2/2, 13 ngày tuổi** trên `techx-tf1`.
+
+Rào cản thật hiện nay là thứ khác: **flagd trên EKS sync read-only từ nguồn trung tâm của
+BTC**. Chính `values-flagd-sync.yaml` ghi *"TF không tự đổi được flag vì nguồn trung tâm
+sync đè lên"*. Query OFREP 28/07 xác nhận flag `emailMemoryLeak` **có tồn tại, giá trị 0**,
+nhưng TF không bật được.
+
+Giữ nguyên đoạn gốc thay vì xoá — nó ghi đúng tình trạng tại 17/07. Đính chính ở đây để
+người đọc sau không đi tìm lại một rào cản đã biến mất. Chi tiết:
+`report/mandate22-thresholds/report.md` mục 1 (TF1-107).
 
 ---
 
@@ -1166,9 +1181,9 @@ về quyết định kỹ thuật này và về tính đúng của mọi con s�
 
 - **Trạng thái:** Chấp nhận (Accepted)
 - **Ngày:** 2026-07-28
-- **Người ký:** Nhóm AI (AIO03) — Task Force 1 · Soạn thảo: Thanh Pham Huu Tien
+- **Người ký:** **Thanh Pham Huu Tien** (`phamthanh.forwork@gmail.com`) — cá nhân chịu trách nhiệm về quyết định kỹ thuật này và về tính đúng của mọi con số trong ADR. Sửa ngày 2026-07-28 theo TF1-108: bản đầu ghi "Nhóm AI (AIO03) · Soạn thảo: …" là bê nguyên khuôn cũ, không khớp chuẩn ký cá nhân mà ADR-012 đã chuyển sang từ 27/07.
 - **Trụ:** AI (AIOps) / Reliability / Operational Excellence
-- **Task:** TF1-111 / MANDATE-15 (nối tiếp MANDATE-07, xem ADR-012 và addendum `#7b`)
+- **Task:** TF1-111 / MANDATE-15 (nối tiếp MANDATE-07, xem ADR-012 và addendum `#7b`) · TF1-108 (ADR ký cá nhân)
 
 > **Vì sao là 017 chứ không phải 016.** Bản nháp của ADR này ở nhánh PR #343 (đã đóng)
 > đánh số **ADR-016**. Số đó đã bị chiếm trên `develop` bởi *"ADR-016: Standardized
