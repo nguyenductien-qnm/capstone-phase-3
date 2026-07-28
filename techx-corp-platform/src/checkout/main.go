@@ -72,6 +72,23 @@ var initResourcesOnce sync.Once
 
 const (
 	checkoutDependencyTimeout = 750 * time.Millisecond
+	// GetProduct gets longer than the other dependencies because it is the one
+	// call measured going over 750ms, and because it is the only one with spare
+	// budget. prepOrderItems runs in parallel with the shipping branch, and that
+	// branch is the critical path at 3s for the quote plus 750ms to convert it;
+	// the product branch was using 1.5s of that, so 2s plus a 750ms conversion
+	// still fits underneath it and the 10s checkout deadline does not move.
+	//
+	// This is a mitigation, not a root cause fix. Under CREATE INDEX
+	// CONCURRENTLY on the 743k-row orders table, roughly one GetProduct in
+	// twenty exceeded 750ms twice in a row, while 183 consecutive checkouts with
+	// no DDL running dropped nothing. RDS was not the constraint (5% CPU, 1.79ms
+	// read latency), the row is one of ten in catalog.products and reads warm in
+	// 5ms, a fresh connection costs 40-100ms, and product-catalog was throttled
+	// 0.08% of its CFS periods. Where the time actually goes is still unknown:
+	// the Jaeger query API is not serving, Prometheus only scrapes
+	// infrastructure metrics, and no trace index exists in OpenSearch.
+	checkoutProductReadTimeout = 2 * time.Second
 	// One retry, not more: a second attempt covers a cold-cache read while still
 	// leaving the 10s checkout deadline enough room to persist the order.
 	checkoutDependencyAttempts = 2
@@ -733,12 +750,12 @@ func (cs *checkout) quoteShipping(ctx context.Context, address *pb.Address, item
 // Only reads go through here. Charge and EmptyCart change state and must not be
 // repeated. The per-attempt context is derived from ctx, so the caller's
 // deadline still caps the total, and a retry can never overrun the budget.
-func readDependency[T any](ctx context.Context, call func(context.Context) (T, error)) (T, error) {
+func readDependency[T any](ctx context.Context, perAttempt time.Duration, call func(context.Context) (T, error)) (T, error) {
 	var zero T
 	var err error
 	for attempt := 1; attempt <= checkoutDependencyAttempts; attempt++ {
 		var value T
-		rpcCtx, cancel := context.WithTimeout(ctx, checkoutDependencyTimeout)
+		rpcCtx, cancel := context.WithTimeout(ctx, perAttempt)
 		value, err = call(rpcCtx)
 		cancel()
 		if err == nil {
@@ -763,7 +780,7 @@ func isRetryableDependencyError(err error) bool {
 }
 
 func (cs *checkout) getUserCart(ctx context.Context, userID string) ([]*pb.CartItem, error) {
-	cart, err := readDependency(ctx, func(rpcCtx context.Context) (*pb.Cart, error) {
+	cart, err := readDependency(ctx, checkoutDependencyTimeout, func(rpcCtx context.Context) (*pb.Cart, error) {
 		return cs.cartSvcClient.GetCart(rpcCtx, &pb.GetCartRequest{UserId: userID})
 	})
 	if err != nil {
@@ -790,7 +807,7 @@ func (cs *checkout) prepOrderItems(ctx context.Context, items []*pb.CartItem, us
 		itemIndex, cartItem := i, item
 		group.Go(func() error {
 			v, err, _ := cs.productCatalogGroup.Do(cartItem.GetProductId(), func() (interface{}, error) {
-				return readDependency(groupCtx, func(rpcCtx context.Context) (*pb.Product, error) {
+				return readDependency(groupCtx, checkoutProductReadTimeout, func(rpcCtx context.Context) (*pb.Product, error) {
 					return cs.productCatalogSvcClient.GetProduct(rpcCtx, &pb.GetProductRequest{Id: cartItem.GetProductId()})
 				})
 			})
@@ -818,7 +835,7 @@ func (cs *checkout) prepOrderItems(ctx context.Context, items []*pb.CartItem, us
 func (cs *checkout) convertCurrency(ctx context.Context, from *pb.Money, toCurrency string) (*pb.Money, error) {
 	key := fmt.Sprintf("%s:%d:%d:%s", from.GetCurrencyCode(), from.GetUnits(), from.GetNanos(), toCurrency)
 	v, err, _ := cs.currencyGroup.Do(key, func() (interface{}, error) {
-		return readDependency(ctx, func(rpcCtx context.Context) (*pb.Money, error) {
+		return readDependency(ctx, checkoutDependencyTimeout, func(rpcCtx context.Context) (*pb.Money, error) {
 			return cs.currencySvcClient.Convert(rpcCtx, &pb.CurrencyConversionRequest{
 				From:   from,
 				ToCode: toCurrency})
