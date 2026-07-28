@@ -26,14 +26,16 @@ data:
             u = str(uuid.uuid1())
             self.client.post("/api/cart", name="addcart", json={"item":{"productId":random.choice(PRODUCTS),"quantity":1},"userId":u})
             p = dict(PERSON); p["userId"] = u
-            self.client.post("/api/checkout", json=p, name="checkout")
+            self.client.post("/api/checkout", json=p, name="checkout",
+                             headers={"Idempotency-Key": str(uuid.uuid4())})
         @task(1)
         def checkout_multi(self):
             u = str(uuid.uuid1())
             for _ in range(random.choice([2,3,4])):
                 self.client.post("/api/cart", name="addcart", json={"item":{"productId":random.choice(PRODUCTS),"quantity":random.choice([1,2])},"userId":u})
             p = dict(PERSON); p["userId"] = u
-            self.client.post("/api/checkout", json=p, name="checkout-multi")
+            self.client.post("/api/checkout", json=p, name="checkout-multi",
+                             headers={"Idempotency-Key": str(uuid.uuid4())})
 
     class StepShape(LoadTestShape):
         # checkout nặng hơn browse → bậc thấp hơn: 10/20/40/60u, mỗi bậc 300s

@@ -54,7 +54,8 @@ data:
             self.client.post("/api/cart", name="addcart /api/cart",
                              json={"item":{"productId":random.choice(PRODUCTS),"quantity":1},"userId":u})
             p = dict(PERSON); p["userId"] = u
-            self.client.post("/api/checkout", json=p, name="checkout /api/checkout")
+            self.client.post("/api/checkout", json=p, name="checkout /api/checkout",
+                             headers={"Idempotency-Key": str(uuid.uuid4())})
 ---
 apiVersion: batch/v1
 kind: Job
