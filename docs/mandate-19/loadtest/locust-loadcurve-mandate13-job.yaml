@@ -55,7 +55,8 @@ data:
             self.client.post("/api/cart", name="addcart /api/cart",
                              json={"item":{"productId":random.choice(PRODUCTS),"quantity":1},"userId":u})
             p = dict(PERSON); p["userId"] = u
-            self.client.post("/api/checkout", json=p, name="checkout /api/checkout")
+            self.client.post("/api/checkout", json=p, name="checkout /api/checkout",
+                             headers={"Idempotency-Key": str(uuid.uuid4())})
 
     class LoadCurveShape(LoadTestShape):
         # (end_time_seconds, users, spawn_rate) — thấp -> cao -> thấp.
@@ -101,8 +102,10 @@ spec:
             - >
               locust -f /mnt/locust/locustfile.py --host http://frontend-proxy:80
               --headless --csv /data/loadcurve-mandate13 --csv-full-history --run-time 1860s;
-              echo "LOCUST_DONE exit=$?";
-              sleep 3600
+              code=$?;
+              echo "LOCUST_DONE exit=$code";
+              sleep 3600;
+              exit $code
           env:
             - { name: LOCUST_BROWSER_TRAFFIC_ENABLED, value: "false" }
             - { name: PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION, value: python }
