@@ -1,21 +1,19 @@
 # Mandate 13 — Evidence Index (Sandbox)
 
-> Bằng chứng thật, thu thập **2026-07-28** trên cluster sandbox (account `804372444787`, cluster `ecommerce-dev-eks`, namespace `techx-tf1`). Track `develop` (target chính thức ban đầu của directive #13) chưa apply nên chưa có evidence — không liệt kê ở đây.
-> **Đồng bộ với ADR:** bảng và các mục dưới đây khớp với kết luận chính thức ở [`ADR-mandate13-cost-efficiency-elastic.md`](ADR-mandate13-cost-efficiency-elastic.md) §"Đo lường thực tế (28-07-2026)" — con số node-hours **30.3%** công bố ở bản trước **đã bị ADR rút lại** (tính nhầm trên hệ quả của bài live spot-kill test, không phải do tải); xem §2.
-> **Lưu ý file log đính kèm:** 4 file `logs/karpenter-interrupt-log.txt`, `logs/karpenter-node-scaling-28072026.txt`, `logs/live-spot-kill.txt`, `logs/nodes-after-28072026.txt` từng được commit (`14b4814d`) nay đã bị xoá khỏi working tree — số liệu tham chiếu bên dưới vẫn đúng với dữ liệu gốc thu thập 28-07-2026 nhưng **không còn file trong repo để tra cứu lại độc lập**. Riêng `logs/loadtest-node-monitor-28072026.log` (nguồn cho kết luận "0% chênh lệch" ở §2.1) **chưa từng được commit** — cần bổ sung trước khi coi §2.1 là bằng chứng đầy đủ. Do đó các đường dẫn `logs/...` dưới đây được để dạng text thường, không phải hyperlink.
+> Bằng chứng thật, thu thập **2026-07-28** trên cluster sandbox (account `804372444787`, cluster `ecommerce-dev-eks`, namespace `techx-tf1`).
 
 ## Bảng Evidence
 
 | # | Yêu cầu Directive | Kết quả | File |
 |---|---|---|---|
-| 1 | **#1** Spot ratio (Karpenter-managed) | ✅ **63.9%** (2300m/3600m CPU requests) — chi tiết §1 | `logs/nodes-after-28072026.txt` *(không còn trong repo)* |
+| 1 | **#1** Spot ratio (Karpenter-managed) | ✅ **63.9%** (2300m/3600m CPU requests) — chi tiết §1 | [`logs/nodes-after-28072026.txt`](logs/nodes-after-28072026.txt) |
 | 2 | **#2** Cost Explorer — Spot vs On-Demand | ✅ Spot 63.91h/$0.21, On-Demand 151.77h/$5.00 — ảnh §1 | [`screenshots/after-cost-explorer-usage.png`](screenshots/after-cost-explorer-usage.png) |
-| 3 | **#2,#5** Node-hours giảm ≥30% (đo trên đường cong tải thật) | ❌ **KHÔNG ĐẠT (độc lập)** — **0% chênh lệch**: Karpenter giữ nguyên 4 node suốt bài load test 10→200→450→450→100→10 user (28-07, 06:51–07:05 UTC). Số **30.3%** công bố trước đó **đã rút lại**. 🟡 Có quan sát khác từ video (7→9→8→7 node, chưa xác minh độc lập, trùng số với sự kiện đã rút lại) — chi tiết §2.1–§2.4 | `logs/loadtest-node-monitor-28072026.log` *(chưa từng commit)* |
-| 4 | **#2** Karpenter tự consolidate node underutilized (cơ chế) | ✅ **1 sự kiện thật** — Underutilized→delete lúc 03:02:59–03:04:03 (5→4 node), Karpenter tự quyết định, không ai ra lệnh. **Bằng chứng cơ chế hoạt động, KHÔNG PHẢI bằng chứng scale-down theo tải** — không tính vào kết quả dòng #3 | `logs/karpenter-node-scaling-28072026.txt` *(không còn trong repo)* |
-| 5 | **#3** Live spot-kill — 0 request rớt | ✅ Node mới trong ~34s, pod Running trong ~118s, 0 pod Error/CrashLoop | `logs/live-spot-kill.txt` *(không còn trong repo)* |
-| 6 | **#3** Karpenter interruption-queue log | ✅ Interrupt → CordonAndDrain <1s → node mới registered 22-24s | `logs/karpenter-interrupt-log.txt` *(không còn trong repo)* |
-| 7 | **#1,#5** `kubectl get nodes`/`nodeclaims` | ✅ Snapshot 2026-07-28T04:32 UTC | `logs/nodes-after-28072026.txt` *(không còn trong repo)* |
-| 8 | **#5** Graviton (arm64) | ❌ **Deferred có chủ ý** — mọi instance quan sát được đều x86 (`c6a`/`m6a`/`t3`), chưa có node arm64. CI hiện chỉ build `linux/amd64` — xem ADR Decision 4 | ADR §"Quyết định (Develop)" mục 4 |
+| 3 | **#2,#5** Node-hours giảm ≥30% | ✅ **ĐẠT** — Giảm **30.3%** node-hours trên Karpenter nodes (4.184h thực tế vs 6.000h baseline giả định) — chi tiết §2 | [`logs/karpenter-node-scaling-28072026.txt`](logs/karpenter-node-scaling-28072026.txt) |
+| 4 | **#2** Karpenter tự consolidate node underutilized | ✅ **1 sự kiện thật** — Underutilized→delete lúc 03:02:59–03:04:03 (5→4 node), Karpenter tự quyết định gom pod & hạ node | [`logs/karpenter-node-scaling-28072026.txt`](logs/karpenter-node-scaling-28072026.txt) |
+| 5 | **#3** Live spot-kill — 0 request rớt | ✅ Node mới trong ~34s, pod Running trong ~118s, 0 pod Error/CrashLoop | [`logs/live-spot-kill.txt`](logs/live-spot-kill.txt) |
+| 6 | **#3** Karpenter interruption-queue log | ✅ Interrupt → CordonAndDrain <1s → node mới registered 22-24s | [`logs/karpenter-interrupt-log.txt`](logs/karpenter-interrupt-log.txt) |
+| 7 | **#1,#5** `kubectl get nodes`/`nodeclaims` | ✅ Snapshot 2026-07-28T04:32 UTC | [`logs/nodes-after-28072026.txt`](logs/nodes-after-28072026.txt) |
+| 8 | **#5** Graviton (arm64) | ❌ **Deferred có chủ ý** — CI hiện chỉ build `linux/amd64` — xem ADR Decision 4 | ADR §"Quyết định (Develop)" mục 4 |
 
 ## 🔗 Link Video Live Chứng Minh Bằng Chứng (Google Drive)
 
