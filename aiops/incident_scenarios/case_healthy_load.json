@@ -18,22 +18,28 @@
     "bedrock-cost-high",
     "llm-rate-limit-429",
     "db-pool-exhaustion",
-    "oom-detected"
+    "oom-detected",
+    "genai-assistant-failure",
+    "dns-resolution-error",
+    "error-budget-burn-fast"
   ],
   "expect_fire": false,
   "inject": {
     "type": "command",
-    "on": "kubectl scale deploy/load-generator -n techx-tf1 --replicas=4",
-    "off": "kubectl scale deploy/load-generator -n techx-tf1 --replicas=1"
+    "on": "kubectl -n techx-tf1 exec deploy/load-generator -- python3 -c 'import urllib.request,urllib.parse;urllib.request.urlopen(\"http://localhost:8089/swarm\",urllib.parse.urlencode({\"user_count\":100,\"spawn_rate\":20}).encode(),timeout=15)'",
+    "off": "kubectl -n techx-tf1 exec deploy/load-generator -- python3 -c 'import urllib.request,urllib.parse;urllib.request.urlopen(\"http://localhost:8089/swarm\",urllib.parse.urlencode({\"user_count\":22,\"spawn_rate\":20}).encode(),timeout=15)'"
   },
   "duration_seconds": 420,
   "settle_seconds": 180,
   "notes": [
-    "BAN COMPOSE CU chay locust tu may ca nhan (`cd techx-corp-platform/src/load-generator && locust ...`). Khong dung tren EKS vi ba ly do: locust khong duoc ghim truc tiep ma keo theo locust-plugins[playwright] (tai ca trinh duyet ~hang tram MB); locustfile.py goi flagd OFREP luc khoi dong (locustfile.py:78) ma flagd tren EKS khong voi toi tu may ngoai; va no can LOCUST_HOST tro vao frontend co dia chi cong khai.",
-    "Thay bang nhan ban chinh deployment load-generator DANG CHAY SAN trong cum. No co 1 replica va KHONG co HPA (platform/charts/application/values.yaml — khong co block hpa cho load-generator), nen kubectl scale la an toan, khong danh nhau voi autoscaler. Moi pod chay LOCUST_USERS=10 nen 4 replica ~ 4x tai.",
-    "CHON nhan ban thay vi doi bien LOCUST_USERS: `kubectl set env` gay rollout, pod restart lam traffic tut mot nhip — ma nhip tut do co the tu no lam service-traffic-collapse keu, tao dung mot bao dong gia tren chinh ca dung de chung minh khong co bao dong gia.",
-    "KHONG day len qua ~50 user mot pod: resources.limits.memory cua load-generator la 500Mi, right-size cho 10 user HTTP thuan. OOMKill load-generator se lam oom-detected keu va lai tao bao dong gia. Nhan ban trai bo nho ra nhieu pod nen tranh duoc.",
-    "monitored_rule_ids liet ke DU 14 rule dang co trong rules.yaml (khong chi 3 nhu ban cu), gom ca service-traffic-collapse — rule nay dac biet dang theo doi vi tai tang roi tut ve muc cu la dung hinh dang ma no bat.",
+    "BAN COMPOSE CU chay locust tu may ca nhan. Khong dung tren EKS: locust keo theo locust-plugins[playwright] (tai ca trinh duyet), locustfile.py:78 goi flagd OFREP luc khoi dong ma flagd khong voi toi tu may ngoai, va can LOCUST_HOST cong khai.",
+    "LAN CHAY DAU dung `kubectl scale deploy/load-generator --replicas=4`. Chay duoc nhung TAI TANG QUA IT vi pod moi can thoi gian ramp user. (Bo so 1.47x ghi o ban truoc cung doc tu total_rps nen khong dung; ket luan 'tang qua it' van giu vi no dua tren co che ramp, khong dua tren con so do.)",
+    "BAN NAY dung REST API cua locust (LOCUST_WEB_PORT=8089, LOCUST_HEADLESS=false nen web UI song). POST /swarm doi so user NGAY, KHONG restart pod. Do 28/07 bang truong current_rps, lay mau 10s/lan: nen 22 user = 4.52 req/s (n=51), tai cao 112 user = 23.55 req/s (n=31) -> 5.21x theo mean, 7.23x theo dinh.",
+    "PHAI doc `current_rps`, KHONG doc `total_rps`. total_rps la trung binh cong don tu luc locust khoi dong (o day la nhieu ngay) nen vua tre vua bi nhiem boi moi dot tai cu cua nguoi khac. Do doi chung 28/07 luc 22 user: total_rps=34.99 trong khi current_rps=5.60, lech gan 8 lan. Con so '24.69 -> 94.80 req/s = 3.84x' ghi o ban truoc doc nham total_rps nen da bi BO.",
+    "CHON REST API thay vi nhan ban pod vi hai le: (1) nhan ban chi cho 1.47x do pod moi can thoi gian ramp user; (2) `kubectl scale` va `kubectl set env` deu gay nhip traffic tut luc pod len/xuong, ma nhip tut do co the tu no lam service-traffic-collapse keu — tao dung mot bao dong gia tren chinh ca dung de chung minh khong co bao dong gia.",
+    "off tra ve 22 user = dung muc nen luc bat dau do (khong phai 10 nhu LOCUST_USERS trong values.yaml — muc thuc te tren cum la 22).",
+    "monitored_rule_ids liet ke DU MOI rule trong rules.yaml, gom ca service-traffic-collapse va latency-p95-high — tai cao lam tang latency nen day la rule dang theo doi nhat. Danh sach nay phai bang so rule that: 28/07 rules.yaml len 17 rule trong khi danh sach con 14, tuc 3 rule (genai-assistant-failure, dns-resolution-error, error-budget-burn-fast) dang duoc mien tra loi cau hoi cua mandate ma khong ai quyet dinh nhu the. Da bo sung du 17. Bo sung nay lam bai KHO hon chu khong de hon.",
+    "DOC KET QUA CHO DUNG: mot rule keu trong cua so tai cao KHONG dong nghia 'tai cao lam no keu'. Truoc moi lan chay phai do mot cua so YEN TINH lam nen (report/mandate15/quiet-baseline-*.jsonl) va tru di nhung rule VON DA keu khi chua bom gi. Vi du do duoc 28/07: genai-assistant-failure ban ngay chu ky dau tien sau khi pod khoi dong, khi chua co bat ky tai them nao.",
     "duration 420s de tai cao phu tron mot cua so rate(...[5m]) va con du bien; settle 180s de alert cham (neu co) van kip roi vao cua so cham diem."
   ]
 }

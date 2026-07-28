@@ -1159,3 +1159,163 @@ dưới `service-error-rate-high`. Ghi ra đây để người đọc số cũ k
 
 **Người ký:** Thanh Pham Huu Tien (phamthanh.forwork@gmail.com) — cá nhân chịu trách nhiệm
 về quyết định kỹ thuật này và về tính đúng của mọi con số trong addendum.
+
+---
+
+# ADR-017: Detection đáng tin — masking-resistance, baseline per-service, MTTD trên EKS (MANDATE-15)
+
+- **Trạng thái:** Chấp nhận (Accepted)
+- **Ngày:** 2026-07-28
+- **Người ký:** Nhóm AI (AIO03) — Task Force 1 · Soạn thảo: Thanh Pham Huu Tien
+- **Trụ:** AI (AIOps) / Reliability / Operational Excellence
+- **Task:** TF1-111 / MANDATE-15 (nối tiếp MANDATE-07, xem ADR-012 và addendum `#7b`)
+
+> **Vì sao là 017 chứ không phải 016.** Bản nháp của ADR này ở nhánh PR #343 (đã đóng)
+> đánh số **ADR-016**. Số đó đã bị chiếm trên `develop` bởi *"ADR-016: Standardized
+> Evaluation & Reliability Metrics Framework (MANDATE-14)"* (ngày 26/07). Giữ nguyên
+> số cũ sẽ tạo hai ADR-016 khác nội dung trong cùng một file. Đánh lại thành 017.
+
+## Context
+
+MANDATE-15 khác MANDATE-07 ở bốn điểm: (2) **không bị che** — một spike/nhiễu không được
+làm bỏ sót một sự cố thật khác trong cùng cửa sổ; (3) cảnh báo dựa trên độ lệch khỏi mức
+bình thường **của chính service đó**, không mốc tuyệt đối; (4) chạy liên tục + merged vào
+trunk; (5) tự sinh incident summary; (6) đo MTTD before/after. Chấm bằng bộ kịch bản ẩn
+BTC bơm lúc chấm, không phải demo một lần.
+
+## Decision
+
+1. **Baseline per-service (điểm 3) — TÁI DÙNG nguyên trạng ADR-012, không đổi.** Rolling
+   3-sigma đã giữ history theo khoá `rule_id:service` (`detector.py`) từ `#7a` — mỗi
+   service tự có "bình thường" riêng. Không cần quyết định mới.
+
+2. **Masking-resistance (điểm 2) — winsorize trước khi nạp vào rolling history.**
+   `eval_metric_rule` từng nạp thẳng giá trị outlier vừa gây alert vào `metric_history`,
+   kéo méo mean/std suốt 30 chu kỳ sau (~15 phút @ poll 30s). Fix: khi đã có baseline
+   (`len(history) >= 5`), kẹp giá trị nạp vào trong khoảng `dynamic_threshold` trước khi
+   append — một sự cố kéo dài thật vẫn kéo được baseline dần theo thời gian, chỉ riêng
+   outlier đơn lẻ không còn kéo ngay.
+
+   **Bằng chứng là replay offline, KHÔNG phải cặp chạy sống.** Hai lần chạy sống 27/07
+   (trước/sau winsorize) dùng hai kịch bản khác nhau — service `checkout`→`frontend`,
+   sự cố 2 từ 15s→60s — nên chúng không tạo thành một phép A/B và cả hai đều PASS. Phép
+   so sánh có kiểm soát nằm ở `report/mandate15/replay_masking.py`: cùng chuỗi thật 57
+   điểm, cùng ngưỡng, biến duy nhất là winsorize → **FAIL khi không có, PASS khi có**.
+
+   Giới hạn đã biết, ghi trong code: trên chuỗi phương sai bằng không thì `min(value, 0)=0`
+   ghim baseline ở 0 vĩnh viễn. Với `service-error-rate-high` đó là điều mong muốn (giữ
+   ranh phát hiện sát đáy), nhưng không được áp dụng mù cho rule khác mà không đo lại.
+
+3. **Chạy liên tục + trunk (điểm 4) — đã đạt, không cần quyết định mới.** `Deployment`
+   (không phải Job/CronJob), ArgoCD-managed selfHeal, đã merge. **"Trunk" = `develop`** —
+   lý do đầy đủ ở addendum `#7b` của ADR-012.
+
+4. **Incident summary (điểm 5) — dùng lại grouped alert làm MVP, không xây thêm tầng
+   tường thuật.** `Alerter.flush()` đã gộp nhiều rule cùng service/cùng cửa sổ 5 phút
+   thành một message có cấu trúc (severity, service, value/baseline, detection method).
+   KHÔNG thêm một lời gọi LLM vào đường alert cho một yêu cầu ở mức MVP — xem Alternatives.
+
+5. **MTTD — ba con số, ba điều kiện đo khác nhau, KHÔNG được trộn.**
+
+   | | Điều kiện đo | Số |
+   |---|---|---|
+   | **Before (thủ công)** | `report/flagd1/postmortem-INC-01.md`, 14/07, EKS thật, người phát hiện bằng mắt qua Grafana | **~2 phút** |
+   | **After — nhánh `k8s_status`** | EKS thật, OOM thật của `jaeger` (không dàn dựng), 2 lần đo 28/07 | **23s và 29s** |
+   | **After — nhánh `metric`** | EKS thật, bộ có nhãn, `kubectl scale`, rule `service-error-rate-high` | **51.6s** (28/07) |
+   | *(cùng nhánh, trước TF1-102)* | như trên nhưng rule `grpc-error-rate-high` mẫu số bị health-check pha loãng | 380s (26/07) |
+
+   Bản nháp ở #343 ghi *"after = mean 19.6s / max 35.4s"*. Đó là số đo trên
+   **docker-compose** (`docs/ai/evals/measure_detection_pipeline.py`, flagd file, tỉ lệ
+   lỗi gần 1.0). **Không dùng số đó cho EKS.** Số EKS là 23–29s cho nhánh `k8s_status`
+   và 380s cho nhánh `metric`.
+
+   Vì sao hai nhánh vẫn chênh: `k8s_status` đọc thẳng trạng thái container nên MTTD bằng
+   đúng một chu kỳ poll (30s); nhánh `metric` phải chờ tỉ lệ tích đủ trong cửa sổ
+   `rate(...[5m])`. Việc 380s → 51.6s là kết quả đo được của TF1-102 (đổi sang spanmetrics,
+   bỏ health-check khỏi mẫu số) — không phải detector chạy nhanh hơn, mà là tín hiệu sạch hơn.
+
+   So sánh before/after **không phải A/B kiểm soát chặt** (khác môi trường, khác loại sự
+   cố). Ghi rõ để không bị hiểu nhầm; lý do không dựng lại "before" nằm ở Alternatives.
+
+6. **Bộ kịch bản có nhãn + replay (yêu cầu "logic chấm phải mở").** `aiops/incident_replay.py`
+   + `aiops/incident_scenarios/*.json`. Logic chấm (`score_events`/`verdict_for_type`) là
+   Python thuần, không dependency, đọc trực tiếp được.
+
+7. **Cụm từ log chỉ gồm chữ số bị CẤM trong `rules.yaml`, ép bằng test.** `message_field`
+   là field `text` đã analyze, nên `match_phrase` với cụm `"429"` trần khớp **token** đó ở
+   bất kỳ đâu trong dòng log. Đo trên 7 ngày / 7.941.641 dòng: 49 dòng khớp, **0 dòng là
+   429 thật** (24 dòng là `%DURATION%` của Envoy, 25 dòng là `offset=429` của Kafka) —
+   precision **0.00** cho một rule `severity: critical`. Nó còn làm ca healthy-load FAIL
+   oan: tải cao → độ trễ tăng → một request mất đúng 429ms → CRITICAL.
+
+   Thay bằng cụm neo vào vị trí trạng thái trong access log Envoy (`'HTTP/1.1" 429'`), và
+   thêm `test_no_log_rule_matches_a_bare_number` để lớp lỗi này không quay lại — đây là
+   lần thứ hai (trước đó `db-pool-exhaustion` khớp phải "Valkey connection pool initialized").
+
+   **Đánh đổi đã biết:** cụm mới phụ thuộc `access_log_format` của Envoy. Đổi format thì
+   cụm chết âm thầm. Chấp nhận vì phương án thay thế (regex trên field `text`) không được
+   `match_phrase` hỗ trợ, còn thêm một field `status` riêng đòi đổi pipeline collector.
+
+8. **Một ca "không kêu oan" chỉ có giá trị bằng số rule THỰC SỰ có dữ liệu — phải báo cáo
+   kèm con số đó.** Ca healthy-load 28/07 PASS với `monitored_rule_ids` gồm 17 rule. Nhưng
+   trong chính cửa sổ đó detector tự phát 8 alert `detector-silent-rule` (`severity: info`),
+   tức 8/17 rule đang **mù** — query không trả về series nào nên chúng không thể kêu dù có
+   chuyện gì: 4 rule burn-rate `-standard`/`-checkout`, `error-budget-burn-fast`,
+   `bedrock-cost-high`, `genai-latency-high`, `memory-saturation-high`.
+
+   Quyết định: **không** được viết "17 rule không kêu oan". Phải viết "9 rule có dữ liệu đã
+   không kêu oan dưới tải 5.21×, 8 rule còn lại im lặng vì mù chứ không phải vì đúng."
+   Cơ chế `detector-silent-rule` (rule tự tố cáo khi câm) là thứ tạo ra bằng chứng này —
+   giữ nó và đọc nó, thay vì suy luận từ việc không thấy alert.
+
+## Alternatives considered
+
+- **EWMA thay 3-sigma cho masking-resistance:** phản ứng mượt hơn với drift, nhưng bug thật
+  nằm ở chỗ **nạp** history, không nằm ở việc dùng 3-sigma hay EWMA (EWMA không có exclusion
+  cũng dính đúng bug này). Winsorize là fix tối thiểu, đúng chỗ. EWMA vẫn defer như ADR-012.
+- **Đo lại MTTD "before" bằng cách tắt detector rồi test thủ công:** cho số cùng điều kiện
+  hơn, nhưng một phép đo dàn dựng ("giả vờ không có detector") kém trung thực hơn số thật
+  từ một sự cố thật đã xảy ra (INC-01). → Dùng số INC-01, ghi rõ caveat.
+- **Xây incident summary tường thuật bằng LLM:** thêm latency + cost + rủi ro bịa (đúng thứ
+  MANDATE-06 đang canh) vào đường alert. → Loại; nếu làm thêm, nối `correlate.py` trước.
+- **Gỡ `oom-detected` khỏi `monitored_rule_ids` của ca healthy-load** để ca đó không FAIL vì
+  jaeger OOM (biến nhiễu có thật, ~39 phút/lần). → **Loại thẳng.** Gỡ một rule khỏi danh sách
+  theo dõi để lấy PASS là chỉnh bài test cho khớp kỳ vọng. Thay vào đó: ghi biến nhiễu vào
+  report **trước khi chạy**, giữ nguyên verdict thô, và phân loại alert bằng `finishedAt` của
+  container sau đó.
+
+9. **Một sự cố thật KHÔNG sinh tín hiệu thì không phải lỗi ngưỡng — và không được sửa
+   bằng cách nới ngưỡng.** Ca `payment` FAIL cả 26/07 lẫn 28/07. Đo trên Prometheus đúng
+   cửa sổ bơm: tỉ lệ lỗi của `checkout` đứng nguyên **0.0000 suốt 13/13 mẫu**. Gốc rễ là
+   kiến trúc — `checkout` đã chuyển sang gọi `payment` qua Kafka, nên giết `payment` chỉ
+   làm đơn hàng chất đống trong topic chứ không tạo lỗi ở đâu.
+
+   Quyết định: **không** hạ ngưỡng, **không** thêm rule vào `expected_rule_ids` sau khi đã
+   thấy nó kêu. Lần chạy 28/07 có `service-traffic-collapse` kêu đúng trên `payment`, nhưng
+   ở **+792s** — tức 55s *sau khi* sự cố (kéo dài 738s) đã được khắc phục. Đúng service,
+   sai thời điểm đến mức vô dụng cho vận hành. Thêm nó vào danh sách kỳ vọng sẽ biến FAIL
+   thành PASS mà không cải thiện gì thật.
+
+   Đường sửa đúng nằm ở tầng telemetry, không ở tầng rule: `payment` phải xuất metric
+   consumer-lag (`kafka_consumer_records_lag`), và rule `kafka-consumer-lag-high` phải sửa
+   tên metric (nó đang query `kafka_consumer_group_lag` — tên **không tồn tại**, nên nó im
+   lặng vĩnh viễn chứ không báo lỗi). Cả hai chưa làm, ghi vào việc tiếp theo.
+
+## Consequences
+
+- Bug masking đã fix ảnh hưởng **mọi** rule `type: metric`, không riêng ca kiểm demo.
+- Incident summary ở mức MVP (grouped alert, không narrative) — gap đã biết, không phải
+  overclaim; đường nâng cấp đã có (`correlate.py`).
+- MTTD có ba con số cho ba điều kiện đo. Ai trích dẫn phải kèm điều kiện, nếu không sẽ
+  tạo ra mâu thuẫn kiểu "19.6s vs 380s" như bản nháp cũ.
+- `oom-detected` hiện báo `service: "unknown"` — người trực biết "có cái gì đó OOM" mà
+  không biết pod nào. Chưa sửa, đã ghi vào việc tiếp theo.
+- Ràng buộc mới trong `rules.yaml` (cấm cụm chỉ gồm chữ số) do CI ép, không do người nhớ.
+- **8/17 rule đang mù** (quyết định 8). Mọi chỉ số precision/recall của bộ hiện tại đều
+  tính trên tập rule hẹp hơn danh sách khai báo. Đây là nợ đã biết, đang mở ở task #25 —
+  không được coi là đã xong chỉ vì ca healthy-load PASS.
+- Số throughput trong mọi tài liệu MANDATE-15 phải đo bằng `current_rps` của locust.
+  `total_rps` là trung bình cộng dồn từ lúc locust khởi động (nhiều ngày) và bị nhiễm bởi
+  các đợt tải của người khác trên cụm dùng chung — đo đối chứng 28/07 lúc 22 user:
+  `total_rps`=34.99 trong khi `current_rps`=5.60. Các con số cũ đọc từ `total_rps`
+  ("24.69 → 94.80 req/s = 3.84×", "1.47×") đã bị bỏ.
