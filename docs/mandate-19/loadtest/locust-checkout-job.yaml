@@ -26,14 +26,16 @@ data:
             u = str(uuid.uuid1())
             self.client.post("/api/cart", name="addcart", json={"item":{"productId":random.choice(PRODUCTS),"quantity":1},"userId":u})
             p = dict(PERSON); p["userId"] = u
-            self.client.post("/api/checkout", json=p, name="checkout")
+            self.client.post("/api/checkout", json=p, name="checkout",
+                             headers={"Idempotency-Key": str(uuid.uuid4())})
         @task(1)
         def checkout_multi(self):
             u = str(uuid.uuid1())
             for _ in range(random.choice([2,3,4])):
                 self.client.post("/api/cart", name="addcart", json={"item":{"productId":random.choice(PRODUCTS),"quantity":random.choice([1,2])},"userId":u})
             p = dict(PERSON); p["userId"] = u
-            self.client.post("/api/checkout", json=p, name="checkout-multi")
+            self.client.post("/api/checkout", json=p, name="checkout-multi",
+                             headers={"Idempotency-Key": str(uuid.uuid4())})
 
     class StepShape(LoadTestShape):
         # checkout nặng hơn browse → bậc thấp hơn: 10/20/40/60u, mỗi bậc 300s
@@ -70,8 +72,10 @@ spec:
             - >
               locust -f /mnt/locust/locustfile.py --host http://frontend-proxy:80
               --headless --csv /data/checkout --csv-full-history --run-time 1240s;
-              echo "LOCUST_DONE exit=$?";
-              sleep 3600
+              code=$?;
+              echo "LOCUST_DONE exit=$code";
+              sleep 3600;
+              exit $code
           env:
             - { name: LOCUST_BROWSER_TRAFFIC_ENABLED, value: "false" }
             - { name: PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION, value: python }

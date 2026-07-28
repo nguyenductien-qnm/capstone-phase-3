@@ -326,6 +326,10 @@ components:
           secretKeyRef:
             name: db-secret
             key: accounting-db-conn
+      - name: ACCOUNTING_ORDER_SCHEMA_PHASE
+        # Move every accounting pod to dual_read before checkout enters
+        # write_new; use read_new only when closing the rollback horizon.
+        value: "legacy"
       - name: OTEL_DOTNET_AUTO_TRACES_ENTITYFRAMEWORKCORE_INSTRUMENTATION_ENABLED
         value: "false"
       - name: KAFKA_TOPIC
@@ -697,6 +701,10 @@ components:
           secretKeyRef:
             name: db-secret
             key: catalog-db-conn
+      - name: CHECKOUT_ORDER_SCHEMA_PHASE
+        # Migration order: legacy -> dual_write -> SQL 13-16a -> write_new.
+        # Never enter write_new while a legacy accounting pod is consuming.
+        value: "legacy"
       - name: CART_ADDR
         value: cart:8080
       - name: CURRENCY_ADDR
