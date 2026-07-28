@@ -1,0 +1,84 @@
+# Pod moi dung MOT LAN de do MTTR cua vong tu dap (TF1-106 / MANDATE-22).
+#
+# VI SAO CAN POD MOI thay vi ep OOM mot service that:
+#   - flagd tren EKS dong bo tu server BTC nen khong bom duoc (xem report/mandate15-eks
+#     muc 2) — cung ly do da lam ca masking phai doi sang kubectl.
+#   - Ha memory limit cua service that thi ArgoCD selfHeal se revert, va no anh huong
+#     nguoi khac dang dung cum.
+#   - Pod nay KHONG phuc vu traffic nao nen blast radius bang KHONG, nhung mang DUNG
+#     nhan `opentelemetry.io/name` ma find_oom_pods() chon (k8s_status.py:41), nen duong
+#     di qua detector va remediation la Y HET pod that.
+#
+# HAN CHE, phai ghi vao report: day la pod moi, khong phai service production.
+#
+# Xoa sau khi do xong:
+#   kubectl -n techx-tf1 delete -f mttr-canary.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mttr-canary
+  namespace: techx-tf1
+  labels:
+    opentelemetry.io/name: mttr-canary
+    app.kubernetes.io/managed-by: manual-experiment-TF1-106
+  annotations:
+    # Danh dau ro de khong ai tuong day la thanh phan cua he thong.
+    experiment: "TF1-106 MTTR before/after — XOA SAU KHI DO XONG"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      opentelemetry.io/name: mttr-canary
+  template:
+    metadata:
+      labels:
+        # Nhan nay la thu find_oom_pods() doc (service_label_key mac dinh).
+        opentelemetry.io/name: mttr-canary
+    spec:
+      # Tat retry nhanh cua kubelet khong duoc — chinh CrashLoopBackOff la thu dang do.
+      terminationGracePeriodSeconds: 5
+      # Cum co ValidatingAdmissionPolicy 'deny-privilege-escalation'. Theo dung chuan
+      # restricted ma aiops-detector dang dung (deploy/deployment.yaml).
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: memhog
+          # ECR Public thay vi Docker Hub: build CI hom nay da tung hong vi
+          # registry-1.docker.io khong phan hoi.
+          image: public.ecr.aws/docker/library/busybox:1.36
+          # Ghi vao tmpfs (medium: Memory) -> tinh vao cgroup memory cua container,
+          # nen dd se cham tran limit va bi OOMKill. Ngu 20s truoc de pod kip Ready,
+          # neu khong no OOM ngay luc khoi dong va khong bao gio vao trang thai Ready.
+          command: ["sh", "-c"]
+          args:
+            - |
+              echo "canary len, se OOM sau 20s"
+              sleep 25
+              echo "[canary] bat dau cap phat"
+              A=$(yes CANARYFILLCANARYFILL | head -c 400000000)
+              echo "[canary] khong nen toi day duoc"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              # 128Mi: du cho runc init (64Mi lam container init bi OOM-kill ngay,
+              # loi "memory limit too low?"), nhung dd van cham tran trong vai giay.
+              memory: 128Mi
+          # readOnlyRootFilesystem: true nen khong ghi duoc gi; probe chi xac nhan
+          # tien trinh con song.
+          readinessProbe:
+            exec:
+              command: ["true"]
+            initialDelaySeconds: 3
+            periodSeconds: 2
