@@ -1,0 +1,15 @@
+=== TF1-107 — ca VERIFY FAIL + CIRCUIT BREAKER (do that tren EKS 28/07) ===
+  hanh dong that : 3
+  verify FAIL    : 3
+    #1  action 07:28:47 -> verify FAIL 07:29:30  = 43.0s  (nhanh: oom-moi)
+    #2  action 07:29:46 -> verify FAIL 07:30:29  = 43.0s  (nhanh: oom-moi)
+    #3  action 07:30:46 -> verify FAIL 07:31:29  = 43.0s  (nhanh: oom-moi)
+  thoi gian verify FAIL: mean 43.0s  (nguong timeout cau hinh = 120s)
+
+=== TF1-107 — ca VERIFY TIMEOUT (nhanh "het gio") ===
+  pod moi tf1107-unready: readinessProbe luon fail + sleep 300s truoc khi cap phat
+  => pod thay the khong bao gio Ready VA khong OOM trong cua so verify
+  action     07:39:14
+  verify FAIL 07:41:18  = 124.2s   (nguong cau hinh 120s, vuot 4.2s ~ 3.5%)
+  Ly do vuot: vong lap sleep(poll_interval) o CUOI moi vong roi moi kiem tra deadline,
+  nen lan poll cuoi luon dai them mot nhip 20s truoc khi thoat.

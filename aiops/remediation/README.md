@@ -66,17 +66,40 @@ kubectl -n techx-tf1 apply -f deploy/rbac.yaml
 kubectl -n techx-tf1 apply -f deploy/deployment.yaml   # khởi động với dry_run=true
 ```
 
-## Số liệu — GIẢ ĐỊNH ban đầu, cần đo thật (TF1-72 Done criteria)
+## Số liệu — ĐÃ đo bằng chaos OOM thật trên EKS (TF1-107, 28/07/2026)
 
-`remediation_policy.yaml` hiện dùng 3 số từ spec (chưa validate bằng chaos test thật trên EKS):
+Ba số trong `remediation_policy.yaml` trước đây là giả định từ spec. Đã chạy chaos OOM thật
+trên `ecommerce-dev-eks` — báo cáo đầy đủ: **`report/mandate22-thresholds/report.md`**.
 
-| Số | Giá trị hiện tại | Nguồn |
-|---|---|---|
-| Verify timeout | 120s, poll mỗi 20s | `anomaly_remediation.md` §4.4 |
-| Circuit breaker | mở sau 3 fail liên tiếp, tự đóng sau 24h | `anomaly_remediation.md` §4.5 |
-| Blast radius | 1 pod / namespace / 1 giờ | `anomaly_remediation.md` §4.3 |
+| Số | Giá trị hiện tại | Đo được | Kết luận |
+|---|---|---|---|
+| Verify timeout | 120s, poll mỗi 20s | thoát nhánh "OOM mới" ở **43.0s** (3/3 lần); nhánh "hết giờ" ở **124.2s** | Giữ 120s, nhưng **không phải tham số chi phối** — với OOM lặp verify luôn thoát sớm ở 43s. Ngưỡng thực tế = `duration + tối đa 1 poll_interval` |
+| Circuit breaker | mở sau 3 fail liên tiếp, tự đóng sau 24h | mở **đúng** sau 3 fail, rồi từ chối + escalate | Logic đúng, nhưng **không với tới được** với blast radius hiện tại — xem dưới |
+| Blast radius | 1 pod / namespace / 1 giờ | chặn đúng thiết kế | **Cần đổi.** Hai nguồn độc lập cùng chỉ vào nó |
 
-Kế hoạch đo thật: bật flag `emailMemoryLeak` trên EKS → OOM thật service `email` → chạy remediation live → đo timing thật → cập nhật bảng trên + ghi báo cáo `report/` (mẫu `report/flagd1/postmortem-INC-01.md`).
+**Vì sao blast radius cần đổi (hai bằng chứng độc lập):**
+
+1. **TF1-107:** mỗi lần verify fail tốn 1 action, breaker cần 3 fail liên tiếp → với
+   `1 action/3600s` thì breaker cần **tối thiểu 2 giờ** mới mở. Và `_fail_count` nằm trong
+   RAM nên mọi lần pod remediation restart đều reset về 0. Thực tế breaker gần như không mở
+   được.
+2. **TF1-106** (`report/mandate22-mttr/report.md`): tham số này khiến vòng tự dập chỉ cứu
+   1/30 lần OOM → MTTR trung bình cải thiện **2.7%**, không phải 4.6×.
+
+Hướng: hạn mức theo *service* thay vì *namespace*, và nới `max_actions` cho cùng một sự cố
+kéo dài. **Chưa sửa** — TF1-107 là ticket *validate*, việc sửa nên đi PR riêng có backtest.
+
+**Còn hở:** ca **verify PASS** chưa đo được, vì bị chặn bởi một lỗi phát hiện trong lúc đo —
+`is_service_ready()` tra pod bằng `label_selector=opentelemetry.io/name=<service_label>`,
+mà `find_oom_pods()` lại gán `service_label="unknown"` cho pod thiếu nhãn đó. Không pod nào
+mang nhãn `=unknown` nên hàm luôn trả `False`, verify luôn hết giờ, và sau 3 lần thì breaker
+mở oan. Đo được: jaeger restart lúc 07:52:48, pod mới **Ready sau 2 giây**, verify vẫn báo
+FAIL sau 124.1s. Ảnh hưởng **16/57 pod (28%)** của `techx-tf1` — gồm cả tầng observability
+và chính `aiops-detector`/`aiops-remediation`. Chi tiết ở mục 5 của báo cáo TF1-107.
+
+*(Ghi chú lịch sử: kế hoạch ban đầu là bật flag `emailMemoryLeak`. Không chạy được — flagd
+trên EKS sync read-only từ nguồn trung tâm của BTC, TF không tự đổi flag được. Đã thay bằng
+pod mồi + OOM thật của `jaeger`.)*
 
 ## Ranh giới với các task AIOps khác
 
