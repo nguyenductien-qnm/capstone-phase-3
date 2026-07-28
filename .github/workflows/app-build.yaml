@@ -117,7 +117,10 @@ jobs:
     if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.attest_sbom) }}
     runs-on: ubuntu-latest
     outputs:
+      # matrix: service × arch (job build). matrix_merge: chỉ service (job merge) —
+      # xem chú thích ở bước "Build matrix" về lý do phải tách làm hai.
       matrix: ${{ steps.set.outputs.matrix }}
+      matrix_merge: ${{ steps.set.outputs.matrix_merge }}
       any: ${{ steps.set.outputs.any }}
       # Danh sách service thật sự được dựng trong run này (cách nhau bằng khoảng
       # trắng). Job bump đọc lại để tự kiểm: không được ghi tag cho service nằm
@@ -296,6 +299,9 @@ jobs:
             echo "any=false" >> "$GITHUB_OUTPUT"
             echo "services=" >> "$GITHUB_OUTPUT"
             echo "matrix={\"include\":[]}" >> "$GITHUB_OUTPUT"
+            # matrix_merge cũng phải khai ở nhánh rỗng: job merge đọc fromJson() nên
+            # output không tồn tại sẽ thành chuỗi rỗng và fromJson ném lỗi cú pháp.
+            echo "matrix_merge={\"include\":[]}" >> "$GITHUB_OUTPUT"
             echo "Không service nào thay đổi."
             {
               echo "### Không dựng image nào"
@@ -309,11 +315,31 @@ jobs:
 
           # Gom luôn danh sách đã khử trùng lặp trong CÙNG vòng lặp dựng matrix, thay vì
           # chạy lại sort -u thêm lần nữa — hai nguồn rời nhau là có ngày lệch nhau.
+          #
+          # MULTI-ARCH: dựng HAI matrix từ cùng một vòng lặp, không phải một.
+          #   matrix       = service × arch  -> job `build`, mỗi nhánh dựng ĐÚNG 1 kiến trúc
+          #                  rồi push-by-digest (không tag).
+          #   matrix_merge = chỉ service     -> job `merge`, gộp 2 digest thành manifest list
+          #                  rồi mới đặt tag + ký.
+          # Vì sao phải tách: ECR IMMUTABLE cho mỗi tag ghi đúng 1 lần, kể cả tag chữ ký
+          # sha256-<digest>.sig/.att. Nếu `merge` dùng lại matrix service×arch thì nó chạy 2
+          # lần cho cùng một service -> lần thứ hai tạo lại tag đã có và ký lại cùng digest
+          # -> ECR từ chối -> job đỏ. Một digest chỉ được ký MỘT lần, bởi MỘT job.
           include=""
+          include_merge=""
           picked=()
           for svc in $(printf '%s\n' "${selected[@]}" | sort -u); do
-            [ -n "$include" ] && include+=","
-            include+="{\"service\":\"$svc\",\"dockerfile\":\"${DOCKERFILE[$svc]}\"}"
+            for arch in amd64 arm64; do
+              # Runner ARM native thay vì QEMU: build nhanh gần bằng amd64, và quan trọng hơn
+              # là mỗi job chỉ giữ 1 kiến trúc nên `load: true` của bước Trivy vẫn dùng được
+              # (buildx KHÔNG load nổi ảnh đa kiến trúc). Chỉ dùng runner TIÊU CHUẨN —
+              # nhãn *-arm-8core là runner lớn, luôn tính phí kể cả repo public.
+              if [ "$arch" = "amd64" ]; then runner="ubuntu-latest"; else runner="ubuntu-24.04-arm"; fi
+              [ -n "$include" ] && include+=","
+              include+="{\"service\":\"$svc\",\"dockerfile\":\"${DOCKERFILE[$svc]}\",\"arch\":\"$arch\",\"runner\":\"$runner\"}"
+            done
+            [ -n "$include_merge" ] && include_merge+=","
+            include_merge+="{\"service\":\"$svc\",\"dockerfile\":\"${DOCKERFILE[$svc]}\"}"
             picked+=("$svc")
           done
 
@@ -322,6 +348,7 @@ jobs:
 
           echo "any=true" >> "$GITHUB_OUTPUT"
           echo "matrix={\"include\":[$include]}" >> "$GITHUB_OUTPUT"
+          echo "matrix_merge={\"include\":[$include_merge]}" >> "$GITHUB_OUTPUT"
           echo "services=$SELECTED_SORTED" >> "$GITHUB_OUTPUT"
           echo "Sẽ build $SELECTED_COUNT/$TOTAL_BUILDABLE service: $SELECTED_SORTED"
           echo "Vì: $WHY"
@@ -390,18 +417,19 @@ jobs:
   # needs validate-manifest: gate CDO-141 phải xanh mới được build.     #
   # ------------------------------------------------------------------ #
   build:
-    name: Build ${{ matrix.service }}
+    # Tên PHẢI mang cả arch: gate trace-image-provenance dò job theo tên
+    # "Build <service>"; hai nhánh trùng tên thì nó chỉ soi được một trong hai,
+    # tức nửa số kiến trúc lọt gate mà không ai biết.
+    name: Build ${{ matrix.service }} (${{ matrix.arch }})
     needs: [detect, validate-manifest]
     if: needs.detect.outputs.any == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     # Trust policy của GitHubTerraformSandboxRole khóa sub bằng StringEquals:
     #   repo:<org>/<repo>:environment:sandbox
     environment: sandbox
     permissions:
       contents: read
       id-token: write # OIDC cho AWS + Cosign keyless (Fulcio)
-      attestations: write # GitHub Artifact Attestations (SLSA provenance)
-      artifact-metadata: write # Required by actions/attest to store provenance metadata
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.detect.outputs.matrix) }}
@@ -463,20 +491,28 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       # PR: build (load local) để scan, KHÔNG push. push/dispatch: build & push.
+      #
+      # MULTI-ARCH: job này dựng ĐÚNG MỘT kiến trúc (matrix.arch) trên runner cùng kiến
+      # trúc đó, nên `load: true` vẫn hợp lệ — buildx không load được ảnh đa kiến trúc.
+      # Đây là lý do tách job theo arch thay vì khai platforms: amd64,arm64 trong một job:
+      # giữ được cổng Trivy, và quét ĐÚNG gói của từng kiến trúc (CVE hai bên khác nhau).
       - name: Build image (load, for scan)
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: ${{ env.BUILD_CONTEXT }}
           file: ${{ env.BUILD_CONTEXT }}/${{ matrix.dockerfile }}
           build-args: ${{ steps.buildargs.outputs.args }}
+          platforms: linux/${{ matrix.arch }}
           load: true
           push: false
           tags: ${{ steps.meta.outputs.image }}
           labels: |
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-          cache-from: type=gha,scope=${{ matrix.service }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+          # scope PHẢI kèm arch: hai nhánh matrix cùng service dùng chung một scope sẽ
+          # ghi đè manifest cache của nhau, kết quả là cache miss gần như 100%.
+          cache-from: type=gha,scope=${{ matrix.service }}-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}-${{ matrix.arch }}
 
       # KHÔNG dùng `ignore-unfixed: true` — cờ đó tắt mọi CVE chưa có bản vá trên mọi
       # service, nên khi upstream phát hành bản vá thì gate im lặng thay vì đỏ lên bắt
@@ -491,8 +527,14 @@ jobs:
           exit-code: "1"
           trivyignores: .trivyignore
 
-      # Chỉ push khi không phải PR. Push by-digest để ký theo digest (chuẩn immutable).
-      - name: Push image
+      # Chỉ push khi không phải PR.
+      #
+      # PUSH-BY-DIGEST: đẩy ảnh KHÔNG kèm tag. Hai nhánh matrix của cùng một service
+      # không thể cùng ghi tag <version>-<svc>-<sha> vì ECR IMMUTABLE chỉ cho ghi mỗi
+      # tag một lần; đẩy không tên thì chúng không đụng nhau. Tag chỉ ra đời ở job
+      # `merge`, khi hai digest đã được gộp thành manifest list.
+      # Docs: https://docs.docker.com/build/exporters/image-registry/
+      - name: Push image (by digest, no tag)
         id: push
         if: github.event_name != 'pull_request'
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
@@ -500,20 +542,149 @@ jobs:
           context: ${{ env.BUILD_CONTEXT }}
           file: ${{ env.BUILD_CONTEXT }}/${{ matrix.dockerfile }}
           build-args: ${{ steps.buildargs.outputs.args }}
-          push: true
-          tags: ${{ steps.meta.outputs.image }}
+          platforms: linux/${{ matrix.arch }}
           labels: |
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-          cache-from: type=gha,scope=${{ matrix.service }}
+          outputs: type=image,name=${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=${{ matrix.service }}-${{ matrix.arch }}
 
-      - name: Cosign keyless sign (by digest)
+      # Chuyển digest của nhánh này sang job `merge` qua artifact. Tên artifact mang cả
+      # service lẫn arch — trùng tên là hai service ghi đè nhau và `merge` gộp nhầm
+      # digest của service khác vào cùng một manifest list.
+      #
+      # KHÔNG bỏ guard PR: trên PR bước push bị skip nên steps.push.outputs.digest rỗng,
+      # upload-artifact sẽ fail vì không tìm thấy file -> mọi PR chạm src/** đỏ oan.
+      - name: Export digest
         if: github.event_name != 'pull_request'
         env:
           DIGEST: ${{ steps.push.outputs.digest }}
         run: |
           set -euo pipefail
-          # Ký DIGEST, không ký tag: digest bất biến, tag chỉ là con trỏ.
+          [ -n "$DIGEST" ] || { echo "::error::push không trả về digest"; exit 1; }
+          mkdir -p /tmp/digests
+          touch "/tmp/digests/${DIGEST#sha256:}"
+
+      - name: Upload digest
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: digest-${{ matrix.service }}-${{ matrix.arch }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # ------------------------------------------------------------------ #
+  # MERGE: gộp 2 digest (amd64 + arm64) thành MỘT manifest list, đặt    #
+  # tag, rồi ký + attest. Đây là job DUY NHẤT tạo tag và chữ ký.        #
+  #                                                                     #
+  # Vì sao phải là job riêng chứ không nhét vào build:                  #
+  #   - build chạy 2 nhánh/service, mỗi nhánh chỉ biết digest của MÌNH; #
+  #     manifest list cần cả hai nên phải có điểm hợp lưu.              #
+  #   - ECR IMMUTABLE: tag ảnh và tag chữ ký (sha256-*.sig/.att) đều    #
+  #     chỉ ghi được 1 lần. Một digest phải được ký đúng 1 lần, bởi     #
+  #     đúng 1 job -> matrix ở đây là matrix_merge (chỉ service).       #
+  #                                                                     #
+  # Job này Ở TRONG app-build.yaml, không tách file: danh tính Cosign   #
+  # keyless bám job_workflow_ref = ĐƯỜNG DẪN FILE. Tách file là đổi     #
+  # subject, và policy Kyverno verify-image-signature (Enforce +        #
+  # failurePolicy Fail) sẽ chặn mọi pod dùng ảnh đó trên prod.          #
+  # ------------------------------------------------------------------ #
+  merge:
+    name: Merge ${{ matrix.service }}
+    needs: [detect, build]
+    if: ${{ github.event_name != 'pull_request' && needs.detect.outputs.any == 'true' }}
+    runs-on: ubuntu-latest
+    # BẮT BUỘC: environment + permissions là thuộc tính CỦA TỪNG JOB, không kế thừa
+    # từ job khác. Thiếu `environment: sandbox` thì OIDC sub không khớp StringEquals
+    # trong trust policy -> AssumeRole fail ngay lần chạy đầu.
+    environment: sandbox
+    permissions:
+      contents: read
+      id-token: write # OIDC cho AWS + Cosign keyless (Fulcio)
+      attestations: write # GitHub Artifact Attestations (SLSA provenance)
+      artifact-metadata: write # Required by actions/attest to store provenance metadata
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.detect.outputs.matrix_merge) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Compute tag
+        id: meta
+        run: |
+          set -euo pipefail
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          TAG="${IMAGE_VERSION}-${{ matrix.service }}-${SHORT_SHA}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "image=${ECR_REGISTRY}/${ECR_REPOSITORY}:${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
+        with:
+          role-to-assume: ${{ vars.TF_AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-${{ github.actor }}-${{ github.run_id }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
+
+      - name: Install Syft
+        uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+
+      # `pattern` phải khai tường minh theo service. Dùng glob trần rồi gộp hết sẽ kéo
+      # cả digest của service KHÁC vào cùng một manifest list — index sai vẫn ký được,
+      # vẫn qua Kyverno, và không cổng nào phía sau bắt được.
+      - name: Download digests
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: digest-${{ matrix.service }}-*
+          merge-multiple: true
+          path: /tmp/digests/${{ matrix.service }}
+
+      - name: Create manifest list
+        working-directory: /tmp/digests/${{ matrix.service }}
+        env:
+          IMAGE: ${{ steps.meta.outputs.image }}
+        run: |
+          set -euo pipefail
+          n=$(ls -1 | wc -l)
+          [ "$n" -eq 2 ] || { echo "::error::cần đúng 2 digest (amd64+arm64), có $n"; ls -la; exit 1; }
+          docker buildx imagetools create -t "$IMAGE" \
+            $(printf "${ECR_REGISTRY}/${ECR_REPOSITORY}@sha256:%s " *)
+          echo "✅ Created $IMAGE"
+
+      # HẬU KIỂM TRƯỚC KHI KÝ: index phải thật sự có đủ 2 nền tảng linux. Ký một index
+      # thiếu arch nghĩa là đóng dấu hợp lệ lên thứ sai — không cổng nào phía sau phát
+      # hiện, vì chữ ký vẫn đúng danh tính.
+      - name: Verify index có đủ 2 platform
+        id: index
+        env:
+          IMAGE: ${{ steps.meta.outputs.image }}
+        run: |
+          set -euo pipefail
+          RAW=$(docker buildx imagetools inspect "$IMAGE" --raw)
+          N=$(jq '[.manifests[] | select(.platform.os == "linux") | .platform.architecture] | unique | length' <<<"$RAW")
+          [ "$N" -eq 2 ] || { echo "::error::index chỉ có $N kiến trúc linux"; jq '.manifests[].platform' <<<"$RAW"; exit 1; }
+          DIGEST=$(docker buildx imagetools inspect "$IMAGE" --format '{{json .Manifest}}' | jq -r .digest)
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+          echo "✅ index $DIGEST có $(jq -r '[.manifests[]|select(.platform.os=="linux")|.platform.architecture]|join(", ")' <<<"$RAW")"
+
+      # Ký INDEX digest, không ký digest con. Kyverno mutateDigest resolve image ra
+      # đúng index digest (kubelet cũng báo index digest trong containerStatuses), nên
+      # chữ ký phải nằm ở đó thì admission mới khớp.
+      - name: Cosign keyless sign (index digest)
+        env:
+          DIGEST: ${{ steps.index.outputs.digest }}
+        run: |
+          set -euo pipefail
           REF="${ECR_REGISTRY}/${ECR_REPOSITORY}@${DIGEST}"
           cosign sign --yes \
             --rekor-url https://rekor.sigstore.dev \
@@ -521,40 +692,41 @@ jobs:
             "$REF"
           echo "✅ Signed $REF"
 
-      # CDO SBOM: sinh SBOM (SPDX) từ image ĐÃ push theo DIGEST rồi cosign attest
-      # predicate spdxjson. Gắn theo digest (bất biến) — cùng REF với bước sign trên.
-      # download-syft chỉ cài binary syft (pin SHA), không tự attest -> chủ động loop/attest.
-      - name: Install Syft
-        if: github.event_name != 'pull_request'
-        uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
-
-      - name: SBOM + cosign attest (spdxjson, by digest)
-        if: github.event_name != 'pull_request'
+      # SBOM gắn vào TỪNG DIGEST CON, không gắn vào index. Lý do: gói cài trong ảnh
+      # amd64 và arm64 KHÁC nhau, một SBOM chung sẽ mô tả sai một nửa. Và vì cosign
+      # attest ghi vào tag sha256-<digest>.att, hai lần attest lên CÙNG index digest sẽ
+      # va ECR IMMUTABLE — trong khi hai digest con là hai tag khác nhau nên không đụng.
+      # Kyverno chỉ verify CHỮ KÝ (không verify attestation) nên cách này không ảnh
+      # hưởng admission.
+      - name: SBOM + cosign attest (mỗi kiến trúc một bản)
         env:
-          DIGEST: ${{ steps.push.outputs.digest }}
+          IMAGE: ${{ steps.meta.outputs.image }}
         run: |
           set -euo pipefail
-          REF="${ECR_REGISTRY}/${ECR_REPOSITORY}@${DIGEST}"
-          # syft xuất spdx-json (có gạch nối); cosign nhận --type spdxjson (không gạch nối).
-          syft "registry:${REF}" -o spdx-json > sbom.spdx.json
-          cosign attest --yes \
-            --type spdxjson \
-            --predicate sbom.spdx.json \
-            --rekor-url https://rekor.sigstore.dev \
-            --fulcio-url https://fulcio.sigstore.dev \
-            "$REF"
-          echo "✅ SBOM attested $REF ($(jq '.packages | length' sbom.spdx.json) packages)"
+          RAW=$(docker buildx imagetools inspect "$IMAGE" --raw)
+          for arch in amd64 arm64; do
+            CHILD=$(jq -r --arg a "$arch" \
+              '.manifests[] | select(.platform.os=="linux" and .platform.architecture==$a) | .digest' <<<"$RAW")
+            [ -n "$CHILD" ] || { echo "::error::không tìm thấy digest con cho $arch"; exit 1; }
+            REF="${ECR_REGISTRY}/${ECR_REPOSITORY}@${CHILD}"
+            syft "registry:${REF}" --platform "linux/${arch}" -o spdx-json > "sbom-${arch}.spdx.json"
+            cosign attest --yes \
+              --type spdxjson \
+              --predicate "sbom-${arch}.spdx.json" \
+              --rekor-url https://rekor.sigstore.dev \
+              --fulcio-url https://fulcio.sigstore.dev \
+              "$REF"
+            echo "✅ SBOM $arch attested $REF ($(jq '.packages | length' "sbom-${arch}.spdx.json") packages)"
+          done
 
-      # P3 extra: GitHub-native SLSA provenance. Do NOT push this attestation to ECR:
-      # the image repo is IMMUTABLE and the cosign SBOM already owns the .att tag.
-      # GitHub stores this provenance in the repository attestations API; verify with:
-      #   gh attestation verify oci://<registry>/<repo>@sha256:<digest> -R <repo>
+      # SLSA provenance gắn vào INDEX digest — pod trên cụm báo index digest, nên gate
+      # trace-image-provenance đi tìm attestation của index. Gắn vào digest con thì gate
+      # đó đỏ vĩnh viễn với mọi ảnh multi-arch.
       - name: SLSA provenance attestation (GitHub)
-        if: github.event_name != 'pull_request'
         uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
         with:
           subject-name: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}
-          subject-digest: ${{ steps.push.outputs.digest }}
+          subject-digest: ${{ steps.index.outputs.digest }}
           push-to-registry: false
 
   # ------------------------------------------------------------------ #
@@ -629,21 +801,22 @@ jobs:
           fi
 
   build-aiops:
-    name: Build aiops-${{ matrix.module }}
+    name: Build aiops-${{ matrix.module }} (${{ matrix.arch }})
     # KHÔNG needs detect: detect chỉ nói về service trong chart, aiops đổi mà chart
     # không đổi thì detect.any=false -> needs sẽ skip oan cả job này.
     # Vẫn needs validate-manifest để giữ 1 gate chung: chart hỏng thì không push gì.
     needs: [detect-aiops, validate-manifest]
     if: needs.detect-aiops.outputs.any == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     environment: sandbox
     permissions:
       contents: read
       id-token: write # OIDC cho AWS + Cosign keyless (Fulcio)
-      attestations: write # GitHub Artifact Attestations (SLSA provenance)
-      artifact-metadata: write # Required by actions/attest to store provenance metadata
     strategy:
       fail-fast: false
+      # Matrix TĨNH nên trải arch bằng tay: 2 module × 2 kiến trúc = 4 nhánh. Cùng lý do
+      # với job `build` — mỗi nhánh dựng 1 kiến trúc để `load: true` của Trivy còn dùng
+      # được, và để quét đúng gói của từng kiến trúc.
       matrix:
         include:
           # version giữ nguyên số đang chạy trên prod để lịch sử tag đọc liền mạch
@@ -652,10 +825,26 @@ jobs:
             version: "1.3"
             context: aiops/detector
             dockerfile: aiops/detector/Dockerfile
+            arch: amd64
+            runner: ubuntu-latest
+          - module: detector
+            version: "1.3"
+            context: aiops/detector
+            dockerfile: aiops/detector/Dockerfile
+            arch: arm64
+            runner: ubuntu-24.04-arm
           - module: remediation
             version: "1.1"
             context: aiops # cha của detector/ + remediation/ — xem Dockerfile
             dockerfile: aiops/remediation/Dockerfile
+            arch: amd64
+            runner: ubuntu-latest
+          - module: remediation
+            version: "1.1"
+            context: aiops
+            dockerfile: aiops/remediation/Dockerfile
+            arch: arm64
+            runner: ubuntu-24.04-arm
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -693,14 +882,16 @@ jobs:
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
+          platforms: linux/${{ matrix.arch }}
           load: true
           push: false
           tags: ${{ steps.meta.outputs.image }}
           labels: |
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-          cache-from: type=gha,scope=aiops-${{ matrix.module }}
-          cache-to: type=gha,mode=max,scope=aiops-${{ matrix.module }}
+          # scope kèm arch — xem chú thích cùng chỗ ở job `build`.
+          cache-from: type=gha,scope=aiops-${{ matrix.module }}-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=aiops-${{ matrix.module }}-${{ matrix.arch }}
 
       # Cùng gate + cùng .trivyignore như service chart: aiops không được hưởng
       # tiêu chuẩn scan thấp hơn chỉ vì trước đây nó nằm ngoài CI.
@@ -713,24 +904,133 @@ jobs:
           exit-code: "1"
           trivyignores: .trivyignore
 
-      - name: Push image
+      # Push-by-digest, không tag — xem chú thích cùng chỗ ở job `build`.
+      - name: Push image (by digest, no tag)
         id: push
         if: github.event_name != 'pull_request'
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
-          push: true
-          tags: ${{ steps.meta.outputs.image }}
+          platforms: linux/${{ matrix.arch }}
           labels: |
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-          cache-from: type=gha,scope=aiops-${{ matrix.module }}
+          outputs: type=image,name=${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=aiops-${{ matrix.module }}-${{ matrix.arch }}
 
-      - name: Cosign keyless sign (by digest)
+      - name: Export digest
         if: github.event_name != 'pull_request'
         env:
           DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          set -euo pipefail
+          [ -n "$DIGEST" ] || { echo "::error::push không trả về digest"; exit 1; }
+          mkdir -p /tmp/digests
+          touch "/tmp/digests/${DIGEST#sha256:}"
+
+      - name: Upload digest
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: digest-aiops-${{ matrix.module }}-${{ matrix.arch }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # ------------------------------------------------------------------ #
+  # MERGE-AIOPS: bản sao của job `merge` cho 2 image aiops.             #
+  # Tách job riêng (không gộp vào `merge`) vì matrix khác nhau: aiops   #
+  # có `version` riêng cho từng module (1.3 / 1.1) nên tag không suy    #
+  # ra được từ IMAGE_VERSION chung.                                     #
+  # Vẫn Ở TRONG file này để giữ nguyên subject Cosign — xem chú thích   #
+  # đầu file về BUILD_IDENTITY.                                         #
+  # ------------------------------------------------------------------ #
+  merge-aiops:
+    name: Merge aiops-${{ matrix.module }}
+    needs: [detect-aiops, build-aiops]
+    if: ${{ github.event_name != 'pull_request' && needs.detect-aiops.outputs.any == 'true' }}
+    runs-on: ubuntu-latest
+    environment: sandbox
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - module: detector
+            version: "1.3"
+          - module: remediation
+            version: "1.1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Compute tag
+        id: meta
+        run: |
+          set -euo pipefail
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          TAG="${{ matrix.version }}-aiops-${{ matrix.module }}-${SHORT_SHA}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "image=${ECR_REGISTRY}/${ECR_REPOSITORY}:${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
+        with:
+          role-to-assume: ${{ vars.TF_AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-${{ github.actor }}-${{ github.run_id }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
+
+      - name: Install Syft
+        uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+
+      - name: Download digests
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: digest-aiops-${{ matrix.module }}-*
+          merge-multiple: true
+          path: /tmp/digests/aiops-${{ matrix.module }}
+
+      - name: Create manifest list
+        working-directory: /tmp/digests/aiops-${{ matrix.module }}
+        env:
+          IMAGE: ${{ steps.meta.outputs.image }}
+        run: |
+          set -euo pipefail
+          n=$(ls -1 | wc -l)
+          [ "$n" -eq 2 ] || { echo "::error::cần đúng 2 digest (amd64+arm64), có $n"; ls -la; exit 1; }
+          docker buildx imagetools create -t "$IMAGE" \
+            $(printf "${ECR_REGISTRY}/${ECR_REPOSITORY}@sha256:%s " *)
+          echo "✅ Created $IMAGE"
+
+      - name: Verify index có đủ 2 platform
+        id: index
+        env:
+          IMAGE: ${{ steps.meta.outputs.image }}
+        run: |
+          set -euo pipefail
+          RAW=$(docker buildx imagetools inspect "$IMAGE" --raw)
+          N=$(jq '[.manifests[] | select(.platform.os == "linux") | .platform.architecture] | unique | length' <<<"$RAW")
+          [ "$N" -eq 2 ] || { echo "::error::index chỉ có $N kiến trúc linux"; jq '.manifests[].platform' <<<"$RAW"; exit 1; }
+          DIGEST=$(docker buildx imagetools inspect "$IMAGE" --format '{{json .Manifest}}' | jq -r .digest)
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+
+      - name: Cosign keyless sign (index digest)
+        env:
+          DIGEST: ${{ steps.index.outputs.digest }}
         run: |
           set -euo pipefail
           REF="${ECR_REGISTRY}/${ECR_REPOSITORY}@${DIGEST}"
@@ -740,34 +1040,32 @@ jobs:
             "$REF"
           echo "✅ Signed $REF"
 
-      - name: Install Syft
-        if: github.event_name != 'pull_request'
-        uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
-
-      - name: SBOM + cosign attest (spdxjson, by digest)
-        if: github.event_name != 'pull_request'
+      - name: SBOM + cosign attest (mỗi kiến trúc một bản)
         env:
-          DIGEST: ${{ steps.push.outputs.digest }}
+          IMAGE: ${{ steps.meta.outputs.image }}
         run: |
           set -euo pipefail
-          REF="${ECR_REGISTRY}/${ECR_REPOSITORY}@${DIGEST}"
-          syft "registry:${REF}" -o spdx-json > sbom.spdx.json
-          cosign attest --yes \
-            --type spdxjson \
-            --predicate sbom.spdx.json \
-            --rekor-url https://rekor.sigstore.dev \
-            --fulcio-url https://fulcio.sigstore.dev \
-            "$REF"
-          echo "✅ SBOM attested $REF ($(jq '.packages | length' sbom.spdx.json) packages)"
+          RAW=$(docker buildx imagetools inspect "$IMAGE" --raw)
+          for arch in amd64 arm64; do
+            CHILD=$(jq -r --arg a "$arch" \
+              '.manifests[] | select(.platform.os=="linux" and .platform.architecture==$a) | .digest' <<<"$RAW")
+            [ -n "$CHILD" ] || { echo "::error::không tìm thấy digest con cho $arch"; exit 1; }
+            REF="${ECR_REGISTRY}/${ECR_REPOSITORY}@${CHILD}"
+            syft "registry:${REF}" --platform "linux/${arch}" -o spdx-json > "sbom-${arch}.spdx.json"
+            cosign attest --yes \
+              --type spdxjson \
+              --predicate "sbom-${arch}.spdx.json" \
+              --rekor-url https://rekor.sigstore.dev \
+              --fulcio-url https://fulcio.sigstore.dev \
+              "$REF"
+            echo "✅ SBOM $arch attested $REF"
+          done
 
-      # P3 extra: GitHub-native SLSA provenance. Keep it in GitHub attestations API,
-      # not ECR, to avoid colliding with existing cosign SBOM .att tags on immutable ECR.
       - name: SLSA provenance attestation (GitHub)
-        if: github.event_name != 'pull_request'
         uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
         with:
           subject-name: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}
-          subject-digest: ${{ steps.push.outputs.digest }}
+          subject-digest: ${{ steps.index.outputs.digest }}
           push-to-registry: false
 
   # ------------------------------------------------------------------ #
@@ -782,13 +1080,21 @@ jobs:
     # build-aiops luôn chạy (không phụ thuộc detect) nên needs nó vào đây; `always()`
     # để bump vẫn chạy khi MỘT trong hai nhánh build bị skip — nhưng chỉ khi nhánh
     # kia thành công (điều kiện result kiểm bên dưới), không bump tag của image chưa push.
-    needs: [detect, build, detect-aiops, build-aiops]
+    #
+    # MULTI-ARCH — bám `merge`, KHÔNG bám `build`:
+    # Từ khi chuyển sang push-by-digest, `build` thành công CHỈ nghĩa là các mảnh ảnh đã
+    # nằm trên ECR dưới dạng digest thuần — TAG CHƯA TỒN TẠI. Tag do `merge` tạo. Nếu ở
+    # đây vẫn kiểm needs.build.result thì bump sẽ ghi tag vào Git rồi ArgoCD sync sau ~3
+    # phút, trong khi `merge` có thể còn đang chạy (pod ImagePullBackOff vài phút) hoặc
+    # đã fail (kẹt vĩnh viễn tới khi revert tay). Đúng loại sự cố mà chú thích ở bước
+    # "Verify diff chỉ chạm service đã build" bên dưới đã cảnh báo.
+    needs: [detect, build, merge, detect-aiops, build-aiops, merge-aiops]
     # push VÀ workflow_dispatch đều bump (dispatch build-all mà không bump thì
     # image lên ECR nhưng ArgoCD không bao giờ biết — lỗi phát hiện 2026-07-19,
     # phải bump tay đợt 5e03ae7). Chỉ PR là không bump (không push image).
     if: >-
       ${{ always() && github.event_name != 'pull_request'
-      && (needs.build.result == 'success' || needs.build-aiops.result == 'success') }}
+      && (needs.merge.result == 'success' || needs.merge-aiops.result == 'success') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -815,7 +1121,7 @@ jobs:
       - name: Bump imageOverride.tag từng service
         # Chỉ khi nhánh build chart thật sự đã push image. build-aiops chạy một mình
         # (chỉ aiops/** đổi) thì bỏ qua bước này, không đụng TAGS_FILE.
-        if: needs.build.result == 'success' && needs.detect.outputs.any == 'true'
+        if: needs.merge.result == 'success' && needs.detect.outputs.any == 'true'
         env:
           MATRIX: ${{ needs.detect.outputs.matrix }}
         run: |
@@ -833,7 +1139,7 @@ jobs:
       # lệch nhau, ta sẽ ghi tag cho service KHÔNG có image trên ECR -> ImagePullBackOff
       # (đúng dạng sự cố 2026-07-16). Chặn ở CI thay vì trông vào người review diff.
       - name: Verify diff chỉ chạm service đã build
-        if: needs.build.result == 'success' && needs.detect.outputs.any == 'true'
+        if: needs.merge.result == 'success' && needs.detect.outputs.any == 'true'
         env:
           EXPECTED: ${{ needs.detect.outputs.services }}
         run: |
@@ -882,7 +1188,7 @@ jobs:
       # (.spec.template.spec.containers[0].image) chứ không sed regex: file còn có tag
       # ví dụ trong comment hướng dẫn build tay, sed sẽ sửa nhầm cả comment đó.
       - name: Bump image aiops (manifest trần)
-        if: needs.build-aiops.result == 'success'
+        if: needs.merge-aiops.result == 'success'
         run: |
           set -euo pipefail
           SHORT_SHA=$(git rev-parse --short HEAD)
