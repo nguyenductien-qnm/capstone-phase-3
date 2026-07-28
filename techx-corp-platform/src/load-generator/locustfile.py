@@ -110,6 +110,13 @@ products = [
 people_file = open('people.json')
 people = json.load(people_file)
 
+
+def checkout_headers():
+    # /api/checkout requires an Idempotency-Key. The browser generates one per
+    # "Place Order" click; this HTTP user has no browser, so it generates its own.
+    return {"Idempotency-Key": str(uuid.uuid4())}
+
+
 class WebsiteUser(HttpUser):
     wait_time = between(1, 10)
 
@@ -201,7 +208,7 @@ class WebsiteUser(HttpUser):
             self.add_to_cart(user=user)
             checkout_person = random.choice(people)
             checkout_person["userId"] = user
-            self.client.post("/api/checkout", json=checkout_person)
+            self.client.post("/api/checkout", json=checkout_person, headers=checkout_headers())
             logging.info(f"Checkout completed for user {user}")
 
     @task(1)
@@ -214,7 +221,7 @@ class WebsiteUser(HttpUser):
                 self.add_to_cart(user=user)
             checkout_person = random.choice(people)
             checkout_person["userId"] = user
-            self.client.post("/api/checkout", json=checkout_person)
+            self.client.post("/api/checkout", json=checkout_person, headers=checkout_headers())
             logging.info(f"Multi-item checkout completed for user {user}")
 
     @task(5)
