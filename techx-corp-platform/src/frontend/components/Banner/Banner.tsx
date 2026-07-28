@@ -7,8 +7,10 @@ const Banner = () => (
       <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl lg:text-5xl">
         The best telescopes to see the world closer
       </h1>
-      <Link href="#hot-products"
-        className="mt-6 inline-block rounded-lg bg-white px-8 py-3 text-lg font-bold text-slate-900 transition hover:bg-gray-100">
+      <Link
+        href="#hot-products"
+        className="mt-6 inline-block rounded-lg bg-white px-8 py-3 text-lg font-bold text-slate-900 transition hover:bg-gray-100"
+      >
         Go Shopping
       </Link>
     </div>

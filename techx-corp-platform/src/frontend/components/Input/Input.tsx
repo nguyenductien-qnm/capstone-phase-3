@@ -1,8 +1,6 @@
-// Copyright The OpenTelemetry Authors
-// SPDX-License-Identifier: Apache-2.0
-
 import { HTMLInputTypeAttribute, InputHTMLAttributes } from 'react';
-import * as S from './Input.styled';
+import { Input as ShadcnInput } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 interface IProps extends InputHTMLAttributes<HTMLSelectElement | HTMLInputElement> {
   type: HTMLInputTypeAttribute | 'select';
@@ -10,22 +8,17 @@ interface IProps extends InputHTMLAttributes<HTMLSelectElement | HTMLInputElemen
   label: string;
 }
 
-const Input = ({ type, id = '', children, label, ...props }: IProps) => {
-  return (
-    <S.InputRow>
-      <S.InputLabel>{label}</S.InputLabel>
-      {type === 'select' ? (
-        <>
-          <S.Select id={id} {...props}>
-            {children}
-          </S.Select>
-          <S.Arrow />
-        </>
-      ) : (
-        <S.Input id={id} {...props} type={type} />
-      )}
-    </S.InputRow>
-  );
-};
+const Input = ({ type, id = '', children, label, ...props }: IProps) => (
+  <div className="flex flex-col gap-2">
+    <Label htmlFor={id}>{label}</Label>
+    {type === 'select' ? (
+      <select id={id} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" {...props}>
+        {children}
+      </select>
+    ) : (
+      <ShadcnInput id={id} type={type} {...props} />
+    )}
+  </div>
+);
 
 export default Input;

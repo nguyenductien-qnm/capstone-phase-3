@@ -15,7 +15,9 @@ const CurrencySwitcher = () => {
       </SelectTrigger>
       <SelectContent>
         {currencyCodeList.map(code => (
-          <SelectItem key={code} value={code}>{code}</SelectItem>
+          <SelectItem key={code} value={code}>
+            {code}
+          </SelectItem>
         ))}
       </SelectContent>
     </Select>
