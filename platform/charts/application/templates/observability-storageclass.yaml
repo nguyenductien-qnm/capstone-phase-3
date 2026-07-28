@@ -6,7 +6,17 @@ metadata:
   labels:
     {{- include "techx-corp.labels" . | nindent 4 }}
   annotations:
-    argocd.argoproj.io/sync-options: Replace=true
+    # StorageClass parameters are immutable, so a changed parameter can only be
+    # rolled out by deleting and recreating the object. Replace=true on its own
+    # makes Argo CD run `kubectl replace`, which still fails the immutability
+    # check and leaves the whole sync stuck retrying — that is what blocked the
+    # develop sync on 2026-07-28 after tagSpecification_1 was added. Force=true
+    # is what turns the replace into a delete plus create.
+    #
+    # Safe for this object: parameters are copied onto a PV when it is
+    # provisioned and are never read back, so already-bound volumes are
+    # unaffected. Only a PVC created inside the recreate window would notice.
+    argocd.argoproj.io/sync-options: Replace=true,Force=true
 provisioner: ebs.csi.aws.com
 reclaimPolicy: {{ .Values.observabilityStorage.reclaimPolicy }}
 volumeBindingMode: {{ .Values.observabilityStorage.volumeBindingMode }}
