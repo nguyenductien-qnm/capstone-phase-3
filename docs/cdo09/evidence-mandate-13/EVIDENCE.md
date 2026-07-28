@@ -4,15 +4,15 @@
 
 ## Bảng Evidence
 
-| # | Yêu cầu Directive | Kết quả | File |
+| # | Yêu cầu Directive | Kết quả | File / Bằng chứng |
 |---|---|---|---|
-| 1 | **#1** Spot ratio (Karpenter-managed) | ✅ **63.9%** (2300m/3600m CPU requests) — chi tiết §1 | [`logs/nodes-after-28072026.txt`](logs/nodes-after-28072026.txt) |
+| 1 | **#1** Spot ratio (Karpenter-managed) | ✅ **63.9%** (2300m/3600m CPU requests) — chi tiết §1 | Video Live / CPU breakdown |
 | 2 | **#2** Cost Explorer — Spot vs On-Demand | ✅ Spot 63.91h/$0.21, On-Demand 151.77h/$5.00 — ảnh §1 | [`screenshots/after-cost-explorer-usage.png`](screenshots/after-cost-explorer-usage.png) |
-| 3 | **#2,#5** Node-hours giảm ≥30% | ✅ **ĐẠT** — Giảm **30.3%** node-hours trên Karpenter nodes (4.184h thực tế vs 6.000h baseline giả định) — chi tiết §2 | [`logs/karpenter-node-scaling-28072026.txt`](logs/karpenter-node-scaling-28072026.txt) |
-| 4 | **#2** Karpenter tự consolidate node underutilized | ✅ **1 sự kiện thật** — Underutilized→delete lúc 03:02:59–03:04:03 (5→4 node), Karpenter tự quyết định gom pod & hạ node | [`logs/karpenter-node-scaling-28072026.txt`](logs/karpenter-node-scaling-28072026.txt) |
-| 5 | **#3** Live spot-kill — 0 request rớt | ✅ Node mới trong ~34s, pod Running trong ~118s, 0 pod Error/CrashLoop | [`logs/live-spot-kill.txt`](logs/live-spot-kill.txt) |
-| 6 | **#3** Karpenter interruption-queue log | ✅ Interrupt → CordonAndDrain <1s → node mới registered 22-24s | [`logs/karpenter-interrupt-log.txt`](logs/karpenter-interrupt-log.txt) |
-| 7 | **#1,#5** `kubectl get nodes`/`nodeclaims` | ✅ Snapshot 2026-07-28T04:32 UTC | [`logs/nodes-after-28072026.txt`](logs/nodes-after-28072026.txt) |
+| 3 | **#2,#5** Node-hours giảm ≥30% | ✅ **ĐẠT** — Giảm **30.3%** node-hours trên Karpenter nodes (4.184h thực tế vs 6.000h baseline giả định) — chi tiết §2 | Video Live / Timeline co giãn |
+| 4 | **#2** Karpenter tự consolidate node underutilized | ✅ **1 sự kiện thật** — Underutilized→delete lúc 03:02:59–03:04:03 (5→4 node), Karpenter tự quyết định gom pod & hạ node | Video Live / Event log |
+| 5 | **#3** Live spot-kill — 0 request rớt | ✅ Node mới trong ~34s, pod Running trong ~118s, 0 pod Error/CrashLoop | Test live spot-kill |
+| 6 | **#3** Karpenter interruption-queue log | ✅ Interrupt → CordonAndDrain <1s → node mới registered 22-24s | Event log |
+| 7 | **#1,#5** `kubectl get nodes`/`nodeclaims` | ✅ Snapshot 2026-07-28T04:32 UTC | `kubectl get nodes` |
 | 8 | **#5** Graviton (arm64) | ❌ **Deferred có chủ ý** — CI hiện chỉ build `linux/amd64` — xem ADR Decision 4 | ADR §"Quyết định (Develop)" mục 4 |
 
 ## 🔗 Link Video Live Chứng Minh Bằng Chứng (Google Drive)
