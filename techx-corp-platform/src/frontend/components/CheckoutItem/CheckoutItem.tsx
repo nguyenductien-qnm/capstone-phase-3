@@ -1,60 +1,34 @@
-// Copyright The OpenTelemetry Authors
-// SPDX-License-Identifier: Apache-2.0
-
 import Image from 'next/image';
 import { useState } from 'react';
 import { CypressFields } from '../../utils/enums/CypressFields';
 import { Address } from '../../protos/demo';
 import { IProductCheckoutItem } from '../../types/Cart';
 import ProductPrice from '../ProductPrice';
-import * as S from './CheckoutItem.styled';
+import { Separator } from '@/components/ui/separator';
 
-interface IProps {
-  checkoutItem: IProductCheckoutItem;
-  address: Address;
-}
+interface IProps { checkoutItem: IProductCheckoutItem; address: Address; }
 
-const CheckoutItem = ({
-  checkoutItem: {
-    item: {
-      quantity,
-      product: { picture, name },
-    },
-    cost = { currencyCode: 'USD', units: 0, nanos: 0 },
-  },
-  address: { streetAddress = '', city = '', state = '', zipCode = '', country = '' },
-}: IProps) => {
+const CheckoutItem = ({ checkoutItem: { item: { quantity, product: { picture, name } }, cost }, address: { streetAddress, city, state, zipCode, country } }: IProps) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
-
   return (
-    <S.CheckoutItem data-cy={CypressFields.CheckoutItem}>
-      <S.ItemDetails>
-        <S.ItemImage src={"/images/products/" + picture} alt={name}/>
-        <S.Details>
-          <S.ItemName>{name}</S.ItemName>
-          <p>Quantity: {quantity}</p>
-          <p>
-            Total: <ProductPrice price={cost} />
-          </p>
-        </S.Details>
-      </S.ItemDetails>
-      <S.ShippingData>
-        <S.ItemName>Shipping Data</S.ItemName>
-        <p>Street: {streetAddress}</p>
-        {!isCollapsed && <S.SeeMore onClick={() => setIsCollapsed(true)}>See More</S.SeeMore>}
-        {isCollapsed && (
-          <>
-            <p>City: {city}</p>
-            <p>State: {state}</p>
-            <p>Zip Code: {zipCode}</p>
-            <p>Country: {country}</p>
-          </>
-        )}
-      </S.ShippingData>
-      <S.Status>
-        <Image src="/icons/Check.svg" alt="check" height="14" width="16" /> <span>Done</span>
-      </S.Status>
-    </S.CheckoutItem>
+    <div data-cy={CypressFields.CheckoutItem} className="rounded-lg border p-4">
+      <div className="flex items-center gap-4">
+        <img src={'/images/products/' + picture} alt={name} className="h-16 w-16 rounded-md object-cover" />
+        <div className="flex-1">
+          <p className="font-medium">{name}</p>
+          <p className="text-sm text-muted-foreground">Quantity: {quantity}</p>
+          <p className="text-sm">Total: <ProductPrice price={cost || { currencyCode: 'USD', units: 0, nanos: 0 }} /></p>
+        </div>
+      </div>
+      <Separator className="my-3" />
+      <div className="text-sm">
+        <p className="font-medium">Shipping Data</p>
+        <p className="text-muted-foreground">Street: {streetAddress || ''}</p>
+        {!isCollapsed && <button onClick={() => setIsCollapsed(true)} className="text-blue-600 hover:underline">See More</button>}
+        {isCollapsed && <><p className="text-muted-foreground">City: {city || ''}</p><p className="text-muted-foreground">State: {state || ''}</p><p className="text-muted-foreground">Zip: {zipCode || ''}</p><p className="text-muted-foreground">Country: {country || ''}</p></>}
+      </div>
+      <div className="mt-2 flex items-center gap-1 text-green-600"><Image src="/icons/Check.svg" alt="check" height="14" width="16" /><span>Done</span></div>
+    </div>
   );
 };
 
