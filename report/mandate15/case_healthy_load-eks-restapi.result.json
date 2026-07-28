@@ -1,0 +1,96 @@
+{
+  "scenario_id": "case-healthy-load-001",
+  "type": "healthy_load",
+  "events": [
+    {
+      "label": "case-healthy-load-001",
+      "service": null,
+      "expected_rule_ids": [
+        "latency-p95-high",
+        "service-error-rate-high",
+        "service-traffic-collapse",
+        "error-budget-burn-fast-standard",
+        "error-budget-burn-fast-checkout",
+        "error-budget-burn-slow-standard",
+        "error-budget-burn-slow-checkout",
+        "memory-saturation-high",
+        "kafka-consumer-lag-high",
+        "genai-latency-high",
+        "bedrock-cost-high",
+        "llm-rate-limit-429",
+        "db-pool-exhaustion",
+        "oom-detected"
+      ],
+      "expect_fire": false,
+      "inject": {
+        "type": "command",
+        "on": "kubectl -n techx-tf1 exec deploy/load-generator -- python3 -c 'import urllib.request,urllib.parse;urllib.request.urlopen(\"http://localhost:8089/swarm\",urllib.parse.urlencode({\"user_count\":100,\"spawn_rate\":20}).encode(),timeout=15)'",
+        "off": "kubectl -n techx-tf1 exec deploy/load-generator -- python3 -c 'import urllib.request,urllib.parse;urllib.request.urlopen(\"http://localhost:8089/swarm\",urllib.parse.urlencode({\"user_count\":22,\"spawn_rate\":20}).encode(),timeout=15)'"
+      },
+      "offset_seconds": 0,
+      "duration_seconds": 420,
+      "t_start": 1785170221.277083,
+      "t_end": 1785170647.761701
+    }
+  ],
+  "score": {
+    "window": {
+      "start": 1785170221.277083,
+      "end": 1785170827.761701
+    },
+    "per_event": [
+      {
+        "label": "case-healthy-load-001",
+        "service": null,
+        "expected_rule_ids": [
+          "latency-p95-high",
+          "service-error-rate-high",
+          "service-traffic-collapse",
+          "error-budget-burn-fast-standard",
+          "error-budget-burn-fast-checkout",
+          "error-budget-burn-slow-standard",
+          "error-budget-burn-slow-checkout",
+          "memory-saturation-high",
+          "kafka-consumer-lag-high",
+          "genai-latency-high",
+          "bedrock-cost-high",
+          "llm-rate-limit-429",
+          "db-pool-exhaustion",
+          "oom-detected"
+        ],
+        "expect_fire": false,
+        "fired": true,
+        "correct": false,
+        "lead_time_seconds": 319.7435564994812,
+        "matched_alert": {
+          "ts": 1785170541.0206394,
+          "rule_id": "llm-rate-limit-429",
+          "service": "log",
+          "severity": "critical",
+          "fingerprint": "log:5950568"
+        }
+      }
+    ],
+    "metrics": {
+      "K_incidents": 0,
+      "recall": null,
+      "precision": 0.0,
+      "total_fires_observed": 1,
+      "correct_fires": 0
+    },
+    "raw_alerts_in_window": [
+      {
+        "ts": 1785170541.0206394,
+        "rule_id": "llm-rate-limit-429",
+        "service": "log",
+        "severity": "critical",
+        "fingerprint": "log:5950568"
+      }
+    ]
+  },
+  "verdict": {
+    "pass": false,
+    "reason": "false alarm(s): ['case-healthy-load-001']"
+  },
+  "remediation_records": null
+}

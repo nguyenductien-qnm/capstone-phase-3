@@ -1,0 +1,7 @@
+{
+  "label": "after",
+  "mttr": 67.15264010429382,
+  "oom_to_delete": 61.0,
+  "old_pod": "mttr-canary-777d456d75-vv5sr",
+  "new_pod": "mttr-canary-777d456d75-5wvk7"
+}

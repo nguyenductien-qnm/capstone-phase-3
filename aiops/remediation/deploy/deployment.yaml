@@ -40,7 +40,7 @@ spec:
       containers:
         - name: aiops-remediation
           # MANDATE-05: pin tag co dinh, khong dung tag troi (:latest).
-          image: 804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.1-aiops-remediation-ebb7b7b
+          image: 804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.1-aiops-remediation-75bf1e7
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false
@@ -77,6 +77,22 @@ spec:
                   name: aiops-alert
                   key: webhook
                   optional: true
+            # TF1-112 (MANDATE-22 DoD doi "audit log lan do"). rootfs read-only
+            # (MANDATE-05, khong duoc lui) nen phai tro sang emptyDir writable —
+            # dung mau ALERTER_HISTORY_FILE ma detector da dung.
+            #
+            # Truoc thay doi nay remediation KHONG ghi lai gi: dau vet duy nhat la
+            # alert Slack + stdout cua pod, ma stdout mat sach khi pod restart. Voi
+            # mot vong tu dong co quyen `delete pods` thi do khong phai audit trail.
+            - name: REMEDIATION_AUDIT_FILE
+              value: "/data/audit_log.jsonl"
+            # Alerter dung chung cua detector cung ghi history vao duong dan mac dinh
+            # canh module (/app, read-only) -> tu truoc gio ghi hong im lang. Tro luon.
+            - name: ALERTER_HISTORY_FILE
+              value: "/data/alerter_history.jsonl"
+          volumeMounts:
+            - name: aiops-data
+              mountPath: /data
           # Block style (khong phai flow `{ }`): yq cua job bump se viet lai flow-map
           # -> diff rac moi lan bump. Xem comment cung cho o aiops/detector.
           resources:
@@ -86,3 +102,10 @@ spec:
             limits:
               cpu: "200m"
               memory: "128Mi"
+      volumes:
+        # Ephemeral: MAT khi pod restart. Du de tra loi "lan chay vua roi da qua nhung
+        # cong nao", KHONG phai durable audit store — de giu qua nhieu lan restart thi
+        # phai day ra ngoai (S3/OpenSearch), pham vi lon hon va chua lam.
+        # Ghi ra day thay vi giau: mot audit log mat khi restart la audit log yeu.
+        - name: aiops-data
+          emptyDir: {}

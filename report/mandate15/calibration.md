@@ -60,3 +60,64 @@ làm hỏng bằng chứng mà không ai biết.
 Sau khi khôi phục, HPA đẩy `cart` lên **5 replica** để tiêu hoá lượng dồn, rồi tự thu về
 `minReplicas=2`. Phải đợi nó ổn định và tỉ lệ lỗi về 0 trước khi chạy ca masking, nếu
 không baseline đã bẩn từ đầu.
+
+---
+
+# Vòng 2 — 15s trên `checkout` KHÔNG dùng được, và vì sao
+
+Lần chạy đầu theo hiệu chỉnh ở trên cho verdict **PASS**, nhưng đào ra thì **PASS vì lý do sai**:
+
+| Thời điểm | tỉ lệ lỗi `checkout` | |
+|---|---|---|
+| 15:37:43 | 0.0678 | trong dải |
+| **15:38:13** | **0.1132** | ← alert bắn đúng lúc này |
+| 15:39:13 | **0.1458** | đỉnh |
+
+Sự cố 2 **vượt ngưỡng tĩnh 0.10**, nên **tầng tĩnh kêu chứ không phải 3-sigma**. Bài test
+không hề kiểm masking. Lấy ảnh đó làm evidence là làm bằng chứng giả.
+
+**Sai ở đâu:** ngoại suy tuyến tính từ **một** điểm đo. `20s → 0.0909` nên tưởng
+`15s → 0.068`. Thực tế `15s → 0.1458` — **cao hơn**, tức **không đơn điệu**.
+
+Nguyên nhân: gián đoạn *thật* bị chi phối bởi thời gian pod tắt (grace period) và khởi
+động lại, khoảng ±15s, chứ không tỉ lệ với thời lượng khai báo. Ở mức 15–20s thì nhiễu
+đó **lớn ngang chính tín hiệu**. **Thời lượng là cần điều khiển sai.**
+
+## Cần điều khiển đúng: tần suất gọi
+
+Đo phổ gọi của `checkout` (CLIENT spans):
+
+| Phụ thuộc | req/s | lần gọi mỗi đơn hàng |
+|---|---|---|
+| `CurrencyService/Convert` | 0.6696 | ~2.7 |
+| `ProductCatalogService/GetProduct` | 0.4216 | ~1.7 |
+| `CartService/GetCart` | 0.2480 | ~1.0 |
+
+**Mọi phụ thuộc đồng bộ của `checkout` đều nằm trên MỌI request** → giết cái nào tỉ lệ
+cũng vọt lên 1.0. `checkout` **không có nấc trung gian nào**.
+
+`frontend` thì khác: cùng sự cố `cart` chết, nó chỉ đạt **0.2796** vì cart chỉ nằm trên
+một phần luồng của nó (`AddItemAndGetCart` + `GetCart` = 1.15 trong tổng 10.93 req/s
+SERVER span).
+
+## Ứng viên bị loại: `recommendation`
+
+Giết `recommendation` **360 giây** → tỉ lệ lỗi `frontend` = **0.0000 suốt 19/19 mẫu**.
+
+`frontend` **chịu được** `recommendation` chết — mất widget gợi ý chứ không lỗi. Đó là
+kỹ thuật tốt của ứng dụng, nhưng làm nó vô dụng làm điểm bơm.
+
+## Chốt: `frontend` + gián đoạn `cart` 60 giây
+
+Suy từ số đo: `frontend` full-outage = 0.2796; hệ số khuếch đại 1.36 (từ dữ liệu
+`checkout`: 20s cho 0.0909 trong khi `20/300 × 1.0 = 0.0667`).
+
+| Mục tiêu | Thời lượng cần | Với nhiễu ±15s → dải tỉ lệ | |
+|---|---|---|---|
+| 0.060 | 47s | 0.041 – 0.079 | có thể tràn xuống dưới cổng |
+| **0.075** | **59s** | **0.056 – 0.094** | **trọn vẹn trong dải** |
+| 0.090 | 71s | 0.071 – 0.109 | có thể tràn qua ngưỡng tĩnh |
+
+Chọn **60s**. Vì `frontend` thấp hơn `checkout` 3.6 lần nên cần gián đoạn dài gấp ~4 lần,
+và chính điều đó biến nhiễu ±15s từ **thứ chi phối kết quả** thành **sai số nhỏ** — đúng
+thứ đã phá vòng 1.

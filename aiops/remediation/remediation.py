@@ -33,6 +33,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from sources import PrometheusClient, OpenSearchClient  # noqa: E402
 from alerter import Alerter  # noqa: E402
 
+import audit  # noqa: E402
 from blast_radius import BlastRadiusGuard  # noqa: E402
 from circuit_breaker import CircuitBreaker  # noqa: E402
 from k8s_actions import find_oom_pods, restart_pod, load_k8s_client  # noqa: E402
@@ -122,6 +123,9 @@ def process_oom_policy(policy, rule, cfg, prom, osc, core_v1, alerter, blast_gua
     for oom in oom_pods:
         pod_name = oom["pod_name"]
         service_label = oom["service_label"]
+        audit.record(audit.STAGE_DETECT, "detected", rule["id"], service_label, pod_name, dry_run,
+                     trigger_type=trigger_type, log_count=log_count,
+                     terminated_at=oom.get("terminated_at"))
         scope_key = namespace if sb["blast_radius"]["scope"] == "namespace" else f"{namespace}:{service_label}"
         dedup_key = f"{rule['id']}:{service_label}"
 
@@ -135,6 +139,10 @@ def process_oom_policy(policy, rule, cfg, prom, osc, core_v1, alerter, blast_gua
 
         if breaker.is_open(dedup_key):
             log.warning("circuit breaker DANG MO cho %s - tu choi hanh dong, chi escalate", dedup_key)
+            audit.record(audit.STAGE_CIRCUIT_BREAKER, "deny", rule["id"], service_label, pod_name, dry_run,
+                         dedup_key=dedup_key,
+                         max_consecutive_failures=breaker.max_consecutive_failures,
+                         reason="breaker dang mo")
             alerter.send(
                 f"remediation-cb-open:{dedup_key}", "critical", f"remediation-circuit-breaker-open:{rule['id']}",
                 f"Circuit breaker đang MỞ cho {service_label} (namespace={namespace}) — đã fail liên tiếp quá "
@@ -142,18 +150,32 @@ def process_oom_policy(policy, rule, cfg, prom, osc, core_v1, alerter, blast_gua
             )
             continue
 
+        audit.record(audit.STAGE_CIRCUIT_BREAKER, "allow", rule["id"], service_label, pod_name, dry_run,
+                     dedup_key=dedup_key)
+
         # 2. Error-budget guard (spec Sec4.2)
         if not check_error_budget_ok(prom, sb["error_budget_check"]):
             log.warning("error budget can/khong an toan - Halt Automation & Page Human")
+            audit.record(audit.STAGE_ERROR_BUDGET, "deny", rule["id"], service_label, pod_name, dry_run,
+                         max_ratio=sb["error_budget_check"].get("max_ratio"),
+                         reason="error budget can hoac khong doc duoc")
             alerter.send(
                 f"remediation-budget-halt:{dedup_key}", "critical", f"remediation-halt-error-budget:{rule['id']}",
                 f"Error budget đã cạn — TẠM DỪNG auto-remediation cho {service_label}, cần người xử lý thủ công.",
             )
             continue
 
+        audit.record(audit.STAGE_ERROR_BUDGET, "allow", rule["id"], service_label, pod_name, dry_run,
+                     max_ratio=sb["error_budget_check"].get("max_ratio"))
+
         # 3. Blast-radius guard (spec Sec4.3)
         if not blast_guard.allow(scope_key):
             log.warning("blast-radius vuot gioi han cho scope=%s - tu choi + escalate", scope_key)
+            audit.record(audit.STAGE_BLAST_RADIUS, "deny", rule["id"], service_label, pod_name, dry_run,
+                         scope_key=scope_key,
+                         max_actions=sb["blast_radius"]["max_actions"],
+                         time_window_seconds=sb["blast_radius"]["time_window_seconds"],
+                         reason="da het han muc trong cua so")
             alerter.send(
                 f"remediation-blast-radius:{dedup_key}", "critical", f"remediation-blast-radius-exceeded:{rule['id']}",
                 f"Đã vượt giới hạn blast-radius ({sb['blast_radius']['max_actions']} action / "
@@ -162,10 +184,18 @@ def process_oom_policy(policy, rule, cfg, prom, osc, core_v1, alerter, blast_gua
             )
             continue
 
+        audit.record(audit.STAGE_BLAST_RADIUS, "allow", rule["id"], service_label, pod_name, dry_run,
+                     scope_key=scope_key,
+                     max_actions=sb["blast_radius"]["max_actions"],
+                     time_window_seconds=sb["blast_radius"]["time_window_seconds"])
+
         # 4. Dry-run gate (spec Sec4.1) - KHONG goi K8s API that neu dry_run.
         if dry_run:
             log.info("[DRY-RUN] se restart pod %s/%s (service=%s) - khong goi K8s API that",
                       namespace, pod_name, service_label)
+            audit.record(audit.STAGE_DRY_RUN, "skipped", rule["id"], service_label, pod_name, dry_run,
+                         would_action="k8s_restart_pod",
+                         reason="REMEDIATION_DRY_RUN chua duoc set false")
             alerter.send(
                 f"remediation-dryrun:{dedup_key}", "info", f"remediation-dry-run:{rule['id']}",
                 f"[DRY-RUN] Sẽ restart pod {pod_name} (service={service_label}, namespace={namespace}) — "
@@ -176,11 +206,17 @@ def process_oom_policy(policy, rule, cfg, prom, osc, core_v1, alerter, blast_gua
 
         # 5. Hanh dong that: restart pod (action duy nhat trong scope).
         blast_guard.record(scope_key)
+        acted_at = time.time()
         try:
             restart_pod(core_v1, namespace, pod_name, policy["action"]["grace_period_seconds"])
         except Exception as exc:  # noqa: BLE001
             log.error("restart_pod that bai: %s", exc)
+            audit.record(audit.STAGE_ACTION, "error", rule["id"], service_label, pod_name, dry_run,
+                         action="k8s_restart_pod", error=str(exc))
             continue
+        audit.record(audit.STAGE_ACTION, "acted", rule["id"], service_label, pod_name, dry_run,
+                     action="k8s_restart_pod",
+                     grace_period_seconds=policy["action"]["grace_period_seconds"])
 
         # 6. Verify (spec Sec4.4)
         verify_cfg = sb["verify"]
@@ -189,6 +225,11 @@ def process_oom_policy(policy, rule, cfg, prom, osc, core_v1, alerter, blast_gua
             duration_seconds=verify_cfg["duration_seconds"],
             poll_interval_seconds=verify_cfg["poll_interval_seconds"],
         )
+
+        audit.record(audit.STAGE_VERIFY, "pass" if ok else "fail", rule["id"], service_label, pod_name, dry_run,
+                     duration_seconds=verify_cfg["duration_seconds"],
+                     poll_interval_seconds=verify_cfg["poll_interval_seconds"],
+                     elapsed_seconds=round(time.time() - acted_at, 1))
 
         if ok:
             breaker.record_success(dedup_key)
@@ -202,6 +243,11 @@ def process_oom_policy(policy, rule, cfg, prom, osc, core_v1, alerter, blast_gua
             # dung lai + tang circuit breaker + escalate (quyet dinh da chot voi user,
             # trung thuc voi nang luc that, khong bia hanh dong helm rollback gia).
             just_opened = breaker.record_failure(dedup_key)
+            if just_opened:
+                audit.record(audit.STAGE_CIRCUIT_BREAKER, "opened", rule["id"], service_label, pod_name, dry_run,
+                             dedup_key=dedup_key,
+                             max_consecutive_failures=breaker.max_consecutive_failures,
+                             reset_timeout_seconds=breaker.reset_timeout_seconds)
             severity = "critical" if just_opened else "warning"
             suffix = " — CIRCUIT BREAKER VỪA MỞ, dừng tự động remediate cho tới khi người xử lý." if just_opened else ""
             alerter.send(

@@ -1,32 +1,31 @@
 # Mandate 13 — Cost Efficiency, Elastic Compute — EVIDENCE PACK
 
 > **TF:** CDO-09 · **Directive:** [`mandates/MANDATE-13-cost-efficiency-elastic.md`](../../../mandates/MANDATE-13-cost-efficiency-elastic.md)
-> **Cluster test:** `ecommerce-develop-dev-eks` (account 458580846647) · namespace `techx-develop`
-> **Branch:** `feat/mandate-13-cost-efficiency-elastic` — code đã viết xong, **chưa chạy `terraform apply` / ArgoCD sync** (xem `mandate-13/ADR-mandate13-cost-efficiency-elastic.md` §Approval gates).
-> **ADR (quyết định + lý do):** [`mandate-13/ADR-mandate13-cost-efficiency-elastic.md`](mandate-13/ADR-mandate13-cost-efficiency-elastic.md)
-> **Execution guide (thao tác apply + test thật trên multi-account):** [`mandate-13/EXECUTION-GUIDE.md`](mandate-13/EXECUTION-GUIDE.md)
-> **Submission guide (hướng dẫn chi tiết nộp bài cho mentor):** [`mandate-13/SUBMISSION-GUIDE.md`](mandate-13/SUBMISSION-GUIDE.md)
+> **Evidence pack này = cluster sandbox** (account `804372444787`, cluster `ecommerce-dev-eks`, namespace `techx-tf1`) — nơi duy nhất hiện có bằng chứng thật (2026-07-28). Track `develop` (account `458580846647`, cluster `ecommerce-develop-dev-eks` — target chính thức ban đầu của directive #13) có code đầy đủ nhưng **chưa apply/chưa có evidence thật**; chi tiết quyết định mở rộng sang sandbox nằm ở ADR §"Mở rộng sang sandbox — Phương án B" (27-07-2026).
+> **ADR (quyết định + lý do, cả develop lẫn sandbox):** [`ADR-mandate13-cost-efficiency-elastic.md`](ADR-mandate13-cost-efficiency-elastic.md)
+> **Evidence Index (bảng map bằng chứng → file, toàn bộ là sandbox):** [`EVIDENCE.md`](EVIDENCE.md)
 
 ---
 
 ## 0. Tóm tắt cho mentor
 
-**Trạng thái hiện tại: code đã viết đầy đủ trên branch, CHƯA chạy trên cluster thật.**
-Không có lệnh `terraform plan`/`apply` hay ArgoCD sync nào được thực hiện — bảng dưới đây phản ánh đúng thực tế đó, không tô hồng thành "Pass" khi chưa có bằng chứng thật từ console/Grafana.
+**Bằng chứng dưới đây đo trên cluster sandbox, KHÔNG phải cluster develop mà directive #13 nhắm tới ban đầu** — track develop có code đầy đủ nhưng chưa `terraform apply`/ArgoCD sync nên chưa đo được gì thật. Số liệu sandbox (2026-07-28) dùng để minh hoạ mô hình hoạt động đúng như thiết kế trong ADR; xem `EVIDENCE.md` cho chi tiết + raw log.
 
-| Yêu cầu | Trạng thái | Bằng chứng cần | Code Review |
+| Yêu cầu | Trạng thái (đo trên sandbox) | Bằng chứng | Evidence |
 |---|---|---|---|
-| **#1** Chạy trên capacity rẻ (spot > 50%) | 🟡 **Code sẵn sàng, chưa đo được** | NodePool `capacity-type: ["spot","on-demand"]` — [`nodepool-default.yaml`](../../../platform/gitops/environments/develop/karpenter/nodepool-default.yaml). Root app đã bỏ exclude Karpenter — [`root-app.yaml`](../../../platform/gitops/environments/develop/bootstrap/root-app.yaml). Cần EC2 console + Cost Explorer sau khi apply. | ✅ Code đầy đủ |
-| **#2** Trả tiền theo demand (co xuống thật) | 🟡 **Code sẵn sàng, chưa đo được** | `consolidationPolicy: WhenEmptyOrUnderutilized` + `consolidateAfter: 5m` + `disruption.budgets: nodes=1` trên NodePool. MNG `primary` giữ `min=2,max=3,desired=2` on-demand làm sàn HA, phần co-giãn thật đến từ node do Karpenter tạo. [`develop-capacity.tfvars`](../../../terraform/environments/develop/develop-capacity.tfvars) đã gỡ override cũ. Cần Grafana panel "Node Count and Scaling" quay live. | ✅ Code đầy đủ |
-| **#3** Sống sót spot interruption (phần nặng nhất) | 🟡 **Code sẵn sàng, chưa test live-kill** | SQS interruption queue + 1 EventBridge rule (gộp 3 loại event) gated bởi `enable_karpenter_interruption_queue` trong [`karpenter.tf`](../../../terraform/modules/eks/karpenter.tf) + chỉ bật `true` ở [`main.tf develop`](../../../terraform/environments/develop/main.tf). Graceful-drain (`terminationGracePeriodSeconds: 30` + `preStop: sleep 5`) được thêm cho `payment` trong [`values.yaml`](../../../platform/charts/application/values.yaml). Karpenter Helm đã nối `interruptionQueue` trong [`karpenter.yaml`](../../../platform/gitops/environments/develop/applications/karpenter.yaml). Cần live `aws ec2 terminate-instances` trên 1 spot node. | ✅ Code đầy đủ |
-| **#4** Đủ tín hiệu cho scheduler (request vừa đủ) | ✅ **Đã đạt từ trước** | Right-sizing đã làm ở Mandate-19 (`docs/mandate-19/loadtest/README.md` §"Sizing SAU-SHED") — không có thay đổi mới trong Mandate-13. | ✅ Không cần thay đổi |
-| **#5** Đo được: node-hours ↓≥30%, spot≥50%, **Graviton**, co xuống thật, SLO giữ | ❌ **Graviton bị hoãn (deferred) có chủ ý** | Xem ADR Decision 4: CI hiện chỉ build `linux/amd64`, thêm multi-arch là scope quá lớn. Phần còn lại (node-hours, spot%, co xuống, SLO) cần đo sau apply. Load curve [`locust-loadcurve-mandate13-job.yaml`](../../../docs/mandate-19/loadtest/locust-loadcurve-mandate13-job.yaml) đã sẵn sàng. | ⚠️ Graviton N/A, phần khác OK |
+| **#1** Chạy trên capacity rẻ (spot > 50%) | ✅ **63.9%** trên compute Karpenter-managed (2300m/3600m CPU requests) | NodePool `spot` opt-in 10 service (accounting, ad, cart-consumer-worker, email, fraud-detection, image-provider, llm, ml-guard, product-reviews, recommendation) | `EVIDENCE.md` #1 |
+| **#2** Trả tiền theo demand (co xuống thật) | 🟡 **Pod scale thật (HPA) ✅, node scale ❌** — đã chạy load test thật đỉnh 450 user (28-07, 06:51-07:05 UTC): `frontend` HPA 2→10 replica, `cart` 2→4 replica theo đúng tải, nhưng Karpenter giữ nguyên 4 node suốt toàn bộ bài test — không cần thêm node ở mức tải này | Load test thật + giám sát `kubectl` mỗi 15-30s | `EVIDENCE.md` §Load test thật |
+| **#3** Sống sót spot interruption | ✅ Live spot-kill: node mới trong ~34s, pod Running trong ~118s, 0 pod Error/CrashLoop | `aws ec2 terminate-instances` + theo dõi pod | `EVIDENCE.md` #5, #6 |
+| **#4** Đủ tín hiệu cho scheduler | ✅ Đã đạt từ Mandate-19 | Right-sizing (`docs/mandate-19/loadtest/README.md`) — không đổi ở Mandate-13 | — |
+| **#5** node-hours ↓≥30%, spot≥50%, **Graviton**, co xuống thật, SLO giữ | ❌ **KHÔNG đạt node-hours** (đã test thật, kết quả 0% chênh lệch — xem #2) — spot ratio 63.9% ✅ đạt, Graviton ❌ deferred có chủ ý | Xem ADR Decision 4 cho lý do defer Graviton | `EVIDENCE.md` #3 |
 
-**Nguyên tắc:** Không có dòng nào trong bảng trên được đánh "✅ Pass" chỉ vì code đã viết xong — "Pass" chỉ được gắn sau khi có log/screenshot thật lưu trong thư mục `logs/` và `screenshots/` (hiện đang trống, xem `EVIDENCE-INDEX.md`).
+**Kết luận trung thực về node-hours:** đã chạy load test thật (không chỉ dựa vào log cũ) và xác nhận ở mức tải 10-450 user, 4 node Karpenter hiện có đủ sức chứa toàn bộ pod tăng thêm — Karpenter không cần/không scale thêm node nào. Node-hours Karpenter = node-hours baseline tĩnh (cả hai đều 4 node) → **0% chênh lệch, không đạt ≥30%**. Đây không phải lỗi đo lường — là kết quả thật, cần báo cáo trung thực với mentor kèm hướng khắc phục (xem `EVIDENCE.md` §Load test thật).
 
-## 1. Những gì đã thay đổi trong code (branch này)
+**Còn thiếu để evidence pack "đầy đủ":** PDB status output riêng, screenshot Grafana Node Count + SLO dashboard, screenshot EC2 Console.
 
-Chi tiết đầy đủ + lý do cho từng quyết định nằm ở ADR. Bảng dưới đây chỉ tóm tắt.
+## 1. Những gì đã thay đổi trong code — track develop (target chính thức của directive)
+
+> Bảng này mô tả code nhắm vào `develop` — **khác với evidence sandbox ở §0** (sandbox có bộ thay đổi riêng, xem ADR §"Mở rộng sang sandbox — Phương án B"). Track develop chưa apply nên các thay đổi dưới đây chưa được đo trên cluster thật. Chi tiết đầy đủ + lý do cho từng quyết định nằm ở ADR. Bảng dưới đây chỉ tóm tắt.
 
 | File | Thay đổi |
 |---|---|
@@ -48,18 +47,8 @@ Chi tiết đầy đủ + lý do cho từng quyết định nằm ở ADR. Bản
 - **`terraform/modules/eks/karpenter.tf` (shared module) — tuân thủ Case T3.** Thêm SQS queue + EventBridge rule không điều kiện sẽ khiến lệnh `terraform plan`/`apply` tiếp theo của account **sandbox** (`804372444787`) tự động tạo các resource này dù mandate không nhắm tới sandbox — đúng anti-pattern mà guide mô tả. Đã sửa: biến `enable_karpenter_interruption_queue` (mặc định `false`) rào toàn bộ resource bằng `count`, chỉ bật `true` ở `terraform/environments/develop/main.tf` — theo đúng pattern có sẵn trong repo (`enable_network_policy`, CDO-219/Mandate-17-R3). Kết quả: sandbox plan sẽ không có bất kỳ diff nào từ các file mà Mandate-13 chạm vào.
 - **`platform/charts/application/values.yaml` (shared chart) — Case G2.** Cấu hình graceful-drain cho `payment` an toàn ở cả 2 môi trường nên không cần feature flag, nhưng vẫn cần bằng chứng theo guide: render effective values cho cả develop và sandbox để xác nhận không có resource nào ở sandbox bị xóa/đổi tên ngoài dự kiến, và phải deploy develop trước (§3, chưa làm).
 
-## 3. Việc còn lại trước khi có thể đánh dấu 'Pass'
+## 3. Việc còn lại
 
-**Thao tác chi tiết từng bước (pre-flight → PR → apply → ArgoCD sync → load test → live-kill → evidence) nằm ở [`mandate-13/EXECUTION-GUIDE.md`](mandate-13/EXECUTION-GUIDE.md)** — guide đó cũng chỉ rõ phần nào đã làm cục bộ (tfvars fix, `terraform fmt`/`validate`) và phần nào bị chặn vì phiên làm việc hiện tại không có AWS credentials cho account develop/sandbox lẫn CLI `gh`/`argocd`.
+**Ưu tiên ngay — lấp nốt evidence sandbox:** PDB status output riêng (`kubectl get pdb`), screenshot Grafana Node Count + SLO dashboard trong lúc load test, screenshot EC2 Console (Lifecycle/Instance type). `EVIDENCE.md` chỉ liệt kê evidence đã có — mục còn thiếu theo dõi ở đây.
 
-**Hướng dẫn nộp bài chi tiết cho mentor (deliverables, thứ tự, mẹo quay video, Q&A) nằm ở [`mandate-13/SUBMISSION-GUIDE.md`](mandate-13/SUBMISSION-GUIDE.md).**
-
-1. Chạy `terraform plan` thật (qua `gh workflow run infra-develop.yaml`) cho cả develop và sandbox — xác nhận sandbox plan không đổi (bằng chứng Case T3 ở §2), sau đó `plan`/`apply` develop.
-2. Review thủ công và chạy ArgoCD sync cho 3 Application `develop-karpenter*` lần đầu (ghi chú trong `karpenter-nodepool.yaml`: "Manual sync only. Review the EC2NodeClass role and discovery tags first").
-3. Render effective Helm values cho cả develop và sandbox (Case G2).
-4. Lấy baseline evidence (①②③ trước khi đổi) rồi chạy `locust-loadcurve-mandate13-job.yaml`, quay video Grafana live.
-5. Thực hiện live-kill trên 1 spot node đang chịu tải — bằng chứng nặng đô nhất của yêu cầu #3.
-6. Đo Cost Explorer Usage Quantity (trễ ~24h) cho bằng chứng về trend/node-hours.
-7. Đổ dữ liệu vào `logs/` + `screenshots/` và cập nhật bảng ở §0 bên trên thành Pass/Fail thật sự.
-
-Xem `EVIDENCE-INDEX.md` để biết cách map cụ thể file log/screenshot sau khi các bước trên hoàn tất.
+**Việc riêng, chưa bắt buộc ngay — rollout track develop** (mục tiêu chính thức của directive, nhưng chưa có timeline): `terraform plan`/`apply` cho `karpenter.tf`+`variables.tf`, review ArgoCD thủ công cho 3 Application `develop-karpenter*`, và demo live spot-kill trên cluster develop thật — xem ADR §Approval gates (Develop). Nếu track develop được apply thật sau này, evidence của nó nên lưu vào `logs/`/`screenshots/` cùng cấp và thêm dòng riêng vào `EVIDENCE.md`, ghi rõ account/cluster để không lẫn với số liệu sandbox hiện có.
