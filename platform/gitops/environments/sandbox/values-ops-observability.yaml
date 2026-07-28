@@ -3,6 +3,11 @@
 
 observabilityStorage:
   enabled: true
+  parameters:
+    type: gp3
+    encrypted: "true"
+    additional-tags: "Backup=true,Component=observability"
+
 
 opentelemetry-collector:
   # Danh sách này REPLACE toàn bộ tolerations của chart (Helm không merge list),
