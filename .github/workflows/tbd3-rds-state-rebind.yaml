@@ -1,4 +1,4 @@
-name: TBD3 Rebind RDS state after Blue Green
+name: "9 · Ops — Rebind state RDS sau Blue/Green"
 
 on:
   workflow_dispatch:
