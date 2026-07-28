@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	pb "github.com/open-telemetry/techx-corp/src/checkout/genproto/oteldemo"
@@ -264,5 +265,56 @@ func TestIsTransientDBError(t *testing.T) {
 	}
 	if isTransientDBError(errors.New("business validation failed")) {
 		t.Fatal("business error must not be transient")
+	}
+}
+
+func TestWaitForDBRetryStaysInsideDeadline(t *testing.T) {
+	t.Parallel()
+
+	// Attempt 6 asks for the capped 3s wait; only 400ms of the deadline is left.
+	ctx, cancel := context.WithTimeout(context.Background(), 400*time.Millisecond)
+	defer cancel()
+
+	start := time.Now()
+	if err := waitForDBRetry(ctx, 6); err != nil {
+		t.Fatalf("wait must succeed while budget remains, got %v", err)
+	}
+	if elapsed := time.Since(start); elapsed > 300*time.Millisecond {
+		t.Fatalf("wait overran the remaining deadline: slept %s", elapsed)
+	}
+	if ctx.Err() != nil {
+		t.Fatal("wait must leave budget for the attempt that follows it")
+	}
+}
+
+func TestWaitForDBRetryGivesUpWhenBudgetExhausted(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), dbRetryFinalAttemptBudget/2)
+	defer cancel()
+
+	if err := waitForDBRetry(ctx, 1); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("too little budget left must abort the retry loop, got %v", err)
+	}
+}
+
+func TestDBRetryBudgetFitsCheckoutDeadline(t *testing.T) {
+	t.Parallel()
+
+	// GrpcDeadline.ts gives checkout 10s. The six waits between seven attempts
+	// must spend most of it without pushing the final attempt past it.
+	var total time.Duration
+	for attempt := 1; attempt < dbRetryMaxAttempts; attempt++ {
+		delay := dbRetryBaseDelay * time.Duration(1<<uint(attempt-1))
+		if delay > dbRetryMaxDelay {
+			delay = dbRetryMaxDelay
+		}
+		total += delay
+	}
+	if total > 10*time.Second-dbRetryFinalAttemptBudget {
+		t.Fatalf("retry budget %s overruns the 10s checkout deadline", total)
+	}
+	if total < 8*time.Second {
+		t.Fatalf("retry budget %s leaves too much of the 10s deadline unused", total)
 	}
 }

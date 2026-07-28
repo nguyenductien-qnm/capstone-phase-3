@@ -26,8 +26,15 @@ import (
 const (
 	idempotencyMetadataKey = "x-idempotency-key"
 	dbRetryMaxAttempts     = 7
-	dbRetryBaseDelay       = 100 * time.Millisecond
-	dbRetryMaxDelay        = 2 * time.Second
+	// Six backoff waits (200ms 400ms 800ms 1.6s 3s 3s) spend up to 9s of the 10s
+	// checkout deadline set in GrpcDeadline.ts, so the last attempt still fires
+	// inside the request budget. A managed switchover blackout outlasting that is
+	// no longer a retry problem: the caller's deadline is the ceiling.
+	dbRetryBaseDelay = 200 * time.Millisecond
+	dbRetryMaxDelay  = 3 * time.Second
+	// Time reserved for the attempt that follows a wait. Sleeping right up to the
+	// deadline burns the last attempt for nothing.
+	dbRetryFinalAttemptBudget = 300 * time.Millisecond
 )
 
 var (
@@ -433,6 +440,18 @@ func waitForDBRetry(ctx context.Context, attempt int) error {
 	}
 	half := delay / 2
 	delay = half + time.Duration(rand.Int63n(int64(half)+1))
+
+	// Never sleep past the caller's deadline, and stop once too little of it is
+	// left to run another attempt.
+	if deadline, ok := ctx.Deadline(); ok {
+		remaining := time.Until(deadline) - dbRetryFinalAttemptBudget
+		if remaining <= 0 {
+			return context.DeadlineExceeded
+		}
+		if delay > remaining {
+			delay = remaining
+		}
+	}
 
 	timer := time.NewTimer(delay)
 	defer timer.Stop()
