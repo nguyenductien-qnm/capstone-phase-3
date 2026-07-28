@@ -72,8 +72,10 @@ spec:
             - >
               locust -f /mnt/locust/locustfile.py --host http://frontend-proxy:80
               --headless --csv /data/checkout --csv-full-history --run-time 1240s;
-              echo "LOCUST_DONE exit=$?";
-              sleep 3600
+              code=$?;
+              echo "LOCUST_DONE exit=$code";
+              sleep 3600;
+              exit $code
           env:
             - { name: LOCUST_BROWSER_TRAFFIC_ENABLED, value: "false" }
             - { name: PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION, value: python }
