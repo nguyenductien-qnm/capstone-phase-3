@@ -1,52 +1,44 @@
-@import "tailwindcss";
+/* Copyright The OpenTelemetry Authors */
+/* */
+/* Licensed under the Apache License, Version 2.0 (the "License"); */
+/* you may not use this file except in compliance with the License. */
+/* You may obtain a copy of the License at */
+/* */
+/*     http://www.apache.org/licenses/LICENSE-2.0 */
+/* */
+/* Unless required by applicable law or agreed to in writing, software */
+/* distributed under the License is distributed on an "AS IS" BASIS, */
+/* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. */
+/* See the License for the specific language governing permissions and */
+/* limitations under the License. */
 
-@custom-variant dark (&:is(.dark *));
-
-/* TechX Corp — Design tokens (migrated from styled-components Theme.ts) */
-@theme {
-  --color-otel-blue: #3b82f6;
-  --color-otel-yellow: #f59e0b;
-  --color-otel-red: #ef4444;
-  --color-otel-gray: #6b7280;
-  --color-background: #ffffff;
-  --color-foreground: #29293e;
-  --color-border: #e5e7eb;
-  --color-muted: #f3f4f6;
-  --font-sans: 'Open Sans', sans-serif;
-  --radius-default: 0.5rem;
+html, body {
+  height: 100%;
 }
 
-/* Remaining styles to be migrated to Tailwind utilities */
+body {
+  background: white;
+  margin: 0px;
+  font-family: 'Open Sans', sans-serif;
+}
 
-@theme inline {
-  --animate-marquee: marquee var(--duration) infinite linear;
-  --animate-marquee-vertical: marquee-vertical var(--duration) linear infinite;
-  @keyframes marquee {
-  from {
-    transform: translateX(0);
-    }
-  to {
-    transform: translateX(calc(-100% - var(--gap)));
-    }
-  }
-  @keyframes marquee-vertical {
-  from {
-    transform: translateY(0);
-    }
-  to {
-    transform: translateY(calc(-100% - var(--gap)));
-    }
-  }
-  --animate-shine: shine var(--duration) infinite linear
-;
-  @keyframes shine {
-  0% {
-    background-position: 0% 0%;
-    }
-  50% {
-    background-position: 100% 100%;
-    }
-  to {
-    background-position: 0% 0%;
-    }
-  }}
+body * {
+  box-sizing: border-box;
+  color: #29293E;
+  font-weight: 600;
+}
+
+#__next {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+main {
+  flex: 1 0 auto;
+}
+
+select {
+  -webkit-appearance: none;
+  -webkit-border-radius: 0px;
+}

@@ -10,20 +10,12 @@ type TResponse = {
     text: string;
     traceId: string;
     citations: unknown[];
-    traceSteps?: unknown[];
-    cacheStatus?: string;
-    similarity?: number;
-    sourceFingerprint?: string;
 } | Empty;
 
 const AI_UNAVAILABLE_RESPONSE = {
     text: 'Xin lỗi, AI Assistant hiện không khả dụng do hệ thống đang bảo trì. Vui lòng thử lại sau.',
     traceId: '',
     citations: [],
-    traceSteps: [],
-    cacheStatus: 'miss',
-    similarity: 0,
-    sourceFingerprint: '',
 };
 
 const handler = async ({ method, body, query }: NextApiRequest, res: NextApiResponse<TResponse>) => {

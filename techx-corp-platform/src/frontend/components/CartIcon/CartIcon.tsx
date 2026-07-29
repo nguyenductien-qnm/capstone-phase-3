@@ -1,7 +1,11 @@
+// Copyright The OpenTelemetry Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { useState } from 'react';
 import { CypressFields } from '../../utils/enums/CypressFields';
 import { useCart } from '../../providers/Cart.provider';
 import CartDropdown from '../CartDropdown';
+import * as S from './CartIcon.styled';
 
 const CartIcon = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -11,21 +15,10 @@ const CartIcon = () => {
 
   return (
     <>
-      <button
-        onClick={() => setIsOpen(true)}
-        data-cy={CypressFields.CartIcon}
-        className="relative rounded-md p-2 transition hover:bg-muted"
-      >
-        <img src="/icons/CartIcon.svg" alt="Cart" title="Cart" className="h-6 w-6" />
-        {!!items.length && (
-          <span
-            data-cy={CypressFields.CartItemCount}
-            className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white"
-          >
-            {items.length}
-          </span>
-        )}
-      </button>
+      <S.CartIcon data-cy={CypressFields.CartIcon} onClick={() => setIsOpen(true)}>
+        <S.Icon src="/icons/CartIcon.svg" alt="Cart icon" title="Cart" />
+        {!!items.length && <S.ItemsCount data-cy={CypressFields.CartItemCount}>{items.length}</S.ItemsCount>}
+      </S.CartIcon>
       <CartDropdown productList={items} isOpen={isOpen} onClose={() => setIsOpen(false)} />
     </>
   );

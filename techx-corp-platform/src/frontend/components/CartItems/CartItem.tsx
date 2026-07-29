@@ -1,26 +1,40 @@
+// Copyright The OpenTelemetry Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import Link from 'next/link';
 import { Product } from '../../protos/demo';
 import ProductPrice from '../ProductPrice';
-import { TableCell, TableRow } from '@/components/ui/table';
+import * as S from './CartItems.styled';
 
 interface IProps {
   product: Product;
   quantity: number;
 }
 
-const CartItem = ({ product: { id, name, picture, priceUsd }, quantity }: IProps) => (
-  <TableRow>
-    <TableCell>
-      <Link href={`/product/${id}`} className="flex items-center gap-3">
-        <img alt={name} src={'/images/products/' + picture} className="h-12 w-12 rounded-md object-cover" />
-        <span>{name}</span>
+const CartItem = ({
+  product: { id, name, picture, priceUsd = { units: 0, nanos: 0, currencyCode: 'USD' } },
+  quantity,
+}: IProps) => {
+  return (
+    <S.CartItem>
+      <Link href={`/product/${id}`}>
+        <S.NameContainer>
+          <S.CartItemImage alt={name} src={"/images/products/" + picture} />
+          <p>{name}</p>
+        </S.NameContainer>
       </Link>
-    </TableCell>
-    <TableCell>{quantity}</TableCell>
-    <TableCell className="text-right">
-      <ProductPrice price={priceUsd || { units: 0, nanos: 0, currencyCode: 'USD' }} />
-    </TableCell>
-  </TableRow>
-);
+      <S.CartItemDetails>
+        <p>{quantity}</p>
+      </S.CartItemDetails>
+      <S.CartItemDetails>
+        <S.PriceContainer>
+          <p>
+            <ProductPrice price={priceUsd} />
+          </p>
+        </S.PriceContainer>
+      </S.CartItemDetails>
+    </S.CartItem>
+  );
+};
 
 export default CartItem;

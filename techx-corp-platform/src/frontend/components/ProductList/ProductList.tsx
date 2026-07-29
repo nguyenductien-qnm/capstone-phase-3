@@ -1,17 +1,23 @@
+// Copyright The OpenTelemetry Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { CypressFields } from '../../utils/enums/CypressFields';
 import { Product } from '../../protos/demo';
 import ProductCard from '../ProductCard';
+import * as S from './ProductList.styled';
 
 interface IProps {
   productList: Product[];
 }
 
-const ProductList = ({ productList }: IProps) => (
-  <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3" data-cy={CypressFields.ProductList}>
-    {productList.map(product => (
-      <ProductCard key={product.id} product={product} />
-    ))}
-  </div>
-);
+const ProductList = ({ productList }: IProps) => {
+  return (
+    <S.ProductList data-cy={CypressFields.ProductList}>
+      {productList.map(product => (
+        <ProductCard key={product.id} product={product} />
+      ))}
+    </S.ProductList>
+  );
+};
 
 export default ProductList;

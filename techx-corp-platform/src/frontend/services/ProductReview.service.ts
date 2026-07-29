@@ -151,10 +151,7 @@ const ProductReviewService = {
         text: "Xin lỗi, AI Assistant hiện không khả dụng do hệ thống đang bảo trì. Vui lòng thử lại sau.", 
         traceId: "", 
         citations: [],
-        traceSteps: [],
-        cacheStatus: "miss",
-        similarity: 0,
-        sourceFingerprint: ""
+        traceSteps: [] 
       };
     }
   },

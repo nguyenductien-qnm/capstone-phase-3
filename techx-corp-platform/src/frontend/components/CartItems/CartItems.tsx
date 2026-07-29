@@ -1,3 +1,6 @@
+// Copyright The OpenTelemetry Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import { useMemo } from 'react';
 import { useQuery, UseQueryOptions } from '@tanstack/react-query';
 import ApiGateway from '../../gateways/Api.gateway';
@@ -6,8 +9,7 @@ import { useCurrency } from '../../providers/Currency.provider';
 import { IProductCartItem } from '../../types/Cart';
 import ProductPrice from '../ProductPrice';
 import CartItem from './CartItem';
-import { Table, TableBody, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Separator } from '@/components/ui/separator';
+import * as S from './CartItems.styled';
 
 interface IProps {
   productList: IProductCartItem[];
@@ -23,56 +25,57 @@ const CartItems = ({ productList, shouldShowPrice = true }: IProps) => {
     country: 'United States',
     zipCode: '94043',
   };
-  const { data: shippingConst = { units: 0, currencyCode: 'USD', nanos: 0 } } = useQuery({
-    queryKey: ['shipping', productList, selectedCurrency, address],
-    queryFn: () => ApiGateway.getShippingCost(productList, selectedCurrency, address),
-  } as UseQueryOptions<Money, Error>);
+
+  const queryKey = ['shipping', productList, selectedCurrency, address];
+  const queryFn = () => ApiGateway.getShippingCost(productList, selectedCurrency, address);
+  const queryOptions: UseQueryOptions<Money, Error> = {
+    queryKey,
+    queryFn,
+  };
+  const { data: shippingConst = { units: 0, currencyCode: 'USD', nanos: 0 } } = useQuery(queryOptions);
+
   const total = useMemo<Money>(() => {
     const nanoSum =
-      productList.reduce(
-        (acc, { product: { priceUsd: { nanos = 0 } = {} }, quantity }) => acc + Number(nanos) * quantity,
-        0
-      ) + (shippingConst?.nanos || 0);
+      productList.reduce((acc, { product: { priceUsd: { nanos = 0 } = {} }, quantity }) => acc + Number(nanos) * quantity, 0) +
+        shippingConst?.nanos || 0;
+    const nanoExceed = Math.floor(nanoSum / 1000000000);
+
     const unitSum =
-      productList.reduce(
-        (acc, { product: { priceUsd: { units = 0 } = {} }, quantity }) => acc + Number(units) * quantity,
-        0
-      ) +
-      (shippingConst?.units || 0) +
-      Math.floor(nanoSum / 1e9);
-    return { units: unitSum, currencyCode: selectedCurrency, nanos: nanoSum % 1e9 };
-  }, [shippingConst, productList, selectedCurrency]);
+      productList.reduce((acc, { product: { priceUsd: { units = 0 } = {} }, quantity }) => acc + Number(units) * quantity, 0) +
+        (shippingConst?.units || 0) + nanoExceed;
+
+    return {
+      units: unitSum,
+      currencyCode: selectedCurrency,
+      nanos: nanoSum % 1000000000,
+    };
+  }, [shippingConst?.units, shippingConst?.nanos, productList, selectedCurrency]);
 
   return (
-    <div>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Product</TableHead>
-            <TableHead>Quantity</TableHead>
-            <TableHead className="text-right">Price</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {productList.map(({ productId, product, quantity }) => (
-            <CartItem key={productId} product={product} quantity={quantity} />
-          ))}
-        </TableBody>
-      </Table>
+    <S.CartItems>
+      <S.CardItemsHeader>
+        <label>Product</label>
+        <label>Quantity</label>
+        <label>Price</label>
+      </S.CardItemsHeader>
+      {productList.map(({ productId, product, quantity }) => (
+        <CartItem key={productId} product={product} quantity={quantity} />
+      ))}
       {shouldShowPrice && (
         <>
-          <Separator className="my-4" />
-          <div className="flex justify-between text-sm">
+          <S.DataRow>
             <span>Shipping</span>
             <ProductPrice price={shippingConst} />
-          </div>
-          <div className="mt-2 flex justify-between text-lg font-bold">
-            <span>Total</span>
-            <ProductPrice price={total} />
-          </div>
+          </S.DataRow>
+          <S.DataRow>
+            <S.TotalText>Total</S.TotalText>
+            <S.TotalText>
+              <ProductPrice price={total} />
+            </S.TotalText>
+          </S.DataRow>
         </>
       )}
-    </div>
+    </S.CartItems>
   );
 };
 

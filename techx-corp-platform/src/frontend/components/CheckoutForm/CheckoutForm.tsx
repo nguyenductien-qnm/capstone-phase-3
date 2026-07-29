@@ -1,8 +1,11 @@
+// Copyright The OpenTelemetry Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import Link from 'next/link';
 import { useCallback, useState } from 'react';
 import { CypressFields } from '../../utils/enums/CypressFields';
 import Input from '../Input';
-import Button from '../Button';
+import * as S from './CheckoutForm.styled';
 
 const currentYear = new Date().getFullYear();
 const yearList = Array.from(new Array(20), (v, i) => i + currentYear);
@@ -45,7 +48,7 @@ const CheckoutForm = ({ onSubmit }: IProps) => {
     city: 'Mountain View',
     state: 'CA',
     country: 'United States',
-    zipCode: '94043',
+    zipCode: "94043",
     creditCardNumber: '4432-8015-6152-0454',
     creditCardCvv: 672,
     creditCardExpirationYear: 2030,
@@ -53,13 +56,16 @@ const CheckoutForm = ({ onSubmit }: IProps) => {
   });
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setFormData(fd => ({ ...fd, [e.target.name]: e.target.value }));
+    setFormData(formData => ({
+      ...formData,
+      [e.target.name]: e.target.value,
+    }));
   }, []);
 
   return (
-    <form
-      onSubmit={e => {
-        e.preventDefault();
+    <S.CheckoutForm
+      onSubmit={(event: { preventDefault: () => void; }) => {
+        event.preventDefault();
         onSubmit({
           email,
           streetAddress,
@@ -73,9 +79,9 @@ const CheckoutForm = ({ onSubmit }: IProps) => {
           creditCardNumber,
         });
       }}
-      className="flex flex-col gap-4"
     >
-      <h3 className="text-lg font-bold">Shipping Address</h3>
+      <S.Title>Shipping Address</S.Title>
+
       <Input
         label="E-mail Address"
         type="email"
@@ -104,7 +110,8 @@ const CheckoutForm = ({ onSubmit }: IProps) => {
         required
       />
       <Input label="City" type="text" name="city" id="city" value={city} required onChange={handleChange} />
-      <div className="grid grid-cols-2 gap-4">
+
+      <S.StateRow>
         <Input label="State" type="text" name="state" id="state" value={state} required onChange={handleChange} />
         <Input
           label="Country"
@@ -116,8 +123,12 @@ const CheckoutForm = ({ onSubmit }: IProps) => {
           onChange={handleChange}
           required
         />
+      </S.StateRow>
+
+      <div>
+        <S.Title>Payment Method</S.Title>
       </div>
-      <h3 className="mt-4 text-lg font-bold">Payment Method</h3>
+
       <Input
         type="text"
         label="Credit Card Number"
@@ -129,7 +140,8 @@ const CheckoutForm = ({ onSubmit }: IProps) => {
         required
         pattern="\d{4}-\d{4}-\d{4}-\d{4}"
       />
-      <div className="grid grid-cols-3 gap-4">
+
+      <S.CardRow>
         <Input
           label="Month"
           name="creditCardExpirationMonth"
@@ -138,24 +150,18 @@ const CheckoutForm = ({ onSubmit }: IProps) => {
           onChange={handleChange}
           type="select"
         >
-          {[
-            'January',
-            'February',
-            'March',
-            'April',
-            'May',
-            'June',
-            'July',
-            'August',
-            'September',
-            'October',
-            'November',
-            'December',
-          ].map((m, i) => (
-            <option key={m} value={i + 1}>
-              {m}
-            </option>
-          ))}
+          <option value="1">January</option>
+          <option value="2">February</option>
+          <option value="3">March</option>
+          <option value="4">April</option>
+          <option value="5">May</option>
+          <option value="6">June</option>
+          <option value="7">July</option>
+          <option value="8">August</option>
+          <option value="9">September</option>
+          <option value="10">October</option>
+          <option value="11">November</option>
+          <option value="12">January</option>
         </Input>
         <Input
           label="Year"
@@ -181,16 +187,15 @@ const CheckoutForm = ({ onSubmit }: IProps) => {
           pattern="\d{3}"
           onChange={handleChange}
         />
-      </div>
-      <div className="mt-6 flex justify-between">
+      </S.CardRow>
+
+      <S.SubmitContainer>
         <Link href="/">
-          <Button $type="secondary">Continue Shopping</Button>
+          <S.CartButton $type="secondary">Continue Shopping</S.CartButton>
         </Link>
-        <Button data-cy={CypressFields.CheckoutPlaceOrder} type="submit">
-          Place Order
-        </Button>
-      </div>
-    </form>
+        <S.CartButton data-cy={CypressFields.CheckoutPlaceOrder} type="submit">Place Order</S.CartButton>
+      </S.SubmitContainer>
+    </S.CheckoutForm>
   );
 };
 

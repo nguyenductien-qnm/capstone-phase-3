@@ -1,11 +1,12 @@
+// Copyright The OpenTelemetry Authors
+// SPDX-License-Identifier: Apache-2.0
+
 import Link from 'next/link';
+import { useEffect, useRef } from 'react';
 import { CypressFields } from '../../utils/enums/CypressFields';
 import { IProductCartItem } from '../../types/Cart';
 import ProductPrice from '../ProductPrice';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
-import { Button } from '@/components/ui/button';
+import * as S from './CartDropdown.styled';
 
 interface IProps {
   isOpen: boolean;
@@ -13,34 +14,52 @@ interface IProps {
   productList: IProductCartItem[];
 }
 
-const CartDropdown = ({ productList, isOpen, onClose }: IProps) => (
-  <Sheet open={isOpen} onOpenChange={open => !open && onClose()}>
-    <SheetContent side="right" className="flex w-full flex-col sm:max-w-md" data-cy={CypressFields.CartDropdown}>
-      <SheetHeader>
-        <SheetTitle>Shopping Cart</SheetTitle>
-      </SheetHeader>
-      <Separator />
-      <ScrollArea className="flex-1">
-        {!productList.length && <p className="py-12 text-center text-muted-foreground">Your shopping cart is empty</p>}
-        {productList.map(({ quantity, product: { name, picture, id, priceUsd } }) => (
-          <div key={id} className="flex gap-4 py-4" data-cy={CypressFields.CartDropdownItem}>
-            <img src={'/images/products/' + picture} alt={name} className="h-16 w-16 rounded-md object-cover" />
-            <div className="flex-1">
-              <p className="text-sm font-medium">{name}</p>
-              <ProductPrice price={priceUsd || { nanos: 0, currencyCode: 'USD', units: 0 }} />
-              <p className="text-xs text-muted-foreground">Quantity: {quantity}</p>
-            </div>
-          </div>
-        ))}
-      </ScrollArea>
-      <Separator />
-      <Link href="/cart" onClick={onClose} className="mt-2">
-        <Button className="w-full" data-cy={CypressFields.CartGoToShopping}>
-          Go to Shopping Cart
-        </Button>
+const CartDropdown = ({ productList, isOpen, onClose }: IProps) => {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: Event) => {
+      if (ref.current && !ref.current.contains(event.target as Node)) {
+        onClose();
+      }
+    };
+    // Bind the event listener
+    document.addEventListener('mousedown', handleClickOutside);
+
+    return () => {
+      // Unbind the event listener on clean up
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [ref, onClose]);
+
+  return isOpen ? (
+    <S.CartDropdown ref={ref} data-cy={CypressFields.CartDropdown}>
+      <S.ContentWrapper>
+        <S.Header>
+          <S.Title>Shopping Cart</S.Title>
+          <span onClick={onClose}>Close</span>
+        </S.Header>
+        <S.ItemList>
+          {!productList.length && <S.EmptyCart>Your shopping cart is empty</S.EmptyCart>}
+          {productList.map(
+            ({ quantity, product: { name, picture, id, priceUsd = { nanos: 0, currencyCode: 'USD', units: 0 } } }) => (
+              <S.Item key={id} data-cy={CypressFields.CartDropdownItem}>
+                <S.ItemImage src={"/images/products/" + picture} alt={name} />
+                <S.ItemDetails>
+                  <S.ItemName>{name}</S.ItemName>
+                  <ProductPrice price={priceUsd} />
+                  <S.ItemQuantity>Quantity: {quantity}</S.ItemQuantity>
+                </S.ItemDetails>
+              </S.Item>
+            )
+          )}
+        </S.ItemList>
+      </S.ContentWrapper>
+      <Link href="/cart">
+        <S.CartButton data-cy={CypressFields.CartGoToShopping}>Go to Shopping Cart</S.CartButton>
       </Link>
-    </SheetContent>
-  </Sheet>
-);
+    </S.CartDropdown>
+  ) : null;
+};
 
 export default CartDropdown;
