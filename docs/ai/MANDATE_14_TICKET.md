@@ -18,9 +18,9 @@
 
 ## 1. Link PR / commit
 
-**PR chính:** [#371 — feat(ai): MANDATE-14 eval standard with external cases loader and WRITE rail](https://github.com/nguyenductien-qnm/capstone-phase-3/pull/371) *(OPEN, nhánh `feat/mandate-14-eval-standard`)*
+**PR chính:** [#488 — feat(ai+ui): MANDATE 23 to 25 and UI styled-components refactoring](https://github.com/nguyenductien-qnm/capstone-phase-3/pull/488) *(OPEN, nhánh `feat/mandates-23-to-25-and-ui-refactoring`)*
 
-**Commit trên nhánh sau khi mở PR #371** — phần đóng các khoảng trống nêu ở mục 5:
+**Commit trên nhánh sau khi mở PR #488** — phần đóng các khoảng trống nêu ở mục 5:
 
 | Commit | Nội dung |
 |---|---|
