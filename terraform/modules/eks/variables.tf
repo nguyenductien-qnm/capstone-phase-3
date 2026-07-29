@@ -161,6 +161,12 @@ variable "ops_node_subnet_id" {
   }
 }
 
+variable "enable_ops_node_group" {
+  description = "Whether to create the dedicated observability managed node group."
+  type        = bool
+  default     = true
+}
+
 variable "ops_node_instance_types" {
   description = "Allowed EC2 instance types for the dedicated observability managed node group"
   type        = list(string)

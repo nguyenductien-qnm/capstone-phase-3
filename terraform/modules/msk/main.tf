@@ -71,7 +71,8 @@ resource "aws_msk_cluster" "this" {
     # AVD-AWS-0179: MSK vốn đã mã hoá at-rest bằng key AWS quản lý kể cả khi không khai,
     # nhưng khai tường minh thì đọc được trong Git và scanner không phải đoán. Dùng
     # alias/aws/kafka (key mặc định của service) nên không phát sinh phí KMS.
-    encryption_at_rest_kms_key_arn = data.aws_kms_alias.msk_managed.target_key_arn
+    # TẠM TẮT cho lần apply đầu — alias/aws/kafka chưa tồn tại.
+    # encryption_at_rest_kms_key_arn = data.aws_kms_alias.msk_managed.target_key_arn
 
     encryption_in_transit {
       client_broker = "TLS"
@@ -129,9 +130,10 @@ data "aws_caller_identity" "current" {}
 
 # Key mặc định AWS cấp sẵn cho MSK. Tham chiếu qua alias để khai encryption at-rest
 # tường minh mà không phải tạo CMK riêng (CMK tốn ~$1/key/tháng).
-data "aws_kms_alias" "msk_managed" {
-  name = "alias/aws/kafka"
-}
+# TẠM TẮT cho lần apply đầu — alias/aws/kafka chưa tồn tại.
+# data "aws_kms_alias" "msk_managed" {
+#   name = "alias/aws/kafka"
+# }
 
 # KMS Key cho Secrets Manager để lưu msk credentials (bắt buộc cho MSK SCRAM)
 resource "aws_kms_key" "msk" {
@@ -242,4 +244,3 @@ resource "aws_msk_scram_secret_association" "this" {
     aws_secretsmanager_secret_version.msk_credentials
   ]
 }
-

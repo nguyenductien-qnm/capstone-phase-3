@@ -45,8 +45,8 @@ output "primary_autoscaling_group_name" {
 }
 
 output "ops_node_group_name" {
-  description = "Dedicated observability managed node group name"
-  value       = aws_eks_node_group.ops.node_group_name
+  description = "Dedicated observability managed node group name, or null when disabled"
+  value       = try(aws_eks_node_group.ops[0].node_group_name, null)
 }
 
 output "node_role_arn" {

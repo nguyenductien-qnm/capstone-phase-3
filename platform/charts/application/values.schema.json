@@ -53,6 +53,9 @@
     "prometheus": {
       "type": "object"
     },
+    "thanos": {
+      "type": "object"
+    },
     "grafana": {
       "type": "object"
     },
