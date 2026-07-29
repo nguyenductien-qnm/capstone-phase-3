@@ -18,7 +18,9 @@ default:
   image:
     # SEED registry (image mẫu BTC cấp). Mỗi TF ĐỔI sang ECR của account mình:
     #   helm ... --set default.image.repository=<ACCOUNT>.dkr.ecr.<REGION>.amazonaws.com/techx-corp
-    repository: 804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp
+    # 29/07/2026: đổi 804372444787 -> 384511757667 sau sự cố AWS credits (account
+    # cũ đã destroy toàn bộ, xem report/credit-incident/).
+    repository: 384511757667.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp
     # Overrides the image tag whose default is the chart appVersion.
     # The service's name will be applied to the end of this value.
     tag: "1.0"
@@ -1132,6 +1134,15 @@ components:
       annotations:
         alb.ingress.kubernetes.io/scheme: internet-facing
         alb.ingress.kubernetes.io/target-type: ip
+        # TODO(29/07/2026): ARN này là CERT CỤ THỂ ở account cũ 804372444787, không
+        # phải thứ đổi số account là xong — account 384511757667 chưa có cert nào.
+        # CỐ Ý GIỮ NGUYÊN: sửa thành 384511757667:certificate/58a4ee05-... sẽ tạo ra
+        # một ARN trông hợp lệ nhưng trỏ vào hư không, ALB fail lúc tạo listener và
+        # lỗi khó lần hơn hẳn so với một ARN cũ nhìn là biết cũ.
+        # Hiện KHÔNG ảnh hưởng gì: `ingress.enabled: false` ngay phía trên — cụm
+        # đang ra ngoài bằng Service type LoadBalancer (NLB), không dùng ALB Ingress.
+        # Khi nào bật ingress: request cert mới trong ACM us-east-1 của account mới
+        # cho origin-ecommerce.nguyenductien.cloud rồi dán ARN thật vào đây.
         alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:us-east-1:804372444787:certificate/58a4ee05-8248-4e70-bc30-f7dfe47e0720"
         alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
       hosts:
