@@ -2,8 +2,35 @@ data "aws_secretsmanager_secret_version" "msk_credentials" {
   secret_id = module.msk.msk_secret_arn
 }
 
+# 29/07/2026 — SỬA LỖI PLAN CHẾT TRÊN ACCOUNT TRẮNG.
+#
+# Trước đây dòng secret_id ghi CHUỖI TÊN gõ tay:
+#   secret_id = "${var.project_name}-${var.environment}-rds-secret"
+# Chuỗi đó ghép từ hai biến đầu vào nên Terraform BIẾT giá trị ngay lúc plan, và data
+# source nào đủ tham số lúc plan thì Terraform đọc luôn trong plan. Secret khi ấy chưa
+# tồn tại (chính lần apply này mới tạo nó, terraform/modules/rds/main.tf:208) -> plan
+# chết với "couldn't find resource". Account cũ không dính chỉ vì secret đã có sẵn từ
+# lần apply trước đó.
+#
+# So sánh với msk_credentials ngay bên trên: nó trỏ vào OUTPUT của module nên giá trị là
+# (known after apply) -> Terraform hoãn việc đọc xuống tận apply -> không bao giờ lỗi.
+# Cùng một file, khác nhau đúng chỗ đó.
+#
+# Vì sao cần CẢ HAI vế dưới đây, không thừa cái nào:
+#   - module.rds.db_secret_arn : làm giá trị thành chưa-biết lúc plan -> hoãn xuống apply.
+#   - depends_on               : data source này đọc AWSCURRENT, tức đọc nội dung do
+#                                resource aws_secretsmanager_secret_version tạo ra
+#                                (rds/main.tf:217) — một resource KHÁC với cái secret.
+#                                Chỉ tham chiếu ARN thì chỉ ràng buộc tới cái secret,
+#                                apply vẫn có thể đọc lúc secret vừa tạo mà nội dung
+#                                chưa ghi.
+#
+# LƯU Ý: module.rds.db_secret_arn trả null khi enable_rds_proxy = false (secret có
+# count gắn theo cờ đó). Hiện cờ này = true ở cả GitHub Variable lẫn tfvars. Ai tắt nó
+# thì phải sửa luôn chỗ này, nếu không MSK Connect mất mật khẩu DB.
 data "aws_secretsmanager_secret_version" "rds_credentials" {
-  secret_id = "${var.project_name}-${var.environment}-rds-secret"
+  secret_id  = module.rds.db_secret_arn
+  depends_on = [module.rds]
 }
 
 # 1. S3 bucket for MSK Connect Plugins

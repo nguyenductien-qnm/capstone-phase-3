@@ -11,6 +11,16 @@ name: "2 · Build — Ảnh app → ECR (Trivy + Cosign + bump GitOps)"
 # chạy ổn ở develop sang environments/sandbox/values-image-tags.yaml, có review).
 # Không build lại image cho prod -> giữ nguyên digest đã scan + ký + test ở develop.
 #
+# >>> TẠM NGƯNG (29/07/2026) — đoạn mô tả 6 dòng NGAY TRÊN mô tả trạng thái CŨ <<<
+# Sau sự cố AWS credits (report/credit-incident/aws-personal-incident-2026-07-28.md)
+# cụm DEVELOP đã bị destroy, chỉ còn MỘT môi trường và nó dùng thư mục
+# environments/sandbox. Hai bước app-attest.yaml + app-promote.yaml TẠM NGƯNG (file
+# giữ nguyên, chỉ có workflow_dispatch nên không tự chạy).
+# Hệ quả: TAGS_FILE bên dưới đã trỏ THẲNG vào environments/sandbox — merge vào
+# develop là ảnh lên thẳng môi trường còn lại, KHÔNG còn chặng chạy thử và KHÔNG
+# còn PR promote. Cửa người-duyệt duy nhất còn lại là PR vào nhánh develop.
+# Dựng lại môi trường thứ hai thì khôi phục cả TAGS_FILE lẫn 2 workflow trên.
+#
 # Tag convention: <version>-<service>-<sha>  (version = chart appVersion default.image.tag).
 # ECR: 1 repo chung ecommerce-dev-techx-corp, IMMUTABLE. Ký theo digest, không ký tag.
 #
@@ -88,7 +98,7 @@ concurrency:
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
-  ECR_REGISTRY: ${{ vars.ECR_REGISTRY || '804372444787.dkr.ecr.us-east-1.amazonaws.com' }}
+  ECR_REGISTRY: ${{ vars.ECR_REGISTRY || '384511757667.dkr.ecr.us-east-1.amazonaws.com' }}
   # 1 repo chung, service phân biệt bằng tag suffix (khớp chart _objects.tpl:73).
   ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY || 'ecommerce-dev-techx-corp' }}
   # Phần <version> trong tag <version>-<svc>-<sha>. Nguồn THẬT: GitHub Actions
@@ -99,8 +109,18 @@ env:
   BUILD_CONTEXT: techx-corp-platform
   # CI CHỈ ghi file tags tách riêng (không comment) -> yq bump không phá format
   # values.yaml gốc. Helm/ArgoCD load file này SAU values.yaml để override tag.
-  # Bump vào tags file của DEVELOP; tags file sandbox (prod) chỉ đổi qua promote PR.
-  TAGS_FILE: platform/gitops/environments/develop/values/values-image-tags.yaml
+  #
+  # TẠM NGƯNG (29/07/2026): trước đây dòng này trỏ vào
+  #   platform/gitops/environments/develop/values/values-image-tags.yaml
+  # với ghi chú "tags file sandbox (prod) chỉ đổi qua promote PR". Ghi chú đó đúng
+  # với mô hình 2 môi trường; nay cụm develop đã destroy nên nó KHÔNG còn đúng.
+  # Phải trỏ vào file sandbox vì đó là file DUY NHẤT mà ArgoCD còn đọc:
+  # platform/gitops/bootstrap/root-app.yaml -> platform/gitops/applications ->
+  # application.yaml nạp 6 values file trong environments/sandbox, file tags nạp
+  # CUỐI để override. Giữ nguyên đường dẫn develop = build xanh, ảnh lên ECR đủ,
+  # mà không cụm nào đọc tới -> cụm chạy tag cũ mãi.
+  # Khôi phục promote thì đổi lại dòng này về develop TRƯỚC, rồi mới bật 2 workflow.
+  TAGS_FILE: platform/gitops/environments/sandbox/values-image-tags.yaml
 
 jobs:
   # ------------------------------------------------------------------ #
@@ -1290,6 +1310,10 @@ jobs:
       id-token: write # OIDC cho AWS + Cosign keyless (Fulcio). Đẩy ECR qua AWS role, KHÔNG qua GITHUB_TOKEN.
     env:
       # Tags file PROD (env sandbox) — khác app-attest (đọc develop).
+      # TẠM NGƯNG (29/07/2026): từ khi TAGS_FILE ở đầu file trỏ sang sandbox, hai
+      # hằng này chỉ tay vào CÙNG MỘT file. Cố tình KHÔNG gộp: gộp xong mà sau này
+      # dựng lại môi trường thứ hai thì job này sẽ âm thầm đọc tags file develop
+      # (sai môi trường) thay vì báo lỗi. Giữ 2 hằng riêng, chấp nhận trùng giá trị.
       SANDBOX_TAGS_FILE: platform/gitops/environments/sandbox/values-image-tags.yaml
       BUILD_IDENTITY: https://github.com/${{ github.repository }}/.github/workflows/app-build.yaml@refs/heads/develop
       OIDC_ISSUER: https://token.actions.githubusercontent.com

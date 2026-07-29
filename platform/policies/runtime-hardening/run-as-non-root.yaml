@@ -52,8 +52,8 @@ spec:
         c.image.matches('^(quay\\.io/|docker\\.io/)?kiwigrid/k8s-sidecar(:.+)?$') ||
         c.image.matches('^(ghcr\\.io/|docker\\.io/)?stakater/reloader(:.+)?$') ||
         c.image.matches('^registry\\.k8s\\.io/kube-state-metrics/kube-state-metrics(:.+)?$') ||
-        c.image.matches('^804372444787\\.dkr\\.ecr\\.us-east-1\\.amazonaws\\.com/ecommerce-dev-techx-corp:[^@]*aiops-detector[^@]*(@.+)?$') ||
-        c.image.matches('^804372444787\\.dkr\\.ecr\\.us-east-1\\.amazonaws\\.com/ecommerce-dev-techx-corp:[^@]*aiops-remediation[^@]*(@.+)?$') ||
+        c.image.matches('^384511757667\\.dkr\\.ecr\\.us-east-1\\.amazonaws\\.com/ecommerce-dev-techx-corp:[^@]*aiops-detector[^@]*(@.+)?$') ||
+        c.image.matches('^384511757667\\.dkr\\.ecr\\.us-east-1\\.amazonaws\\.com/ecommerce-dev-techx-corp:[^@]*aiops-remediation[^@]*(@.+)?$') ||
         (
           (has(c.securityContext) && has(c.securityContext.runAsUser) ? c.securityContext.runAsUser : (has(variables.podSpec.securityContext) && has(variables.podSpec.securityContext.runAsUser) ? variables.podSpec.securityContext.runAsUser : -1)) != 0
         ) &&
@@ -70,8 +70,8 @@ spec:
           c.image.matches('^(quay\\.io/|docker\\.io/)?kiwigrid/k8s-sidecar(:.+)?$') ||
           c.image.matches('^(ghcr\\.io/|docker\\.io/)?stakater/reloader(:.+)?$') ||
           c.image.matches('^registry\\.k8s\\.io/kube-state-metrics/kube-state-metrics(:.+)?$') ||
-          c.image.matches('^804372444787\\.dkr\\.ecr\\.us-east-1\\.amazonaws\\.com/ecommerce-dev-techx-corp:[^@]*aiops-detector[^@]*(@.+)?$') ||
-          c.image.matches('^804372444787\\.dkr\\.ecr\\.us-east-1\\.amazonaws\\.com/ecommerce-dev-techx-corp:[^@]*aiops-remediation[^@]*(@.+)?$') ||
+          c.image.matches('^384511757667\\.dkr\\.ecr\\.us-east-1\\.amazonaws\\.com/ecommerce-dev-techx-corp:[^@]*aiops-detector[^@]*(@.+)?$') ||
+          c.image.matches('^384511757667\\.dkr\\.ecr\\.us-east-1\\.amazonaws\\.com/ecommerce-dev-techx-corp:[^@]*aiops-remediation[^@]*(@.+)?$') ||
           (
             (has(c.securityContext) && has(c.securityContext.runAsUser) ? c.securityContext.runAsUser : (has(variables.podSpec.securityContext) && has(variables.podSpec.securityContext.runAsUser) ? variables.podSpec.securityContext.runAsUser : -1)) != 0
           ) &&

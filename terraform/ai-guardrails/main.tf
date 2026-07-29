@@ -99,6 +99,16 @@ resource "aws_bedrock_guardrail_version" "aio" {
 # ------------------------------------------------------------------ #
 
 # IAM Role assumed by EKS Account A to invoke Bedrock
+#
+# 29/07/2026 — TỪ CROSS-ACCOUNT THÀNH CÙNG-ACCOUNT.
+# Trước đây: EKS nằm ở account A (804372444787), Bedrock + role này nằm ở account B
+# (384511757667), nên đây là quan hệ cross-account thật. Sau sự cố AWS credits,
+# account A đã destroy và EKS dựng lại NGAY TRONG 384511757667 — tức A và B giờ là
+# một. Principal đổi sang 384511757667:root là hợp lệ (IAM cho phép root cùng
+# account làm principal, quyền thực tế vẫn do policy của IRSA role quyết định).
+# GIỮ NGUYÊN ExternalId: nó không còn cần thiết về mặt bảo mật khi cùng account,
+# nhưng bỏ đi sẽ làm lệch với terraform/modules/eks/ai-services.tf và code app
+# (BEDROCK_AWS_EXTERNAL_ID) đang truyền chuỗi này khi AssumeRole -> gãy runtime.
 resource "aws_iam_role" "techx_bedrock_invoke" {
   name = "techx-bedrock-invoke"
 
@@ -109,7 +119,7 @@ resource "aws_iam_role" "techx_bedrock_invoke" {
       {
         Sid       = "AllowAccountAAssumeRole"
         Effect    = "Allow"
-        Principal = { AWS = "arn:aws:iam::804372444787:root" }
+        Principal = { AWS = "arn:aws:iam::384511757667:root" }
         Action    = "sts:AssumeRole"
         Condition = {
           StringEquals = { "sts:ExternalId" = "phase3-bedrock-cross-account" }
@@ -118,7 +128,7 @@ resource "aws_iam_role" "techx_bedrock_invoke" {
       {
         Sid       = "AllowAccountATagSession"
         Effect    = "Allow"
-        Principal = { AWS = "arn:aws:iam::804372444787:root" }
+        Principal = { AWS = "arn:aws:iam::384511757667:root" }
         Action    = "sts:TagSession"
       }
     ]

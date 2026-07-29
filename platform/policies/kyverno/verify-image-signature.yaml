@@ -82,9 +82,9 @@ spec:
         # KHÔNG dùng một pattern gộp kiểu "ecommerce-dev-techx-corp*" — nó khớp luôn
         # repo ecommerce-dev-techx-corp-attest (trùng tiền tố), nới scope ngoài ý muốn.
         - imageReferences:
-            - "804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:*"
-            - "804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp@*"
-            - "804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:*@*"
+            - "384511757667.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:*"
+            - "384511757667.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp@*"
+            - "384511757667.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:*@*"
           # true: image khớp pattern mà thiếu chữ ký hợp lệ -> fail (Audit thì ghi
           # report, Enforce thì chặn). false sẽ bỏ qua im lặng — vô nghĩa với gate này.
           required: true
