@@ -1,13 +1,23 @@
 # AI MANDATE #24
 
 ## 1. Link PR/commit
-**Commit chính:** `5baa0d0a feat(ai): MANDATE-24 LLM observability + MANDATE-25 AI resilience`
+Branch: `feat/mandates-23-to-25-and-ui-refactoring`
+
+| Commit | Nội dung |
+|---|---|
+| `5baa0d0a` | feat(ai): MANDATE-24 LLM observability + MANDATE-25 AI resilience |
+
+**PR chính:** [#488 — feat(ai+ui): MANDATE 23 to 25 and UI styled-components refactoring](https://github.com/nguyenductien-qnm/capstone-phase-3/pull/488) *(OPEN, nhánh `feat/mandates-23-to-25-and-ui-refactoring`)*
+
+---
 
 ## 2. Cách chạy lại (repro)
 Chạy script tự động nghiệm thu (khởi động lại container và gọi service sinh trace ID):
 ```bash
 ./repro_m24.sh
 ```
+
+---
 
 ## 3. Bằng chứng chạy thật
 Lần chạy lúc nghiệm thu sinh trace ID lưu trữ trên Valkey và ghi nhận log session thành công:
@@ -38,6 +48,9 @@ e441a800b590d730630f3e3674012b15
 === Done ===
 ```
 
+---
+
 ## 4. ADR ký tên
 - **[ADR-018](adr/ADR-018-llm-observability.md)**: Quy chuẩn Observability cho LLM. 
-Ký: **AIO Team**
+
+Ký: **AIO Team — dinh144**
