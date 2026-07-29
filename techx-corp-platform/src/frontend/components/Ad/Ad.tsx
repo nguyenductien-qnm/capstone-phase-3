@@ -9,12 +9,16 @@ const Ad = () => {
   const { adList } = useAd();
   const { text, redirectUrl } = adList[Math.floor(Math.random() * adList.length)] || { text: '', redirectUrl: '' };
 
+  if (!text) return null;
+
   return (
-    <S.Ad data-cy={CypressFields.Ad}>
+    <S.AdContainer data-cy={CypressFields.Ad}>
       <S.Link href={redirectUrl}>
-        <p>{text}</p>
+        <S.AdContent>
+          <S.AdText>{text}</S.AdText>
+        </S.AdContent>
       </S.Link>
-    </S.Ad>
+    </S.AdContainer>
   );
 };
 
