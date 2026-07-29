@@ -63,6 +63,86 @@ empty_query_streak = {}
 # o top-level rules.yaml.
 SILENT_RULE_CYCLES = 120
 
+# Su co dang mo, theo tung `rule_id:service`:
+#   {"cycles_open": n, "recovered_streak": k, "rebaselined": bool}
+#
+# MANDATE-28: mot su co keo dai KHONG duoc bien thanh "binh thuong moi". Do that tren
+# `eval_metric_rule` cu (su co 40 phut o muc 0.08, duoi nguong tinh 0.10 nen chi tang
+# 3-sigma bat duoc): keu 9 phut roi IM LANG suot 29 phut con lai, vi baseline bo tu
+# 0.0093 len 0.0805 — detector hoc chinh cai loi thanh binh thuong.
+#
+# Nguyen nhan la quyet dinh o ADR-017: winsorize kep gia tri ROI VAN append, co y de
+# "mot bat thuong keo dai that van keo duoc baseline dan theo thoi gian". Voi MANDATE-15
+# do la hanh vi mong muon; voi MANDATE-28 do chinh la loi. Xem ADR-019.
+incident_state = {}
+
+# Bao nhieu chu ky IM LANG lien tiep thi coi la da hoi phuc va dong su co.
+# >1 de mot nhip dao dong khong dong su co som roi mo lai ngay (flapping).
+RECOVERY_CYCLES = 3
+
+# Tran freeze: 240 chu ky x poll 30s = 2 gio.
+#
+# Ly do PHAI co tran, va no chinh la thu giu yeu cau 2 cua mandate ("khong bao gia vi tai
+# hop le doi"): neu muc moi la binh thuong THAT (traffic dich han), freeze vinh vien se bao
+# mai mai. Het tran thi thaw cho baseline hoc lai — nhung ban mot alert `baseline-rebaselined`
+# de viec do CO TIENG, khong am tham.
+MAX_FREEZE_CYCLES = 240
+
+# Nhung `rule_id:service` vua cham tran freeze o chu ky nay. `run_cycle` rut ra va ban alert.
+# Cung kieu voi `empty_query_streak`: state cap module, `run_cycle` doc — khong nhet mot alert
+# severity=warning vao ket qua cua eval_metric_rule, vi cho do moi alert deu an severity cua
+# chinh rule (xem run_cycle) va mot canh bao "da hoc lai baseline" khong nen la critical.
+pending_rebaselines = []
+
+
+def _incident_gate(history_key, fired, recovery_cycles=None, max_freeze_cycles=None):
+    """Mo/dong su co cho mot `rule_id:service`, tra ve co `frozen` cho chu ky hien tai.
+
+    Doc hai hang so o TRONG than ham chu khong dat lam gia tri mac dinh cua tham so: default
+    arg duoc bind mot lan luc DINH NGHIA ham, nen `detector.MAX_FREEZE_CYCLES = 10` sau khi
+    import se khong co tac dung nao — hai hang so trong nhu tune duoc ma thuc ra khong.
+    Phat hien khi kiem chieu fail: bai test doi hang so roi cho chay theo no bi treo.
+
+    frozen=True  -> KHONG duoc append vao metric_history (baseline dung yen)
+    frozen=False -> append binh thuong
+
+    Ba duong ra khoi trang thai freeze, va chi ba:
+      1. Gia tri hoi phuc: im lang du `recovery_cycles` chu ky lien tiep -> dong su co.
+         Doi hoi >1 chu ky de mot nhip dao dong khong dong su co som roi mo lai ngay.
+      2. Cham tran `max_freeze_cycles`: thaw va ghi vao `pending_rebaselines` de co alert.
+         Sau khi rebaseline thi su co VAN mo (van dang keu) nhung khong con freeze — baseline
+         hoc lai muc moi, rule tu tat, roi su co dong theo duong 1.
+      3. reset_state() — chi dung trong test.
+    """
+    if recovery_cycles is None:
+        recovery_cycles = RECOVERY_CYCLES
+    if max_freeze_cycles is None:
+        max_freeze_cycles = MAX_FREEZE_CYCLES
+
+    st = incident_state.get(history_key)
+
+    if fired:
+        if st is None:
+            incident_state[history_key] = {
+                "cycles_open": 1, "recovered_streak": 0, "rebaselined": False,
+            }
+            return True
+        st["cycles_open"] += 1
+        st["recovered_streak"] = 0
+        if st["cycles_open"] > max_freeze_cycles and not st["rebaselined"]:
+            st["rebaselined"] = True
+            pending_rebaselines.append((history_key, st["cycles_open"]))
+        return not st["rebaselined"]
+
+    if st is None:
+        return False
+    st["cycles_open"] += 1
+    st["recovered_streak"] += 1
+    if st["recovered_streak"] >= recovery_cycles:
+        del incident_state[history_key]
+        return False
+    return not st["rebaselined"]
+
 
 def reset_state():
     """Xoa toan bo state cap module. Dung cho test.
@@ -72,6 +152,8 @@ def reset_state():
     """
     metric_history.clear()
     empty_query_streak.clear()
+    incident_state.clear()
+    del pending_rebaselines[:]
 
 
 def eval_metric_rule(rule, prom):
@@ -194,13 +276,28 @@ def eval_metric_rule(rule, prom):
             # mau trong 1 gio). Voi rule nay do lai la dieu MONG MUON — no giu ranh phat
             # hien sat day nen su co nho van noi len — nhung dung ap dung mu cho rule khac
             # ma khong do lai.
-            history_value = value
-            if len(history) >= 5:
-                history_value = (min(value, dynamic_threshold) if op == "gt"
-                                 else max(value, dynamic_threshold))
-            history.append(history_value)
-            if len(history) > 30:
-                history.pop(0)
+            # MANDATE-28: FREEZE baseline khi dang co su co mo. Khong append gi ca — do la
+            # khac biet then chot so voi winsorize. Winsorize lam CHAM viec baseline bi keo
+            # theo; freeze lam no DUNG HAN. Do that: khong freeze thi su co 40 phut duoi
+            # nguong SLO chi duoc bao 9 phut dau (baseline 0.0093 -> 0.0805 roi nuot no).
+            #
+            # Goi gate TRUOC khi append va SAU khi da chot static_fired/dynamic_fired.
+            frozen = _incident_gate(history_key, static_fired or dynamic_fired)
+
+            if not frozen:
+                history_value = value
+                if len(history) >= 5:
+                    # Winsorize VAN CON VIEC sau khi co freeze, du hai co che nghe giong nhau:
+                    # gia tri vuot 3-sigma nhung bi CONG SLO (`dynamic_min_fraction`) chan nen
+                    # KHONG keu -> khong mo su co -> khong freeze -> van append. Winsorize la
+                    # thu ghim no lai o do. Co test rieng canh viec nay
+                    # (test_winsorize_van_con_viec_sau_khi_co_freeze) de neu mot ngay no thanh
+                    # code chet thi phai biet ma go, chu khong giu lai cho dep.
+                    history_value = (min(value, dynamic_threshold) if op == "gt"
+                                     else max(value, dynamic_threshold))
+                history.append(history_value)
+                if len(history) > 30:
+                    history.pop(0)
 
         if static_fired or dynamic_fired:
             dedup_key = f"{rule['id']}:{svc}"
@@ -362,6 +459,33 @@ def run_cycle(cfg, prom, osc, core_v1, alerter, silent_after=None) -> int:
                         ("\U0001F50D Query", f"```{str(rule.get('query'))[:300]}```", False),
                     ],
                 )
+
+    # MANDATE-28: mot su co da mo qua tran freeze -> thaw, baseline se hoc muc moi lam
+    # binh thuong. Do CO THE dung (tai da dich han) hoac SAI (su co van dang chay), va
+    # detector khong co cach nao tu biet — nen no phai NOI RA thay vi lang le hoc.
+    #
+    # Day chinh la cho danh doi giua hai yeu cau cua mandate: yeu cau 1 doi bao xuyen suot
+    # (=> freeze), yeu cau 2 cam bao gia khi muc binh thuong dich (=> phai thaw). Tran nay
+    # la ranh giua hai cai do, va alert nay la thu lam ranh do nhin thay duoc.
+    for history_key, cycles_open in pending_rebaselines:
+        rule_id, _, svc = history_key.partition(":")
+        minutes = cycles_open * cfg.get("poll_interval_seconds", 30) / 60.0
+        log.warning("baseline cua %s da bi dong bang %d chu ky (~%.0f phut) — thaw va hoc lai",
+                    history_key, cycles_open, minutes)
+        alerter.send(
+            f"baseline-rebaselined:{svc}",
+            "warning",
+            "baseline-rebaselined",
+            f"Rule '{rule_id}' da keu lien tuc ~{minutes:.0f} phut tren '{svc}'. Detector "
+            f"thoi dong bang baseline va se hoc muc hien tai lam binh thuong moi. NEU su co "
+            f"van dang chay thi tu day detector se KHONG con bao nua — can nguoi xac nhan.",
+            fields=[
+                ("\U0001F9CA Rule", rule_id, True),
+                ("\U0001F3AF Service", svc, True),
+                ("⏱ Chu ky da dong bang", f"{cycles_open} (~{minutes:.0f} phut)", True),
+            ],
+        )
+    del pending_rebaselines[:]
 
     # K3: flush all buffered alerts as grouped messages (1 per fingerprint)
     dispatched = alerter.flush()

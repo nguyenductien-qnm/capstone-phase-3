@@ -1,0 +1,47 @@
+{
+  "id": "case-sustained-stacked-001",
+  "type": "sustained",
+  "description": "MANDATE-28: su co KEO DAI 35 phut tren `cart`, va giua chung mot su co THU HAI no chong tren `recommendation` khi su co dau chua dut. Kiem ba thu cung luc: (1) bao xuyen suot su co dai, khong khoang cam; (2) khong bao gia vi tai nen dao dong; (3) su co 2 duoc bat va TACH RIENG chu khong bi su co 1 che. Hai su kien CO Y chong nhau — do la ly do do_inject phai chay theo lich chung thay vi tuan tu.",
+  "settle_seconds": 300,
+  "events": [
+    {
+      "label": "su-co-dai-cart",
+      "service": "checkout",
+      "expected_rule_ids": [
+        "service-error-rate-high"
+      ],
+      "expect_fire": true,
+      "offset_seconds": 0,
+      "duration_seconds": 2100,
+      "inject": {
+        "type": "command",
+        "on": "kubectl scale deploy/cart -n techx-tf1 --replicas=0",
+        "off": "kubectl scale deploy/cart -n techx-tf1 --replicas=2"
+      }
+    },
+    {
+      "label": "su-co-chong-recommendation",
+      "service": "frontend",
+      "expected_rule_ids": [
+        "service-error-rate-high"
+      ],
+      "expect_fire": true,
+      "offset_seconds": 1200,
+      "duration_seconds": 600,
+      "inject": {
+        "type": "command",
+        "on": "kubectl scale deploy/recommendation -n techx-tf1 --replicas=0",
+        "off": "kubectl scale deploy/recommendation -n techx-tf1 --replicas=2"
+      }
+    }
+  ],
+  "notes": [
+    "CHUA CHAY DUOC TREN CUM — SSO het han 29/07. Bang chung offline nam o aiops/detector/test_sustained.py va aiops/test_timeline.py; chay that la buoc rieng, xem ADR-019.",
+    "VI SAO 2100s (35 phut) cho su co 1. Truoc khi co freeze, do duoc tren chinh eval_metric_rule: mot su co o muc duoi nguong SLO bi nuot sau ~9 phut (baseline 30 mau x poll 30s = 15 phut de bi keo len het). Kich ban phai dai HON han cua so do moi kiem duoc gi; 35 phut cho bien hon gap doi.",
+    "VI SAO su co 2 bom vao `recommendation` chu khong phai service khac. Ba dieu kien phai thoa cung luc: (a) khac service voi su co 1 de kiem duoc 'tach rieng'; (b) khong nam tren duong phu thuoc cua cart, neu khong thi giet no chi lam nang them chinh trieu chung cua su co 1; (c) frontend chiu duoc no chet ma van co loi do duoc. Theo aiops/topology.json thi frontend -> recommendation la canh dong bo truc tiep, va recommendation khong goi cart.",
+    "VI SAO su kien 2 bat o offset 1200 (phut 20). Phai nam TRON trong su co 1 (0-2100) va phai sau moc ~9 phut ma detector cu da bi nuot — de neu freeze khong hoat dong thi ca nay FAIL that chu khong FAIL vi ly do khac.",
+    "RANG BUOC BOM: hai su kien chong nhau khong duoc dung chung mot diem bom. Tat `cart` va tat `recommendation` la hai deployment khac nhau nen doc lap. Neu doi sang bom cung mot service thi lenh `off` cua su kien 1 se xoa luon loi cua su kien 2.",
+    "KHOI PHUC: ca hai `off` deu scale ve 2 = dung minReplicas cua HPA. Tong thoi gian mot lan chay: 2100 + 300 settle = 40 phut.",
+    "AN TOAN: `aiops-remediation` chay REMEDIATION_DRY_RUN=true va chi co policy cho oom-detected, nen no khong can thiep vao ca nay."
+  ]
+}

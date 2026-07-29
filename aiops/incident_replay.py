@@ -43,6 +43,9 @@ Usage:
       --prom-url http://localhost:9090
   python incident_replay.py score /path/to/btc-hidden-scenario.json \\
       --start .. --end .. --rca
+  # MANDATE-28: dong canh bao theo thoi gian + danh sach incident, de doi chieu xem mot
+  # su co keo dai co bi "khoang cam" giua chung khong. Khong can scenario file.
+  python incident_replay.py timeline --start 1721800000 --end 1721803600
 """
 import argparse
 import json
@@ -52,6 +55,7 @@ import sys
 import time
 
 import diagnose
+import timeline
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _REPO_ROOT = os.path.abspath(os.path.join(_HERE, ".."))
@@ -137,26 +141,48 @@ def _normalize_events(scenario):
     }]
 
 
+def build_schedule(events):
+    """(thoi diem tuong doi, "on"/"off", chi so su kien) da sap theo thoi gian.
+
+    Tach rieng khoi do_inject de test duoc lich bom ma khong phai cho that.
+    """
+    schedule = []
+    for i, ev in enumerate(events):
+        on_at = ev.get("offset_seconds", 0)
+        schedule.append((on_at, "on", i))
+        schedule.append((on_at + ev.get("duration_seconds", 60), "off", i))
+    # Sap theo thoi gian; cung thoi diem thi TAT truoc BAT, de hai su kien noi duoi nhau
+    # tren cung mot diem bom khong bi bat roi tat ngay.
+    return sorted(schedule, key=lambda s: (s[0], 0 if s[1] == "off" else 1))
+
+
 def do_inject(scenario):
-    """Run every event's inject on/off on its own timeline, return the REAL
-    (start_ts, end_ts) observed for each event."""
+    """Bom moi su kien theo lich CHUNG, tra ve (t_start, t_end) THAT quan sat duoc.
+
+    Truoc day ham nay chay TUAN TU: bat su kien 1, sleep het duration, tat, roi moi den su
+    kien 2. Nghia la hai su co KHONG BAO GIO chong nhau duoc, du scenario khai offset the nao.
+    MANDATE-28 lai doi dung dieu do — "mot su co thu hai xuat hien o service khac GIUA LUC su
+    co dau chua dut". Nen doi sang chay theo mot lich gom tat ca moc bat/tat roi sap theo
+    thoi gian: van mot luong, van khong co dong bo hoa gi, nhung chong lan thi lam duoc.
+
+    Voi kich ban khong chong lan (moi ca hien co) hanh vi khong doi mot chut nao.
+
+    RANG BUOC: hai su kien chong nhau KHONG duoc dung chung mot diem bom — tat su kien 1 se
+    xoa luon loi cua su kien 2. Kich ban phai bom o hai service khac nhau.
+    """
     events = _normalize_events(scenario)
+    results = [dict(ev) for ev in events]
     run_start = time.monotonic()
-    results = []
-    for ev in events:
-        offset = ev.get("offset_seconds", 0)
-        wait = offset - (time.monotonic() - run_start)
+
+    for at, action, idx in build_schedule(events):
+        wait = at - (time.monotonic() - run_start)
         if wait > 0:
             time.sleep(wait)
-        t_start = time.time()
+        ev = events[idx]
         if ev.get("inject"):
-            _inject_on(ev["inject"])
-        duration = ev.get("duration_seconds", 60)
-        time.sleep(duration)
-        if ev.get("inject"):
-            _inject_off(ev["inject"])
-        t_end = time.time()
-        results.append({**ev, "t_start": t_start, "t_end": t_end})
+            (_inject_on if action == "on" else _inject_off)(ev["inject"])
+        results[idx]["t_start" if action == "on" else "t_end"] = time.time()
+
     settle = scenario.get("settle_seconds", 30)
     if settle:
         print(f"  [inject] settling {settle}s before scoring...", flush=True)
@@ -247,6 +273,14 @@ def score_events(events, alerter_history_path, settle_seconds=30):
             "correct": fired == ev.get("expect_fire", True),
             "lead_time_seconds": (first["ts"] - ev["t_start"]) if first else None,
             "matched_alert": first,
+            # MANDATE-28: mot su co keo dai phai duoc bao XUYEN SUOT. `fired` chi noi "co keu
+            # it nhat mot lan" nen no khong tra loi duoc cau do. Tinh o day (chu khong trong
+            # verdict_for_type) vi day la cho duy nhat con giu duong dan alerter_history.
+            # Rẻ, va tinh cho MOI loai kich ban de bao cao nao cung doc duoc nhip bao.
+            "silent_gaps": timeline.silent_gaps(
+                observed, ev.get("expected_rule_ids", []), ev.get("service"),
+                ev["t_start"], ev_end,
+            ) if ev.get("expect_fire", True) else [],
         })
 
     K = sum(1 for ev in events if ev.get("expect_fire", True))
@@ -283,6 +317,32 @@ def verdict_for_type(scenario_type, per_event):
         false_positives = [pe["label"] for pe in per_event if not pe["expect_fire"] and pe["fired"]]
         ok = not false_positives
         return ok, "no false alarm under load" if ok else f"false alarm(s): {false_positives}"
+    if scenario_type == "sustained":
+        # MANDATE-28 "Kiem duoc": bao LIEN TUC suot su co dai (khong khoang cam) · su co thu 2
+        # no chong -> phat hien + TACH RIENG · khong bao gia vi tai hop le doi.
+        #
+        # Ba dieu kien deu kiem tren per_event chu khong tren tong so alert: mot su co bi bo
+        # lo hoan toan va mot su co duoc bao lien tuc cho ra cung mot "tong so alert" neu chi
+        # dem, nen dem la cach cham sai cho bai nay.
+        want = [pe for pe in per_event if pe["expect_fire"]]
+        missed = [pe["label"] for pe in want if not pe["fired"]]
+        gapped = [f"{pe['label']}({max(g['seconds'] for g in pe['silent_gaps']):.0f}s)"
+                  for pe in want if pe.get("silent_gaps")]
+        # "Tach rieng" = moi su co co nhan phai co alert cua RIENG no, khong duoc dung chung
+        # mot alert. `score_events` da kep cua so theo tung su kien nen alert khong the bi
+        # dem hai lan; con lai chi can moi su kien co alert khop cua chinh no.
+        stacked = [pe for pe in want if pe["service"]]
+        services = {pe["service"] for pe in stacked}
+        not_separated = len(services) > 1 and any(not pe["fired"] for pe in stacked)
+
+        if missed:
+            return False, f"bo lo su co: {missed}"
+        if gapped:
+            return False, f"co KHOANG CAM giua su co: {gapped}"
+        if not_separated:
+            return False, "su co chong khong duoc tach rieng"
+        return True, ("bao lien tuc suot su co, khong khoang cam"
+                      + (f", {len(services)} service duoc tach rieng" if len(services) > 1 else ""))
     return None, "unknown scenario type, no verdict rule"
 
 
@@ -329,6 +389,8 @@ def _print_report(scenario, score, remediation_records=None, rca=None):
         lead = f"{pe['lead_time_seconds']:.1f}s" if pe["lead_time_seconds"] is not None else "n/a"
         print(f"  [{pe['label']}] expect_fire={pe['expect_fire']} -> {status} "
               f"(lead_time={lead}) {'OK' if pe['correct'] else 'MISMATCH'}")
+        for g in pe.get("silent_gaps", []):
+            print(f"      KHOANG CAM {g['seconds']:.0f}s ({g['where']})")
     m = score["metrics"]
     print("-" * 70)
     print(f"  K incidents = {m['K_incidents']} | recall = {m['recall']} | "
@@ -527,6 +589,31 @@ def cmd_rca(args):
         print(f"  rca written to {args.out}")
 
 
+def cmd_timeline(args):
+    """MANDATE-28: in dong canh bao theo thoi gian + danh sach incident cho mot cua so.
+
+    Khong can scenario file — mentor bom kich ban cua ho roi dua cua so vao la doc duoc,
+    dung nhu cau "xuat duoc ... de doi chieu" cua mandate.
+    """
+    if args.start is None or args.end is None:
+        print("timeline requires --start/--end (the window you want to inspect)",
+              file=sys.stderr)
+        sys.exit(2)
+    alerts = _load_jsonl(args.alerter_history)
+    print(timeline.format_timeline(
+        alerts, args.start, args.end,
+        split_gap_seconds=args.max_gap, max_gap_seconds=args.max_gap,
+    ))
+    if args.out:
+        with open(args.out, "w", encoding="utf-8") as f:
+            json.dump({
+                "window": {"start": args.start, "end": args.end},
+                "max_gap_seconds": args.max_gap,
+                "incidents": timeline.build_incidents(alerts, args.max_gap, args.start, args.end),
+            }, f, indent=2, default=str)
+        print(f"  timeline written to {args.out}")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -562,6 +649,16 @@ def main():
     p_rca.add_argument("--end", type=float, default=None, help="unix ts the incident window ends")
     p_rca.add_argument("--out", default=None, help="also write the RCA verdict to this JSON path")
     p_rca.set_defaults(func=cmd_rca)
+    p_tl = sub.add_parser("timeline",
+                          help="alert stream over time + incident list for a window (MANDATE-28)")
+    p_tl.add_argument("--alerter-history", default=DEFAULT_ALERTER_HISTORY)
+    p_tl.add_argument("--start", type=float, default=None, help="unix ts the window starts")
+    p_tl.add_argument("--end", type=float, default=None, help="unix ts the window ends")
+    p_tl.add_argument("--max-gap", type=float, default=timeline.DEFAULT_MAX_GAP_SECONDS,
+                      help="gap above which alerting counts as SILENT "
+                           "(default 630s = alerter cooldown 600s + one 30s poll)")
+    p_tl.add_argument("--out", default=None, help="also write the incident list to this JSON path")
+    p_tl.set_defaults(func=cmd_timeline)
 
     args = parser.parse_args()
     args.func(args)

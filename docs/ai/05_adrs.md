@@ -1447,3 +1447,138 @@ giải thích nói thẳng rằng kết luận yếu hơn bình thường.
   sửa TF1-116 thì RCA tự khá lên, không phải đụng `diagnose.py`.
 - Bộ đo hoàn toàn offline (19 test, `aiops/test_diagnose.py`), mỗi fixture có gốc thật biết
   trước, và **có kiểm chiều fail**: phá 8 cơ chế thì cả 8 đều có test đỏ.
+
+---
+
+# ADR-019: Đóng băng baseline khi đang có sự cố — sự cố kéo dài không được thành "bình thường mới" (MANDATE-28)
+
+- **Trạng thái:** Chấp nhận (Accepted)
+- **Ngày:** 2026-07-29
+- **Người ký:** **Thanh Pham Huu Tien** (`phamthanh.forwork@gmail.com`) — cá nhân chịu trách nhiệm về quyết định kỹ thuật này và về tính đúng của mọi con số trong ADR.
+- **Trụ:** AI (AIOps) / Reliability / Operational Excellence
+- **Task:** MANDATE-28 · **đảo lại một phần quyết định 2 của ADR-017**
+
+> **Về số hiệu.** Lúc soạn, ADR-018 (RCA / MANDATE-26) còn nằm ở PR #491 chưa merge nên số 019
+> được đặt trước và chấp nhận rủi ro có một lỗ ở 018. #491 đã merge 29/07 (`b862f46`), nên dãy
+> 017-018-019 liền — không còn lỗ.
+
+## Context
+
+MANDATE-28 đòi ba thứ cùng lúc: báo **xuyên suốt** một sự cố dài (không khoảng câm), **không**
+báo giả khi tải hợp lệ dịch mức, và vẫn **tách riêng** được sự cố thứ hai nổ chồng.
+
+**Đo trên chính `eval_metric_rule` trước khi sửa** — sự cố 40 phút ở mức `0.08`, dưới ngưỡng
+tĩnh `0.10` nên chỉ tầng 3-sigma bắt được:
+
+| Chu kỳ | value | mean | mean+3σ | kết quả |
+|---|---|---|---|---|
+| 20 | 0.0857 | 0.0093 | 0.0166 | KÊU |
+| 30 | 0.0817 | 0.0148 | 0.0415 | KÊU |
+| **38** | 0.0778 | 0.0287 | **0.0941** | **im lặng** |
+| 60 | 0.0845 | 0.0751 | 0.1096 | im lặng |
+| 96 | 0.0783 | 0.0798 | 0.0905 | im lặng |
+
+**Kêu 9 phút, rồi im lặng suốt 29 phút còn lại.** Baseline bò từ `0.0093` lên `0.0805` — detector
+học chính cái lỗi thành bình thường. Tổng: **18/95 chu kỳ** có báo.
+
+Gốc rễ là **quyết định 2 của ADR-017**: winsorize kẹp giá trị *rồi vẫn append*, cố ý để *"một bất
+thường kéo dài thật vẫn kéo được baseline dần theo thời gian"*. Với MANDATE-15 (chống masking bởi
+một spike đơn lẻ) đó là hành vi mong muốn. Với MANDATE-28 nó **chính là lỗi**.
+
+## Decision
+
+### 1. Freeze baseline khi có sự cố đang mở, không phải winsorize nó
+
+`incident_state[rule_id:service]` mở khi rule kêu, và **trong lúc mở thì không append gì vào
+`metric_history`**. Khác winsorize ở mức bản chất: winsorize làm *chậm* việc baseline bị kéo
+theo, freeze làm nó *dừng hẳn*.
+
+Kết quả đo lại trên đúng chuỗi đó: **18/95 → 80/95 chu kỳ**, baseline đứng yên ở `mean=0.0090`
+suốt sự cố. Không còn khoảng câm.
+
+### 2. Ba đường ra khỏi freeze, và chỉ ba
+
+| Đường | Điều kiện |
+|---|---|
+| Hồi phục | im lặng đủ `RECOVERY_CYCLES = 3` chu kỳ liên tiếp → đóng sự cố, thaw |
+| Chạm trần | `MAX_FREEZE_CYCLES = 240` (2 giờ) → thaw **và bắn alert** `baseline-rebaselined` |
+| `reset_state()` | chỉ dùng trong test |
+
+`RECOVERY_CYCLES > 1` để một nhịp dao động không đóng sự cố rồi mở lại ngay.
+
+### 3. Trần freeze là chỗ đánh đổi giữa yêu cầu 1 và yêu cầu 2 — và nó phải có tiếng
+
+Yêu cầu 1 đòi báo xuyên suốt ⇒ freeze. Yêu cầu 2 cấm báo giả khi mức bình thường đã dịch ⇒ phải
+thaw. Detector **không có cách nào tự biết** mức mới là sự cố kéo dài hay là bình thường mới.
+
+Nên trần là ranh giữa hai cái đó, và alert `baseline-rebaselined` là thứ làm cái ranh ấy **nhìn
+thấy được**: *"đã kêu liên tục ~2 giờ, từ đây tôi thôi đóng băng và sẽ học mức hiện tại làm bình
+thường. Nếu sự cố vẫn đang chạy thì từ giờ tôi KHÔNG còn báo nữa — cần người xác nhận."*
+
+Âm thầm học lại mới là điều mandate cấm; học lại **có tuyên bố** thì không.
+
+### 4. Winsorize vẫn còn việc — đã kiểm, nếu không thì phải gỡ
+
+Sau khi có freeze, winsorize chỉ còn phục vụ đúng một ca: giá trị vượt 3σ nhưng bị **cổng SLO**
+(`dynamic_min_fraction`) chặn nên không kêu → không mở sự cố → không freeze → vẫn append.
+
+Có test riêng canh việc này (`test_winsorize_van_con_viec_sau_khi_co_freeze`). Nếu một ngày ca đó
+biến mất thì winsorize thành code chết và **phải bị gỡ**, không giữ lại cho đẹp — bài học 4 tham
+số giả ở ADR-018.
+
+### 5. `do_inject` chạy theo lịch chung thay vì tuần tự
+
+Bản cũ bật sự kiện 1, `sleep` hết `duration`, tắt, rồi mới sang sự kiện 2 — nên hai sự cố **không
+bao giờ chồng nhau được**, dù scenario khai `offset_seconds` thế nào. Mà MANDATE-28 đòi đúng điều
+đó. Đổi sang gom mọi mốc bật/tắt thành một lịch rồi chạy theo thứ tự thời gian: vẫn một luồng,
+vẫn không đồng bộ hoá gì, nhưng chồng lấn thì làm được. Kịch bản không chồng lấn hành vi không đổi.
+
+Ràng buộc kèm theo: hai sự kiện chồng nhau **không được dùng chung một điểm bơm** — lệnh `off` của
+sự kiện 1 sẽ xoá luôn lỗi của sự kiện 2.
+
+### 6. Ngưỡng "khoảng câm" = `cooldown + 1 poll` = 630s
+
+`alerter` gộp theo cooldown 600s cho từng `rule × service`, nên **ngay cả rule kêu mọi chu kỳ cũng
+chỉ ghi một bản ghi mỗi 10 phút**. Đó là chống spam có chủ đích (ADR-012), không phải detector mù.
+Đặt ngưỡng 600 tròn sẽ báo động giả mỗi lần scrape lệch vài giây; đặt quá cao sẽ nuốt mất đúng
+cái mandate đi tìm. Dùng chung một ngưỡng cho cả báo cáo lẫn verdict — nếu hai chỗ tính khác nhau
+thì cả hai đều không đáng tin.
+
+## Alternatives considered
+
+- **SLO làm trọng tài: chỉ freeze khi tầng TĨNH kêu.** Đơn giản nhất, không thêm state nào, nhất
+  quán với triết lý SLO-anchored của ADR-012. → **Loại**, vì nó không sửa được đúng ca đã đo:
+  sự cố ở `0.08` nằm dưới ngưỡng `0.10` nên tầng tĩnh không kêu, và 29 phút im lặng vẫn còn nguyên.
+- **Hai baseline song song** (ngắn thích nghi + dài đóng băng), kêu nếu vượt cái nào. Mạnh nhất về
+  lý thuyết. → **Loại**: thêm ~4 tham số, mà bài học ADR-018 là mỗi tham số phải chứng minh gánh
+  việc bằng kiểm chiều fail, nếu không thì gỡ. Không đáng cho mức yêu cầu của mandate.
+- **Bỏ hẳn winsorize, chỉ dùng freeze.** → Loại, xem quyết định 4: winsorize vẫn còn đúng một ca,
+  và ca đó có test.
+- **Đổi `cooldown` 600s của alerter cho alert dày hơn.** → Loại thẳng. Đó là quyết định chống spam
+  có số đo từ ADR-012; đổi nó ở đây là đổi ngầm hành vi của cả 16 rule để làm đẹp một bài test.
+
+## Consequences
+
+- Một sự cố kéo dài giờ **giữ baseline đứng yên tối đa 2 giờ**. Nếu sự cố thật sự dài hơn thế,
+  detector sẽ rebaseline và **thôi báo** — có alert cảnh báo, nhưng người trực phải đọc nó.
+- `incident_state` nằm trong **RAM tiến trình**. Pod restart là mất hết trạng thái sự cố đang mở,
+  baseline học lại từ đầu. Cùng lớp khiếm khuyết với `BlastRadiusGuard._history` (TF1-106) và
+  `CircuitBreaker._fail_count` (TF1-107) — ghi ra đây để nó không bị phát hiện lại lần thứ tư.
+- Yêu cầu 3 (tách sự cố chồng) **đã đạt sẵn từ trước**, không nhờ PR này: `metric_history` khóa
+  theo `rule_id:service` từ `#7a`. Đo xác nhận: `cart` cháy từ chu kỳ 15, `payment` vẫn bắt được ở
+  chu kỳ 45, hai lịch sử riêng (mean 0.2960 vs 0.0484). Freeze cũng khóa theo cùng khoá đó.
+- **Chưa chạy được trên cụm** — SSO hết hạn 29/07. `case_sustained_stacked.json` đã commit nhưng
+  chưa có số đo thật. Bằng chứng offline chứng minh **cơ chế**, không chứng minh hành vi dưới nhiễu
+  thật của EKS. Nợ đã ghi, có task riêng.
+- Bộ đo: 14 test `test_sustained.py` + 18 test `test_timeline.py`, và **kiểm chiều fail**: phá 10
+  cơ chế thì cả 10 đều có test đỏ.
+
+## Ghi chú phương pháp — hai lỗi do chính việc kiểm chiều fail moi ra
+
+1. **Hằng số bind vào default arg.** `_incident_gate(..., max_freeze_cycles=MAX_FREEZE_CYCLES)`
+   bind giá trị lúc *định nghĩa* hàm, nên `detector.MAX_FREEZE_CYCLES = 10` sau khi import không có
+   tác dụng gì — hai hằng số **trông như tune được mà thực ra không**. Phát hiện khi một bài test
+   phá hằng số rồi cho chạy theo nó bị **treo** thay vì đỏ. Đã đổi sang đọc trong thân hàm.
+2. **Bài test không được cho vòng lặp chạy theo chính hằng số đang bị phá.** Đã tách làm hai:
+   một test monkeypatch trần xuống 30 để kiểm cơ chế, một test riêng canh giá trị ship nằm trong
+   dải [1h, 6h].
