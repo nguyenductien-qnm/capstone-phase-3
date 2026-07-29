@@ -1,204 +1,58 @@
-import React, { useState } from 'react';
-import styled from 'styled-components';
+import { useState } from 'react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 
-const PanelContainer = styled.div`
-  margin-top: 12px;
-  padding: 12px;
-  background: #f8f9fa;
-  border-radius: 6px;
-  border: 1px solid #e9ecef;
-  font-size: 13px;
-  font-family: monospace;
-`;
+export interface TraceStep { stepName?: string; latencyMs?: number; status?: string; detail?: string; step_name?: string; latency_ms?: number; }
+export interface Citation { reviewId?: string; review_id?: string; snippet?: string; score?: string; }
+export interface TraceCitationPanelProps { traceId?: string; traceSteps?: TraceStep[]; citations?: Citation[]; defaultOpen?: boolean; }
 
-const Header = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-  cursor: pointer;
-  user-select: none;
-`;
-
-const Title = styled.strong`
-  color: #495057;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-`;
-
-const TraceId = styled.span`
-  color: #0066cc;
-  cursor: pointer;
-  &:hover {
-    text-decoration: underline;
-  }
-`;
-
-const Content = styled.div<{ $isOpen: boolean }>`
-  display: ${props => props.$isOpen ? 'block' : 'none'};
-`;
-
-const SectionTitle = styled.div`
-  font-weight: bold;
-  color: #343a40;
-  margin: 12px 0 4px 0;
-  text-transform: uppercase;
-  font-size: 11px;
-  letter-spacing: 0.5px;
-`;
-
-const StepItem = styled.div`
-  display: flex;
-  justify-content: space-between;
-  padding: 4px 0;
-  border-bottom: 1px dashed #dee2e6;
-  &:last-child {
-    border-bottom: none;
-  }
-`;
-
-const StepName = styled.span`
-  color: #495057;
-`;
-
-const StepDetail = styled.div`
-  font-size: 11px;
-  color: #6c757d;
-  margin-top: 4px;
-  background: #e9ecef;
-  padding: 4px;
-  border-radius: 4px;
-  white-space: pre-wrap;
-  word-break: break-all;
-`;
-
-const StepMetrics = styled.span`
-  display: flex;
-  gap: 12px;
-`;
-
-const StepLatency = styled.span`
-  color: #6c757d;
-`;
-
-const StepStatus = styled.span<{ $status: string }>`
-  font-weight: bold;
-  color: ${props => {
-    if (props.$status === 'blocked') return '#dc3545';
-    if (props.$status === 'pass' || props.$status === 'ok') return '#198754';
-    return '#6c757d';
-  }};
-`;
-
-const CitationList = styled.ul`
-  margin: 0;
-  padding-left: 20px;
-  color: #495057;
-`;
-
-const CitationItem = styled.li`
-  margin-bottom: 4px;
-`;
-
-export interface TraceStep {
-  stepName?: string;
-  latencyMs?: number;
-  status?: string;
-  detail?: string;
-  // in protobuf, snake_case becomes camelCase
-  step_name?: string;
-  latency_ms?: number;
-}
-
-export interface Citation {
-  reviewId?: string;
-  review_id?: string;
-  snippet?: string;
-  score?: string;
-}
-
-export interface TraceCitationPanelProps {
-  traceId?: string;
-  traceSteps?: TraceStep[];
-  citations?: Citation[];
-  defaultOpen?: boolean;
-}
-
-export const TraceCitationPanel: React.FC<TraceCitationPanelProps> = ({ 
-  traceId, 
-  traceSteps = [], 
-  citations = [],
-  defaultOpen = false
-}) => {
+export const TraceCitationPanel = ({ traceId, traceSteps = [], citations = [], defaultOpen = false }: TraceCitationPanelProps) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
-
-  if (!traceId && (!traceSteps || traceSteps.length === 0) && (!citations || citations.length === 0)) {
-    return null;
-  }
+  if (!traceId && !traceSteps.length && !citations.length) return null;
 
   return (
-    <PanelContainer data-cy="TraceCitationPanel">
-      <Header onClick={() => setIsOpen(!isOpen)}>
-        <Title>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          AI Evaluation Trace {isOpen ? '▼' : '▶'}
-        </Title>
-        {traceId && (
-          <TraceId 
-            title="Click to copy Trace ID"
-            onClick={(e) => {
-              e.stopPropagation();
-              navigator.clipboard?.writeText(traceId);
-            }}
-          >
-            {traceId.slice(0, 8)}...
-          </TraceId>
-        )}
-      </Header>
-      
-      <Content $isOpen={isOpen}>
-        {traceSteps && traceSteps.length > 0 && (
-          <>
-            <SectionTitle>Execution Steps</SectionTitle>
+    <div className="mt-3 rounded-lg border bg-muted/30 p-3 font-mono text-xs" data-cy="TraceCitationPanel">
+      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+        <div className="flex items-center justify-between">
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-auto gap-1 p-0 text-muted-foreground hover:text-foreground">
+              ⚡ AI Trace {isOpen ? '▼' : '▶'}
+            </Button>
+          </CollapsibleTrigger>
+          {traceId && (
+            <span className="cursor-pointer text-blue-600 hover:underline" onClick={e => { e.stopPropagation(); navigator.clipboard?.writeText(traceId); }}>
+              {traceId.slice(0, 8)}...
+            </span>
+          )}
+        </div>
+        <CollapsibleContent className="mt-2 space-y-3">
+          {traceSteps.length > 0 && (
             <div>
+              <h4 className="mb-1 font-bold uppercase tracking-wide">Steps</h4>
               {traceSteps.map((step, idx) => {
-                const name = step.stepName || step.step_name || 'Unknown Step';
+                const name = step.stepName || step.step_name || 'Unknown';
                 const latency = step.latencyMs ?? step.latency_ms ?? 0;
-                const status = step.status || 'unknown';
-                
+                const s = step.status || 'unknown';
                 return (
-                  <StepItem key={idx}>
-                    <div style={{ flex: 1, paddingRight: '12px' }}>
-                      <StepName>{name}</StepName>
-                      {step.detail && <StepDetail>{step.detail}</StepDetail>}
+                  <div key={idx} className="flex justify-between border-b border-dashed py-1 last:border-0">
+                    <div className="flex-1 pr-3"><span>{name}</span>
+                      {step.detail && <pre className="mt-1 whitespace-pre-wrap rounded bg-muted p-1 text-[11px] text-muted-foreground">{step.detail}</pre>}
                     </div>
-                    <StepMetrics>
-                      <StepLatency>{latency}ms</StepLatency>
-                      <StepStatus $status={status}>[{status.toUpperCase()}]</StepStatus>
-                    </StepMetrics>
-                  </StepItem>
+                    <div className="flex gap-3 text-right"><span className="text-muted-foreground">{latency}ms</span>
+                      <Badge variant={s === 'blocked' ? 'destructive' : s === 'pass' || s === 'ok' ? 'default' : 'secondary'} className="text-[10px]">{s.toUpperCase()}</Badge></div>
+                  </div>
                 );
               })}
             </div>
-          </>
-        )}
-
-        {citations && citations.length > 0 && (
-          <>
-            <SectionTitle>Grounded Sources</SectionTitle>
-            <CitationList>
-              {citations.map((c, i) => (
-                <CitationItem key={i}>
-                  "{c.snippet}" - <em>{c.reviewId || c.review_id}</em> ({c.score}★)
-                </CitationItem>
-              ))}
-            </CitationList>
-          </>
-        )}
-      </Content>
-    </PanelContainer>
+          )}
+          {citations.length > 0 && (
+            <div><h4 className="mb-1 font-bold uppercase tracking-wide">Sources</h4>
+              <ul className="space-y-1 pl-4">{citations.map((c, i) => <li key={i}>"{c.snippet}" — {c.reviewId || c.review_id} ({c.score}★)</li>)}</ul>
+            </div>
+          )}
+        </CollapsibleContent>
+      </Collapsible>
+    </div>
   );
 };
