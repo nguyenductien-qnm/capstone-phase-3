@@ -145,3 +145,36 @@ AVD-AWS-0132
 
 # WAF cho CloudFront — ~$5-10/tháng + phí per-request. Review: 2026-10-26
 AVD-AWS-0011
+
+# ===========================================================================
+# TẠM THỜI — PHẢI GỠ SAU LẦN APPLY ĐẦU (thêm 30/07/2026)
+# ===========================================================================
+# Đây KHÔNG phải "upstream chưa vá" cũng KHÔNG phải false positive — hai lý do duy
+# nhất mà quy tắc ở đầu file cho phép. Khai thẳng: đây là ngoại lệ có thời hạn để
+# phá một vòng luẩn quẩn của AWS, và nó phải biến mất ngay sau lần apply đầu tiên.
+#
+# VÒNG LUẨN QUẨN: modules/msk/main.tf khai encryption at-rest bằng `alias/aws/kafka`.
+# Đó là key AWS QUẢN LÝ, và AWS chỉ tạo nó khi account dùng MSK lần đầu — docs ghi rõ:
+# "If you don't specify a KMS key, Amazon MSK creates an AWS managed key for you and
+# uses it on your behalf."
+# (https://docs.aws.amazon.com/msk/latest/developerguide/msk-encryption.html)
+# Account 384511757667 là account trắng, chưa từng có cụm MSK -> `aws kms list-aliases`
+# không có alias/aws/kafka -> `data "aws_kms_alias"` trả empty -> plan CHẾT trước khi
+# tạo được gì. Muốn có alias thì phải tạo cụm; muốn tạo cụm thì phải có alias.
+#
+# CÁCH PHÁ VÒNG (bootstrap hai nhịp):
+#   Nhịp 1 — comment `encryption_at_rest_kms_key_arn` + data source (đã làm ở PR này),
+#            apply. MSK tự dùng key AWS quản lý và SINH RA alias/aws/kafka.
+#   Nhịp 2 — bỏ comment, XOÁ khối này, plan lại. Giá trị phân giải ra trùng key mà cụm
+#            đang dùng nên KHÔNG được có diff. Nếu plan đòi đổi thuộc tính này thì DỪNG:
+#            nó là ForceNew, đổi = xoá cụm MSK dựng lại = mất sạch message.
+#
+# DỮ LIỆU CÓ MẤT MÃ HOÁ TRONG LÚC NÀY KHÔNG? KHÔNG. MSK luôn mã hoá at-rest kể cả khi
+# không khai gì (cùng docs trên). Thứ tạm mất là việc KHAI TƯỜNG MINH trong Git cho
+# scanner đọc được — mất tài liệu, không mất bảo mật.
+#
+# ĐIỀU KIỆN GỠ (không phải ngày, mà là sự kiện):
+#   aws kms list-aliases --region us-east-1 \
+#     --query 'Aliases[?AliasName==`alias/aws/kafka`]' --output text
+#   Có kết quả -> gỡ ngay trong PR nhịp 2. Review chặn: 2026-08-15.
+AVD-AWS-0179
