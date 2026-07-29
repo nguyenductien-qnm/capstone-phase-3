@@ -2,7 +2,7 @@ apiVersion: v1
 kind: Pod
 metadata:
   name: psql-drill-seed
-  namespace: techx-develop
+  namespace: techx-tf1
 spec:
   restartPolicy: Never
   securityContext:
