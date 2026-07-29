@@ -1,0 +1,184 @@
+{
+  "runs": [
+    {
+      "variant_id": "v0_baseline_sim_0.85_guard",
+      "timestamp": "2026-07-29T16:30:15.609307",
+      "params": {
+        "semantic_cache_min_sim": 0.85,
+        "rule_guard_enabled": true,
+        "cache_envelope_enabled": true
+      },
+      "metrics": {
+        "recall_pct": 75.0,
+        "hit_rate_pct": 37.5,
+        "latency_hit_p50": 1.08,
+        "latency_miss_p50": 13.35,
+        "cost_reduction_pct": 30.7,
+        "false_hits": 0,
+        "hard_bars_passed": true
+      },
+      "status": "BASELINE",
+      "notes": "Recall: 75.0%, False Hits: 0"
+    },
+    {
+      "variant_id": "variant_sim_0.75_with_guard",
+      "timestamp": "2026-07-29T16:30:15.609664",
+      "params": {
+        "semantic_cache_min_sim": 0.75,
+        "rule_guard_enabled": true,
+        "cache_envelope_enabled": true
+      },
+      "metrics": {
+        "recall_pct": 75.0,
+        "hit_rate_pct": 37.5,
+        "latency_hit_p50": 1.1,
+        "latency_miss_p50": 13.35,
+        "cost_reduction_pct": 30.7,
+        "false_hits": 1,
+        "hard_bars_passed": false
+      },
+      "status": "REJECTED_SAFETY_VIOLATION",
+      "notes": "Recall: 75.0%, False Hits: 1"
+    },
+    {
+      "variant_id": "variant_sim_0.75_no_guard",
+      "timestamp": "2026-07-29T16:30:15.609863",
+      "params": {
+        "semantic_cache_min_sim": 0.75,
+        "rule_guard_enabled": false,
+        "cache_envelope_enabled": true
+      },
+      "metrics": {
+        "recall_pct": 100.0,
+        "hit_rate_pct": 50.0,
+        "latency_hit_p50": 1.1,
+        "latency_miss_p50": 13.35,
+        "cost_reduction_pct": 41.0,
+        "false_hits": 2,
+        "hard_bars_passed": false
+      },
+      "status": "REJECTED_SAFETY_VIOLATION",
+      "notes": "Recall: 100.0%, False Hits: 2"
+    },
+    {
+      "variant_id": "variant_sim_0.80_with_guard",
+      "timestamp": "2026-07-29T16:30:15.610390",
+      "params": {
+        "semantic_cache_min_sim": 0.8,
+        "rule_guard_enabled": true,
+        "cache_envelope_enabled": true
+      },
+      "metrics": {
+        "recall_pct": 75.0,
+        "hit_rate_pct": 37.5,
+        "latency_hit_p50": 1.09,
+        "latency_miss_p50": 13.35,
+        "cost_reduction_pct": 30.7,
+        "false_hits": 0,
+        "hard_bars_passed": true
+      },
+      "status": "REJECTED_SUBOPTIMAL",
+      "notes": "Recall: 75.0%, False Hits: 0"
+    },
+    {
+      "variant_id": "variant_sim_0.85_with_guard",
+      "timestamp": "2026-07-29T16:30:15.610865",
+      "params": {
+        "semantic_cache_min_sim": 0.85,
+        "rule_guard_enabled": true,
+        "cache_envelope_enabled": true
+      },
+      "metrics": {
+        "recall_pct": 75.0,
+        "hit_rate_pct": 37.5,
+        "latency_hit_p50": 1.08,
+        "latency_miss_p50": 13.35,
+        "cost_reduction_pct": 30.7,
+        "false_hits": 0,
+        "hard_bars_passed": true
+      },
+      "status": "REJECTED_SUBOPTIMAL",
+      "notes": "Recall: 75.0%, False Hits: 0"
+    },
+    {
+      "variant_id": "variant_sim_0.90_with_guard",
+      "timestamp": "2026-07-29T16:30:15.611345",
+      "params": {
+        "semantic_cache_min_sim": 0.9,
+        "rule_guard_enabled": true,
+        "cache_envelope_enabled": true
+      },
+      "metrics": {
+        "recall_pct": 0.0,
+        "hit_rate_pct": 0.0,
+        "latency_hit_p50": 1.07,
+        "latency_miss_p50": 13.35,
+        "cost_reduction_pct": 0.0,
+        "false_hits": 0,
+        "hard_bars_passed": true
+      },
+      "status": "REJECTED_SUBOPTIMAL",
+      "notes": "Recall: 0.0%, False Hits: 0"
+    },
+    {
+      "variant_id": "variant_sim_0.92_with_guard",
+      "timestamp": "2026-07-29T16:30:15.611817",
+      "params": {
+        "semantic_cache_min_sim": 0.92,
+        "rule_guard_enabled": true,
+        "cache_envelope_enabled": true
+      },
+      "metrics": {
+        "recall_pct": 0.0,
+        "hit_rate_pct": 0.0,
+        "latency_hit_p50": 1.07,
+        "latency_miss_p50": 13.35,
+        "cost_reduction_pct": 0.0,
+        "false_hits": 0,
+        "hard_bars_passed": true
+      },
+      "status": "REJECTED_SUBOPTIMAL",
+      "notes": "Recall: 0.0%, False Hits: 0"
+    },
+    {
+      "variant_id": "variant_sim_0.95_with_guard",
+      "timestamp": "2026-07-29T16:30:15.612365",
+      "params": {
+        "semantic_cache_min_sim": 0.95,
+        "rule_guard_enabled": true,
+        "cache_envelope_enabled": true
+      },
+      "metrics": {
+        "recall_pct": 0.0,
+        "hit_rate_pct": 0.0,
+        "latency_hit_p50": 1.06,
+        "latency_miss_p50": 13.35,
+        "cost_reduction_pct": 0.0,
+        "false_hits": 0,
+        "hard_bars_passed": true
+      },
+      "status": "REJECTED_SUBOPTIMAL",
+      "notes": "Recall: 0.0%, False Hits: 0"
+    }
+  ],
+  "current_winner": {
+    "variant_id": "v0_baseline_sim_0.85_guard",
+    "timestamp": "2026-07-29T16:30:15.609307",
+    "params": {
+      "semantic_cache_min_sim": 0.85,
+      "rule_guard_enabled": true,
+      "cache_envelope_enabled": true
+    },
+    "metrics": {
+      "recall_pct": 75.0,
+      "hit_rate_pct": 37.5,
+      "latency_hit_p50": 1.08,
+      "latency_miss_p50": 13.35,
+      "cost_reduction_pct": 30.7,
+      "false_hits": 0,
+      "hard_bars_passed": true
+    },
+    "status": "BASELINE",
+    "notes": "Recall: 75.0%, False Hits: 0"
+  }
+}

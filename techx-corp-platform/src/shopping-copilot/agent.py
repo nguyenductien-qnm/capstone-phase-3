@@ -545,7 +545,7 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str,
                 response = invoke_bedrock_converse_with_fallback(
                     primary_client=bedrock_client,
                     model_id=model_id,
-                    system=[{"text": SYSTEM_PROMPT}],
+                    system=[{"text": SYSTEM_PROMPT, "cacheable": True}],
                     messages=current,
                     tool_config={"tools": TOOLS_DEFINITION},
                     # temperature 0: eval MANDATE-14 chốt xanh bằng 2 lần chạy giống nhau, mà ở
