@@ -1,23 +1,30 @@
-import * as React from "react"
+import { Accordion as AccordionPrimitive } from "@base-ui/react/accordion"
 import { ChevronDownIcon } from "lucide-react"
-import { Accordion as AccordionPrimitive } from "radix-ui"
 
 import { cn } from "@/lib/utils"
 
-function Accordion({
-  ...props
-}: React.ComponentProps<typeof AccordionPrimitive.Root>) {
-  return <AccordionPrimitive.Root data-slot="accordion" {...props} />
+// Smooth, premium easing for the open/close — fast out of the gate, gentle
+// settle. Shared by the panel height and the chevron so they move in lockstep.
+const EASE = "ease-[cubic-bezier(0.32,0.72,0,1)]"
+
+function Accordion({ className, ...props }: AccordionPrimitive.Root.Props) {
+  return (
+    <AccordionPrimitive.Root
+      data-slot="accordion"
+      className={cn("flex w-full flex-col gap-3", className)}
+      {...props}
+    />
+  )
 }
 
-function AccordionItem({
-  className,
-  ...props
-}: React.ComponentProps<typeof AccordionPrimitive.Item>) {
+function AccordionItem({ className, ...props }: AccordionPrimitive.Item.Props) {
   return (
     <AccordionPrimitive.Item
       data-slot="accordion-item"
-      className={cn("border-b last:border-b-0", className)}
+      className={cn(
+        "overflow-hidden rounded border-2 bg-background text-foreground shadow-md transition-shadow duration-200 hover:shadow-sm data-[open]:shadow-sm",
+        className
+      )}
       {...props}
     />
   )
@@ -27,19 +34,26 @@ function AccordionTrigger({
   className,
   children,
   ...props
-}: React.ComponentProps<typeof AccordionPrimitive.Trigger>) {
+}: AccordionPrimitive.Trigger.Props) {
   return (
-    <AccordionPrimitive.Header className="flex">
+    <AccordionPrimitive.Header data-slot="accordion-header" className="flex">
       <AccordionPrimitive.Trigger
         data-slot="accordion-trigger"
         className={cn(
-          "flex flex-1 items-start justify-between gap-4 rounded-md py-4 text-left text-sm font-medium transition-all outline-none hover:underline focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 [&[data-state=open]>svg]:rotate-180",
+          "flex flex-1 cursor-pointer items-center justify-between gap-4 px-4 py-3 text-left font-head transition-colors hover:bg-muted/50 data-[open]:bg-muted/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary [&[data-open]>svg]:rotate-180",
           className
         )}
         {...props}
       >
         {children}
-        <ChevronDownIcon className="pointer-events-none size-4 shrink-0 translate-y-0.5 text-muted-foreground transition-transform duration-200" />
+        <ChevronDownIcon
+          aria-hidden
+          data-slot="accordion-trigger-icon"
+          className={cn(
+            "h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-300",
+            EASE
+          )}
+        />
       </AccordionPrimitive.Trigger>
     </AccordionPrimitive.Header>
   )
@@ -49,15 +63,35 @@ function AccordionContent({
   className,
   children,
   ...props
-}: React.ComponentProps<typeof AccordionPrimitive.Content>) {
+}: AccordionPrimitive.Panel.Props) {
   return (
-    <AccordionPrimitive.Content
+    <AccordionPrimitive.Panel
       data-slot="accordion-content"
-      className="overflow-hidden text-sm data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down"
+      // Base UI publishes the measured panel height as `--accordion-panel-height`
+      // and flags the entering/leaving frames with `data-starting-style` /
+      // `data-ending-style`. Transitioning `height` between that var and 0 gives a
+      // real slide open/close.
+      className={cn(
+        "group/panel h-[var(--accordion-panel-height)] overflow-hidden bg-card font-body text-sm text-muted-foreground",
+        "transition-[height] duration-300",
+        EASE,
+        "data-[starting-style]:h-0 data-[ending-style]:h-0"
+      )}
       {...props}
     >
-      <div className={cn("pt-0 pb-4", className)}>{children}</div>
-    </AccordionPrimitive.Content>
+      <div
+        className={cn(
+          "px-4 pt-2 pb-4 transition-[opacity,transform] duration-300 ease-out",
+          // Fade + nudge the content as the panel opens/closes, synced to the slide.
+          "group-data-[starting-style]/panel:-translate-y-1 group-data-[starting-style]/panel:opacity-0",
+          "group-data-[ending-style]/panel:-translate-y-1 group-data-[ending-style]/panel:opacity-0",
+          "[&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-foreground [&_p:not(:last-child)]:mb-4",
+          className
+        )}
+      >
+        {children}
+      </div>
+    </AccordionPrimitive.Panel>
   )
 }
 
