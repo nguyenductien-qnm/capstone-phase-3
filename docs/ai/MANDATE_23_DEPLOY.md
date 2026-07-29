@@ -1,6 +1,6 @@
 # MANDATE-23 + AI Infrastructure — Production Deployment Checklist
 
-**Branch:** `feat/mandate-23-genai-caching-memory`
+**Branch:** `feat/mandates-23-to-25-and-ui-refactoring`
 **Ngày:** 2026-07-28 (verified live trên cluster `ecommerce-dev-eks` / namespace `techx-tf1`)
 **Người phụ trách:** Nguyễn Hữu Dinh (AIO03 – TF1)
 

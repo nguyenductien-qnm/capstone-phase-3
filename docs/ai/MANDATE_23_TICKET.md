@@ -1,7 +1,7 @@
 # AI MANDATE #23
 
 ## 1. Link PR/commit
-Branch: `feat/mandate-23-genai-caching-memory`
+Branch: `feat/mandates-23-to-25-and-ui-refactoring`
 
 | Commit | Nội dung |
 |---|---|
