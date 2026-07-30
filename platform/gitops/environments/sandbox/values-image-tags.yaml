@@ -14,10 +14,10 @@ components:
       # Sua tay 1 lan (incident 2026-07-16): tag tran "1.1-cart" bi ECR lifecycle
       # policy xoa -> ImagePullBackOff; image rebuild tu source, push tag sha.
       # Tags file prod chi doi qua promote PR (CI khong bump thang vao sandbox).
-      tag: "1.0-cart-5b99f29"
+      tag: "1.0-cart-bcc3c77"
   cart-consumer-worker:
     imageOverride:
-      tag: "1.0-cart-4986041"
+      tag: "1.0-cart-bcc3c77"
   checkout:
     imageOverride:
       tag: "1.0-checkout-5b99f29"
