@@ -230,7 +230,10 @@ def main(argv=None):
     print("--- PHA 1: NEN (chua bom) ---", flush=True)
     cho(args.baseline_seconds, "nen")
 
-    print(f"\n--- PHA 2: BOM (giet {args.target}) ---", flush=True)
+    nhan_pha2 = f"PHA 2: BOM (giet {args.target})"
+    if args.dry_run:
+        nhan_pha2 += "  — DRY-RUN: chi IN lenh, KHONG chay. Moi so duoi day se la 0."
+    print(f"\n--- {nhan_pha2} ---", flush=True)
     chay(lenh_tat, args.dry_run)
     try:
         cho(args.duration_seconds, "bom")
@@ -252,8 +255,11 @@ def main(argv=None):
             dinh[svc] = max(dinh.get(svc, 0.0), v)
 
     print("\n" + "=" * 78)
-    print(f"TONG KET — ti le loi CAO NHAT cua tung service trong nua sau pha bom")
-    print(f"  (bo {len(trong_luc_bom) - len(bao_hoa)} mau dau vi cua so rate 5m chua bao hoa)")
+    if args.dry_run:
+        print("TONG KET — DRY-RUN, KHONG BOM. Bang duoi chi la trang thai he luc chay.")
+    else:
+        print("TONG KET — ti le loi CAO NHAT cua tung service trong nua sau pha bom")
+        print(f"  (bo {len(trong_luc_bom) - len(bao_hoa)} mau dau vi cua so rate 5m chua bao hoa)")
     print("=" * 78)
     if not dinh:
         print("  (khong doc duoc mau nao)")
@@ -265,7 +271,19 @@ def main(argv=None):
             trong_dai.append((svc, v))
 
     print("\n" + "-" * 78)
-    if trong_dai:
+    if args.dry_run:
+        # KHONG duoc ket luan gi o che do dry-run. Khong bom thi moi service deu 0, va cau
+        # "khong service nao roi vao dai freeze" se dung ve chu nghia nhung SAI ve y nghia —
+        # no den tu cho chua do, khong phai tu cho do duoc ket qua am tinh.
+        #
+        # Loi that, gap ngay lan chay dau 30/07: nguoi dung chay --dry-run, doc 20 mau toan 0
+        # roi thay mot ket luan trong rat chac chan. Dung lop loi ma ca dot MANDATE-15/26/28
+        # di tim — mot phep do luon cho ra cung mot cau tra loi.
+        print("DRY-RUN — KHONG co ket luan nao o day.")
+        print("  Khong co lenh bom nao duoc chay, nen moi so 0 phia tren chi noi rang he dang")
+        print("  khoe, KHONG noi gi ve viec giet `" + args.target + "` thi chuyen gi xay ra.")
+        print("  Bo `--dry-run` de do that.")
+    elif trong_dai:
         print(f"CO {len(trong_dai)} SERVICE ROI VAO DAI FREEZE [{san_duoi:.4f}, {nguong:.4f}):")
         for svc, v in trong_dai:
             print(f"    {svc}  ({v:.4f})")
