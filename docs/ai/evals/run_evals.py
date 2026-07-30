@@ -29,6 +29,18 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 _REPO_ROOT = os.path.abspath(os.path.join(_SCRIPT_DIR, "..", "..", ".."))
 
+sys.path.insert(0, _SCRIPT_DIR)
+sys.path.insert(0, _REPO_ROOT)
+try:
+    from drift_detector import DriftDetector, DEFAULT_BASELINE_PATH
+except ImportError:
+    DriftDetector = None
+
+try:
+    from aiops.detector.alerter import Alerter
+except ImportError:
+    Alerter = None
+
 DEFAULT_DATASET_PATH = os.path.join(_SCRIPT_DIR, "golden_dataset.json")
 DEFAULT_SUMMARIES_PATH = os.path.join(
     _REPO_ROOT, "techx-corp-platform", "src", "llm",
@@ -64,6 +76,23 @@ def load_summaries(path: str) -> dict:
     with open(path, "r", encoding="utf-8") as f:
         items = json.load(f).get("product-review-summaries", [])
     return {item["product_id"]: item["product_review_summary"] for item in items}
+
+
+def call_bedrock_summarize(reviews_text: str) -> str:
+    """Gọi Bedrock Nova để tóm tắt thực tế nếu chưa có trong mock data."""
+    prompt = f"Tóm tắt các đánh giá sản phẩm sau trong 20-50 từ:\n\n{reviews_text}"
+    try:
+        import boto3
+        client = boto3.client("bedrock-runtime", region_name="us-east-1")
+        
+        response = client.converse(
+            modelId="amazon.nova-lite-v1:0",
+            messages=[{"role": "user", "content": [{"text": prompt}]}]
+        )
+        return response['output']['message']['content'][0]['text']
+    except Exception as e:
+        print(f"  [WARN] Không gọi được Bedrock ({e}). Dùng fallback nối string.")
+        return reviews_text
 
 
 # ─────────────────────────────────────────────
@@ -163,10 +192,11 @@ def run_evals(
         # Lấy tóm tắt thực tế
         actual_summary = summaries.get(pid, "")
         if not actual_summary:
-            # Fallback: dùng tóm tắt từ reviews trong dataset nếu có
+            # Gọi Bedrock thật nếu không có sẵn
             reviews = case.get("reviews", [])
             if reviews:
-                actual_summary = " ".join(r.get("comment", "") for r in reviews)
+                reviews_text = " ".join(f"- {r.get('comment', '')}" for r in reviews)
+                actual_summary = call_bedrock_summarize(reviews_text)
             else:
                 actual_summary = ""
 
@@ -217,6 +247,54 @@ def run_evals(
         print(f"     Cases passed    : {passed_cases} / {len(dataset)}")
         print(f"     Threshold       : {threshold:.0%}")
         print(f"     Result          : {'PASS' if overall_pass else 'FAIL'}")
+        
+    # --- DRIFT DETECTION INTEGRATION ---
+    if DriftDetector is not None and dataset:
+        word_count_mean = sum(res["coverage"]["word_count"] for res in results) / len(results)
+        fallback_rate = sum(1 for res in results if res["coverage"]["word_count"] < 10) / len(results)
+        hallucination_rate = sum(1 for res in results if res["hallucination"]["hallucination_risk"] != "LOW") / len(results)
+
+        metrics = {
+            "keyword_accuracy": overall_accuracy,
+            "word_count_mean": word_count_mean,
+            "fallback_rate": fallback_rate,
+            "hallucination_risk_rate": hallucination_rate
+        }
+        
+        try:
+            detector = DriftDetector(DEFAULT_BASELINE_PATH)
+            detector.ingest("review_summary", metrics)
+            drift_res = detector.check_drift("review_summary")
+            
+            if drift_res.drifted:
+                if Alerter is not None:
+                    alerter = Alerter()
+                    alerter.send(
+                        dedup_key="drift:llm_eval",
+                        severity="critical",
+                        rule_id="AI_QUALITY_DRIFT",
+                        message=f"Phát hiện chất lượng trôi dạt (Drift).\nMetrics: {drift_res.drifted_metrics}\nLý do: {drift_res.reason}",
+                        fields=[
+                            ("Accuracy", f"{overall_accuracy:.1%}", True),
+                            ("Threshold", f"{threshold:.1%}", True),
+                        ]
+                    )
+                    alerter.flush()
+
+            if verbose:
+                print("-" * 65)
+                if drift_res.drifted:
+                    print(f"  [🚨 DRIFT ALERT] Phát hiện chất lượng trôi dạt!")
+                    print(f"     Metrics bị ảnh hưởng: {drift_res.drifted_metrics}")
+                    print(f"     Lý do: {drift_res.reason}")
+                    print(f"  [📢 ALERTER] Đã gửi thông báo Drift tới webhook.")
+                else:
+                    print(f"  [✅ DRIFT CHECK] STABLE (Không có dấu hiệu trôi dạt)")
+        except Exception as e:
+            if verbose:
+                print(f"  [WARN] Lỗi khi chạy DriftDetector: {e}")
+
+    if verbose:
         print("=" * 65 + "\n")
 
     summary = {
