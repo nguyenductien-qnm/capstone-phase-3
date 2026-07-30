@@ -91,4 +91,13 @@ message ChatWithCopilotResponse {
 
   // Dữ liệu từng bước cho UI trace panel
   repeated TraceStep trace_steps = 7;
+
+  // Trạng thái cache: hit_exact, hit_semantic, miss, bypass
+  string cache_status = 8;
+
+  // Độ tương đồng (nếu hit_semantic)
+  float similarity = 9;
+
+  // Fingerprint của nguồn dữ liệu tạo nên cache
+  string source_fingerprint = 10;
 }

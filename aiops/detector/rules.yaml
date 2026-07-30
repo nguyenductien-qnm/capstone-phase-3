@@ -55,96 +55,347 @@ rules:
     # Dat cong 0.20 (tuc 200ms): 12 lan keu -> 0, khong mat phat hien nao.
     dynamic_min_fraction: 0.20
 
+  # ---- ERROR BUDGET BURN-RATE (DRAFT) — multi-window multi-burn-rate, SRE Workbook ch.5 ----
+  #
+  # DOI NEN METRIC 29/07 (http_server_* -> spanmetrics). BA phep do doc lap chung minh nen cu
+  # KHONG THE keu, khong phai "chua vo SLO" (so o report/mandate22-detection-gaps/verify.md V7
+  # va report/mandate15/report.md muc 3.2):
+  #   1. `http_response_status_code=~"5.."` RONG TOAN CUM -> tu so khong bao gio co du lieu.
+  #   2. `{service_name="checkout"}` tren http_server_request_duration_seconds_count RONG —
+  #      checkout khong he xuat metric do. Tuc CA HAI rule `-checkout` deu mu ve cau truc.
+  #   3. `{service_namespace="techx-corp"}` chi khop DUY NHAT `cart`.
+  # Bang chung do detector tu sinh: 28/07 no ban 8 alert `detector-silent-rule`, trong do co
+  # dung 4 rule nay — tuc 0 series suot 120 chu ky lien tiep.
+  # Nen moi = spanmetrics, dung nen da chung minh chay tren 17 service o `service-error-rate-high`.
+  #
+  # DIEN DAT BANG BOI SO BURN-RATE (`/ budget`, threshold 14.4 / 6.0) thay vi ti le tho
+  # (0.072 = 14.4 x 0.005). Y tuong tu PR #318 cua Le Kim Dung + Nguyen Cong Thinh — de doc
+  # hon va khop tu vung SRE Workbook. PR do da dong (nhanh conflict + 5/7 file ngoai pham vi).
+  #
+  # GIU IDIOM `min()` — `(A_short < A_long) or (A_long)` — VA KHONG dung `and` nhu #318.
+  # Ca hai cho cung ket qua fire (min(a,b) > T <=> a > T VA b > T), nhung khac nhau o cho:
+  # `and` CHI emit series khi cua so dai DA vuot nguong, tuc "im lang" la trang thai BINH
+  # THUONG cua rule. Khi do `expect_series: true` mat nghia va co che `detector-silent-rule`
+  # khong con phan biet duoc "rule mu" voi "he khoe" — dung cai lop loi da lam rule kafka nam
+  # cam hang tuan. Idiom `min` luon tra ve mot series khi co du lieu, nen im lang = MU.
+  #
+  # TU SO PHAI MAC DINH 0 — `(rate(loi) or rate(tat_ca) * 0)`. Cau tren ("min luon tra ve
+  # mot series khi co du lieu") CHI dung khi chuoi TU SO ton tai. Do that tren cum 30/07:
+  # 15 service co traffic nhung rule chi sinh 5 series — 10 service con lai CHUA TUNG co span
+  # loi, nen `sum by (service_name) (rate(...{status_code="STATUS_CODE_ERROR"}...))` khong co
+  # chuoi nao cho chung, phep chia khong sinh gi, va rule im lang ve chinh nhung service do.
+  # Service nao trong 10 do sap hoan toan thi rule VAN im. `detector-silent-rule` khong cuu
+  # duoc vi no chi bat khi CA rule tra 0 series — o day rule van tra 5, trong nhu dang song.
+  #
+  # Sua cho ca BA bieu thuc (short, long trong phep so sanh, va long o nhanh `or`), khong chi
+  # bieu thuc long. Ly do la ngu nghia chu khong phai cho dep: neu chi long co mac dinh 0 con
+  # short thi khong, mot service da TANH loi o 5m nhung con loi trong 1h se lam `A_short`
+  # rong -> `A_short < A_long` rong -> roi xuong nhanh `or (A_long)` -> tra ve gia tri 1h ->
+  # KEU du cua so ngan da sach. Do la pha dung cai ngu nghia multi-window sinh ra de bao ve.
+  # Ca hai chieu deu co test trong promql_tests/burn_rate_test.yml (CA 3 va CA 4).
+  #
+  # DANH DOI da biet, chua chot: spanmetrics dem `STATUS_CODE_ERROR` (RPC + HTTP + Kafka),
+  # RONG HON dinh nghia "non-5xx" cua SLO trong onboarding/SLO.md. Ap cung budget 0.5%/1% len
+  # be mat loi rong hon la CHAT HON, khong phai long hon. Can nguoi giu SLO xac nhan truoc khi
+  # go DRAFT.
+  #
+  # DA VERIFY TREN PROMETHEUS SONG 30/07 (cum ecommerce-dev-eks, account moi sau su co credit
+  # 28/07). Ca 4 query chay duoc, nhan co that, tra ve series. Chinh lan chay do lam lo ra
+  # loi "tu so vang mat" o tren — thu ma khong fixture nao bat duoc, vi fixture nao cung dung
+  # san CA tu lan mau. Sau khi sua: 5 series -> 15 series, moi service co traffic deu co so do.
+  #
+  # VAN LA DRAFT, nhung ly do da DOI. Khong con la "chua verify" nua, ma la mot cau hoi cho
+  # NGUOI, o khoi "DANH DOI" ngay tren: spanmetrics dem STATUS_CODE_ERROR rong hon dinh nghia
+  # "non-5xx" cua SLO. Go nhan khi chu SLO xac nhan be mat loi do la dung y.
+  #
+  # DA BO `error-budget-burn-fast` (K1) trong cung dot: no trung hoan toan voi cap
+  # `-standard`/`-checkout` (hop cua hai rule do = moi service), va con ap SAI SLO cho checkout
+  # (0.5% thay vi 1%).
+
   - id: error-budget-burn-fast-standard
     type: metric
     severity: critical
-    summary: "Tỉ lệ lỗi 5xx > 0.5% — VI PHẠM SLO non-5xx (≥ 99.5%)"
-    summary_dynamic: "Tỉ lệ lỗi 5xx TĂNG BẤT THƯỜNG so với baseline (chưa vượt SLO 0.5% — cảnh báo sớm)"
+    summary: "DRAFT: đốt error budget > 14.4× ở CẢ 5m và 1h (non-checkout) — cạn budget 30 ngày trong ~2 ngày"
+    summary_dynamic: "Tốc độ đốt error budget TĂNG BẤT THƯỜNG so với baseline (chưa tới 14.4× — cảnh báo sớm)"
     query: >-
       (
-        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout", http_response_status_code=~"5.."}[5m]))
-        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout"}[5m])), 0.001)
+        (
+          (
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              status_code="STATUS_CODE_ERROR", service_name!="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[5m]))
+            or
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              service_name!="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[5m])) * 0
+          )
+          / clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total{
+            service_name!="checkout",
+            span_name!="grpc.health.v1.Health/Check",
+            span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[5m])), 0.001)
+        ) / 0.005
         <
-        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout", http_response_status_code=~"5.."}[1h]))
-        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout"}[1h])), 0.001)
+        (
+          (
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              status_code="STATUS_CODE_ERROR", service_name!="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h]))
+            or
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              service_name!="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h])) * 0
+          )
+          / clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total{
+            service_name!="checkout",
+            span_name!="grpc.health.v1.Health/Check",
+            span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h])), 0.001)
+        ) / 0.005
       )
       or
       (
-        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout", http_response_status_code=~"5.."}[1h]))
-        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout"}[1h])), 0.001)
+        (
+          (
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              status_code="STATUS_CODE_ERROR", service_name!="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h]))
+            or
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              service_name!="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h])) * 0
+          )
+          / clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total{
+            service_name!="checkout",
+            span_name!="grpc.health.v1.Health/Check",
+            span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h])), 0.001)
+        ) / 0.005
       )
     op: gt
-    threshold: 0.072
+    # 14.4x = chuan page-level cua SRE Workbook: dot het budget 30 ngay trong ~2 ngay.
+    # Truoc day ghi 0.072 = 14.4 x 0.005 (ti le tho) — cung mot nguong, kho doc hon.
+    threshold: 14.4
 
   - id: error-budget-burn-fast-checkout
     type: metric
     severity: critical
-    summary: "Tỉ lệ lỗi checkout > 1% — luồng RA TIỀN đang vỡ SLO (≥ 99%)"
-    summary_dynamic: "Lỗi checkout TĂNG BẤT THƯỜNG so với baseline (chưa vượt SLO 1% — theo dõi sát)"
+    summary: "DRAFT: checkout đốt error budget > 14.4× ở CẢ 5m và 1h — luồng RA TIỀN, SLO 99%"
+    summary_dynamic: "Tốc độ đốt budget của checkout TĂNG BẤT THƯỜNG so với baseline (chưa tới 14.4×)"
     query: >-
       (
-        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout", http_response_status_code=~"5.."}[5m]))
-        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout"}[5m])), 0.001)
+        (
+          (
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              status_code="STATUS_CODE_ERROR", service_name="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[5m]))
+            or
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              service_name="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[5m])) * 0
+          )
+          / clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total{
+            service_name="checkout",
+            span_name!="grpc.health.v1.Health/Check",
+            span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[5m])), 0.001)
+        ) / 0.01
         <
-        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout", http_response_status_code=~"5.."}[1h]))
-        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout"}[1h])), 0.001)
+        (
+          (
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              status_code="STATUS_CODE_ERROR", service_name="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h]))
+            or
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              service_name="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h])) * 0
+          )
+          / clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total{
+            service_name="checkout",
+            span_name!="grpc.health.v1.Health/Check",
+            span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h])), 0.001)
+        ) / 0.01
       )
       or
       (
-        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout", http_response_status_code=~"5.."}[1h]))
-        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout"}[1h])), 0.001)
+        (
+          (
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              status_code="STATUS_CODE_ERROR", service_name="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h]))
+            or
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              service_name="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h])) * 0
+          )
+          / clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total{
+            service_name="checkout",
+            span_name!="grpc.health.v1.Health/Check",
+            span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h])), 0.001)
+        ) / 0.01
       )
     op: gt
-    threshold: 0.144
+    threshold: 14.4
 
   - id: error-budget-burn-slow-standard
     type: metric
     severity: warning
-    summary: "Slow burn rate > 6x (30m/6h) - TICKET! (Non-checkout)"
+    summary: "DRAFT: đốt error budget > 6× ở CẢ 30m và 6h (non-checkout) — mở ticket, chưa cần gọi người"
     query: >-
       (
-        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout", http_response_status_code=~"5.."}[30m]))
-        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout"}[30m])), 0.001)
+        (
+          (
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              status_code="STATUS_CODE_ERROR", service_name!="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[30m]))
+            or
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              service_name!="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[30m])) * 0
+          )
+          / clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total{
+            service_name!="checkout",
+            span_name!="grpc.health.v1.Health/Check",
+            span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[30m])), 0.001)
+        ) / 0.005
         <
-        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout", http_response_status_code=~"5.."}[6h]))
-        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout"}[6h])), 0.001)
+        (
+          (
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              status_code="STATUS_CODE_ERROR", service_name!="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[6h]))
+            or
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              service_name!="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[6h])) * 0
+          )
+          / clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total{
+            service_name!="checkout",
+            span_name!="grpc.health.v1.Health/Check",
+            span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[6h])), 0.001)
+        ) / 0.005
       )
       or
       (
-        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout", http_response_status_code=~"5.."}[6h]))
-        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name!="checkout"}[6h])), 0.001)
+        (
+          (
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              status_code="STATUS_CODE_ERROR", service_name!="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[6h]))
+            or
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              service_name!="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[6h])) * 0
+          )
+          / clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total{
+            service_name!="checkout",
+            span_name!="grpc.health.v1.Health/Check",
+            span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[6h])), 0.001)
+        ) / 0.005
       )
     op: gt
-    threshold: 0.03
+    # 6x = chuan ticket-level cua SRE Workbook (cua so 30m/6h). Truoc day ghi 0.03 = 6 x 0.005.
+    threshold: 6.0
 
   - id: error-budget-burn-slow-checkout
     type: metric
     severity: warning
-    summary: "Slow burn rate > 6x (30m/6h) - TICKET! (Checkout)"
+    summary: "DRAFT: checkout đốt error budget > 6× ở CẢ 30m và 6h — mở ticket, chưa cần gọi người"
     query: >-
       (
-        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout", http_response_status_code=~"5.."}[30m]))
-        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout"}[30m])), 0.001)
+        (
+          (
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              status_code="STATUS_CODE_ERROR", service_name="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[30m]))
+            or
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              service_name="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[30m])) * 0
+          )
+          / clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total{
+            service_name="checkout",
+            span_name!="grpc.health.v1.Health/Check",
+            span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[30m])), 0.001)
+        ) / 0.01
         <
-        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout", http_response_status_code=~"5.."}[6h]))
-        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout"}[6h])), 0.001)
+        (
+          (
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              status_code="STATUS_CODE_ERROR", service_name="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[6h]))
+            or
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              service_name="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[6h])) * 0
+          )
+          / clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total{
+            service_name="checkout",
+            span_name!="grpc.health.v1.Health/Check",
+            span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[6h])), 0.001)
+        ) / 0.01
       )
       or
       (
-        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout", http_response_status_code=~"5.."}[6h]))
-        / clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", service_name="checkout"}[6h])), 0.001)
+        (
+          (
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              status_code="STATUS_CODE_ERROR", service_name="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[6h]))
+            or
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              service_name="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[6h])) * 0
+          )
+          / clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total{
+            service_name="checkout",
+            span_name!="grpc.health.v1.Health/Check",
+            span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[6h])), 0.001)
+        ) / 0.01
       )
     op: gt
-    threshold: 0.06
+    threshold: 6.0
 
   # ---- COST SIGNAL (chi phi LLM) ----
+  #
+  # TEN METRIC CO HAU TO DON VI. Ban cu viet `bedrock_cost_usd_total` va MU hoan toan —
+  # `detector.py --once --dry-run` tren cum 30/07 bao `detector-silent-rule` cho rule nay.
+  # Ten that tren Prometheus la `bedrock_cost_usd_USD_total`: bo xuat OTLP->Prometheus CHEN
+  # ten don vi cua instrument vao giua ten va hau to `_total` (instrument `bedrock.cost.usd`
+  # co unit `USD`). Khong doan duoc tu code — phai doc `/api/v1/label/__name__/values` cua
+  # chinh cum moi thay.
+  #
+  # `service_namespace="techx-corp"` la ĐUNG (do lai 30/07: khop product-reviews). Chi sai
+  # moi ten metric. Hai metric anh em cung ho: `bedrock_input_tokens_total`,
+  # `bedrock_output_tokens_total` — KHONG co hau to don vi vi instrument khong khai unit.
   - id: bedrock-cost-high
     type: metric
     severity: warning
     summary: "Bedrock chi phí/giờ vượt ngưỡng - tiến gần trần budget $300/tuần"
     query: >-
       sum by (service_name) (
-        increase(bedrock_cost_usd_total{service_namespace="techx-corp"}[1h])
+        increase(bedrock_cost_usd_USD_total{service_namespace="techx-corp"}[1h])
       )
     op: gt
     threshold: 1.0
@@ -187,19 +438,37 @@ rules:
     window_minutes: 5
     min_count: 1
 
+  # DOI NEN METRIC 30/07 — cung ly do da doi 4 rule burn-rate o MANDATE-15.
+  #
+  # Ban cu doc `http_server_request_duration_seconds_bucket{service_name="product-reviews"}`.
+  # Metric do CO THAT tren cum (390 series) nhung CHI xuat boi otelcol-contrib, jaeger va
+  # cart — product-reviews khong he xuat no. Nen tu so rong, rule MU, va
+  # `detector.py --once --dry-run` 30/07 bao `detector-silent-rule` dung nhu vay.
+  #
+  # Nen moi = spanmetrics duration, phu DU CA 17 service (do 30/07), cung nen ma
+  # `service-error-rate-high` va 4 rule burn-rate dang dung. DON VI LA MILLIGIAY, nen
+  # nguong 2.0s -> 2000. Loc `span_kind="SPAN_KIND_SERVER"` de do thoi gian XU LY MOT
+  # REQUEST DEN, khong lan sang span CLIENT (do la do tre cua thu ma no goi).
+  #
+  # ⚠️ RULE NAY SE KEU NGAY. Do that 30/07 tren product-reviews (span SERVER):
+  #       p50 = 3.233s   trung binh = 7.429s   p95 >= 15s   (cham bucket +Inf, tran huu han 15000ms)
+  # Tuc he DANG o dung cai trang thai ma rule sinh ra de canh bao, va khong ai biet vi rule mu.
+  # Giu nguong 2000ms (khong doi ngu nghia so voi ban cu) va DE DRAFT: viec quyet dinh la
+  # "chap nhan alert nay" hay "sua do tre cua product-reviews" thuoc chu SLO, khong phai
+  # viec cua query. KHONG nang nguong cho het keu — do la giau van de, khong phai sua no.
   - id: genai-latency-high
     type: metric
     severity: warning
-    summary: "p95 product-reviews > 2s — cuộc gọi LLM chậm, đe dọa gián tiếp SLO storefront"
+    summary: "DRAFT: p95 product-reviews > 2s — cuộc gọi LLM chậm, đe dọa gián tiếp SLO storefront"
     summary_dynamic: "Độ trễ product-reviews TĂNG BẤT THƯỜNG so với baseline (chưa chạm 2s — cảnh báo sớm)"
     query: >-
       histogram_quantile(0.95,
         sum by (le) (
-          rate(http_server_request_duration_seconds_bucket{service_namespace="techx-corp", service_name="product-reviews"}[5m])
+          rate(traces_span_metrics_duration_milliseconds_bucket{service_name="product-reviews", span_kind="SPAN_KIND_SERVER"}[5m])
         )
       )
     op: gt
-    threshold: 2.0
+    threshold: 2000
 
   # ---- SU CO HA TANG KINH DIEN (log) ----
   - id: db-pool-exhaustion
@@ -259,31 +528,14 @@ rules:
     window_minutes: 10
     min_count: 1
 
-  # ---- DRAFT (review K1/K4) - PHAI verify PromQL tren Prometheus song truoc khi tin ----
-  # K1: multi-window multi-burn-rate cho error budget (non-5xx >= 99.5% => budget 0.5%).
-  # Fire khi burn-rate 5m > 14.4x VA 1h > 14.4x (SRE workbook page-level).
-  - id: error-budget-burn-fast
-    type: metric
-    severity: critical
-    summary: "DRAFT K1: đốt error budget > 14.4× ở CẢ 5m và 1h — tốc độ này cạn budget 24h trong dưới 2 giờ"
-    query: >-
-      (
-        sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", http_response_status_code=~"5.."}[5m]))
-        /
-        clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp"}[5m])), 0.001)
-        / 0.005
-      )
-      and
-      (
-        (
-          sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp", http_response_status_code=~"5.."}[1h]))
-          /
-          clamp_min(sum by (service_name) (rate(http_server_request_duration_seconds_count{service_namespace="techx-corp"}[1h])), 0.001)
-          / 0.005
-        ) > 14.4
-      )
-    op: gt
-    threshold: 14.4
+  # ---- DRAFT (review K4) ----
+  # Rule `error-budget-burn-fast` (K1) DA BO 29/07. Ly do: no TRUNG HOAN TOAN voi cap
+  # `error-budget-burn-fast-standard` + `-checkout` o tren — hop cua hai rule do la moi
+  # service, cung cua so 5m/1h, cung nguong 14.4x. Giu ca ba nghia la mot su co checkout
+  # sinh HAI alert critical cho cung mot dieu kien.
+  # Nang hon: K1 ap budget 0.005 cho MOI service, ke ca checkout — ma SLO cua checkout la
+  # 99% (budget 0.01), khong phai 99.5%. Tuc no bao dong som gap doi tren dung luong ra tien.
+  # Cap `-standard`/`-checkout` tach dung hai bac SLO nen thay the duoc hoan toan.
 
   # SEMANTICS-VERIFIED 12/07 (compose + chaos productCatalogFailure): loi flag nay hien o tang gRPC
   # (rpc_grpc_status_code=13) va KHONG sinh HTTP 5xx nao -> cac rule http_server_* mu voi no.
@@ -345,11 +597,40 @@ rules:
     # Label `namespace` o day la NAMESPACE K8S (techx-tf1 tren EKS - xem
     # platform/gitops/applications/application.yaml:31), KHONG phai service_namespace
     # cua OTel (techx-corp). Hai label khac nguon, dung nham la rule cau 0 series.
+    # PHEP CHIA PHAI CO `on(...)`. Ban cu chia thang, khong khai vector matching, nen
+    # PromQL doi HAI VE TRUNG TOAN BO nhan (tru __name__) — dieu khong bao gio xay ra:
+    #   ve trai  (cAdvisor)          : 48 nhan, rieng co id/image/name/karpenter_*/topology_*
+    #   ve phai  (kube-state-metrics): 18 nhan, rieng co uid/unit/resource/node/helm_sh_chart
+    #   chung    :                     container, instance, job, namespace, pod  (5)
+    # Ket qua: 0 series. Do 30/07 — bo hai metric DEU CO du lieu (616 va 207 series), nen
+    # khong ai nghi rule mu; no chi im lang. Day la lop loi KHAC voi "sai ten metric":
+    # sai ten thi grep ra, sai vector matching thi phai chay that moi thay.
+    #
+    # `on (namespace, pod, container)` — CO Y bo `instance` va `job` du chung co mat o ca hai
+    # ve: hai metric den tu hai job scrape khac nhau nen gia tri hai nhan do luon lech.
+    #
+    # `max by (namespace, pod, container)` o CA HAI VE truoc khi chia: container vua restart
+    # de lai series cu trong cua so staleness (cAdvisor phan biet bang `id`/`name`), thanh ra
+    # nhieu series cho cung mot (pod, container) -> loi "many-to-one matching must be
+    # explicit". Do 30/07: 3 cap bi trung (ml-guard, thanos-query x2). Gom truoc thi het,
+    # va gom bang `max` la dung y do: quan tam dinh cao nhat, khong phai trung binh.
+    #
+    # `container!=""` bo chuoi muc POD (cgroup cha) — no khong co limit tuong ung ben
+    # kube-state-metrics nen chi lam nhieu.
+    #
+    # DO SAU KHI SUA (30/07): 0 -> 37 series. Hai container VUOT nguong ngay tai thoi diem do:
+    #   opensearch 0.891 · prometheus-server 0.887
+    # Va `prometheus-0` da OOMKilled that (exit 137) truoc do vai chuc phut. Tuc rule nay,
+    # neu khong mu, da bao truoc chinh su co vua xay ra tren cum.
     query: >-
       max by (container) (
-        avg_over_time(container_memory_working_set_bytes{namespace="techx-tf1"}[10m])
-        /
-        clamp_min(kube_pod_container_resource_limits{namespace="techx-tf1", resource="memory"}, 1)
+        max by (namespace, pod, container) (
+          avg_over_time(container_memory_working_set_bytes{namespace="techx-tf1", container!=""}[10m])
+        )
+        / on (namespace, pod, container)
+        max by (namespace, pod, container) (
+          clamp_min(kube_pod_container_resource_limits{namespace="techx-tf1", resource="memory"}, 1)
+        )
       )
     op: gt
     threshold: 0.85

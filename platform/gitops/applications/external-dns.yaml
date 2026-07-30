@@ -36,7 +36,7 @@ spec:
           create: true
           name: external-dns
           annotations:
-            eks.amazonaws.com/role-arn: arn:aws:iam::804372444787:role/ecommerce-dev-external-dns
+            eks.amazonaws.com/role-arn: arn:aws:iam::384511757667:role/ecommerce-dev-external-dns
         # Chỉ quản lý zone của dự án — tránh đụng record ngoài phạm vi.
         domainFilters:
           - nguyenductien.cloud

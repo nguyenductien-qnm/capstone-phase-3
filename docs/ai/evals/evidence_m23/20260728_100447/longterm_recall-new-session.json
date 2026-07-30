@@ -1,0 +1,9 @@
+{
+  "group": "longterm",
+  "case": "recall-new-session",
+  "passed": false,
+  "reason": "phiên mới nhớ trình độ=False, mục đích=False",
+  "latency": 3.24,
+  "cache_status": "miss",
+  "response": "Xin lỗi, trợ lý đang tạm quá tải. Bạn vui lòng thử lại sau ít giây, hoặc duyệt sản phẩm trực tiếp trên cửa hàng."
+}

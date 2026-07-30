@@ -1042,11 +1042,10 @@ Cần tạo khung đánh giá (evaluation harness) có khả năng định lư�
 
 2. **Kiến trúc chấm điểm — phân biệt harness vs ml-guard:**
 
-   **Harness (`eval_mandate14.py`) KHÔNG dùng LLM-judge.** Chấm theo cấu trúc:
-   - `actionsTaken`: tool nào đã chạy, `succeeded` hay không.
-   - Span attributes từ OpenTelemetry: `guardrail.blocked`, `app.search.mode`, `gen_ai.usage.*`.
-   - `citations` trả về từ `get_product_reviews`.
-   - Lý do: đo an toàn bằng hành động (tool call, span), không bằng câu chữ — tránh thiên kiến khi LLM chấm LLM.
+   **Harness (`eval_mandate14.py`) chấm lai cấu trúc + semantic:**
+   - Safety/task dùng bằng chứng xác định: `actionsTaken`, `succeeded`, span `guardrail.blocked`, citations.
+   - Faithfulness của câu trả lời review đọc lại `/api/product-reviews/{product_id}`, đối chiếu từng citation với review nguồn, rồi gọi live Bedrock judge theo `JUDGE_HUMAN_RUBRIC.md`.
+   - Không fallback sang keyword/mock nếu nguồn hoặc judge lỗi; case phải fail để tránh điểm xanh giả.
 
    **LLM-judge nằm trong `ml-guard`**, là một rail của hệ thống (không phải thước đo):
    - Grounding judge: `amazon.nova-micro-v1:0` (`LLM_JUDGE_MODEL` env var).
@@ -1072,13 +1071,41 @@ Cần tạo khung đánh giá (evaluation harness) có khả năng định lư�
 ## Alternatives Considered
 - **Đánh giá thủ công (Human evaluation):** Quá tốn thời gian, không scale được khi số lượng test cases lớn, độ trễ phản hồi khi thay đổi code quá cao. Bị loại.
 - **Dùng LLM tự sinh (Self-eval):** Model bịa ra tự chấm điểm chính mình. Dễ bị thiên kiến (bias) và điểm số không đáng tin cậy. Bị loại.
-- **Dùng LLM-as-a-Judge trong harness:** Đã cân nhắc và bác bỏ cho harness — harness đo hành vi (tool call đúng/sai, span ghi nhận chặn/không chặn) vốn đã xác định, không cần thêm lớp suy luận. LLM-judge được giữ bên trong ml-guard như một rail runtime, nơi nó phục vụ mục đích khác (chấm grounding real-time cho từng request).
+- **Dùng LLM-as-a-Judge cho mọi rail:** Bác bỏ. Các rail xác định (tool call, PII leak, write, span chặn) vẫn chấm bằng cấu trúc; chỉ faithfulness semantic cần judge sau khi đối chiếu nguồn độc lập.
 
 ## Consequences
 - Hệ thống có khả năng tự chấm điểm mỗi lần cập nhật model hoặc guardrail (Automated Evals).
 - Đảm bảo tuân thủ tính minh bạch, cung cấp Evidence Audit rõ ràng thông qua Trace và Report JSON.
 - Đội ngũ tự tin A/B test LLM models vì đã có metric định lượng.
 - Bảng giá LLM được ghi cả trong ADR lẫn trong code (`PRICING` dict) — cập nhật phải sửa cả hai.
+
+---
+
+# ADR-017: GenAI Caching & Memory (MANDATE-23)
+
+**Status:** Accepted · **Date:** 2026-07-27 (2026-07-28 đính chính) · **Author:** Nguyễn Hữu Dinh (AIO03 – TF1)
+**Toàn văn:** [`adr/ADR-017-genai-cache-memory.md`](adr/ADR-017-genai-cache-memory.md)
+
+Tóm tắt quyết định:
+1. **L1 exact** ở Valkey, **L2 semantic** — Valkey Search FT.SEARCH cho cả copilot lẫn
+   product-reviews (index riêng, prefix riêng); **L3** là Bedrock prompt cache.
+2. Key L1 7 phần `user_id:model_ver:code_fp:catalog_fp:mem_fp:sess_fp:question_fp` —
+   mỗi phần chặn một kiểu trả sai (rò chéo user, cache của build cũ, nguồn đổi, memory
+   đổi, ngữ cảnh phiên khác).
+3. **Ngưỡng similarity không đủ**: thêm rule-guard (`pb/semantic_guard.py`) → false-hit 0%,
+   chốt `SEMANTIC_CACHE_MIN_SIM = 0.85`.
+4. Câu chạm giỏ hàng → `bypass`, không cache. Fallback/rail-block → `cacheable=False`.
+5. Cache envelope `{v, t, c, a}` giữ citations + tool records khi hit.
+
+## Đính chính ADR-014 §7 (27/07)
+
+Guardrail `crbxw41dbmxp` **không nằm trong** account Phase3 (`804372444787` /
+`458580846647` — quét us-east-1/2, us-west-2 đều rỗng). Nó thuộc account
+**`384511757667`**; prod truy cập qua `BEDROCK_AWS_ROLE_ARN` +
+`BEDROCK_AWS_EXTERNAL_ID` (secret `bedrock-config`, namespace `techx-tf1`), local dùng
+creds của chính account đó. Chạy stack bằng creds SSO Phase3 thì `ApplyGuardrail` trả
+`ValidationException`, mà `ml-guard/server.py:435` **fail-closed** → chặn sạch mọi câu
+hỏi, kể cả câu lành. Lỗi cấu hình này đã tốn một vòng debug ngày 27/07.
 
 ---
 
@@ -1334,3 +1361,270 @@ BTC bơm lúc chấm, không phải demo một lần.
   các đợt tải của người khác trên cụm dùng chung — đo đối chứng 28/07 lúc 22 user:
   `total_rps`=34.99 trong khi `current_rps`=5.60. Các con số cũ đọc từ `total_rps`
   ("24.69 → 94.80 req/s = 3.84×", "1.47×") đã bị bỏ.
+
+---
+
+# ADR-018: RCA chỉ đúng gốc — đồ thị phụ thuộc quyết định, thời gian phá hoà (MANDATE-26)
+
+- **Trạng thái:** Chấp nhận (Accepted)
+- **Ngày:** 2026-07-29
+- **Người ký:** **Thanh Pham Huu Tien** (`phamthanh.forwork@gmail.com`) — cá nhân chịu trách nhiệm về quyết định kỹ thuật này và về tính đúng của mọi con số trong ADR.
+- **Trụ:** AI (AIOps) / Reliability / Operational Excellence
+- **Task:** MANDATE-26 · nối tiếp ADR-012 (Detect) và ADR-013 (Act) — đây là chặng **Diagnose**
+
+## Context
+
+MANDATE-26 đòi: khi sự cố lan chéo nhiều service, hệ tự chỉ ra **một** service nghi là gốc
+**kèm lý lẽ dựa trên bằng chứng** — không liệt kê service đang đỏ, không dừng ở triệu chứng
+downstream. Chấm bằng cách mentor tự đưa ca vào chạy tại chỗ, cuối chương trình.
+
+Trước ADR này repo **không có một dòng code RCA nào**. `correlate.py` là chặng Correlate (ma
+trận tương quan 24h), và chính nó ghi ở dòng 149 rằng việc này *"belongs with the Diagnose/RCA
+work, not here"*. Thứ duy nhất đã có là cửa replay nhận kịch bản ngoài (PR #456, làm cho
+MANDATE-15) — đúng thứ mandate đòi, dùng lại được nguyên.
+
+## Decision
+
+### 1. RCA chạy trên **cửa sổ sự cố**, không dùng ma trận tương quan 24h
+`correlation_matrix.json` là baseline lịch sử — nó trả lời *"tín hiệu nào thường dẫn trước
+tín hiệu nào"*, không trả lời *"trong 5 phút vừa rồi cái gì hỏng trước"*. RCA từng ca cần
+cái sau. Nên `diagnose.py` đọc `alerter_history.jsonl` trong đúng cửa sổ được hỏi.
+
+Hệ quả: bug `best_lag` của `correlate.py` (chọn lag chỉ theo Spearman, khiến
+`leading_indicators` rỗng) **không chặn** việc này. Bug đó vẫn có thật và vẫn đáng sửa, nhưng
+là việc riêng.
+
+### 2. Chỉ stdlib
+`incident_replay.py` cố ý chỉ phụ thuộc stdlib — *"harness phải chạy được trên máy của giám
+khảo mà không cần cài thêm gì"*. MANDATE-26 chấm bằng cách mentor tự chạy, nên tính chất đó
+là **một phần của yêu cầu**, không phải sở thích. `diagnose.py` gọi Prometheus bằng
+`urllib.request`, không numpy/scipy.
+
+### 3. Đồ thị phụ thuộc suy từ spanmetrics, dự phòng bằng file tĩnh, **luôn khai báo nguồn**
+spanmetrics không có nhãn `peer.service` (đo 27/07, `verify.md` §V2), nên suy cạnh bằng khớp
+`span_name` giữa span CLIENT của A và span SERVER của B. Span_name mơ hồ (một tên ứng nhiều
+service SERVER, ví dụ `GET` của HTTP) bị **bỏ và đếm lại** — đoán mơ hồ mà vẫn nối cạnh thì
+đồ thị sai theo hướng không đoán trước được, và đồ thị sai nguy hiểm hơn không có đồ thị.
+
+Rỗng thì dùng `aiops/topology.json`, và output luôn mang `topology_source` +
+`static-fallback` kèm cảnh báo lỗi thời. Không bao giờ xuống cấp âm thầm — đó là lớp lỗi đã
+trả giá ba lần (rule kafka câm, `check_error_budget_ok` fail-open, 5 scenario chấm sai).
+
+### 4. Cạnh qua Kafka **không** vào đồ thị nhân quả
+`edges` chỉ chứa quan hệ **lan lỗi đồng bộ**. `checkout → payment` nằm ở `async_edges`, không
+ở `edges`, vì có số đo: 26/07 giết `payment` 367 giây → tỉ lệ lỗi của `checkout` đứng nguyên
+**0.0000 suốt 13/13 mẫu**. Đặt cạnh đó vào đồ thị nhân quả sẽ khiến RCA kết luận sai rằng
+payment giải thích được trạng thái của checkout.
+
+### 5. Loại tương quan = **loại khỏi danh sách nghi phạm**, không phải hạ điểm
+Service đỏ mà không có đường phụ thuộc nào tới nhóm đỏ còn lại thì không phải "nghi phạm
+yếu" — nó là **một sự cố riêng chạy song song**. Nên nó ra khỏi bảng xếp hạng và vào mục
+`concurrent_unrelated` kèm lý do.
+
+Chỉ áp khi đồ thị dùng được VÀ có ít nhất một cặp nối được với nhau; nếu không thì "không nối
+được" phản ánh topology thiếu chứ không phản ánh hệ thống, và loại là vu oan.
+
+### 6. Cách chấm: **đồ thị quyết định, thời gian phá hoà** — không phải tổng có trọng số
+
+```
+điểm  = (số service đỏ khác phụ thuộc bắc cầu vào ứng viên) / max
+xếp   = sort by (-điểm, thời điểm kêu đầu tiên)
+```
+
+Bản đầu viết `W_GRAPH*g + W_TIME*t + W_MAGNITUDE*m`. **Bỏ dần cả ba số hạng phụ, mỗi lần đều
+vì kiểm chiều FAIL cho thấy số hạng đó không đổi được kết quả nào:**
+
+| Đã bỏ | Vì sao |
+|---|---|
+| `W_MAGNITUDE` (độ lớn lỗi) | Đặt về 0 không test nào đổi. **Và nó kéo sai hướng**: mandate cấm dừng ở triệu chứng downstream, mà downstream chính là chỗ có volume lỗi lớn nhất (cart chết → checkout lỗi 100%, cart chỉ lỗi ở phần request chạm tới nó). Vẫn **đọc và báo cáo** tỉ lệ lỗi làm bối cảnh, chỉ không cho tham gia quyết định |
+| `W_TIME` (thứ tự thời gian) | Tiebreak `(-score, t_first)` đã làm đúng việc đó. Đặt `W_TIME=0` vẫn xanh hết |
+| `UNLINKED_PENALTY` 0.2 | Đặt lại thành 1.0 vẫn xanh hết → đổi sang loại hẳn (quyết định 5) |
+| `MIN_LINKED_FOR_CASCADE` | `_linked` đối xứng nên tập `linked` là 0 hoặc ≥2, không bao giờ đúng 1 — một ngưỡng nhận giá trị nào cũng như nhau là ngưỡng giả |
+
+**Bài học chung, đáng giữ hơn cả code:** một tham số không đổi được kết quả nào là một nút
+giật cho có. Nó làm mô hình **trông** phức tạp hơn năng lực thật của nó. Bốn cái ở trên chỉ
+lộ ra vì mỗi cơ chế đều bị phá thử để xem có test nào đỏ không.
+
+### 7. `confidence` là `None` khi đồ thị không đóng góp
+Khi không ai phụ thuộc vào ai, mọi điểm bằng 0 và thứ tự hoàn toàn do thời gian. Lúc đó
+`basis: "temporal-only"` và `confidence: null` — **bịa một con số ở đó là nói dối**. Phần
+giải thích nói thẳng rằng kết luận yếu hơn bình thường.
+
+## Alternatives considered
+
+- **Bật `servicegraph` connector của collector** (`traces_service_graph_request_total{client,
+  server}`) — đúng chuẩn nhất, không phải suy luận từ `span_name`. Loại cho vòng này vì phải
+  sửa `values.yaml` = đất của CDO, cần co-sign và một vòng deploy. **Đây là đường nâng cấp
+  đúng**, ghi lại để vòng sau làm.
+- **Chạy thường trực trong cụm, tự gắn RCA vào mỗi cụm alert** — ăn điểm vận hành, nhưng
+  mandate không đòi chạy liên tục (*"hệ phải sẵn sàng để mentor tự đưa ca kiểm vào"*), và
+  thêm một Deployment + RBAC là thêm mặt lỗi cho zero điểm mandate. → CLI offline.
+- **Chấm bằng mô hình học không giám sát trên lịch sử alert** — cần catalog fault để học, mà
+  mandate lại chấm bằng ca **chưa từng thấy**. Đồ thị + mốc thời gian không học gì nên hình
+  dạng cascade nào cũng chạy. → Loại, và đây chính là câu trả lời cho nice-to-have #3.
+- **Dùng `leading_indicators` của `correlate.py` làm bằng chứng thời gian** → xem quyết định 1.
+
+## Consequences
+
+- **Đồ thị suy từ `span_name` CHƯA verify được trên cụm** (SSO hết hạn 29/07). Khớp `span_name`
+  đúng với gRPC (`Package.Service/Method` dùng chung tên hai đầu), kém chắc với HTTP. Nếu khớp
+  hụt thì `topology.json` gánh — và file tĩnh sẽ lỗi thời âm thầm. Ví dụ sống: `checkout →
+  payment` từng là gRPC đồng bộ, chuyển sang Kafka 25/07. **Đây là nợ thật, không phải giả định.**
+- `oom-detected` hiện báo `service: "unknown"` (TF1-116) nên mọi OOM bị bỏ qua khỏi RCA —
+  sửa TF1-116 thì RCA tự khá lên, không phải đụng `diagnose.py`.
+- Bộ đo hoàn toàn offline (19 test, `aiops/test_diagnose.py`), mỗi fixture có gốc thật biết
+  trước, và **có kiểm chiều fail**: phá 8 cơ chế thì cả 8 đều có test đỏ.
+
+---
+
+# ADR-019: Đóng băng baseline khi đang có sự cố — sự cố kéo dài không được thành "bình thường mới" (MANDATE-28)
+
+- **Trạng thái:** Chấp nhận (Accepted)
+- **Ngày:** 2026-07-29
+- **Người ký:** **Thanh Pham Huu Tien** (`phamthanh.forwork@gmail.com`) — cá nhân chịu trách nhiệm về quyết định kỹ thuật này và về tính đúng của mọi con số trong ADR.
+- **Trụ:** AI (AIOps) / Reliability / Operational Excellence
+- **Task:** MANDATE-28 · **đảo lại một phần quyết định 2 của ADR-017**
+
+> **Về số hiệu.** Lúc soạn, ADR-018 (RCA / MANDATE-26) còn nằm ở PR #491 chưa merge nên số 019
+> được đặt trước và chấp nhận rủi ro có một lỗ ở 018. #491 đã merge 29/07 (`b862f46`), nên dãy
+> 017-018-019 liền — không còn lỗ.
+
+## Context
+
+MANDATE-28 đòi ba thứ cùng lúc: báo **xuyên suốt** một sự cố dài (không khoảng câm), **không**
+báo giả khi tải hợp lệ dịch mức, và vẫn **tách riêng** được sự cố thứ hai nổ chồng.
+
+**Đo trên chính `eval_metric_rule` trước khi sửa** — sự cố 40 phút ở mức `0.08`, dưới ngưỡng
+tĩnh `0.10` nên chỉ tầng 3-sigma bắt được:
+
+| Chu kỳ | value | mean | mean+3σ | kết quả |
+|---|---|---|---|---|
+| 20 | 0.0857 | 0.0093 | 0.0166 | KÊU |
+| 30 | 0.0817 | 0.0148 | 0.0415 | KÊU |
+| **38** | 0.0778 | 0.0287 | **0.0941** | **im lặng** |
+| 60 | 0.0845 | 0.0751 | 0.1096 | im lặng |
+| 96 | 0.0783 | 0.0798 | 0.0905 | im lặng |
+
+**Kêu 9 phút, rồi im lặng suốt 29 phút còn lại.** Baseline bò từ `0.0093` lên `0.0805` — detector
+học chính cái lỗi thành bình thường. Tổng: **18/95 chu kỳ** có báo.
+
+Gốc rễ là **quyết định 2 của ADR-017**: winsorize kẹp giá trị *rồi vẫn append*, cố ý để *"một bất
+thường kéo dài thật vẫn kéo được baseline dần theo thời gian"*. Với MANDATE-15 (chống masking bởi
+một spike đơn lẻ) đó là hành vi mong muốn. Với MANDATE-28 nó **chính là lỗi**.
+
+## Decision
+
+### 1. Freeze baseline khi có sự cố đang mở, không phải winsorize nó
+
+`incident_state[rule_id:service]` mở khi rule kêu, và **trong lúc mở thì không append gì vào
+`metric_history`**. Khác winsorize ở mức bản chất: winsorize làm *chậm* việc baseline bị kéo
+theo, freeze làm nó *dừng hẳn*.
+
+Kết quả đo lại trên đúng chuỗi đó: **18/95 → 80/95 chu kỳ**, baseline đứng yên ở `mean=0.0090`
+suốt sự cố. Không còn khoảng câm.
+
+### 2. Ba đường ra khỏi freeze, và chỉ ba
+
+| Đường | Điều kiện |
+|---|---|
+| Hồi phục | im lặng đủ `RECOVERY_CYCLES = 3` chu kỳ liên tiếp → đóng sự cố, thaw |
+| Chạm trần | `MAX_FREEZE_CYCLES = 240` (2 giờ) → thaw **và bắn alert** `baseline-rebaselined` |
+| `reset_state()` | chỉ dùng trong test |
+
+`RECOVERY_CYCLES > 1` để một nhịp dao động không đóng sự cố rồi mở lại ngay.
+
+### 3. Trần freeze là chỗ đánh đổi giữa yêu cầu 1 và yêu cầu 2 — và nó phải có tiếng
+
+Yêu cầu 1 đòi báo xuyên suốt ⇒ freeze. Yêu cầu 2 cấm báo giả khi mức bình thường đã dịch ⇒ phải
+thaw. Detector **không có cách nào tự biết** mức mới là sự cố kéo dài hay là bình thường mới.
+
+Nên trần là ranh giữa hai cái đó, và alert `baseline-rebaselined` là thứ làm cái ranh ấy **nhìn
+thấy được**: *"đã kêu liên tục ~2 giờ, từ đây tôi thôi đóng băng và sẽ học mức hiện tại làm bình
+thường. Nếu sự cố vẫn đang chạy thì từ giờ tôi KHÔNG còn báo nữa — cần người xác nhận."*
+
+Âm thầm học lại mới là điều mandate cấm; học lại **có tuyên bố** thì không.
+
+### 4. Winsorize vẫn còn việc — đã kiểm, nếu không thì phải gỡ
+
+Sau khi có freeze, winsorize chỉ còn phục vụ đúng một ca: giá trị vượt 3σ nhưng bị **cổng SLO**
+(`dynamic_min_fraction`) chặn nên không kêu → không mở sự cố → không freeze → vẫn append.
+
+Có test riêng canh việc này (`test_winsorize_van_con_viec_sau_khi_co_freeze`). Nếu một ngày ca đó
+biến mất thì winsorize thành code chết và **phải bị gỡ**, không giữ lại cho đẹp — bài học 4 tham
+số giả ở ADR-018.
+
+### 5. `do_inject` chạy theo lịch chung thay vì tuần tự
+
+Bản cũ bật sự kiện 1, `sleep` hết `duration`, tắt, rồi mới sang sự kiện 2 — nên hai sự cố **không
+bao giờ chồng nhau được**, dù scenario khai `offset_seconds` thế nào. Mà MANDATE-28 đòi đúng điều
+đó. Đổi sang gom mọi mốc bật/tắt thành một lịch rồi chạy theo thứ tự thời gian: vẫn một luồng,
+vẫn không đồng bộ hoá gì, nhưng chồng lấn thì làm được. Kịch bản không chồng lấn hành vi không đổi.
+
+Ràng buộc kèm theo: hai sự kiện chồng nhau **không được dùng chung một điểm bơm** — lệnh `off` của
+sự kiện 1 sẽ xoá luôn lỗi của sự kiện 2.
+
+### 6. Ngưỡng "khoảng câm" = `cooldown + 1 poll` = 630s
+
+`alerter` gộp theo cooldown 600s cho từng `rule × service`, nên **ngay cả rule kêu mọi chu kỳ cũng
+chỉ ghi một bản ghi mỗi 10 phút**. Đó là chống spam có chủ đích (ADR-012), không phải detector mù.
+Đặt ngưỡng 600 tròn sẽ báo động giả mỗi lần scrape lệch vài giây; đặt quá cao sẽ nuốt mất đúng
+cái mandate đi tìm. Dùng chung một ngưỡng cho cả báo cáo lẫn verdict — nếu hai chỗ tính khác nhau
+thì cả hai đều không đáng tin.
+
+## Alternatives considered
+
+- **SLO làm trọng tài: chỉ freeze khi tầng TĨNH kêu.** Đơn giản nhất, không thêm state nào, nhất
+  quán với triết lý SLO-anchored của ADR-012. → **Loại**, vì nó không sửa được đúng ca đã đo:
+  sự cố ở `0.08` nằm dưới ngưỡng `0.10` nên tầng tĩnh không kêu, và 29 phút im lặng vẫn còn nguyên.
+- **Hai baseline song song** (ngắn thích nghi + dài đóng băng), kêu nếu vượt cái nào. Mạnh nhất về
+  lý thuyết. → **Loại**: thêm ~4 tham số, mà bài học ADR-018 là mỗi tham số phải chứng minh gánh
+  việc bằng kiểm chiều fail, nếu không thì gỡ. Không đáng cho mức yêu cầu của mandate.
+- **Bỏ hẳn winsorize, chỉ dùng freeze.** → Loại, xem quyết định 4: winsorize vẫn còn đúng một ca,
+  và ca đó có test.
+- **Đổi `cooldown` 600s của alerter cho alert dày hơn.** → Loại thẳng. Đó là quyết định chống spam
+  có số đo từ ADR-012; đổi nó ở đây là đổi ngầm hành vi của cả 16 rule để làm đẹp một bài test.
+
+## Consequences
+
+- Một sự cố kéo dài giờ **giữ baseline đứng yên tối đa 2 giờ**. Nếu sự cố thật sự dài hơn thế,
+  detector sẽ rebaseline và **thôi báo** — có alert cảnh báo, nhưng người trực phải đọc nó.
+- `incident_state` nằm trong **RAM tiến trình**. Pod restart là mất hết trạng thái sự cố đang mở,
+  baseline học lại từ đầu. Cùng lớp khiếm khuyết với `BlastRadiusGuard._history` (TF1-106) và
+  `CircuitBreaker._fail_count` (TF1-107) — ghi ra đây để nó không bị phát hiện lại lần thứ tư.
+- Yêu cầu 3 (tách sự cố chồng) **đã đạt sẵn từ trước**, không nhờ PR này: `metric_history` khóa
+  theo `rule_id:service` từ `#7a`. Đo xác nhận: `cart` cháy từ chu kỳ 15, `payment` vẫn bắt được ở
+  chu kỳ 45, hai lịch sử riêng (mean 0.2960 vs 0.0484). Freeze cũng khóa theo cùng khoá đó.
+- **Chưa chạy được trên cụm.** Bằng chứng offline chứng minh **cơ chế**, không chứng minh hành vi
+  dưới nhiễu thật của EKS. Nợ đã ghi, có task riêng. Lý do chặn đã **đổi hai lần**, ghi lại để
+  không ai truy lại từ đầu:
+  - 29/07 — SSO hết hạn.
+  - 30/07 — cụm cũ **đã bị destroy** sau sự cố credit AWS 28/07; cụm mới dựng trên account khác,
+    vào bằng IAM user `AIO-member` → assume `ecommerce-dev-eks-aio` (chỉ namespace `techx-tf1`).
+    Vào được rồi, nhưng chưa chạy vì ba lý do đo được: Prometheus ở **0.887** so với limit RAM và
+    **đã OOMKilled thật** trong ngày; có người đang chạy load test (HPA kéo frontend lên 12 pod);
+    và bản thân kịch bản còn lỗi thiết kế (mục dưới).
+- **Kịch bản bản 001 có lỗi khiến yêu cầu 3 tự pass — đã sửa 30/07.** Bản đó giết `cart` (sự kiện 1)
+  rồi chấm điểm sự kiện 2 trên `frontend`. Nhưng đồ thị phụ thuộc đo thật từ spanmetrics cho thấy
+  `frontend` gọi **cả** `cart` lẫn `recommendation`, nên frontend đã đỏ sẵn trước khi sự kiện 2 nổ
+  — phép kiểm "tách riêng" pass **dù freeze có hoạt động hay không**. Bản 002 đổi sự kiện 2 sang
+  cặp `quote → shipping`: `quote` chỉ có duy nhất `shipping` gọi, và `shipping` chỉ có đúng một
+  CLIENT span (tới quote), không đụng `cart`. Ràng buộc này giờ có test khoá lại
+  (`test_nan_nhan_su_kien_2_khong_duoc_do_san_vi_su_kien_1`) đọc thẳng `topology.json`, nên không
+  tái phát bằng cách sửa file kịch bản.
+- **flagd không dùng được để bơm sự cố, dù nó là cơ chế chính thức.** `values-flagd-sync.yaml` đổi
+  `--sources` của flagd sang endpoint HTTP trung tâm của BTC và gỡ hẳn flagd-ui local; chính file
+  đó ghi *"TF không tự đổi được flag vì nguồn trung tâm sync đè lên"*. Đo trên cụm xác nhận:
+  ConfigMap `flagd-config` chỉ được initContainer chép sang emptyDir rồi **bỏ không**. Nên tầng K8s
+  (`kubectl scale`) là đường duy nhất còn lại — đó là lý do kịch bản dùng nó, không phải vì tiện.
+- Bộ đo: 14 test `test_sustained.py` + 23 test `test_timeline.py`, và **kiểm chiều fail**: phá 10
+  cơ chế thì cả 10 đều có test đỏ; ba ràng buộc mới của kịch bản cũng đã phá thử và cả ba đều đỏ.
+
+## Ghi chú phương pháp — hai lỗi do chính việc kiểm chiều fail moi ra
+
+1. **Hằng số bind vào default arg.** `_incident_gate(..., max_freeze_cycles=MAX_FREEZE_CYCLES)`
+   bind giá trị lúc *định nghĩa* hàm, nên `detector.MAX_FREEZE_CYCLES = 10` sau khi import không có
+   tác dụng gì — hai hằng số **trông như tune được mà thực ra không**. Phát hiện khi một bài test
+   phá hằng số rồi cho chạy theo nó bị **treo** thay vì đỏ. Đã đổi sang đọc trong thân hàm.
+2. **Bài test không được cho vòng lặp chạy theo chính hằng số đang bị phá.** Đã tách làm hai:
+   một test monkeypatch trần xuống 30 để kiểm cơ chế, một test riêng canh giá trị ship nằm trong
+   dải [1h, 6h].

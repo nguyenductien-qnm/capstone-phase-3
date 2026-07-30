@@ -18,6 +18,8 @@ Baseline trước khi đổi: MNG `primary` 100% on-demand, kích thước tĩnh
 2. **Spot interruption: EventBridge → SQS → Karpenter `interruptionQueue`, gate bằng biến mới `enable_karpenter_interruption_queue` (default `false`, chỉ `true` ở `terraform/environments/develop/main.tf`).** `terraform/modules/eks/` là shared module (dùng bởi cả develop và sandbox) — không gate sẽ leak resource sang sandbox plan (Case T3, giống pattern `enable_network_policy` có sẵn trong repo). Rule EventBridge gộp cả 3 loại event (Spot Interruption Warning, Rebalance Recommendation, State-change). Bác bỏ chạy song song AWS Node Termination Handler (double-drain race) và bác bỏ dựa vào NotReady mặc định của kubelet (chậm hơn nhiều so với cảnh báo 2 phút của AWS).
 3. **`consolidationPolicy: WhenEmptyOrUnderutilized` + `consolidateAfter: 5m` + `limits.cpu: 32` + `disruption.budgets: nodes=1`** trên NodePool develop. `WhenEmptyOrUnderutilized` (thay `WhenEmpty`) để chứng minh scale-down thật. `5m` là chuẩn production (tránh node churn) — pha "tải thấp" cuối load test được kéo dài lên 10 phút để đủ thời gian demo. `limits.cpu:32` tính theo công thức capacity planning (`maxReplicas × CPU request × 1.15 × 1.3 ≈ 30 vCPU`). `disruption.budgets: nodes=1` chặn evict hàng loạt, bảo vệ SLO khi consolidate/interrupt.
 4. **Graviton/arm64 bị loại khỏi phạm vi có chủ ý.** CI hiện chỉ build `linux/amd64`; multi-arch cần build matrix mới + test tương thích arm64 cho service dùng native/JNI (Java OTel agent, C++ OTel SDK) — quá lệch pha so với scope mandate này. Ghi nhận **FAIL/deferred** cho tiêu chí Graviton của yêu cầu #5, không lấp liếm.
+
+   > **Cập nhật 30-07-2026:** lý do "CI chỉ build amd64" ở trên đã lỗi thời — PR #467 (`feat/arm64-multiarch`, merge 28-07-2026, không thuộc phạm vi mandate-13) đã thêm build đa kiến trúc thật (manifest list amd64+arm64) cho toàn bộ app image, mục tiêu ghi rõ là "mở đường cho Graviton". Blocker còn lại KHÔNG còn là CI mà là NodePool (`kubernetes.io/arch`/`instance-family` vẫn pin amd64-only, xác nhận trực tiếp trên live cluster) + chưa runtime-verify service native/JNI trên node arm64 thật. Chi tiết: `EVIDENCE.md` §6.
 5. **Graceful-drain (`terminationGracePeriodSeconds: 30` + `preStop: sleep 5`) chỉ thêm cho `payment`** trong `platform/charts/application/values.yaml` (shared chart, Case G2 — an toàn cho mọi môi trường nên không cần gate, nhưng cần render effective values cả 2 môi trường để xác nhận không lệch). `payment` là lỗ hổng thật duy nhất trên luồng browse→cart→checkout (đã có PDB/topologySpread nhưng thiếu preStop). `ad`/`currency`/`ml-guard`/`recommendation` thiếu tương tự nhưng ngoài luồng này nên không mở rộng.
 6. **Load curve mới** (`docs/mandate-19/loadtest/locust-loadcurve-mandate13-job.yaml`) — tái dùng task mix Mandate-19 Phase 4 + `LoadTestShape` mới low→high→low (10u→40u→80u→40u→10u). Bắt buộc vì directive cần đo cả scale-up lẫn scale-down; repo trước đó chỉ có shape step-up.
 7. **Không tạo Grafana panel mới** — panel "Node Count and Scaling" + SLO dashboard có sẵn đã đáp ứng đủ yêu cầu panel ③; spot% chứng minh qua EC2 console/Cost Explorer.
@@ -72,6 +74,33 @@ Phần còn lại bị merge đụng (MSK/CDC, migration .NET 8 accounting, prov
 - **Spot 63.9%** trên compute Karpenter-managed (2300m/3600m CPU requests) — **ĐẠT >50%**. Đo bằng CPU-requests vì MNG floor (CoreDNS/Karpenter controller, không thể lên spot) sẽ kéo tỷ lệ toàn-cluster xuống méo (48.8% nếu tính cả MNG, 29.6% nếu đếm instance-hours ngang nhau bất kể workload).
 - **Node-hours ≥30% theo đường cong tải: KHÔNG ĐẠT (đã kiểm chứng bằng load test thật).** Log ban đầu (khung 09:30–10:30 ICT) hoá ra chỉ ghi lại hệ quả của bài live spot-kill test, không liên quan tải — số 30.3%/31.9% tính trên dữ liệu đó đã bị rút lại. Sau đó đã **chạy trực tiếp một bài load test mới trên cluster** (28-07-2026, 06:51–07:05 UTC, đỉnh 450 user, giám sát `kubectl` mỗi 15-30s xuyên suốt): xác nhận HPA scale pod thật theo tải (`frontend` 2→10, `cart` 2→4 replica) nhưng **Karpenter không thêm node nào — giữ nguyên 4 node suốt bài test**, kể cả lúc tải đỉnh. Kết luận: ở kích thước pod/cluster hiện tại, node-hours không thay đổi theo tải trong khoảng 10-450 user (chênh lệch 0%, không đạt ≥30%) — đây là kết quả thật, không phải lỗi đo.
 - Chi tiết đầy đủ + log gốc: [`EVIDENCE.md`](EVIDENCE.md).
+
+### Đo lường thực tế (30-07-2026) — sau khi nới HPA maxReplicas
+
+Nguyên nhân gốc xác định lại từ phép đo 28/07: `maxReplicas` cũ (frontend=10, cart=6, checkout=5, currency/quote/shipping/payment=4, product-catalog=6) khiến tổng CPU request lý thuyết tuyệt đối của pool `default` (money-path) chỉ ~2.82 vCPU — **thấp hơn capacity 2-node đang chạy (3.86 vCPU) ngay cả khi mọi service cùng lúc kịch trần**. Đây là trần cứng do thiết kế, không phải do tải chưa đủ — traffic cao hơn không thể sửa được vì HPA không tạo pod vượt `maxReplicas` bất kể tải.
+
+Đã nới `maxReplicas` cho 8 service pool `default` (frontend 10→20, cart 6→12, checkout 5→10, currency/quote/shipping/payment 4→8, product-catalog 6→12) — không đổi CPU request hay targetCPUUtilizationPercentage, chỉ bỏ trần giả tạo. Merge qua PR #508 (`feat/mandate-13-hpa-scale-tuning`), ArgoCD `techx-corp` xác nhận Synced/Healthy đúng revision.
+
+Test lại bằng **Locust Web UI** (không dùng Job headless) qua Tailscale ingress private có sẵn `https://locust-tf1` (locustfile gốc `techx-corp-platform/src/load-generator/locustfile.py`, vốn đã chạy continuous — chỉ đổi số user trực tiếp trên UI), ramp thủ công 10→150→400→700 user, giám sát liên tục `kubectl get nodes,nodeclaims,hpa` + Karpenter events, 2026-07-30 07:00–09:01 UTC.
+
+**Diễn biến (log Karpenter events thật):**
+
+| Thời điểm (UTC) | Sự kiện |
+|---|---|
+| ~07:00 | Baseline: 7 node (2 `default` on-demand + 2 `spot` + 3 MNG floor) |
+| ~07:41 | Karpenter launch `spot-xmhqg` (node thứ 3 pool `spot`, us-east-1c) |
+| ~07:46 | Karpenter đánh dấu `spot-xmhqg` **Underutilized**, bắt đầu disrupt |
+| ~07:47 | `spot-xmhqg` Drained + Terminated — về lại 2 node `spot` |
+| 07:50–08:10 | `frontend` leo dần lên **20/20 replica (kịch trần mới)**, vẫn 74%/70% (over target) — **pool `default` giữ nguyên 2 node suốt toàn bộ giai đoạn này** |
+| ~08:06 | Karpenter tự đánh giá consolidate 2 node `default` nhưng bị chặn: sự kiện `Unconsolidatable: Can't remove without creating 4 candidates` |
+| 09:01 | Toàn bộ về lại baseline (7 node, mọi HPA quanh mức `minReplicas`) |
+
+**Kết luận trung thực:**
+
+- **Pool `spot`: có 1 chu kỳ launch→consolidate thật**, xác nhận qua event `DisruptionTerminating: Underutilized` (không suy đoán) — chứng minh cơ chế "co xuống thật" hoạt động đúng thiết kế. Nhưng chu kỳ chỉ kéo dài **~6 phút** và Karpenter tự đánh giá "Underutilized" gần như ngay sau khi launch, nhiều khả năng đây là Karpenter tự sửa một lựa chọn bin-packing dư thừa hơn là phản ứng với nhu cầu tải đỉnh kéo dài. Không đủ mạnh để làm bằng chứng node-hours chính, chỉ chứng minh cơ chế tồn tại và hoạt động đúng.
+- **Pool `default` (money-path, nơi bài test chạy qua): 0% thay đổi node-hours.** Dù `frontend` đã đạt tuyệt đối trần mới (20/20) và vẫn over-target, tổng CPU request pool này chưa bao giờ vượt capacity 2-node, vì `checkout/payment/quote/shipping/currency/product-catalog` — do trọng số task thấp trong locustfile (`checkout` weight=1 so với `browse_product` weight=10) — chưa từng vượt 70% utilization ở mức 700 user để tự sinh thêm replica. Ước tính cần **~2500+ user đồng thời** mới đủ ép các service này scale, vượt xa mức có thể test an toàn khi `frontend` đã bão hoà từ trước (rủi ro dồn ứ, ảnh hưởng SLO p95).
+- **Tiêu chí #5 (node-hours ≥30%): KHÔNG ĐẠT** trên pool `default` với kiến trúc/kích thước pod hiện tại — giới hạn kiến trúc thật (task-weight distribution + CPU-request sizing quá nhỏ so với node), không phải lỗi đo hay lỗi cấu hình Karpenter/HPA.
+- **Hướng khắc phục khả thi cho lần sau (chưa thực hiện):** tăng CPU *request* (không chỉ `maxReplicas`) cho money-path services để mỗi replica "nặng" hơn trong mắt Karpenter và tự vượt ngưỡng node mà không cần thêm traffic thật; hoặc giảm baseline xuống 1 node/AZ (đánh đổi trực tiếp với yêu cầu HA M17-R2 — cần cân nhắc kỹ trước khi làm).
 
 ### Rủi ro còn tồn đọng
 

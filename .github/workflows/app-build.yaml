@@ -11,6 +11,16 @@ name: "2 · Build — Ảnh app → ECR (Trivy + Cosign + bump GitOps)"
 # chạy ổn ở develop sang environments/sandbox/values-image-tags.yaml, có review).
 # Không build lại image cho prod -> giữ nguyên digest đã scan + ký + test ở develop.
 #
+# >>> TẠM NGƯNG (29/07/2026) — đoạn mô tả 6 dòng NGAY TRÊN mô tả trạng thái CŨ <<<
+# Sau sự cố AWS credits (report/credit-incident/aws-personal-incident-2026-07-28.md)
+# cụm DEVELOP đã bị destroy, chỉ còn MỘT môi trường và nó dùng thư mục
+# environments/sandbox. Hai bước app-attest.yaml + app-promote.yaml TẠM NGƯNG (file
+# giữ nguyên, chỉ có workflow_dispatch nên không tự chạy).
+# Hệ quả: TAGS_FILE bên dưới đã trỏ THẲNG vào environments/sandbox — merge vào
+# develop là ảnh lên thẳng môi trường còn lại, KHÔNG còn chặng chạy thử và KHÔNG
+# còn PR promote. Cửa người-duyệt duy nhất còn lại là PR vào nhánh develop.
+# Dựng lại môi trường thứ hai thì khôi phục cả TAGS_FILE lẫn 2 workflow trên.
+#
 # Tag convention: <version>-<service>-<sha>  (version = chart appVersion default.image.tag).
 # ECR: 1 repo chung ecommerce-dev-techx-corp, IMMUTABLE. Ký theo digest, không ký tag.
 #
@@ -88,7 +98,7 @@ concurrency:
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
-  ECR_REGISTRY: ${{ vars.ECR_REGISTRY || '804372444787.dkr.ecr.us-east-1.amazonaws.com' }}
+  ECR_REGISTRY: ${{ vars.ECR_REGISTRY || '384511757667.dkr.ecr.us-east-1.amazonaws.com' }}
   # 1 repo chung, service phân biệt bằng tag suffix (khớp chart _objects.tpl:73).
   ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY || 'ecommerce-dev-techx-corp' }}
   # Phần <version> trong tag <version>-<svc>-<sha>. Nguồn THẬT: GitHub Actions
@@ -99,8 +109,18 @@ env:
   BUILD_CONTEXT: techx-corp-platform
   # CI CHỈ ghi file tags tách riêng (không comment) -> yq bump không phá format
   # values.yaml gốc. Helm/ArgoCD load file này SAU values.yaml để override tag.
-  # Bump vào tags file của DEVELOP; tags file sandbox (prod) chỉ đổi qua promote PR.
-  TAGS_FILE: platform/gitops/environments/develop/values/values-image-tags.yaml
+  #
+  # TẠM NGƯNG (29/07/2026): trước đây dòng này trỏ vào
+  #   platform/gitops/environments/develop/values/values-image-tags.yaml
+  # với ghi chú "tags file sandbox (prod) chỉ đổi qua promote PR". Ghi chú đó đúng
+  # với mô hình 2 môi trường; nay cụm develop đã destroy nên nó KHÔNG còn đúng.
+  # Phải trỏ vào file sandbox vì đó là file DUY NHẤT mà ArgoCD còn đọc:
+  # platform/gitops/bootstrap/root-app.yaml -> platform/gitops/applications ->
+  # application.yaml nạp 6 values file trong environments/sandbox, file tags nạp
+  # CUỐI để override. Giữ nguyên đường dẫn develop = build xanh, ảnh lên ECR đủ,
+  # mà không cụm nào đọc tới -> cụm chạy tag cũ mãi.
+  # Khôi phục promote thì đổi lại dòng này về develop TRƯỚC, rồi mới bật 2 workflow.
+  TAGS_FILE: platform/gitops/environments/sandbox/values-image-tags.yaml
 
 jobs:
   # ------------------------------------------------------------------ #
@@ -639,14 +659,43 @@ jobs:
       - name: Install Syft
         uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
 
-      # `pattern` phải khai tường minh theo service. Dùng glob trần rồi gộp hết sẽ kéo
-      # cả digest của service KHÁC vào cùng một manifest list — index sai vẫn ký được,
-      # vẫn qua Kyverno, và không cổng nào phía sau bắt được.
-      - name: Download digests
+      # Digest phải tải theo TÊN CHÍNH XÁC, không glob.
+      #
+      # Trước đây chỗ này dùng `pattern: digest-${{ matrix.service }}-*`. Comment cũ đã
+      # cảnh báo đúng nguy cơ ("glob trần sẽ kéo digest của service KHÁC vào cùng một
+      # manifest list — index sai vẫn ký được, vẫn qua Kyverno, không cổng nào phía sau
+      # bắt được") nhưng vẫn sót MỘT trường hợp: khi tên service này là TIỀN TỐ của tên
+      # service kia. Artifact đặt tên `digest-<service>-<arch>`, nên với service
+      # `frontend` thì `digest-frontend-*` khớp cả bốn:
+      #     digest-frontend-amd64          <- của mình
+      #     digest-frontend-arm64          <- của mình
+      #     digest-frontend-proxy-amd64    <- của service KHÁC
+      #     digest-frontend-proxy-arm64    <- của service KHÁC
+      # Gặp thật 30/07/2026, run 30507850480 job "Merge frontend":
+      #     ::error::cần đúng 2 digest (amd64+arm64), có 4
+      # Lỗi một chiều: `Merge frontend-proxy` vẫn xanh vì tên dài không ăn được tên ngắn.
+      # Trong 20 service team-owned hiện tại đúng một cặp dính: frontend / frontend-proxy.
+      #
+      # Vì sao tới 30/07 mới lộ: bug cần cả hai service build trong CÙNG một run VÀ job
+      # merge phải thật sự chạy. Lượt 29/07 chết ở bước push (ECR chưa tồn tại), lượt
+      # 01:41 thì merge bị skip sạch vì recommendation vỡ gate Trivy.
+      #
+      # Tải theo `name` là khớp tuyệt đối nên không còn chỗ cho glob ăn lẫn. Cách một
+      # bước `pattern: digest-...-@(amd64|arm64)` cũng chạy được nhưng phụ thuộc extglob
+      # của minimatch — hai bước tường minh thì không phụ thuộc gì.
+      #
+      # KHÔNG bỏ dòng kiểm `[ "$n" -eq 2 ]` bên dưới: chính nó đã biến sự cố này thành
+      # một job đỏ thay vì một index sai được ký rồi qua Kyverno và chạy sai app.
+      - name: Download digest amd64
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          pattern: digest-${{ matrix.service }}-*
-          merge-multiple: true
+          name: digest-${{ matrix.service }}-amd64
+          path: /tmp/digests/${{ matrix.service }}
+
+      - name: Download digest arm64
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: digest-${{ matrix.service }}-arm64
           path: /tmp/digests/${{ matrix.service }}
 
       - name: Create manifest list
@@ -997,11 +1046,20 @@ jobs:
       - name: Install Syft
         uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
 
-      - name: Download digests
+      # Cùng lý do như job `merge` phía trên (xem khối comment ở đó): tải theo TÊN CHÍNH
+      # XÁC, không glob. Hai module hiện tại (detector, remediation) không ai là tiền tố
+      # của ai nên chưa vỡ, nhưng đây là cùng một mìn: thêm module tên `detector-v2` là
+      # `digest-aiops-detector-*` ăn luôn artifact của nó. Vá cả hai chỗ cho hết loại lỗi.
+      - name: Download digest amd64
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          pattern: digest-aiops-${{ matrix.module }}-*
-          merge-multiple: true
+          name: digest-aiops-${{ matrix.module }}-amd64
+          path: /tmp/digests/aiops-${{ matrix.module }}
+
+      - name: Download digest arm64
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: digest-aiops-${{ matrix.module }}-arm64
           path: /tmp/digests/aiops-${{ matrix.module }}
 
       - name: Create manifest list
@@ -1143,6 +1201,7 @@ jobs:
         if: needs.merge.result == 'success' && needs.detect.outputs.any == 'true'
         env:
           MATRIX: ${{ needs.detect.outputs.matrix }}
+          VALUES: platform/charts/application/values.yaml
         run: |
           set -euo pipefail
           SHORT_SHA=$(git rev-parse --short HEAD)
@@ -1152,6 +1211,25 @@ jobs:
             TAG="${IMAGE_VERSION}-${svc}-${SHORT_SHA}"
             echo "== $svc -> $TAG =="
             yq -i ".components.\"$svc\".imageOverride.tag = \"$TAG\"" "$TAGS_FILE"
+
+            # FOLLOWER: component khai `imageFrom: <svc>` trong chart là component chạy
+            # CHÍNH ảnh của $svc (không có Dockerfile riêng, chỉ khác command). Nó không
+            # nằm trong build matrix nên vòng lặp trên không chạm tới, và nếu bỏ qua thì
+            # nó đứng im ở SHA cũ trong khi leader đã sang SHA mới.
+            #
+            # Gặp thật 30/07/2026: cart-consumer-worker treo ở `1.0-cart-4986041` sau khi
+            # dựng lại account, tag đó không tồn tại trên ECR mới -> ImagePullBackOff.
+            # Trước đó quan hệ này không được khai ở đâu, hai dòng tag bằng nhau trong
+            # TAGS_FILE chỉ là trùng khớp do gõ tay nên CI không thể suy ra.
+            #
+            # Đọc từ chart chứ không hardcode tên: thêm worker mới chỉ cần khai
+            # `imageFrom` trong values.yaml, không phải sửa workflow.
+            for follower in $(yq -r ".components | to_entries[]
+                                     | select(.value.imageFrom == \"$svc\")
+                                     | .key" "$VALUES"); do
+              echo "   ↳ $follower (imageFrom: $svc) -> $TAG"
+              yq -i ".components.\"$follower\".imageOverride.tag = \"$TAG\"" "$TAGS_FILE"
+            done
           done
 
       # MANDATE-10 #6: bump chỉ được chạm ĐÚNG service vừa build. Nếu matrix và diff
@@ -1161,6 +1239,7 @@ jobs:
         if: needs.merge.result == 'success' && needs.detect.outputs.any == 'true'
         env:
           EXPECTED: ${{ needs.detect.outputs.services }}
+          VALUES: platform/charts/application/values.yaml
         run: |
           set -euo pipefail
 
@@ -1186,7 +1265,25 @@ jobs:
             done
           )
 
+          # FOLLOWER cũng được phép có mặt trong diff, nhưng CHỈ khi leader của nó nằm
+          # trong tập vừa build. Follower = component khai `imageFrom: <leader>` trong
+          # chart, tức chạy chính ảnh của leader (không có Dockerfile riêng) nên không
+          # bao giờ xuất hiện trong $EXPECTED. Không nới chỗ này thì bước bump ở trên
+          # ghi tag cho nó và chính gate này đánh sập lần build kế tiếp.
+          #
+          # Điều kiện "leader phải nằm trong $EXPECTED" là thứ giữ nguyên tác dụng của
+          # gate: follower ăn theo một ảnh VỪA được build và push, không phải một tag
+          # đoán bừa. Bỏ điều kiện đó là mở lại đúng lỗ mà gate sinh ra để bịt.
+          ALLOWED="$EXPECTED"
+          for svc in $EXPECTED; do
+            followers=$(yq -r ".components | to_entries[]
+                               | select(.value.imageFrom == \"$svc\")
+                               | .key" "$VALUES")
+            [ -n "$followers" ] && ALLOWED="$ALLOWED $followers"
+          done
+
           echo "Service đã build : $EXPECTED"
+          echo "Được phép bump   : $ALLOWED"
           echo "Service bị bump  : ${changed_svcs[*]:-<không có>}"
 
           # So khớp theo TỪNG DÒNG (grep -qx) chứ không tìm chuỗi con: tên service có
@@ -1195,8 +1292,8 @@ jobs:
           rc=0
           for svc in "${changed_svcs[@]:-}"; do
             [ -z "$svc" ] && continue
-            if ! printf '%s\n' $EXPECTED | grep -qx "$svc"; then
-              echo "::error::Bump ghi tag cho '$svc' nhưng service này KHÔNG nằm trong tập vừa build ($EXPECTED). Tag sẽ trỏ tới image không tồn tại trên ECR."
+            if ! printf '%s\n' $ALLOWED | grep -qx "$svc"; then
+              echo "::error::Bump ghi tag cho '$svc' nhưng service này KHÔNG nằm trong tập vừa build ($EXPECTED) và cũng không khai imageFrom trỏ vào service nào trong tập đó. Tag sẽ trỏ tới image không tồn tại trên ECR."
               rc=1
             fi
           done
@@ -1290,6 +1387,10 @@ jobs:
       id-token: write # OIDC cho AWS + Cosign keyless (Fulcio). Đẩy ECR qua AWS role, KHÔNG qua GITHUB_TOKEN.
     env:
       # Tags file PROD (env sandbox) — khác app-attest (đọc develop).
+      # TẠM NGƯNG (29/07/2026): từ khi TAGS_FILE ở đầu file trỏ sang sandbox, hai
+      # hằng này chỉ tay vào CÙNG MỘT file. Cố tình KHÔNG gộp: gộp xong mà sau này
+      # dựng lại môi trường thứ hai thì job này sẽ âm thầm đọc tags file develop
+      # (sai môi trường) thay vì báo lỗi. Giữ 2 hằng riêng, chấp nhận trùng giá trị.
       SANDBOX_TAGS_FILE: platform/gitops/environments/sandbox/values-image-tags.yaml
       BUILD_IDENTITY: https://github.com/${{ github.repository }}/.github/workflows/app-build.yaml@refs/heads/develop
       OIDC_ISSUER: https://token.actions.githubusercontent.com

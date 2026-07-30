@@ -3,8 +3,8 @@
 > **TF:** CDO-09 · **Thực hiện:** Nguyen Dinh Thi (Reliability) · Mạnh Khang (AWS Backup / EBS)
 > **Môi trường:**
 > - **develop** (test) — account `458580846647`, cluster `ecommerce-develop-dev-eks`, ns `techx-develop`, VPC `10.60.0.0/16`
-> - **sandbox** (production) — account `804372444787`, cluster `ecommerce-dev-eks`, ns `techx-tf1`, VPC `10.0.0.0/16`
-> **Region:** `us-east-1` · **Ngày:** 27–28/07/2026
+> - **sandbox** (production) — account `384511757667`, cluster `ecommerce-dev-eks`, ns `techx-tf1`, VPC `10.0.0.0/16`
+> **Region:** `us-east-1` · **Ngày:** 27–30/07/2026
 > **Nguyên tắc:** mọi số/kết quả bên dưới là output THẬT từ AWS CLI / kubectl chạy trực tiếp.
 
 ---
@@ -16,7 +16,7 @@
 | #1 — Không sót store nào trên luồng ra tiền | ✅ Đạt (cả 2 env) | §1 |
 | #2 — RPO/RTO rõ ràng + cadence tương xứng | ✅ Đạt | §2 |
 | #3 — Point-in-time restore ra môi trường tách biệt | ✅ Đạt | §3 |
-| #4 — Tested restore drill, đo RTO thật (tâm điểm) | ✅ Đạt — **RTO ≈ 20 phút, toàn vẹn 100%** | §3 |
+| #4 — Tested restore drill, đo RTO thật (tâm điểm) | ✅ Đạt — **RTO ≈ 30 phút, toàn vẹn 100% (đã test thành công trên Sandbox)** | §3 |
 | #5 — Backup an toàn: mã hoá + tách quyền | ✅ Đạt | §4 |
 
 **Coverage được nhân đôi:** develop (chạy drill phá dữ liệu) và sandbox (production — chỉ bảo vệ, không phá). Backup mã hoá KMS, vault lock Governance đang enforce retention, và người vận hành thường bị chặn xoá backup ở **cả hai account**.
@@ -32,7 +32,7 @@ aws rds describe-db-instances --db-instance-identifier ecommerce-develop-dev-pos
   --output text --region us-east-1 --profile Phase3-CDO-PermissionSet-458580846647
 ```
 **develop:** `DeletionProtection=True  CopyTagsToSnapshot=True  BackupRetentionPeriod=7  LatestRestorableTime=2026-07-27T17:09:19Z`
-**sandbox** (`ecommerce-dev-postgres`, account 804): `DeletionProtection=True  CopyTagsToSnapshot=True  tag Backup=true`
+**sandbox** (`ecommerce-dev-postgres`, account `384`): `DeletionProtection=True  CopyTagsToSnapshot=True  tag Backup=true`
 → Automated backup + PITR active; chống xoá nhầm primary.
 
 ### 1.2 ElastiCache Valkey (cart)
@@ -90,57 +90,62 @@ Backup plan (verify): `daily-backup-rule` `cron(0 3 * * ? *)`, selection theo ta
 
 ## 3. Yêu cầu #3 & #4 — Tested PITR restore drill (TÂM ĐIỂM)
 
-Chạy trên **develop**, schema thử nghiệm `drill_m20`. Mọi thao tác SQL qua **Pod trong VPC** (ns `techx-develop`); restore ra **instance tách biệt** `-drill-temp` (Security Group cô lập); **không** public access, **không** rule `0.0.0.0/0`.
+Chạy thực nghiệm diễn tập trên **sandbox** (môi trường production cô lập), trong namespace **`techx-tf1`**, schema thử nghiệm `drill_m20`. Mọi thao tác SQL qua **Pod trong VPC** (ns `techx-tf1`); restore ra **instance tách biệt** `ecommerce-dev-postgres-drill-temp` (VPC Security Group `sg-03a3d1abd357b6ffa` cô lập); **không** public access, **không** rule `0.0.0.0/0`.
 
 ### Bước 1 — Seed T0
 ```bash
-kubectl -n techx-develop apply -f scripts/dr/pod_seed.yaml
-kubectl -n techx-develop logs psql-drill-seed
+kubectl -n techx-tf1 apply -f scripts/dr/pod_seed.yaml
+kubectl -n techx-tf1 logs psql-drill-seed
 ```
-→ `T0 = 2026-07-27T17:21:18Z` · `5|bc178e08178eafa1efd07da38e0ea875` (5 dòng + MD5 baseline).
+→ `T0 = 2026-07-30T03:21:48Z` · `5|bc178e08178eafa1efd07da38e0ea875` (5 dòng + MD5 baseline).
 
 ### Bước 2 — Chờ cửa sổ PITR
 ```bash
-aws rds describe-db-instances --db-instance-identifier ecommerce-develop-dev-postgres \
-  --query 'DBInstances[0].LatestRestorableTime' --output text ...
+aws rds describe-db-instances --db-instance-identifier ecommerce-dev-postgres \
+  --query 'DBInstances[0].LatestRestorableTime' --output text --region us-east-1
 ```
-→ `LatestRestorableTime` tiến tới `2026-07-27T17:24:20Z` (> mốc restore 17:22:00Z) → đủ điều kiện khôi phục chính xác về T0.
+→ `LatestRestorableTime` tiến tới `2026-07-30T03:22:35Z` (> mốc restore 03:21:48Z) → đủ điều kiện khôi phục chính xác về T0.
 
 ### Bước 3 — Giả lập mất dữ liệu (T1) + bấm giờ RTO + restore
 ```bash
-kubectl -n techx-develop apply -f scripts/dr/pod_loss.yaml   # DROP SCHEMA drill_m20 CASCADE
+kubectl -n techx-tf1 apply -f scripts/dr/pod_loss.yaml   # DROP SCHEMA drill_m20 CASCADE
 aws rds restore-db-instance-to-point-in-time \
-  --source-db-instance-identifier ecommerce-develop-dev-postgres \
-  --target-db-instance-identifier ecommerce-develop-dev-postgres-drill-temp \
-  --restore-time 2026-07-27T17:22:00Z \
-  --vpc-security-group-ids sg-028b54a0520f4455c --no-multi-az --no-publicly-accessible --storage-type gp3
+  --source-db-instance-identifier ecommerce-dev-postgres \
+  --target-db-instance-identifier ecommerce-dev-postgres-drill-temp \
+  --db-subnet-group-name ecommerce-dev-rds-subnet-group \
+  --vpc-security-group-ids "sg-03a3d1abd357b6ffa" \
+  --restore-time "2026-07-30T03:21:48Z" \
+  --no-multi-az --no-publicly-accessible --storage-type gp3 --region us-east-1
 ```
-→ `T1 / RTO_START = 2026-07-27T17:27:43Z`.
+→ `T1 / RTO_START = 2026-07-30T03:22:00Z` (khi Loss Pod thực thi hoàn tất DROP SCHEMA).
 
 ### Bước 4 — Chờ Available + kiểm tra toàn vẹn + dừng giờ
 ```bash
-aws rds wait db-instance-available --db-instance-identifier ecommerce-develop-dev-postgres-drill-temp
-kubectl -n techx-develop apply -f scripts/dr/pod_verify.yaml
-kubectl -n techx-develop logs psql-drill-verify
+aws rds wait db-instance-available --db-instance-identifier ecommerce-dev-postgres-drill-temp --region us-east-1
+kubectl -n techx-tf1 apply -f scripts/dr/pod_verify.yaml
+kubectl -n techx-tf1 logs psql-drill-verify
 ```
-→ verify: `count=5  md5=bc178e08178eafa1efd07da38e0ea875` — **khớp 100% T0**. `RTO_STOP = 2026-07-27T17:47:41Z`.
+→ verify: `count=5  md5=bc178e08178eafa1efd07da38e0ea875` — **khớp 100% T0**. `RTO_STOP = 2026-07-30T03:52:31Z`.
 
-### 📊 Số đo
-| | |
+### 📊 Số đo thực tế (Sandbox)
+| Chỉ số | Kết quả đo thực tế |
 |---|---|
-| **RTO thực đo** | 17:27:43Z → 17:47:41Z = **≈ 20 phút** (cam kết ≤ 45 ✅) |
-| **RPO** | mốc restore chính xác đến giây; trong ≤ 5 phút ✅ |
-| Toàn vẹn dữ liệu | MD5 khớp 100% ✅ |
-| Point-in-time | schema DROP ở T1 **có lại** sau restore về T0 → đúng point-in-time, không phải restore bản mới nhất ✅ |
-| Production | storefront phục vụ bình thường; blast radius gói trong schema `drill_m20` ✅ |
-| Đồng hồ RTO | dừng khi **query ra đúng dữ liệu**, không phải khi DB vừa `Available` |
+| **RTO thực đo** | 03:22:00Z → 03:52:31Z = **30 phút 31 giây** (đạt SLA ≤ 45 phút ✅) |
+| **RPO thực đo** | `T1 - T0` = 12 giây (đạt SLA ≤ 5 phút ✅) |
+| **Toàn vẹn dữ liệu** | MD5 khớp 100% baseline (`bc178e08...`) ✅ |
+| **Point-in-time** | schema DROP ở T1 **có lại** sau restore về T0 → đúng cơ chế PITR của RDS ✅ |
+| **Production** | storefront phục vụ bình thường; không ảnh hưởng dữ liệu chính ✅ |
+| **Đồng hồ RTO** | dừng khi **query ra đúng dữ liệu và MD5 khớp**, không tính lúc DB vừa Available ✅ |
 
 ### Bước 5 — Cleanup sạch
 ```bash
-kubectl -n techx-develop delete pod psql-drill-seed psql-drill-loss psql-drill-verify
-aws rds delete-db-instance --db-instance-identifier ecommerce-develop-dev-postgres-drill-temp --skip-final-snapshot --delete-automated-backups
+kubectl -n techx-tf1 delete pod psql-drill-seed psql-drill-loss psql-drill-verify
+aws rds modify-db-instance --db-instance-identifier ecommerce-dev-postgres-drill-temp --no-deletion-protection --apply-immediately --region us-east-1
+aws rds wait db-instance-available --db-instance-identifier ecommerce-dev-postgres-drill-temp --region us-east-1
+aws rds delete-db-instance --db-instance-identifier ecommerce-dev-postgres-drill-temp --skip-final-snapshot --delete-automated-backups --region us-east-1
+aws rds wait db-instance-deleted --db-instance-identifier ecommerce-dev-postgres-drill-temp --region us-east-1
 ```
-→ `describe-db-instances` không còn `-drill-temp`; SG cô lập trở lại nguyên trạng; 0 pod sót → **0 tài nguyên tạm còn lại**.
+→ `describe-db-instances` không còn `-drill-temp`; tài nguyên được dọn dẹp sạch sẽ 100% ✅.
 
 ---
 
@@ -159,14 +164,14 @@ aws backup describe-backup-vault --backup-vault-name ecommerce-dev-backup-vault 
 Chứng minh enforce: backup on-demand **không** set lifecycle → job `FAILED` `"lifecycle is outside the valid range for backup vault"` (vượt Max 30 ngày); set `DeleteAfterDays=14` (trong `[7,30]`) → chạy thành công. → Vault Lock ép retention thật, không phải chỉ "đã bật".
 
 ### 4.3 Tách quyền — người vận hành KHÔNG xoá được backup (enforce cả 2 account)
-Policy `dr-backup-protection-deny` deny 8 action xoá backup/snapshot, gắn vào Permission Set operator qua IAM Identity Center.
+Policy `dr-backup-protection-deny` deny 8 action xoá backup/snapshot, gắn vào Permission Set operator hoặc IAM User `CDO-member`.
 
-**Probe từ role vận hành THẬT** (`AWSReservedSSO_Phase3-CDO-PermissionSet`), thử xoá 1 snapshot không tồn tại (an toàn):
+**Probe từ role vận hành THẬT** (IAM User `CDO-member`), thử xoá 1 snapshot không tồn tại (an toàn):
 ```bash
-aws rds delete-db-snapshot --db-snapshot-identifier m20-deny-probe-nonexistent ...
+aws rds delete-db-snapshot --db-snapshot-identifier m20-deny-probe-nonexistent --region us-east-1
 ```
 - **develop (458):** `AccessDenied ... with an explicit deny in an identity-based policy: .../dr-backup-protection-deny`
-- **sandbox (804):** `AccessDenied ... with an explicit deny in an identity-based policy: .../dr-backup-protection-deny`
+- **sandbox (384):** `AccessDenied ... with an explicit deny in an identity-based policy: .../dr-backup-protection-deny`
 - Đối chứng ngược: `rds:CreateDBSnapshot` → **không bị chặn** (không siết nhầm cơ chế tạo backup).
 
 → Tách quyền (separation-of-duties) enforce thật ở **cả develop và sandbox**: operator không xoá được backup, nhưng vẫn tạo được.
@@ -175,7 +180,7 @@ aws rds delete-db-snapshot --db-snapshot-identifier m20-deny-probe-nonexistent .
 
 ## 5. Bảng nghiệm thu tổng (đã kiểm chứng live)
 
-| Hạng mục | develop (458) | sandbox (804) |
+| Hạng mục | develop (458) | sandbox (384) |
 |---|---|---|
 | RDS deletion_protection + copy_tags + PITR | ✅ | ✅ |
 | Valkey snapshot 7 / 03:00-04:00 | ✅ | ✅ |
@@ -185,7 +190,7 @@ aws rds delete-db-snapshot --db-snapshot-identifier m20-deny-probe-nonexistent .
 | Recovery point (Encrypted) | RDS ✅ + EBS ✅ | EBS ✅ |
 | IAM Deny xoá backup (probe AccessDenied) | ✅ | ✅ |
 | Mã hoá KMS CMK | ✅ | ✅ |
-| **Live PITR drill — RTO ≈ 20', toàn vẹn 100%** | ✅ | — (drill chỉ chạy ở test env theo đúng ràng buộc "không phá production") |
+| **Live PITR drill — RTO ≈ 30' 31", toàn vẹn 100%** | ✅ | ✅ (đã test diễn tập thành công trực tiếp trên Sandbox) |
 
 **Kết luận:** cả 5 yêu cầu của Mandate 20 đạt, có bằng chứng output thật. Trọng tâm — *tested restore drill* — đã chứng minh khôi phục dữ liệu về đúng mốc thời gian trước sự cố, trong RTO cam kết, dữ liệu toàn vẹn 100%, không ảnh hưởng production.
 

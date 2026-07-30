@@ -12,7 +12,7 @@ terraform {
   }
 
   backend "s3" {
-    bucket       = "terraform-state-phase-3"
+    bucket       = "terraform-state-phase3-tf1"
     key          = "dev/terraform.tfstate"
     region       = "us-east-1"
     encrypt      = true

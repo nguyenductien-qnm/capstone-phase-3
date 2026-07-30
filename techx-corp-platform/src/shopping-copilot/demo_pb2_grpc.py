@@ -722,6 +722,11 @@ class PaymentServiceStub(object):
                 request_serializer=demo__pb2.ChargeRequest.SerializeToString,
                 response_deserializer=demo__pb2.ChargeResponse.FromString,
                 )
+        self.Validate = channel.unary_unary(
+                '/oteldemo.PaymentService/Validate',
+                request_serializer=demo__pb2.ValidatePaymentRequest.SerializeToString,
+                response_deserializer=demo__pb2.ValidatePaymentResponse.FromString,
+                )
 
 
 class PaymentServiceServicer(object):
@@ -735,6 +740,12 @@ class PaymentServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def Validate(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_PaymentServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -742,6 +753,11 @@ def add_PaymentServiceServicer_to_server(servicer, server):
                     servicer.Charge,
                     request_deserializer=demo__pb2.ChargeRequest.FromString,
                     response_serializer=demo__pb2.ChargeResponse.SerializeToString,
+            ),
+            'Validate': grpc.unary_unary_rpc_method_handler(
+                    servicer.Validate,
+                    request_deserializer=demo__pb2.ValidatePaymentRequest.FromString,
+                    response_serializer=demo__pb2.ValidatePaymentResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -769,6 +785,23 @@ class PaymentService(object):
         return grpc.experimental.unary_unary(request, target, '/oteldemo.PaymentService/Charge',
             demo__pb2.ChargeRequest.SerializeToString,
             demo__pb2.ChargeResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def Validate(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/oteldemo.PaymentService/Validate',
+            demo__pb2.ValidatePaymentRequest.SerializeToString,
+            demo__pb2.ValidatePaymentResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 

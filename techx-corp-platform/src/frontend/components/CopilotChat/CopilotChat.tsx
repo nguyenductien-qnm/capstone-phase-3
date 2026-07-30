@@ -26,6 +26,7 @@ const loadingDots = keyframes`
 `;
 
 import { TraceCitationPanel } from '../TraceCitationPanel';
+import { MandateBadges } from '../MandateExperience/MandateExperience';
 
 const ChatWrapper = styled.div`
   position: fixed;
@@ -35,7 +36,7 @@ const ChatWrapper = styled.div`
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 `;
 
-const ChatToggleBtn = styled.button<{ isOpen: boolean }>`
+const ChatToggleBtn = styled.button<{ $isOpen: boolean }>`
   width: 65px;
   height: 65px;
   border-radius: 50%;
@@ -48,11 +49,11 @@ const ChatToggleBtn = styled.button<{ isOpen: boolean }>`
   align-items: center;
   justify-content: center;
   transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-  transform: ${props => (props.isOpen ? 'scale(0)' : 'scale(1)')};
-  opacity: ${props => (props.isOpen ? 0 : 1)};
+  transform: ${props => (props.$isOpen ? 'scale(0)' : 'scale(1)')};
+  opacity: ${props => (props.$isOpen ? 0 : 1)};
   
   &:hover {
-    transform: ${props => (props.isOpen ? 'scale(0)' : 'scale(1.1)')};
+    transform: ${props => (props.$isOpen ? 'scale(0)' : 'scale(1.1)')};
     box-shadow: 0 12px 28px rgba(0, 0, 0, 0.3);
   }
   
@@ -63,7 +64,7 @@ const ChatToggleBtn = styled.button<{ isOpen: boolean }>`
   }
 `;
 
-const ChatContainer = styled.div<{ isOpen: boolean }>`
+const ChatContainer = styled.div<{ $isOpen: boolean }>`
   position: absolute;
   bottom: 0;
   right: 0;
@@ -81,9 +82,9 @@ const ChatContainer = styled.div<{ isOpen: boolean }>`
   overflow: hidden;
   transform-origin: bottom right;
   transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  transform: ${props => (props.isOpen ? 'scale(1)' : 'scale(0.8)')};
-  opacity: ${props => (props.isOpen ? 1 : 0)};
-  pointer-events: ${props => (props.isOpen ? 'auto' : 'none')};
+  transform: ${props => (props.$isOpen ? 'scale(1)' : 'scale(0.8)')};
+  opacity: ${props => (props.$isOpen ? 1 : 0)};
+  pointer-events: ${props => (props.$isOpen ? 'auto' : 'none')};
 `;
 
 const ChatHeader = styled.div`
@@ -107,7 +108,7 @@ const HeaderTitle = styled.div`
     letter-spacing: 0.3px;
   }
   
-  span {
+  > span {
     font-size: 12px;
     color: rgba(255, 255, 255, 0.7);
     margin-top: 4px;
@@ -170,23 +171,23 @@ const MessagesContainer = styled.div`
   }
 `;
 
-const MessageGroup = styled.div<{ isUser: boolean }>`
+const MessageGroup = styled.div<{ $isUser: boolean }>`
   display: flex;
   flex-direction: column;
-  align-items: ${props => (props.isUser ? 'flex-end' : 'flex-start')};
+  align-items: ${props => (props.$isUser ? 'flex-end' : 'flex-start')};
   animation: ${slideUp} 0.3s ease-out forwards;
 `;
 
-const MessageBubble = styled.div<{ isUser: boolean }>`
+const MessageBubble = styled.div<{ $isUser: boolean }>`
   max-width: 85%;
   padding: 14px 18px;
   border-radius: 20px;
-  background: ${props => (props.isUser ? 'linear-gradient(135deg, #111, #222)' : 'rgba(255, 255, 255, 0.9)')};
-  color: ${props => (props.isUser ? '#fff' : '#111')};
-  border-bottom-right-radius: ${props => (props.isUser ? '4px' : '20px')};
-  border-bottom-left-radius: ${props => (props.isUser ? '20px' : '4px')};
-  box-shadow: ${props => (props.isUser ? '0 4px 12px rgba(0,0,0,0.15)' : '0 4px 12px rgba(0,0,0,0.05)')};
-  border: ${props => (props.isUser ? 'none' : '1px solid rgba(0,0,0,0.05)')};
+  background: ${props => (props.$isUser ? 'linear-gradient(135deg, #111, #222)' : 'rgba(255, 255, 255, 0.9)')};
+  color: ${props => (props.$isUser ? '#fff' : '#111')};
+  border-bottom-right-radius: ${props => (props.$isUser ? '4px' : '20px')};
+  border-bottom-left-radius: ${props => (props.$isUser ? '20px' : '4px')};
+  box-shadow: ${props => (props.$isUser ? '0 4px 12px rgba(0,0,0,0.15)' : '0 4px 12px rgba(0,0,0,0.05)')};
+  border: ${props => (props.$isUser ? 'none' : '1px solid rgba(0,0,0,0.05)')};
   font-size: 14px;
   line-height: 1.5;
   letter-spacing: 0.2px;
@@ -224,20 +225,20 @@ const ButtonRow = styled.div`
   gap: 12px;
 `;
 
-const ActionButton = styled.button<{ primary?: boolean }>`
+const ActionButton = styled.button<{ $primary?: boolean }>`
   flex: 1;
   padding: 10px 0;
-  border: ${props => (props.primary ? 'none' : '1px solid #ddd')};
+  border: ${props => (props.$primary ? 'none' : '1px solid #ddd')};
   border-radius: 10px;
   cursor: pointer;
-  background: ${props => (props.primary ? '#111' : '#fff')};
-  color: ${props => (props.primary ? '#fff' : '#111')};
+  background: ${props => (props.$primary ? '#111' : '#fff')};
+  color: ${props => (props.$primary ? '#fff' : '#111')};
   font-weight: 600;
   font-size: 13px;
   transition: all 0.2s;
   
   &:hover {
-    background: ${props => (props.primary ? '#333' : '#f5f5f5')};
+    background: ${props => (props.$primary ? '#333' : '#f5f5f5')};
     transform: translateY(-1px);
   }
   
@@ -445,7 +446,7 @@ export default function CopilotChat() {
 
   return (
     <ChatWrapper>
-      <ChatToggleBtn isOpen={isOpen} onClick={() => setIsOpen(true)}>
+      <ChatToggleBtn aria-label="Open Shopping Copilot" aria-expanded={isOpen} $isOpen={isOpen} onClick={() => setIsOpen(true)}>
         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <path d="M20 2H4C2.9 2 2 2.9 2 4V22L6 18H20C21.1 18 22 17.1 22 16V4C22 2.9 21.1 2 20 2ZM20 16H5.17L4 17.17V4H20V16Z"/>
           <path d="M7 9H17V11H7V9Z"/>
@@ -454,13 +455,14 @@ export default function CopilotChat() {
         </svg>
       </ChatToggleBtn>
       
-      <ChatContainer isOpen={isOpen}>
+      <ChatContainer $isOpen={isOpen}>
         <ChatHeader>
           <HeaderTitle>
             <h3>Shopping Copilot</h3>
-            <span>Online and ready to assist</span>
+            <span>Grounded, observable and fallback-safe</span>
+            <MandateBadges compact />
           </HeaderTitle>
-          <CloseButton onClick={() => setIsOpen(false)}>
+          <CloseButton aria-label="Close Shopping Copilot" onClick={() => setIsOpen(false)}>
             <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path d="M19 6.41L17.59 5L12 10.59L6.41 5L5 6.41L10.59 12L5 17.59L6.41 19L12 13.41L17.59 19L19 17.59L13.41 12L19 6.41Z"/>
             </svg>
@@ -469,16 +471,16 @@ export default function CopilotChat() {
         
         <MessagesContainer>
           {messages.map((msg) => (
-            <MessageGroup key={msg.id} isUser={msg.isUser}>
+            <MessageGroup key={msg.id} $isUser={msg.isUser}>
               {msg.text && (
-                <MessageBubble isUser={msg.isUser}>{msg.text}</MessageBubble>
+                <MessageBubble $isUser={msg.isUser}>{msg.text}</MessageBubble>
               )}
               
               {msg.pendingAction && !msg.isUser && (
                 <ActionGateCard>
                   <ActionPrompt>{msg.pendingAction.humanPrompt}</ActionPrompt>
                   <ButtonRow>
-                    <ActionButton primary onClick={() => handleConfirmAction(msg.pendingAction!.confirmationToken, msg.pendingAction!.humanPrompt)}>
+                    <ActionButton $primary onClick={() => handleConfirmAction(msg.pendingAction!.confirmationToken, msg.pendingAction!.humanPrompt)}>
                       Confirm
                     </ActionButton>
                     <ActionButton onClick={handleRejectAction}>
@@ -498,8 +500,8 @@ export default function CopilotChat() {
             </MessageGroup>
           ))}
           {isLoading && (
-            <MessageGroup isUser={false}>
-              <LoadingBubble isUser={false}>Thinking</LoadingBubble>
+            <MessageGroup $isUser={false}>
+              <LoadingBubble $isUser={false}>Thinking</LoadingBubble>
             </MessageGroup>
           )}
           <div ref={messagesEndRef} />

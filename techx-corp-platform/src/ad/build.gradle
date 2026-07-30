@@ -69,7 +69,7 @@ dependencies {
 
 // Default protoSourceDir is in /techx-corp/pb. Optionally override the
 // location for the docker build, which copies the protos to a different location.
-def protoSourceDir = findProperty('protoSourceDir')?: project.projectDir.parentFile.parentFile.toPath().toString() + "/pb"
+def protoSourceDir = findProperty('protoSourceDir') ?: project.projectDir.toPath().resolve('../../pb').normalize().toString()
 def protoDestDir = project.buildDir.toPath().toString() + "/proto"
 
 // Copy protos to the build directory
@@ -144,7 +144,13 @@ task ad(type: CreateStartScripts) {
     classpath = startScripts.classpath
 }
 
-applicationDistribution.into('bin') {
-    from(ad)
-    fileMode = 0755
+distributions {
+    main {
+        contents {
+            into('bin') {
+                from(ad)
+                filePermissions { unix('rwxr-xr-x') }
+            }
+        }
+    }
 }

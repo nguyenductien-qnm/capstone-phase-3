@@ -1,0 +1,9 @@
+{
+  "group": "longterm",
+  "case": "recall-new-session",
+  "passed": false,
+  "reason": "phiên mới nhớ lại: False",
+  "latency": 18.31,
+  "cache_status": "miss",
+  "response": "Dựa trên mục đích sử dụng của bạn là ngắm sao, tôi gợi ý hai sản phẩm sau:\n\n1. **Solar Filter** - Một phụ kiện bảo vệ cho kính thiên văn 8 inch, giúp bạn quan sát Mặt Trời an toàn. Giá: $69.95.\n2. **Roof Binoculars** - Một loại ống nhòm phù hợp cho quan sát thiên nhiên và ngắm sao. Giá: $209.95.\n\nBạ"
+}

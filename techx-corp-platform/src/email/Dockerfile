@@ -11,7 +11,7 @@ COPY ./src/email/Gemfile.lock Gemfile.lock
 
 # zlib-dev: header để build native ext của gem zlib (pin vá CVE-2026-27820).
 RUN apk update && \
-    apk add --no-cache make gcc musl-dev gcompat zlib-dev && \
+    apk add --no-cache make gcc g++ musl-dev gcompat zlib-dev && \
     bundle config set --local path 'vendor/bundle' && \
     bundle install
 

@@ -191,7 +191,12 @@ def test_committed_scenario_files_parse_and_normalize():
     for path in files:
         with open(path, "r", encoding="utf-8") as f:
             scenario = json.load(f)
-        assert scenario["type"] in ("real", "masking", "healthy_load")
+        # Danh sach nay phai khop `verdict_for_type` — mot type khong co nhanh verdict se
+        # cham ra None trong im lang. Them "sustained" cho MANDATE-28.
+        assert scenario["type"] in ("real", "masking", "healthy_load", "sustained")
+        # Kiem THAT: type nao khong co nhanh thi verdict tra ve None.
+        assert ir.verdict_for_type(scenario["type"], [])[0] is not None, \
+            f"type '{scenario['type']}' khong co nhanh trong verdict_for_type"
         events = ir._normalize_events(scenario)
         assert len(events) >= 1
         for ev in events:

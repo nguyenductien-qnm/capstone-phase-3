@@ -148,6 +148,33 @@ CREATE TABLE IF NOT EXISTS catalog.product_embeddings_v2 (
 );
 CREATE INDEX IF NOT EXISTS idx_product_embeddings_v2 ON catalog.product_embeddings_v2 USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64);
 
+-- AI tables: user_memory is MANDATE-23; semantic_cache remains for product-reviews compatibility
+CREATE SCHEMA IF NOT EXISTS ai;
+
+CREATE TABLE IF NOT EXISTS ai.semantic_cache (
+    id SERIAL PRIMARY KEY,
+    scope_key TEXT NOT NULL,
+    question TEXT NOT NULL,
+    question_embedding VECTOR(1024),
+    answer TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_semantic_cache_embedding ON ai.semantic_cache USING hnsw (question_embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64);
+CREATE INDEX IF NOT EXISTS idx_semantic_cache_scope ON ai.semantic_cache (scope_key);
+CREATE INDEX IF NOT EXISTS idx_semantic_cache_created_at ON ai.semantic_cache (created_at);
+
+CREATE TABLE IF NOT EXISTS ai.user_memory (
+    user_id TEXT NOT NULL,
+    key TEXT NOT NULL,
+    value TEXT NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, key)
+);
+
+GRANT USAGE ON SCHEMA ai TO otelu;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA ai TO otelu;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA ai TO otelu;
+
 -- Product Catalog Service: grant permission to schema
 GRANT SELECT ON ALL TABLES IN SCHEMA catalog TO otelu;
 GRANT SELECT, INSERT, UPDATE ON catalog.product_embeddings_v2 TO otelu;

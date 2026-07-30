@@ -1,0 +1,82 @@
+{
+  "_doc": [
+    "Do thi phu thuoc DU PHONG cho aiops/diagnose.py (MANDATE-26).",
+    "",
+    "CHI dung khi khong suy duoc tu spanmetrics (khong co Prometheus, hoac khop span_name",
+    "ra 0 canh). Khi phai dung, diagnose.py in ro `topology_source: static-fallback` kem",
+    "canh bao — khong bao gio xuong cap am tham.",
+    "",
+    "`edges`: A -> B nghia la 'B hong thi A hong theo' (LAN LOI DONG BO). Do la quan he",
+    "duy nhat co ich cho RCA. Mot loi goi khong lan loi thi khong duoc dat vao day, du",
+    "trong so nguon van la mot phu thuoc.",
+    "",
+    "`async_edges`: quan he QUA KAFKA. Ghi lai de nguoi doc biet chung ton tai, nhung CO Y",
+    "khong dua vao do thi nhan qua. Bang chung do duoc, khong phai suy doan: 26/07 giet",
+    "`payment` 367 giay -> ti le loi cua `checkout` dung nguyen 0.0000 suot 13/13 mau, vi",
+    "checkout day don vao topic roi tra ve ngay. Xem report/mandate15-eks/report.md muc 4.1.",
+    "Neu dat checkout -> payment vao `edges`, RCA se ket luan sai rang payment giai thich",
+    "duoc trang thai cua checkout.",
+    "",
+    "NGUON: bien moi truong *_ADDR trong techx-corp-platform/src/<service>/ va cluster trong",
+    "frontend-proxy/envoy.tmpl.yaml, doc ngay 2026-07-29.",
+    "",
+    "CANH BAO LOI THOI: file nay la anh chup mot thoi diem. Kien truc doi ma file khong doi",
+    "thi RCA se lap luan tren mot do thi sai — dung lop loi 'trong nhu dang canh nhung thuc",
+    "ra khong'. Vi du song: checkout -> payment tung la gRPC dong bo, chuyen sang Kafka",
+    "25/07. Uu tien luon la suy tu spanmetrics; file nay chi la luoi do."
+  ],
+  "generated_at": "2026-07-29",
+  "source": "techx-corp-platform/src/*/ (env *_ADDR) + frontend-proxy/envoy.tmpl.yaml",
+  "edges": {
+    "frontend-proxy": ["frontend", "image-provider", "shopping-copilot"],
+    "frontend": [
+      "ad",
+      "cart",
+      "checkout",
+      "currency",
+      "product-catalog",
+      "product-reviews",
+      "recommendation",
+      "shipping",
+      "shopping-copilot"
+    ],
+    "checkout": ["cart", "currency", "email", "product-catalog", "shipping"],
+    "shopping-copilot": [
+      "cart",
+      "currency",
+      "ml-guard",
+      "product-catalog",
+      "product-reviews",
+      "recommendation",
+      "shipping"
+    ],
+    "product-reviews": ["llm", "product-catalog"],
+    "recommendation": ["product-catalog"],
+    "shipping": ["quote"]
+  },
+  "async_edges": {
+    "_doc": "Qua Kafka — KHONG lan loi dong bo, KHONG dung cho RCA nhan qua.",
+    "checkout": ["payment"],
+    "shipping": ["accounting"],
+    "payment": ["accounting", "fraud-detection"]
+  },
+  "not_in_graph": {
+    "_doc": [
+      "Ha tang quan sat + phu tro: khong co canh nao toi service nghiep vu, nen mot su co",
+      "o day KHONG the la goc cua mot cascade nghiep vu. Do dung la co che loai tuong quan:",
+      "28/07 pod jaeger OOM deu dan ~39 phut/lan, hoan toan doc lap voi moi su co dang do."
+    ],
+    "services": [
+      "jaeger",
+      "prometheus",
+      "grafana",
+      "opensearch",
+      "otel-collector",
+      "kafka",
+      "postgresql",
+      "flagd",
+      "flagd-ui",
+      "load-generator"
+    ]
+  }
+}

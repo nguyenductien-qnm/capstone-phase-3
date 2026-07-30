@@ -158,6 +158,15 @@ message AskProductAIAssistantResponse {
     string trace_id = 2;
     repeated ProductReviewCitation citations = 3;
     repeated TraceStep trace_steps = 4;
+    
+    // Trạng thái cache: hit_exact, hit_semantic, miss, bypass
+    string cache_status = 5;
+    
+    // Độ tương đồng (nếu hit_semantic)
+    float similarity = 6;
+    
+    // Fingerprint của nguồn dữ liệu
+    string source_fingerprint = 7;
 }
 
 

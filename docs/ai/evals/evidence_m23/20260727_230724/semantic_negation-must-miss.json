@@ -1,0 +1,9 @@
+{
+  "group": "semantic",
+  "case": "negation-must-miss",
+  "passed": true,
+  "reason": "câu phủ định: miss (không được hit_semantic)",
+  "latency": 4.92,
+  "cache_status": "miss",
+  "response": "Không tìm thấy sản phẩm liên quan đến từ khóa \"pin\". Bạn có thể cung cấp thêm thông tin chi tiết về sản phẩm mà bạn quan tâm không?"
+}

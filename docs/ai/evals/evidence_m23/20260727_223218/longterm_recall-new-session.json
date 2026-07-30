@@ -1,0 +1,9 @@
+{
+  "group": "longterm",
+  "case": "recall-new-session",
+  "passed": false,
+  "reason": "phiên mới nhớ lại: False",
+  "latency": 37.17,
+  "cache_status": "miss",
+  "response": "Tôi đề xuất sản phẩm Roof Binoculars cho bạn. Nó có điểm trung bình là 4.4 với 5 đánh giá. Các nhận xét tích cực về sản phẩm bao gồm độ rõ nét và độ sáng tuyệt vời, thích hợp cho quan sát chim, thủy tinh ED giúp phát hiện các dấu hiệu tinh tế, tập trung gần là một lợi thế lớn để quan sát động vật ho"
+}

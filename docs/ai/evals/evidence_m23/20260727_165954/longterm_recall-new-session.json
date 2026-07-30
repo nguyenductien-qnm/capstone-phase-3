@@ -1,0 +1,9 @@
+{
+  "group": "longterm",
+  "case": "recall-new-session",
+  "passed": true,
+  "reason": "phiên mới nhớ lại: True",
+  "latency": 5.49,
+  "cache_status": "miss",
+  "response": "Chúng tôi rất tiếc, hiện tại chưa có sách nào về thiên văn dành cho người mới bắt đầu trong danh mục của chúng tôi. Bạn có thể thử tìm kiếm các sản phẩm khác hoặc liên hệ với chúng tôi để được hỗ trợ tìm kiếm thêm."
+}

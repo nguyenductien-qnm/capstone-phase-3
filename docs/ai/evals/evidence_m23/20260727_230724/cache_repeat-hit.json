@@ -1,0 +1,9 @@
+{
+  "group": "cache",
+  "case": "repeat-hit",
+  "passed": true,
+  "reason": "lần hai hit_exact (2.34s → 0.99s)",
+  "latency": 0.99,
+  "cache_status": "hit_exact",
+  "response": "Giá của sản phẩm \"Roof Binoculars\" là $209.95."
+}

@@ -1,0 +1,9 @@
+{
+  "group": "semantic",
+  "case": "opposite-must-miss",
+  "passed": true,
+  "reason": "đổi mốc giá dưới→trên: miss (không được hit_semantic)",
+  "latency": 21.42,
+  "cache_status": "miss",
+  "response": "Có một sản phẩm có giá 69.95 USD là \"Solar Filter\" cho kính thiên văn 8\". Nếu khách muốn, tôi có thể cung cấp thông tin về sản phẩm này."
+}

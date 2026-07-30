@@ -1,0 +1,9 @@
+{
+  "group": "shortterm",
+  "case": "three-turns",
+  "passed": false,
+  "reason": "lượt 3 nhắc lại sản phẩm của lượt trước: KHÔNG",
+  "latency": 13.37,
+  "cache_status": "miss",
+  "response": "Xin lỗi, trợ lý đang tạm quá tải. Bạn vui lòng thử lại sau ít giây, hoặc duyệt sản phẩm trực tiếp trên cửa hàng."
+}

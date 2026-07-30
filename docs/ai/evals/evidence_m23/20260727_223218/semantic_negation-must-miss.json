@@ -1,0 +1,9 @@
+{
+  "group": "semantic",
+  "case": "negation-must-miss",
+  "passed": true,
+  "reason": "câu phủ định: miss (không được hit_semantic)",
+  "latency": 3.27,
+  "cache_status": "miss",
+  "response": "Dạ, mình là trợ lý mua sắm của TechX, chuyên hỗ trợ về thiết bị thiên văn. Bạn cần tìm kính thiên văn, ống nhòm hay phụ kiện gì không?"
+}

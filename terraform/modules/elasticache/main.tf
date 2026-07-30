@@ -34,6 +34,24 @@ resource "aws_security_group" "valkey" {
   }
 }
 
+# Valkey Search cần dành riêng % bộ nhớ cho index — không cấu hình thì FT.CREATE lỗi
+# "please configure memory reserve to 50% on a micro instance or 30% on a small".
+# Giá trị theo đúng khuyến nghị đó (AWS docs: redis-memory-management-need).
+locals {
+  valkey_search_reserved_memory_percent = strcontains(var.node_type, "micro") ? 50 : 30
+}
+
+resource "aws_elasticache_parameter_group" "valkey_search" {
+  name        = "${var.project_name}-${var.environment}-valkey8-search"
+  family      = "valkey8"
+  description = "Valkey8 params cho ${var.project_name} - reserved-memory-percent cho Search/L2 semantic cache"
+
+  parameter {
+    name  = "reserved-memory-percent"
+    value = local.valkey_search_reserved_memory_percent
+  }
+}
+
 # Replication Group cho Valkey
 resource "aws_elasticache_replication_group" "this" {
   replication_group_id = "${var.project_name}-${var.environment}-valkey"
@@ -43,10 +61,11 @@ resource "aws_elasticache_replication_group" "this" {
   port                 = 6379
 
   engine         = "valkey"
-  engine_version = "7.2"
+  engine_version = "8.2"
 
-  subnet_group_name  = aws_elasticache_subnet_group.this.name
-  security_group_ids = [aws_security_group.valkey.id]
+  parameter_group_name = aws_elasticache_parameter_group.valkey_search.name
+  subnet_group_name    = aws_elasticache_subnet_group.this.name
+  security_group_ids   = [aws_security_group.valkey.id]
 
   automatic_failover_enabled = true
   # CDO-91 / ADR-REL-004: guarantee cross-AZ chính thức. Yêu cầu num_cache_clusters >= 2 (đang = 2).

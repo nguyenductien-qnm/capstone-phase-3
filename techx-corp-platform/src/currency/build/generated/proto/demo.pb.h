@@ -211,6 +211,12 @@ extern UpdateFlagRequestDefaultTypeInternal _UpdateFlagRequest_default_instance_
 class UpdateFlagResponse;
 struct UpdateFlagResponseDefaultTypeInternal;
 extern UpdateFlagResponseDefaultTypeInternal _UpdateFlagResponse_default_instance_;
+class ValidatePaymentRequest;
+struct ValidatePaymentRequestDefaultTypeInternal;
+extern ValidatePaymentRequestDefaultTypeInternal _ValidatePaymentRequest_default_instance_;
+class ValidatePaymentResponse;
+struct ValidatePaymentResponseDefaultTypeInternal;
+extern ValidatePaymentResponseDefaultTypeInternal _ValidatePaymentResponse_default_instance_;
 }  // namespace oteldemo
 namespace google {
 namespace protobuf {
@@ -4099,6 +4105,9 @@ class AskProductAIAssistantResponse final :
     kTraceStepsFieldNumber = 4,
     kResponseFieldNumber = 1,
     kTraceIdFieldNumber = 2,
+    kCacheStatusFieldNumber = 5,
+    kSourceFingerprintFieldNumber = 7,
+    kSimilarityFieldNumber = 6,
   };
   // repeated .oteldemo.ProductReviewCitation citations = 3;
   int citations_size() const;
@@ -4168,12 +4177,54 @@ class AskProductAIAssistantResponse final :
   std::string* _internal_mutable_trace_id();
 
   public:
+  // string cache_status = 5;
+  void clear_cache_status() ;
+  const std::string& cache_status() const;
+  template <typename Arg_ = const std::string&, typename... Args_>
+  void set_cache_status(Arg_&& arg, Args_... args);
+  std::string* mutable_cache_status();
+  PROTOBUF_NODISCARD std::string* release_cache_status();
+  void set_allocated_cache_status(std::string* ptr);
+
+  private:
+  const std::string& _internal_cache_status() const;
+  inline PROTOBUF_ALWAYS_INLINE void _internal_set_cache_status(
+      const std::string& value);
+  std::string* _internal_mutable_cache_status();
+
+  public:
+  // string source_fingerprint = 7;
+  void clear_source_fingerprint() ;
+  const std::string& source_fingerprint() const;
+  template <typename Arg_ = const std::string&, typename... Args_>
+  void set_source_fingerprint(Arg_&& arg, Args_... args);
+  std::string* mutable_source_fingerprint();
+  PROTOBUF_NODISCARD std::string* release_source_fingerprint();
+  void set_allocated_source_fingerprint(std::string* ptr);
+
+  private:
+  const std::string& _internal_source_fingerprint() const;
+  inline PROTOBUF_ALWAYS_INLINE void _internal_set_source_fingerprint(
+      const std::string& value);
+  std::string* _internal_mutable_source_fingerprint();
+
+  public:
+  // float similarity = 6;
+  void clear_similarity() ;
+  float similarity() const;
+  void set_similarity(float value);
+
+  private:
+  float _internal_similarity() const;
+  void _internal_set_similarity(float value);
+
+  public:
   // @@protoc_insertion_point(class_scope:oteldemo.AskProductAIAssistantResponse)
  private:
   class _Internal;
 
   friend class ::google::protobuf::internal::TcParser;
-  static const ::google::protobuf::internal::TcParseTable<2, 4, 2, 63, 2> _table_;
+  static const ::google::protobuf::internal::TcParseTable<3, 7, 2, 93, 2> _table_;
   template <typename T> friend class ::google::protobuf::Arena::InternalHelper;
   typedef void InternalArenaConstructable_;
   typedef void DestructorSkippable_;
@@ -4182,6 +4233,9 @@ class AskProductAIAssistantResponse final :
     ::google::protobuf::RepeatedPtrField< ::oteldemo::TraceStep > trace_steps_;
     ::google::protobuf::internal::ArenaStringPtr response_;
     ::google::protobuf::internal::ArenaStringPtr trace_id_;
+    ::google::protobuf::internal::ArenaStringPtr cache_status_;
+    ::google::protobuf::internal::ArenaStringPtr source_fingerprint_;
+    float similarity_;
     mutable ::google::protobuf::internal::CachedSize _cached_size_;
     PROTOBUF_TSAN_DECLARE_MEMBER
   };
@@ -5867,6 +5921,346 @@ class CreditCardInfo final :
   friend struct ::TableStruct_demo_2eproto;
 };// -------------------------------------------------------------------
 
+class ValidatePaymentRequest final :
+    public ::google::protobuf::Message /* @@protoc_insertion_point(class_definition:oteldemo.ValidatePaymentRequest) */ {
+ public:
+  inline ValidatePaymentRequest() : ValidatePaymentRequest(nullptr) {}
+  ~ValidatePaymentRequest() override;
+  template<typename = void>
+  explicit PROTOBUF_CONSTEXPR ValidatePaymentRequest(::google::protobuf::internal::ConstantInitialized);
+
+  ValidatePaymentRequest(const ValidatePaymentRequest& from);
+  ValidatePaymentRequest(ValidatePaymentRequest&& from) noexcept
+    : ValidatePaymentRequest() {
+    *this = ::std::move(from);
+  }
+
+  inline ValidatePaymentRequest& operator=(const ValidatePaymentRequest& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline ValidatePaymentRequest& operator=(ValidatePaymentRequest&& from) noexcept {
+    if (this == &from) return *this;
+    if (GetOwningArena() == from.GetOwningArena()
+  #ifdef PROTOBUF_FORCE_COPY_IN_MOVE
+        && GetOwningArena() != nullptr
+  #endif  // !PROTOBUF_FORCE_COPY_IN_MOVE
+    ) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const {
+    return _internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance);
+  }
+  inline ::google::protobuf::UnknownFieldSet* mutable_unknown_fields() {
+    return _internal_metadata_.mutable_unknown_fields<::google::protobuf::UnknownFieldSet>();
+  }
+
+  static const ::google::protobuf::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::google::protobuf::Descriptor* GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  static const ::google::protobuf::Reflection* GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  static const ValidatePaymentRequest& default_instance() {
+    return *internal_default_instance();
+  }
+  static inline const ValidatePaymentRequest* internal_default_instance() {
+    return reinterpret_cast<const ValidatePaymentRequest*>(
+               &_ValidatePaymentRequest_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    31;
+
+  friend void swap(ValidatePaymentRequest& a, ValidatePaymentRequest& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(ValidatePaymentRequest* other) {
+    if (other == this) return;
+  #ifdef PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() != nullptr &&
+        GetOwningArena() == other->GetOwningArena()) {
+   #else  // PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() == other->GetOwningArena()) {
+  #endif  // !PROTOBUF_FORCE_COPY_IN_SWAP
+      InternalSwap(other);
+    } else {
+      ::google::protobuf::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(ValidatePaymentRequest* other) {
+    if (other == this) return;
+    ABSL_DCHECK(GetOwningArena() == other->GetOwningArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  ValidatePaymentRequest* New(::google::protobuf::Arena* arena = nullptr) const final {
+    return CreateMaybeMessage<ValidatePaymentRequest>(arena);
+  }
+  using ::google::protobuf::Message::CopyFrom;
+  void CopyFrom(const ValidatePaymentRequest& from);
+  using ::google::protobuf::Message::MergeFrom;
+  void MergeFrom( const ValidatePaymentRequest& from) {
+    ValidatePaymentRequest::MergeImpl(*this, from);
+  }
+  private:
+  static void MergeImpl(::google::protobuf::Message& to_msg, const ::google::protobuf::Message& from_msg);
+  public:
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  ::size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::google::protobuf::internal::ParseContext* ctx) final;
+  ::uint8_t* _InternalSerialize(
+      ::uint8_t* target, ::google::protobuf::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _impl_._cached_size_.Get(); }
+
+  private:
+  void SharedCtor(::google::protobuf::Arena* arena);
+  void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(ValidatePaymentRequest* other);
+
+  private:
+  friend class ::google::protobuf::internal::AnyMetadata;
+  static ::absl::string_view FullMessageName() {
+    return "oteldemo.ValidatePaymentRequest";
+  }
+  protected:
+  explicit ValidatePaymentRequest(::google::protobuf::Arena* arena);
+  public:
+
+  static const ClassData _class_data_;
+  const ::google::protobuf::Message::ClassData*GetClassData() const final;
+
+  ::google::protobuf::Metadata GetMetadata() const final;
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kCreditCardFieldNumber = 1,
+  };
+  // .oteldemo.CreditCardInfo credit_card = 1;
+  bool has_credit_card() const;
+  void clear_credit_card() ;
+  const ::oteldemo::CreditCardInfo& credit_card() const;
+  PROTOBUF_NODISCARD ::oteldemo::CreditCardInfo* release_credit_card();
+  ::oteldemo::CreditCardInfo* mutable_credit_card();
+  void set_allocated_credit_card(::oteldemo::CreditCardInfo* value);
+  void unsafe_arena_set_allocated_credit_card(::oteldemo::CreditCardInfo* value);
+  ::oteldemo::CreditCardInfo* unsafe_arena_release_credit_card();
+
+  private:
+  const ::oteldemo::CreditCardInfo& _internal_credit_card() const;
+  ::oteldemo::CreditCardInfo* _internal_mutable_credit_card();
+
+  public:
+  // @@protoc_insertion_point(class_scope:oteldemo.ValidatePaymentRequest)
+ private:
+  class _Internal;
+
+  friend class ::google::protobuf::internal::TcParser;
+  static const ::google::protobuf::internal::TcParseTable<0, 1, 1, 0, 2> _table_;
+  template <typename T> friend class ::google::protobuf::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  struct Impl_ {
+    ::google::protobuf::internal::HasBits<1> _has_bits_;
+    mutable ::google::protobuf::internal::CachedSize _cached_size_;
+    ::oteldemo::CreditCardInfo* credit_card_;
+    PROTOBUF_TSAN_DECLARE_MEMBER
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_demo_2eproto;
+};// -------------------------------------------------------------------
+
+class ValidatePaymentResponse final :
+    public ::google::protobuf::Message /* @@protoc_insertion_point(class_definition:oteldemo.ValidatePaymentResponse) */ {
+ public:
+  inline ValidatePaymentResponse() : ValidatePaymentResponse(nullptr) {}
+  ~ValidatePaymentResponse() override;
+  template<typename = void>
+  explicit PROTOBUF_CONSTEXPR ValidatePaymentResponse(::google::protobuf::internal::ConstantInitialized);
+
+  ValidatePaymentResponse(const ValidatePaymentResponse& from);
+  ValidatePaymentResponse(ValidatePaymentResponse&& from) noexcept
+    : ValidatePaymentResponse() {
+    *this = ::std::move(from);
+  }
+
+  inline ValidatePaymentResponse& operator=(const ValidatePaymentResponse& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline ValidatePaymentResponse& operator=(ValidatePaymentResponse&& from) noexcept {
+    if (this == &from) return *this;
+    if (GetOwningArena() == from.GetOwningArena()
+  #ifdef PROTOBUF_FORCE_COPY_IN_MOVE
+        && GetOwningArena() != nullptr
+  #endif  // !PROTOBUF_FORCE_COPY_IN_MOVE
+    ) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const {
+    return _internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance);
+  }
+  inline ::google::protobuf::UnknownFieldSet* mutable_unknown_fields() {
+    return _internal_metadata_.mutable_unknown_fields<::google::protobuf::UnknownFieldSet>();
+  }
+
+  static const ::google::protobuf::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::google::protobuf::Descriptor* GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  static const ::google::protobuf::Reflection* GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  static const ValidatePaymentResponse& default_instance() {
+    return *internal_default_instance();
+  }
+  static inline const ValidatePaymentResponse* internal_default_instance() {
+    return reinterpret_cast<const ValidatePaymentResponse*>(
+               &_ValidatePaymentResponse_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    32;
+
+  friend void swap(ValidatePaymentResponse& a, ValidatePaymentResponse& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(ValidatePaymentResponse* other) {
+    if (other == this) return;
+  #ifdef PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() != nullptr &&
+        GetOwningArena() == other->GetOwningArena()) {
+   #else  // PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() == other->GetOwningArena()) {
+  #endif  // !PROTOBUF_FORCE_COPY_IN_SWAP
+      InternalSwap(other);
+    } else {
+      ::google::protobuf::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(ValidatePaymentResponse* other) {
+    if (other == this) return;
+    ABSL_DCHECK(GetOwningArena() == other->GetOwningArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  ValidatePaymentResponse* New(::google::protobuf::Arena* arena = nullptr) const final {
+    return CreateMaybeMessage<ValidatePaymentResponse>(arena);
+  }
+  using ::google::protobuf::Message::CopyFrom;
+  void CopyFrom(const ValidatePaymentResponse& from);
+  using ::google::protobuf::Message::MergeFrom;
+  void MergeFrom( const ValidatePaymentResponse& from) {
+    ValidatePaymentResponse::MergeImpl(*this, from);
+  }
+  private:
+  static void MergeImpl(::google::protobuf::Message& to_msg, const ::google::protobuf::Message& from_msg);
+  public:
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  ::size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::google::protobuf::internal::ParseContext* ctx) final;
+  ::uint8_t* _InternalSerialize(
+      ::uint8_t* target, ::google::protobuf::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _impl_._cached_size_.Get(); }
+
+  private:
+  void SharedCtor(::google::protobuf::Arena* arena);
+  void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(ValidatePaymentResponse* other);
+
+  private:
+  friend class ::google::protobuf::internal::AnyMetadata;
+  static ::absl::string_view FullMessageName() {
+    return "oteldemo.ValidatePaymentResponse";
+  }
+  protected:
+  explicit ValidatePaymentResponse(::google::protobuf::Arena* arena);
+  public:
+
+  static const ClassData _class_data_;
+  const ::google::protobuf::Message::ClassData*GetClassData() const final;
+
+  ::google::protobuf::Metadata GetMetadata() const final;
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kMessageFieldNumber = 2,
+    kValidFieldNumber = 1,
+  };
+  // string message = 2;
+  void clear_message() ;
+  const std::string& message() const;
+  template <typename Arg_ = const std::string&, typename... Args_>
+  void set_message(Arg_&& arg, Args_... args);
+  std::string* mutable_message();
+  PROTOBUF_NODISCARD std::string* release_message();
+  void set_allocated_message(std::string* ptr);
+
+  private:
+  const std::string& _internal_message() const;
+  inline PROTOBUF_ALWAYS_INLINE void _internal_set_message(
+      const std::string& value);
+  std::string* _internal_mutable_message();
+
+  public:
+  // bool valid = 1;
+  void clear_valid() ;
+  bool valid() const;
+  void set_valid(bool value);
+
+  private:
+  bool _internal_valid() const;
+  void _internal_set_valid(bool value);
+
+  public:
+  // @@protoc_insertion_point(class_scope:oteldemo.ValidatePaymentResponse)
+ private:
+  class _Internal;
+
+  friend class ::google::protobuf::internal::TcParser;
+  static const ::google::protobuf::internal::TcParseTable<1, 2, 0, 48, 2> _table_;
+  template <typename T> friend class ::google::protobuf::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  struct Impl_ {
+    ::google::protobuf::internal::ArenaStringPtr message_;
+    bool valid_;
+    mutable ::google::protobuf::internal::CachedSize _cached_size_;
+    PROTOBUF_TSAN_DECLARE_MEMBER
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_demo_2eproto;
+};// -------------------------------------------------------------------
+
 class ChargeRequest final :
     public ::google::protobuf::Message /* @@protoc_insertion_point(class_definition:oteldemo.ChargeRequest) */ {
  public:
@@ -5923,7 +6317,7 @@ class ChargeRequest final :
                &_ChargeRequest_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    31;
+    33;
 
   friend void swap(ChargeRequest& a, ChargeRequest& b) {
     a.Swap(&b);
@@ -6104,7 +6498,7 @@ class ChargeResponse final :
                &_ChargeResponse_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    32;
+    34;
 
   friend void swap(ChargeResponse& a, ChargeResponse& b) {
     a.Swap(&b);
@@ -6268,7 +6662,7 @@ class OrderItem final :
                &_OrderItem_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    33;
+    35;
 
   friend void swap(OrderItem& a, OrderItem& b) {
     a.Swap(&b);
@@ -6449,7 +6843,7 @@ class OrderResult final :
                &_OrderResult_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    34;
+    36;
 
   friend void swap(OrderResult& a, OrderResult& b) {
     a.Swap(&b);
@@ -6686,7 +7080,7 @@ class SendOrderConfirmationRequest final :
                &_SendOrderConfirmationRequest_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    35;
+    37;
 
   friend void swap(SendOrderConfirmationRequest& a, SendOrderConfirmationRequest& b) {
     a.Swap(&b);
@@ -6868,7 +7262,7 @@ class PlaceOrderRequest final :
                &_PlaceOrderRequest_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    36;
+    38;
 
   friend void swap(PlaceOrderRequest& a, PlaceOrderRequest& b) {
     a.Swap(&b);
@@ -7103,7 +7497,7 @@ class PlaceOrderResponse final :
                &_PlaceOrderResponse_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    37;
+    39;
 
   friend void swap(PlaceOrderResponse& a, PlaceOrderResponse& b) {
     a.Swap(&b);
@@ -7267,7 +7661,7 @@ class AdRequest final :
                &_AdRequest_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    38;
+    40;
 
   friend void swap(AdRequest& a, AdRequest& b) {
     a.Swap(&b);
@@ -7443,7 +7837,7 @@ class AdResponse final :
                &_AdResponse_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    39;
+    41;
 
   friend void swap(AdResponse& a, AdResponse& b) {
     a.Swap(&b);
@@ -7609,7 +8003,7 @@ class Ad final :
                &_Ad_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    40;
+    42;
 
   friend void swap(Ad& a, Ad& b) {
     a.Swap(&b);
@@ -7791,7 +8185,7 @@ class Flag final :
                &_Flag_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    41;
+    43;
 
   friend void swap(Flag& a, Flag& b) {
     a.Swap(&b);
@@ -7985,7 +8379,7 @@ class GetFlagRequest final :
                &_GetFlagRequest_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    42;
+    44;
 
   friend void swap(GetFlagRequest& a, GetFlagRequest& b) {
     a.Swap(&b);
@@ -8149,7 +8543,7 @@ class GetFlagResponse final :
                &_GetFlagResponse_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    43;
+    45;
 
   friend void swap(GetFlagResponse& a, GetFlagResponse& b) {
     a.Swap(&b);
@@ -8313,7 +8707,7 @@ class CreateFlagRequest final :
                &_CreateFlagRequest_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    44;
+    46;
 
   friend void swap(CreateFlagRequest& a, CreateFlagRequest& b) {
     a.Swap(&b);
@@ -8507,7 +8901,7 @@ class CreateFlagResponse final :
                &_CreateFlagResponse_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    45;
+    47;
 
   friend void swap(CreateFlagResponse& a, CreateFlagResponse& b) {
     a.Swap(&b);
@@ -8671,7 +9065,7 @@ class UpdateFlagRequest final :
                &_UpdateFlagRequest_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    46;
+    48;
 
   friend void swap(UpdateFlagRequest& a, UpdateFlagRequest& b) {
     a.Swap(&b);
@@ -8846,7 +9240,7 @@ class UpdateFlagResponse final :
                &_UpdateFlagResponse_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    47;
+    49;
 
   friend void swap(UpdateFlagResponse& a, UpdateFlagResponse& b) {
     a.Swap(&b);
@@ -8971,7 +9365,7 @@ class ListFlagsRequest final :
                &_ListFlagsRequest_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    48;
+    50;
 
   friend void swap(ListFlagsRequest& a, ListFlagsRequest& b) {
     a.Swap(&b);
@@ -9097,7 +9491,7 @@ class ListFlagsResponse final :
                &_ListFlagsResponse_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    49;
+    51;
 
   friend void swap(ListFlagsResponse& a, ListFlagsResponse& b) {
     a.Swap(&b);
@@ -9263,7 +9657,7 @@ class DeleteFlagRequest final :
                &_DeleteFlagRequest_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    50;
+    52;
 
   friend void swap(DeleteFlagRequest& a, DeleteFlagRequest& b) {
     a.Swap(&b);
@@ -9426,7 +9820,7 @@ class DeleteFlagResponse final :
                &_DeleteFlagResponse_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    51;
+    53;
 
   friend void swap(DeleteFlagResponse& a, DeleteFlagResponse& b) {
     a.Swap(&b);
@@ -11824,6 +12218,130 @@ AskProductAIAssistantResponse::_internal_mutable_trace_steps() {
   return &_impl_.trace_steps_;
 }
 
+// string cache_status = 5;
+inline void AskProductAIAssistantResponse::clear_cache_status() {
+  _impl_.cache_status_.ClearToEmpty();
+}
+inline const std::string& AskProductAIAssistantResponse::cache_status() const {
+  // @@protoc_insertion_point(field_get:oteldemo.AskProductAIAssistantResponse.cache_status)
+  return _internal_cache_status();
+}
+template <typename Arg_, typename... Args_>
+inline PROTOBUF_ALWAYS_INLINE void AskProductAIAssistantResponse::set_cache_status(Arg_&& arg,
+                                                     Args_... args) {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  ;
+  _impl_.cache_status_.Set(static_cast<Arg_&&>(arg), args..., GetArenaForAllocation());
+  // @@protoc_insertion_point(field_set:oteldemo.AskProductAIAssistantResponse.cache_status)
+}
+inline std::string* AskProductAIAssistantResponse::mutable_cache_status() {
+  std::string* _s = _internal_mutable_cache_status();
+  // @@protoc_insertion_point(field_mutable:oteldemo.AskProductAIAssistantResponse.cache_status)
+  return _s;
+}
+inline const std::string& AskProductAIAssistantResponse::_internal_cache_status() const {
+  PROTOBUF_TSAN_READ(&_impl_._tsan_detect_race);
+  return _impl_.cache_status_.Get();
+}
+inline void AskProductAIAssistantResponse::_internal_set_cache_status(const std::string& value) {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  ;
+  _impl_.cache_status_.Set(value, GetArenaForAllocation());
+}
+inline std::string* AskProductAIAssistantResponse::_internal_mutable_cache_status() {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  ;
+  return _impl_.cache_status_.Mutable( GetArenaForAllocation());
+}
+inline std::string* AskProductAIAssistantResponse::release_cache_status() {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  // @@protoc_insertion_point(field_release:oteldemo.AskProductAIAssistantResponse.cache_status)
+  return _impl_.cache_status_.Release();
+}
+inline void AskProductAIAssistantResponse::set_allocated_cache_status(std::string* value) {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  _impl_.cache_status_.SetAllocated(value, GetArenaForAllocation());
+  #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+        if (_impl_.cache_status_.IsDefault()) {
+          _impl_.cache_status_.Set("", GetArenaForAllocation());
+        }
+  #endif  // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+  // @@protoc_insertion_point(field_set_allocated:oteldemo.AskProductAIAssistantResponse.cache_status)
+}
+
+// float similarity = 6;
+inline void AskProductAIAssistantResponse::clear_similarity() {
+  _impl_.similarity_ = 0;
+}
+inline float AskProductAIAssistantResponse::similarity() const {
+  // @@protoc_insertion_point(field_get:oteldemo.AskProductAIAssistantResponse.similarity)
+  return _internal_similarity();
+}
+inline void AskProductAIAssistantResponse::set_similarity(float value) {
+  _internal_set_similarity(value);
+  // @@protoc_insertion_point(field_set:oteldemo.AskProductAIAssistantResponse.similarity)
+}
+inline float AskProductAIAssistantResponse::_internal_similarity() const {
+  PROTOBUF_TSAN_READ(&_impl_._tsan_detect_race);
+  return _impl_.similarity_;
+}
+inline void AskProductAIAssistantResponse::_internal_set_similarity(float value) {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  ;
+  _impl_.similarity_ = value;
+}
+
+// string source_fingerprint = 7;
+inline void AskProductAIAssistantResponse::clear_source_fingerprint() {
+  _impl_.source_fingerprint_.ClearToEmpty();
+}
+inline const std::string& AskProductAIAssistantResponse::source_fingerprint() const {
+  // @@protoc_insertion_point(field_get:oteldemo.AskProductAIAssistantResponse.source_fingerprint)
+  return _internal_source_fingerprint();
+}
+template <typename Arg_, typename... Args_>
+inline PROTOBUF_ALWAYS_INLINE void AskProductAIAssistantResponse::set_source_fingerprint(Arg_&& arg,
+                                                     Args_... args) {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  ;
+  _impl_.source_fingerprint_.Set(static_cast<Arg_&&>(arg), args..., GetArenaForAllocation());
+  // @@protoc_insertion_point(field_set:oteldemo.AskProductAIAssistantResponse.source_fingerprint)
+}
+inline std::string* AskProductAIAssistantResponse::mutable_source_fingerprint() {
+  std::string* _s = _internal_mutable_source_fingerprint();
+  // @@protoc_insertion_point(field_mutable:oteldemo.AskProductAIAssistantResponse.source_fingerprint)
+  return _s;
+}
+inline const std::string& AskProductAIAssistantResponse::_internal_source_fingerprint() const {
+  PROTOBUF_TSAN_READ(&_impl_._tsan_detect_race);
+  return _impl_.source_fingerprint_.Get();
+}
+inline void AskProductAIAssistantResponse::_internal_set_source_fingerprint(const std::string& value) {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  ;
+  _impl_.source_fingerprint_.Set(value, GetArenaForAllocation());
+}
+inline std::string* AskProductAIAssistantResponse::_internal_mutable_source_fingerprint() {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  ;
+  return _impl_.source_fingerprint_.Mutable( GetArenaForAllocation());
+}
+inline std::string* AskProductAIAssistantResponse::release_source_fingerprint() {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  // @@protoc_insertion_point(field_release:oteldemo.AskProductAIAssistantResponse.source_fingerprint)
+  return _impl_.source_fingerprint_.Release();
+}
+inline void AskProductAIAssistantResponse::set_allocated_source_fingerprint(std::string* value) {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  _impl_.source_fingerprint_.SetAllocated(value, GetArenaForAllocation());
+  #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+        if (_impl_.source_fingerprint_.IsDefault()) {
+          _impl_.source_fingerprint_.Set("", GetArenaForAllocation());
+        }
+  #endif  // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+  // @@protoc_insertion_point(field_set_allocated:oteldemo.AskProductAIAssistantResponse.source_fingerprint)
+}
+
 // -------------------------------------------------------------------
 
 // GetQuoteRequest
@@ -12999,6 +13517,183 @@ inline void CreditCardInfo::_internal_set_credit_card_expiration_month(::int32_t
   PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
   ;
   _impl_.credit_card_expiration_month_ = value;
+}
+
+// -------------------------------------------------------------------
+
+// ValidatePaymentRequest
+
+// .oteldemo.CreditCardInfo credit_card = 1;
+inline bool ValidatePaymentRequest::has_credit_card() const {
+  bool value = (_impl_._has_bits_[0] & 0x00000001u) != 0;
+  PROTOBUF_ASSUME(!value || _impl_.credit_card_ != nullptr);
+  return value;
+}
+inline void ValidatePaymentRequest::clear_credit_card() {
+  if (_impl_.credit_card_ != nullptr) _impl_.credit_card_->Clear();
+  _impl_._has_bits_[0] &= ~0x00000001u;
+}
+inline const ::oteldemo::CreditCardInfo& ValidatePaymentRequest::_internal_credit_card() const {
+  PROTOBUF_TSAN_READ(&_impl_._tsan_detect_race);
+  const ::oteldemo::CreditCardInfo* p = _impl_.credit_card_;
+  return p != nullptr ? *p : reinterpret_cast<const ::oteldemo::CreditCardInfo&>(::oteldemo::_CreditCardInfo_default_instance_);
+}
+inline const ::oteldemo::CreditCardInfo& ValidatePaymentRequest::credit_card() const {
+  // @@protoc_insertion_point(field_get:oteldemo.ValidatePaymentRequest.credit_card)
+  return _internal_credit_card();
+}
+inline void ValidatePaymentRequest::unsafe_arena_set_allocated_credit_card(::oteldemo::CreditCardInfo* value) {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  if (GetArenaForAllocation() == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.credit_card_);
+  }
+  _impl_.credit_card_ = reinterpret_cast<::oteldemo::CreditCardInfo*>(value);
+  if (value != nullptr) {
+    _impl_._has_bits_[0] |= 0x00000001u;
+  } else {
+    _impl_._has_bits_[0] &= ~0x00000001u;
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:oteldemo.ValidatePaymentRequest.credit_card)
+}
+inline ::oteldemo::CreditCardInfo* ValidatePaymentRequest::release_credit_card() {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+
+  _impl_._has_bits_[0] &= ~0x00000001u;
+  ::oteldemo::CreditCardInfo* released = _impl_.credit_card_;
+  _impl_.credit_card_ = nullptr;
+#ifdef PROTOBUF_FORCE_COPY_IN_RELEASE
+  auto* old = reinterpret_cast<::google::protobuf::MessageLite*>(released);
+  released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+  if (GetArenaForAllocation() == nullptr) {
+    delete old;
+  }
+#else   // PROTOBUF_FORCE_COPY_IN_RELEASE
+  if (GetArenaForAllocation() != nullptr) {
+    released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+  }
+#endif  // !PROTOBUF_FORCE_COPY_IN_RELEASE
+  return released;
+}
+inline ::oteldemo::CreditCardInfo* ValidatePaymentRequest::unsafe_arena_release_credit_card() {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  // @@protoc_insertion_point(field_release:oteldemo.ValidatePaymentRequest.credit_card)
+
+  _impl_._has_bits_[0] &= ~0x00000001u;
+  ::oteldemo::CreditCardInfo* temp = _impl_.credit_card_;
+  _impl_.credit_card_ = nullptr;
+  return temp;
+}
+inline ::oteldemo::CreditCardInfo* ValidatePaymentRequest::_internal_mutable_credit_card() {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  _impl_._has_bits_[0] |= 0x00000001u;
+  if (_impl_.credit_card_ == nullptr) {
+    auto* p = CreateMaybeMessage<::oteldemo::CreditCardInfo>(GetArenaForAllocation());
+    _impl_.credit_card_ = reinterpret_cast<::oteldemo::CreditCardInfo*>(p);
+  }
+  return _impl_.credit_card_;
+}
+inline ::oteldemo::CreditCardInfo* ValidatePaymentRequest::mutable_credit_card() {
+  ::oteldemo::CreditCardInfo* _msg = _internal_mutable_credit_card();
+  // @@protoc_insertion_point(field_mutable:oteldemo.ValidatePaymentRequest.credit_card)
+  return _msg;
+}
+inline void ValidatePaymentRequest::set_allocated_credit_card(::oteldemo::CreditCardInfo* value) {
+  ::google::protobuf::Arena* message_arena = GetArenaForAllocation();
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  if (message_arena == nullptr) {
+    delete reinterpret_cast<::oteldemo::CreditCardInfo*>(_impl_.credit_card_);
+  }
+
+  if (value != nullptr) {
+    ::google::protobuf::Arena* submessage_arena =
+        ::google::protobuf::Arena::InternalGetOwningArena(reinterpret_cast<::oteldemo::CreditCardInfo*>(value));
+    if (message_arena != submessage_arena) {
+      value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
+    }
+    _impl_._has_bits_[0] |= 0x00000001u;
+  } else {
+    _impl_._has_bits_[0] &= ~0x00000001u;
+  }
+
+  _impl_.credit_card_ = reinterpret_cast<::oteldemo::CreditCardInfo*>(value);
+  // @@protoc_insertion_point(field_set_allocated:oteldemo.ValidatePaymentRequest.credit_card)
+}
+
+// -------------------------------------------------------------------
+
+// ValidatePaymentResponse
+
+// bool valid = 1;
+inline void ValidatePaymentResponse::clear_valid() {
+  _impl_.valid_ = false;
+}
+inline bool ValidatePaymentResponse::valid() const {
+  // @@protoc_insertion_point(field_get:oteldemo.ValidatePaymentResponse.valid)
+  return _internal_valid();
+}
+inline void ValidatePaymentResponse::set_valid(bool value) {
+  _internal_set_valid(value);
+  // @@protoc_insertion_point(field_set:oteldemo.ValidatePaymentResponse.valid)
+}
+inline bool ValidatePaymentResponse::_internal_valid() const {
+  PROTOBUF_TSAN_READ(&_impl_._tsan_detect_race);
+  return _impl_.valid_;
+}
+inline void ValidatePaymentResponse::_internal_set_valid(bool value) {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  ;
+  _impl_.valid_ = value;
+}
+
+// string message = 2;
+inline void ValidatePaymentResponse::clear_message() {
+  _impl_.message_.ClearToEmpty();
+}
+inline const std::string& ValidatePaymentResponse::message() const {
+  // @@protoc_insertion_point(field_get:oteldemo.ValidatePaymentResponse.message)
+  return _internal_message();
+}
+template <typename Arg_, typename... Args_>
+inline PROTOBUF_ALWAYS_INLINE void ValidatePaymentResponse::set_message(Arg_&& arg,
+                                                     Args_... args) {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  ;
+  _impl_.message_.Set(static_cast<Arg_&&>(arg), args..., GetArenaForAllocation());
+  // @@protoc_insertion_point(field_set:oteldemo.ValidatePaymentResponse.message)
+}
+inline std::string* ValidatePaymentResponse::mutable_message() {
+  std::string* _s = _internal_mutable_message();
+  // @@protoc_insertion_point(field_mutable:oteldemo.ValidatePaymentResponse.message)
+  return _s;
+}
+inline const std::string& ValidatePaymentResponse::_internal_message() const {
+  PROTOBUF_TSAN_READ(&_impl_._tsan_detect_race);
+  return _impl_.message_.Get();
+}
+inline void ValidatePaymentResponse::_internal_set_message(const std::string& value) {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  ;
+  _impl_.message_.Set(value, GetArenaForAllocation());
+}
+inline std::string* ValidatePaymentResponse::_internal_mutable_message() {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  ;
+  return _impl_.message_.Mutable( GetArenaForAllocation());
+}
+inline std::string* ValidatePaymentResponse::release_message() {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  // @@protoc_insertion_point(field_release:oteldemo.ValidatePaymentResponse.message)
+  return _impl_.message_.Release();
+}
+inline void ValidatePaymentResponse::set_allocated_message(std::string* value) {
+  PROTOBUF_TSAN_WRITE(&_impl_._tsan_detect_race);
+  _impl_.message_.SetAllocated(value, GetArenaForAllocation());
+  #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+        if (_impl_.message_.IsDefault()) {
+          _impl_.message_.Set("", GetArenaForAllocation());
+        }
+  #endif  // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+  // @@protoc_insertion_point(field_set_allocated:oteldemo.ValidatePaymentResponse.message)
 }
 
 // -------------------------------------------------------------------

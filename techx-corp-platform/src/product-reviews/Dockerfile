@@ -35,6 +35,7 @@ COPY ./src/product-reviews/bedrock_client.py bedrock_client.py
 COPY ./src/product-reviews/metrics.py metrics.py
 # product_reviews_server imports ModelRouter — must ship in image (ModuleNotFoundError if missing)
 COPY ./src/product-reviews/model_router.py model_router.py
+COPY ./src/product-reviews/llm_trace.py llm_trace.py
 
 
 RUN adduser -u 1000 -D app

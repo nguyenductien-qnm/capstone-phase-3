@@ -1,0 +1,9 @@
+{
+  "group": "crossuser",
+  "case": "no-cache-leak",
+  "passed": true,
+  "reason": "user B hỏi câu user A: miss (không được hit)",
+  "latency": 16.63,
+  "cache_status": "miss",
+  "response": "Giá của ống nhòm Roof Binoculars là $209.95."
+}

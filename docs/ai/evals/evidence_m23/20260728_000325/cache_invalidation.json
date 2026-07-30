@@ -1,0 +1,9 @@
+{
+  "group": "cache",
+  "case": "invalidation",
+  "passed": true,
+  "reason": "sau khi đổi review: miss (phải miss, không trả cũ sai)",
+  "latency": 20.66,
+  "cache_status": "miss",
+  "response": "Đánh giá cho kính National Park Foundation Explorascope có điểm trung bình là 3.8 sao dựa trên 5 đánh giá. Một số nhận xét tích cực bao gồm:\n- \"A bit tricky to get used to the manual controls, but once you do, it's very rewarding. Saw the Orion Nebula for the first time! Good value.\"\n- \"Perfect for "
+}

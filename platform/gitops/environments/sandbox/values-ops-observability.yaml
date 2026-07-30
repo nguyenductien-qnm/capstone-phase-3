@@ -1,5 +1,4 @@
-# Sandbox observability overrides. The dedicated node is provisioned by the
-# EKS module as workload-tier=observability with a NoSchedule taint.
+# Sandbox observability runs on the HA primary MNG (workload-tier=platform).
 
 observabilityStorage:
   enabled: true
@@ -8,17 +7,13 @@ observabilityStorage:
     encrypted: "true"
 
 opentelemetry-collector:
-  # Danh sách này REPLACE toàn bộ tolerations của chart (Helm không merge list),
-  # nên phải liệt kê đủ cả 2 taint DaemonSet cần tolerate, không chỉ thêm mới.
+  # DaemonSet stays on application nodes for node-local OTLP intake. Helm replaces
+  # this whole list, so retain the Karpenter spot toleration.
   # techx.io/capacity=spot: thiếu cái này thì node spot của Karpenter (ad,
   # product-reviews) không có collector cục bộ -> otel-collector Service dùng
   # internalTrafficPolicy: Local nên mất hẳn endpoint (không phải chậm), OTLP
   # export từ pod trên node đó luôn fail.
   tolerations:
-    - key: dedicated
-      operator: Equal
-      value: observability
-      effect: NoSchedule
     - key: techx.io/capacity
       operator: Equal
       value: spot
@@ -55,13 +50,16 @@ telemetryRetention:
 
 jaeger:
   jaeger:
+    replicas: 2
     nodeSelector:
-      workload-tier: observability
-    tolerations:
-      - key: dedicated
-        operator: Equal
-        value: observability
-        effect: NoSchedule
+      workload-tier: platform
+    topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: DoNotSchedule
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/name: jaeger
     resources:
       requests:
         cpu: 100m
@@ -69,16 +67,41 @@ jaeger:
       limits:
         cpu: 500m
         memory: 1Gi
+  userconfig:
+    extensions:
+      jaeger_query:
+        storage:
+          traces: opensearch_backend
+          metrics: metrics_backend
+      jaeger_storage:
+        backends:
+          memory_backend: null
+          opensearch_backend:
+            opensearch:
+              server_urls:
+                - http://opensearch:9200
+              indices:
+                index_prefix: jaeger
+                spans:
+                  shards: 1
+                  replicas: 1
+                services:
+                  shards: 1
+                  replicas: 1
+                dependencies:
+                  shards: 1
+                  replicas: 1
+                sampling:
+                  shards: 1
+                  replicas: 1
+    exporters:
+      jaeger_storage_exporter:
+        trace_storage: opensearch_backend
 
 prometheus:
   kube-state-metrics:
     nodeSelector:
-      workload-tier: observability
-    tolerations:
-      - key: dedicated
-        operator: Equal
-        value: observability
-        effect: NoSchedule
+      workload-tier: platform
     resources:
       requests:
         cpu: 25m
@@ -87,13 +110,26 @@ prometheus:
         cpu: 100m
         memory: 128Mi
   server:
+    replicaCount: 2
+    statefulSet:
+      enabled: true
+    podAntiAffinity: hard
+    podAntiAffinityTopologyKey: topology.kubernetes.io/zone
+    global:
+      external_labels:
+        cluster: ecommerce-dev-eks
+        replica: ${POD_NAME}
+    extraArgs:
+      enable-feature: expand-external-labels
+    env:
+      - name: POD_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.name
+    remoteWrite:
+      - url: http://thanos-receive:19291/api/v1/receive
     nodeSelector:
-      workload-tier: observability
-    tolerations:
-      - key: dedicated
-        operator: Equal
-        value: observability
-        effect: NoSchedule
+      workload-tier: platform
     persistentVolume:
       enabled: true
       storageClass: gp3-observability
@@ -109,13 +145,16 @@ prometheus:
         memory: 1536Mi
 
 grafana:
+  replicas: 2
   nodeSelector:
-    workload-tier: observability
-  tolerations:
-    - key: dedicated
-      operator: Equal
-      value: observability
-      effect: NoSchedule
+    workload-tier: platform
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: DoNotSchedule
+      labelSelector:
+        matchLabels:
+          app.kubernetes.io/name: grafana
   podLabels:
     egress-internet: "true"
   plugins:
@@ -136,15 +175,88 @@ grafana:
         cpu: 50m
         memory: 128Mi
 
+thanos:
+  enabled: true
+  fullnameOverride: thanos
+  # Bitnami removed this immutable tag from bitnami/thanos. The legacy
+  # repository preserves the same Bitnami filesystem and entrypoint expected
+  # by chart 17.3.1; using the upstream image would require command overrides.
+  image:
+    registry: docker.io
+    repository: bitnamilegacy/thanos
+    tag: 0.39.2-debian-12-r2
+  objectStorage:
+    bucket: ecommerce-dev-thanos-384511757667
+    region: us-east-1
+  existingObjstoreSecret: thanos-objstore
+  serviceAccount:
+    create: true
+    name: thanos
+  query:
+    replicaCount: 2
+    replicaLabel: [replica, receive_replica]
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
+    podAntiAffinityPreset: hard
+    nodeSelector:
+      workload-tier: platform
+  queryFrontend:
+    enabled: false
+  receive:
+    enabled: true
+    replicaCount: 3
+    replicaLabel: receive_replica
+    replicationFactor: 3
+    service:
+      additionalHeadless: true
+      publishNotReadyAddresses: true
+    resources:
+      requests:
+        cpu: 200m
+        memory: 1Gi
+      limits:
+        cpu: "1"
+        memory: 4Gi
+    podAntiAffinityPreset: hard
+    nodeSelector:
+      workload-tier: platform
+    persistence:
+      enabled: true
+      storageClass: gp3-observability
+      size: 20Gi
+  storegateway:
+    enabled: true
+    replicaCount: 2
+    service:
+      additionalHeadless: true
+    podAntiAffinityPreset: hard
+    nodeSelector:
+      workload-tier: platform
+    persistence:
+      enabled: true
+      storageClass: gp3-observability
+      size: 10Gi
+  compactor:
+    enabled: true
+    nodeSelector:
+      workload-tier: platform
+    persistence:
+      enabled: true
+      storageClass: gp3-observability
+      size: 20Gi
+
 opensearch:
   enabled: true
+  singleNode: false
+  replicas: 3
+  antiAffinity: hard
   nodeSelector:
-    workload-tier: observability
-  tolerations:
-    - key: dedicated
-      operator: Equal
-      value: observability
-      effect: NoSchedule
+    workload-tier: platform
   persistence:
     enabled: true
     storageClass: gp3-observability
@@ -166,12 +278,7 @@ components:
   load-generator:
     schedulingRules:
       nodeSelector:
-        workload-tier: observability
-      tolerations:
-        - key: dedicated
-          operator: Equal
-          value: observability
-          effect: NoSchedule
+        workload-tier: platform
     resources:
       requests:
         cpu: 100m

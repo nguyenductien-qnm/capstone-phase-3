@@ -1,0 +1,9 @@
+{
+  "group": "cache",
+  "case": "invalidation",
+  "passed": false,
+  "reason": "sau khi đổi review: None (phải miss, không trả cũ sai)",
+  "latency": 60.01,
+  "cache_status": null,
+  "response": ""
+}

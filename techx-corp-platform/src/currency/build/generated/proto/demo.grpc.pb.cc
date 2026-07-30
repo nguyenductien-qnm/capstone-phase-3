@@ -767,6 +767,7 @@ CurrencyService::Service::~Service() {
 
 static const char* PaymentService_method_names[] = {
   "/oteldemo.PaymentService/Charge",
+  "/oteldemo.PaymentService/Validate",
 };
 
 std::unique_ptr< PaymentService::Stub> PaymentService::NewStub(const std::shared_ptr< ::grpc::ChannelInterface>& channel, const ::grpc::StubOptions& options) {
@@ -777,6 +778,7 @@ std::unique_ptr< PaymentService::Stub> PaymentService::NewStub(const std::shared
 
 PaymentService::Stub::Stub(const std::shared_ptr< ::grpc::ChannelInterface>& channel, const ::grpc::StubOptions& options)
   : channel_(channel), rpcmethod_Charge_(PaymentService_method_names[0], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_Validate_(PaymentService_method_names[1], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
   {}
 
 ::grpc::Status PaymentService::Stub::Charge(::grpc::ClientContext* context, const ::oteldemo::ChargeRequest& request, ::oteldemo::ChargeResponse* response) {
@@ -802,6 +804,29 @@ void PaymentService::Stub::async::Charge(::grpc::ClientContext* context, const :
   return result;
 }
 
+::grpc::Status PaymentService::Stub::Validate(::grpc::ClientContext* context, const ::oteldemo::ValidatePaymentRequest& request, ::oteldemo::ValidatePaymentResponse* response) {
+  return ::grpc::internal::BlockingUnaryCall< ::oteldemo::ValidatePaymentRequest, ::oteldemo::ValidatePaymentResponse, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), rpcmethod_Validate_, context, request, response);
+}
+
+void PaymentService::Stub::async::Validate(::grpc::ClientContext* context, const ::oteldemo::ValidatePaymentRequest* request, ::oteldemo::ValidatePaymentResponse* response, std::function<void(::grpc::Status)> f) {
+  ::grpc::internal::CallbackUnaryCall< ::oteldemo::ValidatePaymentRequest, ::oteldemo::ValidatePaymentResponse, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(stub_->channel_.get(), stub_->rpcmethod_Validate_, context, request, response, std::move(f));
+}
+
+void PaymentService::Stub::async::Validate(::grpc::ClientContext* context, const ::oteldemo::ValidatePaymentRequest* request, ::oteldemo::ValidatePaymentResponse* response, ::grpc::ClientUnaryReactor* reactor) {
+  ::grpc::internal::ClientCallbackUnaryFactory::Create< ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(stub_->channel_.get(), stub_->rpcmethod_Validate_, context, request, response, reactor);
+}
+
+::grpc::ClientAsyncResponseReader< ::oteldemo::ValidatePaymentResponse>* PaymentService::Stub::PrepareAsyncValidateRaw(::grpc::ClientContext* context, const ::oteldemo::ValidatePaymentRequest& request, ::grpc::CompletionQueue* cq) {
+  return ::grpc::internal::ClientAsyncResponseReaderHelper::Create< ::oteldemo::ValidatePaymentResponse, ::oteldemo::ValidatePaymentRequest, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), cq, rpcmethod_Validate_, context, request);
+}
+
+::grpc::ClientAsyncResponseReader< ::oteldemo::ValidatePaymentResponse>* PaymentService::Stub::AsyncValidateRaw(::grpc::ClientContext* context, const ::oteldemo::ValidatePaymentRequest& request, ::grpc::CompletionQueue* cq) {
+  auto* result =
+    this->PrepareAsyncValidateRaw(context, request, cq);
+  result->StartCall();
+  return result;
+}
+
 PaymentService::Service::Service() {
   AddMethod(new ::grpc::internal::RpcServiceMethod(
       PaymentService_method_names[0],
@@ -813,12 +838,29 @@ PaymentService::Service::Service() {
              ::oteldemo::ChargeResponse* resp) {
                return service->Charge(ctx, req, resp);
              }, this)));
+  AddMethod(new ::grpc::internal::RpcServiceMethod(
+      PaymentService_method_names[1],
+      ::grpc::internal::RpcMethod::NORMAL_RPC,
+      new ::grpc::internal::RpcMethodHandler< PaymentService::Service, ::oteldemo::ValidatePaymentRequest, ::oteldemo::ValidatePaymentResponse, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
+          [](PaymentService::Service* service,
+             ::grpc::ServerContext* ctx,
+             const ::oteldemo::ValidatePaymentRequest* req,
+             ::oteldemo::ValidatePaymentResponse* resp) {
+               return service->Validate(ctx, req, resp);
+             }, this)));
 }
 
 PaymentService::Service::~Service() {
 }
 
 ::grpc::Status PaymentService::Service::Charge(::grpc::ServerContext* context, const ::oteldemo::ChargeRequest* request, ::oteldemo::ChargeResponse* response) {
+  (void) context;
+  (void) request;
+  (void) response;
+  return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+}
+
+::grpc::Status PaymentService::Service::Validate(::grpc::ServerContext* context, const ::oteldemo::ValidatePaymentRequest* request, ::oteldemo::ValidatePaymentResponse* response) {
   (void) context;
   (void) request;
   (void) response;

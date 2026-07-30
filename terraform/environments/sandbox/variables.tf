@@ -177,7 +177,12 @@ variable "eks_ops_node_disk_size_gib" {
 variable "github_terraform_role_name" {
   type        = string
   description = "IAM role used by GitHub Actions to manage Terraform and bootstrap Kubernetes"
-  default     = "GitHubTerraformSandboxRole"
+  # 29/07/2026: đổi "GitHubTerraformSandboxRole" -> "GithubActionRole".
+  # main.tf đọc role này bằng `data "aws_iam_role"` (ĐỌC, không tạo) rồi cấp EKS
+  # access entry cho nó. Account mới 384511757667 đặt tên role là GithubActionRole,
+  # nên để tên cũ là `terraform plan` chết ngay ở data source với lỗi
+  # "no IAM role found" — trước cả khi tạo được resource nào.
+  default = "GithubActionRole"
 }
 
 variable "eks_access_entries" {

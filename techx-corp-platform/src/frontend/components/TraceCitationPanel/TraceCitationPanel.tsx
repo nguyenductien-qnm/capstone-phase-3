@@ -17,7 +17,7 @@ const PanelContainer = styled.div`
   }
 `;
 
-const Header = styled.button`
+const Header = styled.div`
   width: 100%;
   display: flex;
   justify-content: space-between;
@@ -25,12 +25,22 @@ const Header = styled.button`
   padding: 16px 20px;
   background: transparent;
   border: none;
-  cursor: pointer;
   user-select: none;
-  transition: background-color 0.2s ease;
+`;
 
-  &:hover {
-    background-color: #f9fafb;
+const ExpandButton = styled.button`
+  display: flex;
+  flex: 1;
+  align-items: center;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+
+  &:focus-visible {
+    outline: 2px solid #3b82f6;
+    outline-offset: 4px;
   }
 `;
 
@@ -48,7 +58,7 @@ const Title = styled.strong<{ $isOpen: boolean }>`
   }
 `;
 
-const TraceId = styled.span`
+const TraceId = styled.button`
   color: #3b82f6;
   font-size: 12px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -133,12 +143,14 @@ const StepStatus = styled.span<{ $status: string }>`
   padding: 2px 8px;
   border-radius: 9999px;
   background: ${props => {
-    if (props.$status === 'blocked') return '#fee2e2';
+    if (props.$status === 'blocked' || props.$status === 'error') return '#fee2e2';
+    if (props.$status === 'fallback') return '#fef3c7';
     if (props.$status === 'pass' || props.$status === 'ok') return '#dcfce7';
     return '#f3f4f6';
   }};
   color: ${props => {
-    if (props.$status === 'blocked') return '#991b1b';
+    if (props.$status === 'blocked' || props.$status === 'error') return '#991b1b';
+    if (props.$status === 'fallback') return '#92400e';
     if (props.$status === 'pass' || props.$status === 'ok') return '#166534';
     return '#4b5563';
   }};
@@ -193,15 +205,19 @@ export const TraceCitationPanel: React.FC<TraceCitationPanelProps> = ({
 
   return (
     <PanelContainer data-cy="TraceCitationPanel">
-      <Header onClick={() => setIsOpen(!isOpen)}>
-        <Title $isOpen={isOpen}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-          </svg>
-          AI Evaluation Trace
-        </Title>
+      <Header>
+        <ExpandButton type="button" aria-expanded={isOpen} onClick={() => setIsOpen(!isOpen)}>
+          <Title $isOpen={isOpen}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+            AI Evaluation Trace
+          </Title>
+        </ExpandButton>
         {traceId && (
           <TraceId 
+            type="button"
+            aria-label="Copy trace ID"
             title="Click to copy Trace ID"
             onClick={(e) => {
               e.stopPropagation();

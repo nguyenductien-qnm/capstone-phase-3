@@ -1,0 +1,9 @@
+{
+  "group": "shortterm",
+  "case": "three-turns",
+  "passed": true,
+  "reason": "lượt 3 nhắc lại sản phẩm của lượt trước: ['Solar Filter']",
+  "latency": 11.68,
+  "cache_status": "miss",
+  "response": "\"Solar Filter\" là một phụ kiện phù hợp cho người mới bắt đầu quan sát sao. Nó được thiết kế để tăng cường trải nghiệm xem sóng của bạn với kính thiên văn 8\". Sản phẩm này có hai dải Velcro và bốn miếng dán Velcro tự dính để tăng thêm an toàn, giúp bạn có thể chắc chắn rằng bộ lọc mặt trời sẽ không b"
+}
