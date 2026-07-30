@@ -283,7 +283,10 @@ def run_evals(
                     print(f"     Metrics bị ảnh hưởng: {drift_res.drifted_metrics}")
                     print(f"     Lý do: {drift_res.reason}")
                     print(f"  [📢 ALERTER] Đã gửi thông báo Drift tới webhook.")
-                    print(f"  [🔍 JSON EVIDENCE]:\n{json.dumps(drift_res.to_dict(), indent=2)}")
+                    evidence_path = os.path.join(_SCRIPT_DIR, "drift_evidence.json")
+                    with open(evidence_path, "w", encoding="utf-8") as f:
+                        json.dump(drift_res.to_dict(), f, indent=2, ensure_ascii=False)
+                    print(f"  [🔍 JSON EVIDENCE] Đã lưu bằng chứng ra file: {evidence_path}")
                 elif "not yet confirmed" in drift_res.reason:
                     print(f"  [⚠️ DRIFT WARNING] Tín hiệu bất thường (Nghi ngờ Drift)!")
                     print(f"     Lý do: {drift_res.reason}")
