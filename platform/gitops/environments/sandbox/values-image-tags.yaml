@@ -65,7 +65,7 @@ components:
       tag: 1.0-fraud-detection-9ef67dd
   frontend:
     imageOverride:
-      tag: 1.0-frontend-2cf10a0
+      tag: 1.0-frontend-f24b258b
   image-provider:
     imageOverride:
       tag: 1.0-image-provider-5b99f29
