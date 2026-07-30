@@ -5,7 +5,6 @@ import { NextPage } from 'next';
 import Head from 'next/head';
 import Layout from '../../components/Layout';
 import Recommendations from '../../components/Recommendations';
-import * as S from '../../styles/Cart.styled';
 import CartDetail from '../../components/Cart/CartDetail';
 import EmptyCart from '../../components/Cart/EmptyCart';
 import { useCart } from '../../providers/Cart.provider';
@@ -25,10 +24,10 @@ const Cart: NextPage = () => {
         <title>Otel Demo - Cart</title>
       </Head>
       <Layout>
-        <S.Cart>
+        <div className="container mx-auto px-4 py-8 lg:py-12">
           {(!!items.length && <CartDetail />) || <EmptyCart />}
           <Recommendations />
-        </S.Cart>
+        </div>
       </Layout>
     </AdProvider>
   );

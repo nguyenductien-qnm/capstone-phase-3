@@ -107,7 +107,7 @@ const ProductReviewService = {
       try {
         return await ProductReviewGateway.getProductReviews(productId);
       } catch (error) {
-        console.warn(`Failed to fetch product reviews for ${productId}, using fallback:`, error);
+        console.warn('Failed to fetch product reviews for %s, using fallback:', productId, error);
         return [];
       }
     });
@@ -120,7 +120,7 @@ const ProductReviewService = {
       try {
         return await ProductReviewGateway.getAverageProductReviewScore(productId);
       } catch (error) {
-        console.warn(`Failed to fetch average score for ${productId}, using fallback:`, error);
+        console.warn('Failed to fetch average score for %s, using fallback:', productId, error);
         return "0.0";
       }
     });
@@ -146,7 +146,7 @@ const ProductReviewService = {
     try {
       return await ProductReviewGateway.askProductAIAssistant(productId, normalizedQuestion);
     } catch (error) {
-      console.warn(`Failed to ask AI Assistant for ${productId}, using fallback:`, error);
+      console.warn('Failed to ask AI Assistant for %s, using fallback:', productId, error);
       return { 
         text: "Xin lỗi, AI Assistant hiện không khả dụng do hệ thống đang bảo trì. Vui lòng thử lại sau.", 
         traceId: "", 

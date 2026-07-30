@@ -9,7 +9,7 @@ import { IFormData } from '../CheckoutForm/CheckoutForm';
 import SessionGateway from '../../gateways/Session.gateway';
 import { useCart } from '../../providers/Cart.provider';
 import { useCurrency } from '../../providers/Currency.provider';
-import * as S from '../../styles/Cart.styled';
+import { Button } from '../ui/button';
 
 const { userId } = SessionGateway.getSession();
 
@@ -70,18 +70,24 @@ const CartDetail = () => {
   );
 
   return (
-    <S.Container>
-      <div>
-        <S.Header>
-          <S.CarTitle>Shopping Cart</S.CarTitle>
-          <S.EmptyCartButton onClick={emptyCart} $type="link">
+    <div className="flex flex-col gap-12 lg:grid lg:grid-cols-2 lg:gap-16">
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b pb-4">
+          <h1 className="text-3xl font-bold tracking-tight">Shopping Cart</h1>
+          <Button 
+            variant="destructive"
+            size="sm"
+            onClick={emptyCart} 
+          >
             Empty Cart
-          </S.EmptyCartButton>
-        </S.Header>
+          </Button>
+        </div>
         <CartItems productList={items} />
       </div>
-      <CheckoutForm onSubmit={onPlaceOrder} />
-    </S.Container>
+      <div>
+        <CheckoutForm onSubmit={onPlaceOrder} />
+      </div>
+    </div>
   );
 };
 

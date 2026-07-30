@@ -2,20 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import Document, { DocumentContext, Html, Head, Main, NextScript } from 'next/document';
-import { ServerStyleSheet } from 'styled-components';
 import {context, propagation} from "@opentelemetry/api";
 
 const { ENV_PLATFORM, WEB_OTEL_SERVICE_NAME, PUBLIC_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT, OTEL_COLLECTOR_HOST} = process.env;
 
 export default class MyDocument extends Document<{ envString: string }> {
   static async getInitialProps(ctx: DocumentContext) {
-    const sheet = new ServerStyleSheet();
     const originalRenderPage = ctx.renderPage;
 
     try {
       ctx.renderPage = () =>
         originalRenderPage({
-          enhanceApp: App => props => sheet.collectStyles(<App {...props} />),
+          enhanceApp: App => props => <App {...props} />,
         });
 
       const initialProps = await Document.getInitialProps(ctx);
@@ -38,13 +36,12 @@ export default class MyDocument extends Document<{ envString: string }> {
         styles: (
           <>
             {initialProps.styles}
-            {sheet.getStyleElement()}
           </>
         ),
         envString,
       };
     } finally {
-      sheet.seal();
+      // noop
     }
   }
 

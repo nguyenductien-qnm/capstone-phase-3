@@ -4,8 +4,8 @@
 import { useMemo } from 'react';
 import getSymbolFromCurrency from 'currency-symbol-map';
 import { useCurrency } from '../../providers/Currency.provider';
-import * as S from './CurrencySwitcher.styled';
 import { CypressFields } from '../../utils/enums/CypressFields';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 
 const CurrencySwitcher = () => {
   const { currencyCodeList, setSelectedCurrency, selectedCurrency } = useCurrency();
@@ -13,24 +13,24 @@ const CurrencySwitcher = () => {
   const currencySymbol = useMemo(() => getSymbolFromCurrency(selectedCurrency), [selectedCurrency]);
 
   return (
-    <S.CurrencySwitcher>
-      <S.Container>
-        <S.SelectedConcurrency>{currencySymbol}</S.SelectedConcurrency>
-        <S.Select
-          name="currency_code"
-          onChange={(event: { target: { value: string; }; }) => setSelectedCurrency(event.target.value)}
-          value={selectedCurrency}
-          data-cy={CypressFields.CurrencySwitcher}
-        >
+    <div className="flex items-center gap-2">
+      <span className="text-sm font-medium text-muted-foreground">{currencySymbol}</span>
+      <Select 
+        value={selectedCurrency} 
+        onValueChange={setSelectedCurrency}
+      >
+        <SelectTrigger className="w-[100px] bg-secondary/50 border-0 focus:ring-0">
+          <SelectValue placeholder="Currency" data-cy={CypressFields.CurrencySwitcher} />
+        </SelectTrigger>
+        <SelectContent>
           {currencyCodeList.map(currencyCode => (
-            <option key={currencyCode} value={currencyCode}>
+            <SelectItem key={currencyCode} value={currencyCode}>
               {currencyCode}
-            </option>
+            </SelectItem>
           ))}
-        </S.Select>
-        <S.Arrow />
-      </S.Container>
-    </S.CurrencySwitcher>
+        </SelectContent>
+      </Select>
+    </div>
   );
 };
 
