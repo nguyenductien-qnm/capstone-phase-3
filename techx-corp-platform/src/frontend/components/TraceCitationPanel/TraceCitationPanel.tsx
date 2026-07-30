@@ -4,6 +4,7 @@ import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { ChevronRight } from 'lucide-react';
+import { buildEvidenceBadges, parseTraceMetadata } from '../CopilotChat/copilotEvidence';
 
 export interface TraceStep {
   stepName?: string;
@@ -27,15 +28,20 @@ export interface TraceCitationPanelProps {
   traceSteps?: TraceStep[];
   citations?: Citation[];
   defaultOpen?: boolean;
+  showSummary?: boolean;
 }
 
 export const TraceCitationPanel: React.FC<TraceCitationPanelProps> = ({ 
   traceId, 
   traceSteps = [], 
   citations = [],
-  defaultOpen = false
+  defaultOpen = false,
+  showSummary = true
 }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
+  const badges = buildEvidenceBadges({ traceSteps, citations });
+  const metadata = parseTraceMetadata(traceSteps);
+  const totalLatency = traceSteps.reduce((sum, step) => sum + (step.latencyMs ?? step.latency_ms ?? 0), 0);
 
   if (!traceId && (!traceSteps || traceSteps.length === 0) && (!citations || citations.length === 0)) {
     return null;
@@ -77,6 +83,13 @@ export const TraceCitationPanel: React.FC<TraceCitationPanelProps> = ({
         
         <CollapsibleContent>
           <CardContent className="px-5 pb-5 pt-0 border-t border-border/50">
+            {showSummary && (badges.length > 0 || metadata.modelId) && (
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                {badges.map(label => <Badge key={label} variant={label === 'Blocked' ? 'destructive' : 'outline'}>{label}</Badge>)}
+                {metadata.modelId && <Badge variant="secondary">{metadata.modelId}</Badge>}
+                <span className="text-xs text-muted-foreground">{totalLatency}ms</span>
+              </div>
+            )}
             {traceSteps && traceSteps.length > 0 && (
               <>
                 <div className="font-bold text-muted-foreground mt-4 mb-2 uppercase text-xs tracking-wider">Execution Steps</div>

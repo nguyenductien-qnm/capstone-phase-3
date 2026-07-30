@@ -495,9 +495,7 @@ def invoke_bedrock_converse_with_fallback(primary_client, model_id, system, mess
             else:
                 return None, fallback_model, "error"
 def _record_model_trace(vc, trace_id, session_id, model_id, usage, latency_s, outcome, blocks, messages):
-    """Fire-and-forget trace record. Never blocks the main path."""
-    if not trace_id or vc is None:
-        return
+    """Return UI-safe metadata and persist it best-effort."""
     try:
         tool_names = [b["toolUse"]["name"] for b in blocks if "toolUse" in b]
         trace_data = build_trace_record(
@@ -505,9 +503,19 @@ def _record_model_trace(vc, trace_id, session_id, model_id, usage, latency_s, ou
             usage=usage, latency_s=latency_s, outcome=outcome,
             tool_calls=tool_names, surface="copilot", messages=messages,
         )
-        _executor.submit(record_trace, vc, trace_data)
+        if trace_id and vc is not None:
+            _executor.submit(record_trace, vc, trace_data)
+        return trace_data
     except Exception:
         logger.exception("_record_model_trace")
+        return {}
+
+def _ui_trace_metadata(trace_data: dict) -> dict:
+    """Allowlist model evidence safe for customer-facing trace panels."""
+    keys = ("model_id", "tokens_in", "tokens_out", "latency_ms", "cost_usd",
+            "outcome", "tool_calls", "surface", "timestamp_utc")
+    return {key: trace_data[key] for key in keys if key in trace_data}
+
 
 def _check_flag(name: str, default: bool = False) -> bool:
     """Delegate to flagd; M25 also has an explicit startup override for deterministic repro."""
@@ -565,13 +573,14 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str,
                         inference_config={"maxTokens": 1024, "temperature": 0.0, "topP": 0.9},
                     )
                 if response is None:
-                    _record_model_trace(valkey_client, trace_id_hex, session_id, actual_model_id, {},
-                                        time.time() - t_converse, model_outcome, [], current)
+                    trace_data = _record_model_trace(
+                        valkey_client, trace_id_hex, session_id, actual_model_id, {},
+                        time.time() - t_converse, model_outcome, [], current)
                     trace_steps.append({
                         "step_name": "Model Gateway & Bedrock Nova",
                         "latency_ms": int((time.time() - t_converse) * 1000),
                         "status": model_outcome,
-                        "detail": redact_pii(json.dumps({"routed_model": actual_model_id}, ensure_ascii=False)),
+                        "detail": redact_pii(json.dumps(_ui_trace_metadata(trace_data), ensure_ascii=False)),
                     })
                     return AgentResult(text=_fallback_text(), actions_taken=actions, degraded=True,
                                        trace_id=trace_id_hex, trace_steps=trace_steps, cacheable=False)
@@ -605,23 +614,22 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str,
         if not _tool_ok:
             logger.error("Garbage output blocked: %s — degraded fallback", _tool_err)
             latency_s = time.time() - t_converse
-            _record_model_trace(valkey_client, trace_id_hex, session_id, actual_model_id, usage,
-                                latency_s, "error", [], current)
+            trace_data = _record_model_trace(
+                valkey_client, trace_id_hex, session_id, actual_model_id, usage,
+                latency_s, "error", [], current)
             trace_steps.append({
                 "step_name": "Output validator",
                 "latency_ms": int(latency_s * 1000),
                 "status": "error",
-                "detail": redact_pii(json.dumps({
-                    "routed_model": actual_model_id,
-                    "error": _tool_err,
-                }, ensure_ascii=False)),
+                "detail": redact_pii(json.dumps({**_ui_trace_metadata(trace_data), "error": _tool_err}, ensure_ascii=False)),
             })
             return AgentResult(text=_fallback_text(), actions_taken=actions, degraded=True,
                                trace_id=trace_id_hex, trace_steps=trace_steps, cacheable=False)
         blocks = _blocks
         # MANDATE-24: only mark success/fallback after the model output passes validation.
-        _record_model_trace(valkey_client, trace_id_hex, session_id, actual_model_id, usage,
-                            time.time() - t_converse, model_outcome, blocks, current)
+        trace_data = _record_model_trace(
+            valkey_client, trace_id_hex, session_id, actual_model_id, usage,
+            time.time() - t_converse, model_outcome, blocks, current)
 
         # Trace UI: show the model's DECISION this turn (what the AI "thinks" it should do next) —
         # either it chose to call tool(s), or it produced a direct answer.
@@ -629,9 +637,9 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str,
         # Customer-visible traces expose structured decisions, never raw model reasoning.
         # Raw text is sanitized/guarded below before it can reach the response.
         detail_dict = {
+            **_ui_trace_metadata(trace_data),
             "decided_tools": _decided,
             "stop_reason": stop,
-            "routed_model": actual_model_id,
         }
         trace_steps.append({
             "step_name": (f"LLM → gọi tool: {', '.join(_decided)}" if _decided

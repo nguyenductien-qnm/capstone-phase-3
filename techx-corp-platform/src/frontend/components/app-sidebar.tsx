@@ -66,13 +66,17 @@ const data = {
     },
     {
       title: "AI Copilot",
-      url: "#",
+      url: "/copilot",
       icon: Sparkles,
       items: [
 
         {
           title: "Shopping Copilot",
-          url: "#",
+          url: "/copilot",
+        },
+        {
+          title: "AI Evidence",
+          url: "/dashboard",
         },
       ],
     },

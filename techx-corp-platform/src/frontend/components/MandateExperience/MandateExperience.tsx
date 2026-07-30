@@ -3,7 +3,6 @@ import { Activity, BrainCircuit, DatabaseZap, ShieldCheck } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
@@ -12,7 +11,7 @@ const mandates = [
     id: '14',
     title: 'AI evaluation & grounding',
     icon: ShieldCheck,
-    status: 'Verified',
+    status: 'Grounding',
     summary: 'Contradiction-capable NLI checks, grounded citations and replayable Cohen’s κ.',
     proof: 'Entailment / contradiction gate · κ replay artifact · source citations',
   },
@@ -20,7 +19,7 @@ const mandates = [
     id: '23',
     title: 'Caching & memory',
     icon: DatabaseZap,
-    status: 'Ready to deploy',
+    status: 'Cache & memory',
     summary: 'User-isolated exact/semantic cache, short-term context and PII-redacted durable memory.',
     proof: 'Cache status · cross-user isolation · ai.user_memory migration + verifier',
   },
@@ -28,7 +27,7 @@ const mandates = [
     id: '24',
     title: 'LLM observability',
     icon: Activity,
-    status: 'Live',
+    status: 'Observability',
     summary: 'Every model step exposes the actual route, outcome, latency, trace ID and citations.',
     proof: 'Actual model ID · ok/fallback/error outcome · model-priced cost trace',
   },
@@ -36,7 +35,7 @@ const mandates = [
     id: '25',
     title: 'Resilience & fallback',
     icon: BrainCircuit,
-    status: 'Fault tested',
+    status: 'Resilience',
     summary: 'Malformed output is blocked before tool execution and returns an honest degraded response.',
     proof: 'Flagd injection · output validation · safe fallback · reproducible logs',
   },
@@ -79,10 +78,9 @@ export default function MandateExperience() {
             <CardDescription className="text-slate-300">Code, checks and user-facing evidence</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* mock data */}
-            <Progress value={92} aria-label="Feature readiness (mock)" />
             <MandateBadges inverse />
-            <p className="text-xs text-slate-300">F23 production database execution remains an environment deployment step; the migration and verification gate are repository-controlled.</p>
+            <p className="text-sm text-slate-200">Statuses are derived from each real request in the Copilot evidence panel.</p>
+            <Link href="/dashboard" className="inline-flex rounded-md bg-white px-3 py-2 text-sm font-semibold text-slate-950">Open AI Evidence dashboard</Link>
           </CardContent>
         </Card>
       </div>
