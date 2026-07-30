@@ -1,0 +1,44 @@
+{
+  "surface": "review_summary",
+  "drifted": true,
+  "drifted_metrics": [
+    "word_count_mean"
+  ],
+  "details": {
+    "keyword_accuracy": {
+      "psi": 2.3404,
+      "ks_p": 0.1678,
+      "baseline_mean": 0.84,
+      "current_mean": 0.804,
+      "severity": "warn",
+      "drifted": false
+    },
+    "word_count_mean": {
+      "psi": 17.3991,
+      "ks_p": 0.0,
+      "baseline_mean": 67.7,
+      "current_mean": 45.08,
+      "severity": "drift",
+      "drifted": true
+    },
+    "fallback_rate": {
+      "psi": 0.0,
+      "ks_p": 1.0,
+      "baseline_mean": 0.0,
+      "current_mean": 0.0,
+      "severity": "stable",
+      "drifted": false
+    },
+    "hallucination_risk_rate": {
+      "psi": 0.0,
+      "ks_p": 1.0,
+      "baseline_mean": 0.0,
+      "current_mean": 0.0,
+      "severity": "stable",
+      "drifted": false
+    }
+  },
+  "reason": "[Window 21] PSI/KS drift confirmed for 14 consecutive windows. Stats: word_count_mean (PSI: 17.40, Mean: 67.70 -> 45.08)",
+  "timestamp": 1785404576.253155,
+  "window_index": 21
+}

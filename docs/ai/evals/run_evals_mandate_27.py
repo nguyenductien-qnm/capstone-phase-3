@@ -66,16 +66,9 @@ def load_dataset(path: str) -> list:
 
 def load_summaries(path: str) -> dict:
     """
-    Nạp tóm tắt AI từ product-review-summaries.json.
-    Trả về dict: {product_id: summary_text}
+    (Mandate 27): Bỏ qua load từ cache. Hàm này trả về {} để luôn ép gọi Live API.
     """
-    if not os.path.isfile(path):
-        print(f"{WARN_ICON} Không tìm thấy summaries file: {path}")
-        print("   Sẽ chuyển sang chế độ gọi trực tiếp AWS Bedrock LLM (Live API).")
-        return {}
-    with open(path, "r", encoding="utf-8") as f:
-        items = json.load(f).get("product-review-summaries", [])
-    return {item["product_id"]: item["product_review_summary"] for item in items}
+    return {}
 
 
 def call_bedrock_summarize(reviews_text: str) -> str:
@@ -174,7 +167,7 @@ def run_evals(
 
     if verbose:
         print("\n" + "=" * 65)
-        print("  [EVAL] TechX Corp - AI Eval Pipeline")
+        print("  [EVAL] TechX Corp - AI Eval Pipeline (Mandate 27 LIVE AWS BEDROCK)")
         print(f"  Dataset  : {dataset_path}")
         print(f"  Cases    : {len(dataset)}")
         print(f"  Threshold: {threshold:.0%}")
