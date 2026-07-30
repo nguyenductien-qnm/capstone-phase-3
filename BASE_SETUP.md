@@ -8,34 +8,38 @@ Dự án Capstone Phase 3 - TechX-Corp Platform. Hệ thống microservices bán
 
 ```
 capstone-phase-3/
-├── terraform/                      # Hạ tầng AWS (VPC, EKS v1.36, ECR)
-│   ├── modules/                    # Các custom modules (vpc, eks, ecr)
-│   └── md/                         # Tài liệu hướng dẫn vận hành hạ tầng
-│       ├── DEPLOY.md               # Hướng dẫn deploy từ A-Z
-│       ├── DESTROY.md              # Hướng dẫn hủy tài nguyên & gỡ kẹt
-│       └── RESOURCES.md            # Danh mục tài nguyên hệ thống
-│
-├── techx-corp-chart/               # Helm Chart chính định nghĩa 24 dịch vụ
-│   ├── templates/                  # Mẫu tài nguyên Kubernetes
-│   └── values.yaml                 # Tham số cấu hình mặc định của hệ thống
-│
-├── deploy/                         # Các script và file manifest bổ trợ
-│   ├── install-argocd.sh           # Script tự động cài đặt ArgoCD (Server-Side)
-│   ├── argocd-app.yaml             # Manifest khai báo ứng dụng ArgoCD (GitOps)
-│   ├── push-seed-images.sh         # Script đẩy 18 images seed + build shipping
-│   ├── values-flagd-sync.yaml      # Cấu hình Token đồng bộ cờ tính năng với BTC
-│   └── values-aio-llm.yaml         # Cấu hình kết nối OpenAI API thật (AIO)
-│
-└── techx-corp-platform/            # Mã nguồn các microservices của ứng dụng
-    └── src/
-        └── shipping/               # Dịch vụ shipping (Rust) đã được sửa Dockerfile
+├── techx-corp-platform/            # Source microservices; giữ nguyên build context
+│   ├── src/
+│   └── pb/                         # Protobuf API definitions
+├── aiops/
+│   ├── log_clustering/
+│   └── detector/
+├── terraform/
+│   ├── modules/                    # Shared Terraform modules
+│   ├── environments/sandbox/       # Root module và state của sandbox
+│   └── md/                         # Tài liệu hạ tầng
+├── platform/
+│   ├── charts/application/         # Helm chart hiện hành
+│   ├── gitops/applications/        # ArgoCD applications
+│   ├── gitops/environments/        # Values theo môi trường
+│   └── policies/                   # K8s policies và resource governance
+├── scripts/
+│   ├── bootstrap/
+│   ├── build/
+│   ├── deploy/
+│   └── validate/
+└── docs/
+    ├── shared/
+    ├── ai/
+    ├── cdo05/
+    └── cdo09/
 ```
 
 ---
 
 ## 2. Hướng dẫn nhanh cho các vai trò vận hành
 
-- **Dựng mới hạ tầng & Deploy ứng dụng:** Xem hướng dẫn chi tiết tại `DEPLOY.md`.
-- **Quản trị & Đồng bộ GitOps:** Sử dụng giao diện điều khiển ArgoCD theo tài khoản admin cấp sẵn tại `DEPLOY.md`.
-- **Gỡ bỏ hệ thống tránh phát sinh chi phí AWS:** Xem quy trình dọn dẹp an toàn tại `DESTROY.md`.
-- **Tra cứu thông số tài nguyên & Cổng dịch vụ:** Xem bảng tra cứu tại `RESOURCES.md`.
+- **Dựng hạ tầng:** chạy Terraform từ `terraform/environments/sandbox/`.
+- **Deploy ứng dụng:** xem `GETTING_STARTED.md` và chart tại `platform/charts/application/`.
+- **Quản trị GitOps:** dùng manifest trong `platform/gitops/`.
+- **Build/push image:** dùng script trong `scripts/build/` hoặc `scripts/deploy/`.

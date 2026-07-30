@@ -1,0 +1,21 @@
+{
+  "capturedAtUtc": "2026-07-21T14:54:49Z",
+  "trail": {
+    "name": "ecommerce-dev-audit-trail",
+    "homeRegion": "us-east-1",
+    "s3BucketName": "ecommerce-dev-cloudtrail-logs",
+    "includeGlobalServiceEvents": true,
+    "isMultiRegionTrail": true,
+    "logFileValidationEnabled": true,
+    "kmsEncryptionConfigured": true,
+    "cloudWatchLogsConfigured": true,
+    "hasCustomEventSelectors": true
+  },
+  "status": {
+    "isLogging": true,
+    "latestLogDeliveryTime": "2026-07-21T14:53:51Z",
+    "latestCloudWatchLogsDeliveryTime": "2026-07-21T14:53:23Z",
+    "latestDigestDeliveryTime": "2026-07-21T14:47:26Z"
+  },
+  "note": "Read-only AWS CLI capture. Account-specific trail, KMS, CloudWatch role and log-group ARNs were reduced to configured booleans."
+}

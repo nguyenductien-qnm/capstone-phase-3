@@ -1,0 +1,34 @@
+### R3 - DANH SÁCH 32 POLICY ĐANG CHẠY @ 2026-07-22T11:50:32Z
+NAME                                               POD-SELECTOR                                                                                 AGE
+allow-apiserver-egress-observability               app.kubernetes.io/name in (kube-state-metrics,opentelemetry-collector,prometheus,reloader)   15m
+allow-datastore-egress-elasticache                 opentelemetry.io/name in (cart,product-reviews)                                              15m
+allow-datastore-egress-msk                         opentelemetry.io/name in (accounting,checkout,fraud-detection)                               15m
+allow-datastore-egress-rds                         opentelemetry.io/name in (accounting,product-catalog,product-reviews)                        15m
+allow-dns-egress                                   <none>                                                                                       15m
+allow-flagd-ingress                                opentelemetry.io/name=flagd                                                                  15m
+allow-ingress-ad                                   opentelemetry.io/name=ad                                                                     15m
+allow-ingress-cart                                 opentelemetry.io/name=cart                                                                   15m
+allow-ingress-checkout                             opentelemetry.io/name=checkout                                                               15m
+allow-ingress-currency                             opentelemetry.io/name=currency                                                               15m
+allow-ingress-email                                opentelemetry.io/name=email                                                                  15m
+allow-ingress-frontend                             opentelemetry.io/name=frontend                                                               15m
+allow-ingress-kafka                                opentelemetry.io/name=kafka                                                                  15m
+allow-ingress-llm                                  opentelemetry.io/name=llm                                                                    15m
+allow-ingress-ml-guard                             opentelemetry.io/name=ml-guard                                                               15m
+allow-ingress-payment                              opentelemetry.io/name=payment                                                                15m
+allow-ingress-product-catalog                      opentelemetry.io/name=product-catalog                                                        15m
+allow-ingress-product-reviews                      opentelemetry.io/name=product-reviews                                                        15m
+allow-ingress-public-frontend-proxy                opentelemetry.io/name=frontend-proxy                                                         15m
+allow-ingress-quote                                opentelemetry.io/name=quote                                                                  15m
+allow-ingress-recommendation                       opentelemetry.io/name=recommendation                                                         15m
+allow-ingress-shipping                             opentelemetry.io/name=shipping                                                               15m
+allow-ingress-shopping-copilot                     opentelemetry.io/name=shopping-copilot                                                       15m
+allow-ingress-valkey-cart                          opentelemetry.io/name=valkey-cart                                                            15m
+allow-internet-egress-selected                     egress-internet=true                                                                         15m
+allow-intra-namespace-egress                       <none>                                                                                       15m
+allow-metrics-scrape                               <none>                                                                                       15m
+allow-observability-sink-jaeger                    app.kubernetes.io/name=jaeger                                                                15m
+allow-observability-sink-opentelemetry-collector   app.kubernetes.io/name=opentelemetry-collector                                               15m
+allow-observability-sink-prometheus                app.kubernetes.io/name=prometheus                                                            15m
+allow-scraper-egress-cluster                       app.kubernetes.io/name in (opentelemetry-collector,prometheus)                               6m1s
+default-deny-all                                   <none>                                                                                       15m

@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: vaptest-neg-07-privesc-absent
+  labels: { vaptest: "true" }
+spec:
+  # KHÔNG set allowPrivilegeEscalation -> CEL đòi set tường minh == false nên phải CHẶN
+  # (K8s default cho phép escalation nếu bỏ trống)
+  containers:
+  - name: app
+    image: ecommerce-dev-techx-corp:1.0-cart-aadff38
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      # allowPrivilegeEscalation: <cố ý bỏ trống>   VI PHẠM deny-privilege-escalation
+      capabilities: { drop: ["ALL"] }
+    resources:
+      requests: { cpu: "10m", memory: "16Mi" }
+      limits: { cpu: "50m", memory: "32Mi" }

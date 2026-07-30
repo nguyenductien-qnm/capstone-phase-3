@@ -1,0 +1,721 @@
+# TF1-53 [AIOps-W1-T5] - Cau hinh phat hien loi & canh bao van hanh
+# ----------------------------------------------------------------------------
+# Rule config-driven: KHONG hardcode nguong trong code. Them/sua tin hieu tai day.
+# 3 loai rule:
+#   - type: metric     -> query Prometheus (PromQL tra ve vector, so sanh op/threshold trong code)
+#   - type: log        -> dem so log khop match_phrase tren OpenSearch trong cua so window_minutes
+#   - type: k8s_status -> doc thang trang thai pod tu K8s API (vd OOMKilled) - dung cho
+#                          su co ma app KHONG kip ghi log truoc khi bi kill (xem oom-detected)
+#
+# Nguong bam SLO trong onboarding/SLO.md:
+#   - storefront p95 < 1s ; non-5xx >= 99.5% (err < 0.5%) ; checkout >= 99% (err < 1%)
+
+poll_interval_seconds: 30
+
+sources:
+  # URL doc tu bien moi truong (xem .env.example). KHONG commit URL that.
+  prometheus_url_env: PROM_URL
+  opensearch_url_env: OPENSEARCH_URL
+  opensearch_index: "otel-logs-*"
+  # Ten field trong index otel-logs-* (lay tu grafana/provisioning/datasources/opensearch.yaml)
+  opensearch_message_field: "body"
+  opensearch_time_field: "observedTimestamp"
+  http_timeout_seconds: 5
+
+alert:
+  # provider: slack | discord | stdout | auto (tu doan tu URL webhook)
+  provider: auto
+  webhook_env: ALERT_WEBHOOK_URL
+  # Cung 1 rule + cung 1 service chi ban toi da 1 lan / cooldown_seconds (chong spam on-call)
+  cooldown_seconds: 600
+
+rules:
+  # ---- GOLDEN SIGNALS (metric) ----
+  - id: latency-p95-high
+    type: metric
+    severity: warning
+    summary: "p95 latency > 1s — VI PHẠM SLO storefront (< 1s)"
+    summary_dynamic: "p95 latency TĂNG BẤT THƯỜNG so với 15 phút gần đây (chưa vượt SLO 1s — cảnh báo sớm)"
+    # Review FP-run 12/07: flagd (4.87s, khong thuoc SLO nao) tung trigger rule nay.
+    # Loai service ha tang/noi bo khoi pham vi SLO storefront (exclusion an toan hon allowlist
+    # - khong vo tinh bo sot service storefront moi).
+    query: >-
+      histogram_quantile(0.95,
+        sum by (service_name, le) (
+          rate(http_server_request_duration_seconds_bucket{service_namespace="techx-corp", service_name!~"flagd|flagd-ui|otel-collector|grafana|jaeger|prometheus|opensearch|load-generator|llm"}[5m])
+        )
+      )
+    op: gt
+    threshold: 1.0
+    # Cong SLO cho tang 3-sigma (backtest 12h tren EKS 27/07 — addendum ADR-012).
+    # Do thuc te: p95 cua cart median 5.4ms, max 36.2ms. Nguong SLO 1000ms cao gap 28 lan
+    # gia tri lon nhat tung quan sat, nen tang TINH khong bao gio kich hoat duoc va moi lan
+    # keu deu den tu 3-sigma. Trong 12h khong co su co latency nao ma 3-sigma van keu 12
+    # lan — deu la bien dong vai ms, vuot 3-sigma nhung vo nghia ve van hanh.
+    # Dat cong 0.20 (tuc 200ms): 12 lan keu -> 0, khong mat phat hien nao.
+    dynamic_min_fraction: 0.20
+
+  # ---- ERROR BUDGET BURN-RATE (DRAFT) — multi-window multi-burn-rate, SRE Workbook ch.5 ----
+  #
+  # DOI NEN METRIC 29/07 (http_server_* -> spanmetrics). BA phep do doc lap chung minh nen cu
+  # KHONG THE keu, khong phai "chua vo SLO" (so o report/mandate22-detection-gaps/verify.md V7
+  # va report/mandate15/report.md muc 3.2):
+  #   1. `http_response_status_code=~"5.."` RONG TOAN CUM -> tu so khong bao gio co du lieu.
+  #   2. `{service_name="checkout"}` tren http_server_request_duration_seconds_count RONG —
+  #      checkout khong he xuat metric do. Tuc CA HAI rule `-checkout` deu mu ve cau truc.
+  #   3. `{service_namespace="techx-corp"}` chi khop DUY NHAT `cart`.
+  # Bang chung do detector tu sinh: 28/07 no ban 8 alert `detector-silent-rule`, trong do co
+  # dung 4 rule nay — tuc 0 series suot 120 chu ky lien tiep.
+  # Nen moi = spanmetrics, dung nen da chung minh chay tren 17 service o `service-error-rate-high`.
+  #
+  # DIEN DAT BANG BOI SO BURN-RATE (`/ budget`, threshold 14.4 / 6.0) thay vi ti le tho
+  # (0.072 = 14.4 x 0.005). Y tuong tu PR #318 cua Le Kim Dung + Nguyen Cong Thinh — de doc
+  # hon va khop tu vung SRE Workbook. PR do da dong (nhanh conflict + 5/7 file ngoai pham vi).
+  #
+  # GIU IDIOM `min()` — `(A_short < A_long) or (A_long)` — VA KHONG dung `and` nhu #318.
+  # Ca hai cho cung ket qua fire (min(a,b) > T <=> a > T VA b > T), nhung khac nhau o cho:
+  # `and` CHI emit series khi cua so dai DA vuot nguong, tuc "im lang" la trang thai BINH
+  # THUONG cua rule. Khi do `expect_series: true` mat nghia va co che `detector-silent-rule`
+  # khong con phan biet duoc "rule mu" voi "he khoe" — dung cai lop loi da lam rule kafka nam
+  # cam hang tuan. Idiom `min` luon tra ve mot series khi co du lieu, nen im lang = MU.
+  #
+  # TU SO PHAI MAC DINH 0 — `(rate(loi) or rate(tat_ca) * 0)`. Cau tren ("min luon tra ve
+  # mot series khi co du lieu") CHI dung khi chuoi TU SO ton tai. Do that tren cum 30/07:
+  # 15 service co traffic nhung rule chi sinh 5 series — 10 service con lai CHUA TUNG co span
+  # loi, nen `sum by (service_name) (rate(...{status_code="STATUS_CODE_ERROR"}...))` khong co
+  # chuoi nao cho chung, phep chia khong sinh gi, va rule im lang ve chinh nhung service do.
+  # Service nao trong 10 do sap hoan toan thi rule VAN im. `detector-silent-rule` khong cuu
+  # duoc vi no chi bat khi CA rule tra 0 series — o day rule van tra 5, trong nhu dang song.
+  #
+  # Sua cho ca BA bieu thuc (short, long trong phep so sanh, va long o nhanh `or`), khong chi
+  # bieu thuc long. Ly do la ngu nghia chu khong phai cho dep: neu chi long co mac dinh 0 con
+  # short thi khong, mot service da TANH loi o 5m nhung con loi trong 1h se lam `A_short`
+  # rong -> `A_short < A_long` rong -> roi xuong nhanh `or (A_long)` -> tra ve gia tri 1h ->
+  # KEU du cua so ngan da sach. Do la pha dung cai ngu nghia multi-window sinh ra de bao ve.
+  # Ca hai chieu deu co test trong promql_tests/burn_rate_test.yml (CA 3 va CA 4).
+  #
+  # DANH DOI da biet, chua chot: spanmetrics dem `STATUS_CODE_ERROR` (RPC + HTTP + Kafka),
+  # RONG HON dinh nghia "non-5xx" cua SLO trong onboarding/SLO.md. Ap cung budget 0.5%/1% len
+  # be mat loi rong hon la CHAT HON, khong phai long hon. Can nguoi giu SLO xac nhan truoc khi
+  # go DRAFT.
+  #
+  # DA VERIFY TREN PROMETHEUS SONG 30/07 (cum ecommerce-dev-eks, account moi sau su co credit
+  # 28/07). Ca 4 query chay duoc, nhan co that, tra ve series. Chinh lan chay do lam lo ra
+  # loi "tu so vang mat" o tren — thu ma khong fixture nao bat duoc, vi fixture nao cung dung
+  # san CA tu lan mau. Sau khi sua: 5 series -> 15 series, moi service co traffic deu co so do.
+  #
+  # VAN LA DRAFT, nhung ly do da DOI. Khong con la "chua verify" nua, ma la mot cau hoi cho
+  # NGUOI, o khoi "DANH DOI" ngay tren: spanmetrics dem STATUS_CODE_ERROR rong hon dinh nghia
+  # "non-5xx" cua SLO. Go nhan khi chu SLO xac nhan be mat loi do la dung y.
+  #
+  # DA BO `error-budget-burn-fast` (K1) trong cung dot: no trung hoan toan voi cap
+  # `-standard`/`-checkout` (hop cua hai rule do = moi service), va con ap SAI SLO cho checkout
+  # (0.5% thay vi 1%).
+
+  - id: error-budget-burn-fast-standard
+    type: metric
+    severity: critical
+    summary: "DRAFT: đốt error budget > 14.4× ở CẢ 5m và 1h (non-checkout) — cạn budget 30 ngày trong ~2 ngày"
+    summary_dynamic: "Tốc độ đốt error budget TĂNG BẤT THƯỜNG so với baseline (chưa tới 14.4× — cảnh báo sớm)"
+    query: >-
+      (
+        (
+          (
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              status_code="STATUS_CODE_ERROR", service_name!="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[5m]))
+            or
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              service_name!="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[5m])) * 0
+          )
+          / clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total{
+            service_name!="checkout",
+            span_name!="grpc.health.v1.Health/Check",
+            span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[5m])), 0.001)
+        ) / 0.005
+        <
+        (
+          (
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              status_code="STATUS_CODE_ERROR", service_name!="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h]))
+            or
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              service_name!="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h])) * 0
+          )
+          / clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total{
+            service_name!="checkout",
+            span_name!="grpc.health.v1.Health/Check",
+            span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h])), 0.001)
+        ) / 0.005
+      )
+      or
+      (
+        (
+          (
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              status_code="STATUS_CODE_ERROR", service_name!="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h]))
+            or
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              service_name!="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h])) * 0
+          )
+          / clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total{
+            service_name!="checkout",
+            span_name!="grpc.health.v1.Health/Check",
+            span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h])), 0.001)
+        ) / 0.005
+      )
+    op: gt
+    # 14.4x = chuan page-level cua SRE Workbook: dot het budget 30 ngay trong ~2 ngay.
+    # Truoc day ghi 0.072 = 14.4 x 0.005 (ti le tho) — cung mot nguong, kho doc hon.
+    threshold: 14.4
+
+  - id: error-budget-burn-fast-checkout
+    type: metric
+    severity: critical
+    summary: "DRAFT: checkout đốt error budget > 14.4× ở CẢ 5m và 1h — luồng RA TIỀN, SLO 99%"
+    summary_dynamic: "Tốc độ đốt budget của checkout TĂNG BẤT THƯỜNG so với baseline (chưa tới 14.4×)"
+    query: >-
+      (
+        (
+          (
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              status_code="STATUS_CODE_ERROR", service_name="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[5m]))
+            or
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              service_name="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[5m])) * 0
+          )
+          / clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total{
+            service_name="checkout",
+            span_name!="grpc.health.v1.Health/Check",
+            span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[5m])), 0.001)
+        ) / 0.01
+        <
+        (
+          (
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              status_code="STATUS_CODE_ERROR", service_name="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h]))
+            or
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              service_name="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h])) * 0
+          )
+          / clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total{
+            service_name="checkout",
+            span_name!="grpc.health.v1.Health/Check",
+            span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h])), 0.001)
+        ) / 0.01
+      )
+      or
+      (
+        (
+          (
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              status_code="STATUS_CODE_ERROR", service_name="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h]))
+            or
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              service_name="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h])) * 0
+          )
+          / clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total{
+            service_name="checkout",
+            span_name!="grpc.health.v1.Health/Check",
+            span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h])), 0.001)
+        ) / 0.01
+      )
+    op: gt
+    threshold: 14.4
+
+  - id: error-budget-burn-slow-standard
+    type: metric
+    severity: warning
+    summary: "DRAFT: đốt error budget > 6× ở CẢ 30m và 6h (non-checkout) — mở ticket, chưa cần gọi người"
+    query: >-
+      (
+        (
+          (
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              status_code="STATUS_CODE_ERROR", service_name!="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[30m]))
+            or
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              service_name!="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[30m])) * 0
+          )
+          / clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total{
+            service_name!="checkout",
+            span_name!="grpc.health.v1.Health/Check",
+            span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[30m])), 0.001)
+        ) / 0.005
+        <
+        (
+          (
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              status_code="STATUS_CODE_ERROR", service_name!="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[6h]))
+            or
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              service_name!="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[6h])) * 0
+          )
+          / clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total{
+            service_name!="checkout",
+            span_name!="grpc.health.v1.Health/Check",
+            span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[6h])), 0.001)
+        ) / 0.005
+      )
+      or
+      (
+        (
+          (
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              status_code="STATUS_CODE_ERROR", service_name!="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[6h]))
+            or
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              service_name!="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[6h])) * 0
+          )
+          / clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total{
+            service_name!="checkout",
+            span_name!="grpc.health.v1.Health/Check",
+            span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[6h])), 0.001)
+        ) / 0.005
+      )
+    op: gt
+    # 6x = chuan ticket-level cua SRE Workbook (cua so 30m/6h). Truoc day ghi 0.03 = 6 x 0.005.
+    threshold: 6.0
+
+  - id: error-budget-burn-slow-checkout
+    type: metric
+    severity: warning
+    summary: "DRAFT: checkout đốt error budget > 6× ở CẢ 30m và 6h — mở ticket, chưa cần gọi người"
+    query: >-
+      (
+        (
+          (
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              status_code="STATUS_CODE_ERROR", service_name="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[30m]))
+            or
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              service_name="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[30m])) * 0
+          )
+          / clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total{
+            service_name="checkout",
+            span_name!="grpc.health.v1.Health/Check",
+            span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[30m])), 0.001)
+        ) / 0.01
+        <
+        (
+          (
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              status_code="STATUS_CODE_ERROR", service_name="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[6h]))
+            or
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              service_name="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[6h])) * 0
+          )
+          / clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total{
+            service_name="checkout",
+            span_name!="grpc.health.v1.Health/Check",
+            span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[6h])), 0.001)
+        ) / 0.01
+      )
+      or
+      (
+        (
+          (
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              status_code="STATUS_CODE_ERROR", service_name="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[6h]))
+            or
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              service_name="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[6h])) * 0
+          )
+          / clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total{
+            service_name="checkout",
+            span_name!="grpc.health.v1.Health/Check",
+            span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[6h])), 0.001)
+        ) / 0.01
+      )
+    op: gt
+    threshold: 6.0
+
+  # ---- COST SIGNAL (chi phi LLM) ----
+  #
+  # TEN METRIC CO HAU TO DON VI. Ban cu viet `bedrock_cost_usd_total` va MU hoan toan —
+  # `detector.py --once --dry-run` tren cum 30/07 bao `detector-silent-rule` cho rule nay.
+  # Ten that tren Prometheus la `bedrock_cost_usd_USD_total`: bo xuat OTLP->Prometheus CHEN
+  # ten don vi cua instrument vao giua ten va hau to `_total` (instrument `bedrock.cost.usd`
+  # co unit `USD`). Khong doan duoc tu code — phai doc `/api/v1/label/__name__/values` cua
+  # chinh cum moi thay.
+  #
+  # `service_namespace="techx-corp"` la ĐUNG (do lai 30/07: khop product-reviews). Chi sai
+  # moi ten metric. Hai metric anh em cung ho: `bedrock_input_tokens_total`,
+  # `bedrock_output_tokens_total` — KHONG co hau to don vi vi instrument khong khai unit.
+  - id: bedrock-cost-high
+    type: metric
+    severity: warning
+    summary: "Bedrock chi phí/giờ vượt ngưỡng - tiến gần trần budget $300/tuần"
+    query: >-
+      sum by (service_name) (
+        increase(bedrock_cost_usd_USD_total{service_namespace="techx-corp"}[1h])
+      )
+    op: gt
+    threshold: 1.0
+
+  # ---- TIN HIEU LOI GenAI (trong tam task) ----
+  - id: llm-rate-limit-429
+    type: log
+    severity: critical
+    summary: "LLM bị 429 rate-limit — nguy cơ mất tính năng tóm tắt review (sự cố BTC bơm qua flagd)"
+    match_phrases:
+      - "Rate limit reached"
+      - "rate_limit_exceeded"
+      # MANDATE-15 ca healthy-load, do that 27/07: cum tran "429" da bi BO.
+      # `message_field` la text da analyze, nen match_phrase khop TOKEN "429" o BAT KY
+      # dau nao trong dong log - khong rieng gi ma trang thai HTTP. Dem tren toan bo
+      # index (7 ngay, 7.94M dong): 49 dong khop, KHONG dong nao la 429 that:
+      #   24 dong = access log Envoy, status 200, "429" la truong %DURATION% (429 mili-giay)
+      #   25 dong = "topic=domain.checkout.orders, partition=0, offset=429" cua shipping
+      # Precision cua cum nay = 0.00 tren toan bo du lieu no tung thay. No lam ca
+      # healthy-load FAIL oan: tai 3.84x -> do tre tang -> mot request mat dung 429ms
+      # -> CRITICAL. Tuc la cum tu nay bien "he thong BAN" thanh "he thong HONG",
+      # dung cai loi ma MANDATE-15 di tim.
+      # Thay bang cum neo vao vi tri trang thai HTTP trong access log Envoy: analyzer
+      # tach thanh [http, 1.1, 429] lien tiep, nen chi khop khi status THAT SU la 429
+      # (kiem chung bang _analyze tren otel-logs-2026-07-27: bat status=429, khong khop
+      # ca dong 429ms lan dong offset=429).
+      - 'HTTP/1.1" 429'
+    window_minutes: 5
+    min_count: 1
+
+  - id: genai-assistant-failure
+    type: log
+    severity: critical
+    summary: "GenAI assistant lỗi — product-reviews không sinh được tóm tắt/trả lời (đã rơi vào fallback)"
+    # Review G2/G6: match machine marker do code emit (khong phu thuoc copy hien thi cho khach).
+    # "unable to process your response" da chet sau PR#26 (code doi message sang tieng Viet).
+    match_phrases:
+      - "AI_SUMMARY_FALLBACK"
+      - "Caught Exception"
+    window_minutes: 5
+    min_count: 1
+
+  # DOI NEN METRIC 30/07 — cung ly do da doi 4 rule burn-rate o MANDATE-15.
+  #
+  # Ban cu doc `http_server_request_duration_seconds_bucket{service_name="product-reviews"}`.
+  # Metric do CO THAT tren cum (390 series) nhung CHI xuat boi otelcol-contrib, jaeger va
+  # cart — product-reviews khong he xuat no. Nen tu so rong, rule MU, va
+  # `detector.py --once --dry-run` 30/07 bao `detector-silent-rule` dung nhu vay.
+  #
+  # Nen moi = spanmetrics duration, phu DU CA 17 service (do 30/07), cung nen ma
+  # `service-error-rate-high` va 4 rule burn-rate dang dung. DON VI LA MILLIGIAY, nen
+  # nguong 2.0s -> 2000. Loc `span_kind="SPAN_KIND_SERVER"` de do thoi gian XU LY MOT
+  # REQUEST DEN, khong lan sang span CLIENT (do la do tre cua thu ma no goi).
+  #
+  # ⚠️ RULE NAY SE KEU NGAY. Do that 30/07 tren product-reviews (span SERVER):
+  #       p50 = 3.233s   trung binh = 7.429s   p95 >= 15s   (cham bucket +Inf, tran huu han 15000ms)
+  # Tuc he DANG o dung cai trang thai ma rule sinh ra de canh bao, va khong ai biet vi rule mu.
+  # Giu nguong 2000ms (khong doi ngu nghia so voi ban cu) va DE DRAFT: viec quyet dinh la
+  # "chap nhan alert nay" hay "sua do tre cua product-reviews" thuoc chu SLO, khong phai
+  # viec cua query. KHONG nang nguong cho het keu — do la giau van de, khong phai sua no.
+  - id: genai-latency-high
+    type: metric
+    severity: warning
+    summary: "DRAFT: p95 product-reviews > 2s — cuộc gọi LLM chậm, đe dọa gián tiếp SLO storefront"
+    summary_dynamic: "Độ trễ product-reviews TĂNG BẤT THƯỜNG so với baseline (chưa chạm 2s — cảnh báo sớm)"
+    query: >-
+      histogram_quantile(0.95,
+        sum by (le) (
+          rate(traces_span_metrics_duration_milliseconds_bucket{service_name="product-reviews", span_kind="SPAN_KIND_SERVER"}[5m])
+        )
+      )
+    op: gt
+    threshold: 2000
+
+  # ---- SU CO HA TANG KINH DIEN (log) ----
+  - id: db-pool-exhaustion
+    type: log
+    severity: critical
+    summary: "DB connection pool cạn (INC-1/S01 tái diễn) — checkout có thể timeout"
+    match_phrases:
+      - "too many clients"
+      - "pool timeout"
+      - "remaining connection slots"
+      # MANDATE-07 #7b, do that 25/07: cum "connection pool" tran khong cho phep phan
+      # biet CAN KIET voi KHOI TAO BINH THUONG - no khop luon log startup lanh tinh cua
+      # cart ("Valkey connection pool initialized", "Initializing Valkey connection
+      # pool") va voi min_count 1 thi 1 dong log du de keu CRITICAL. Do la false
+      # positive that, chinh chi so precision cua #7b lam lo ra. Thay bang cac cum chi
+      # dung trang thai can kiet; 3 cum con lai o tren van giu nguyen vi chung da du
+      # dac hieu (Postgres/driver chi in ra khi that su het slot).
+      - "connection pool exhausted"
+      - "connection pool timeout"
+      - "unable to acquire connection"
+    # Review K2 (recall dominates - miss = zero): min_count 3->1, keo dai window de bu FP.
+    window_minutes: 10
+    min_count: 1
+
+  # Review 17/07 (chaos test that voi service `ad`): rule log-based cu KHONG BAO GIO
+  # khop cho OOM dot ngot - kernel SIGKILL container truoc khi no kip ghi log ve cai
+  # chet cua chinh no (xac nhan: log cua `ad` dung han truoc OOM, im lang tuyet doi qua
+  # 7 lan OOMKilled that lien tiep). Doi sang k8s_status: doc thang
+  # containerStatuses[].lastState.terminated tu K8s API - du lieu K8s tu ghi nhan, khong
+  # phu thuoc app co log duoc hay khong. Xem ADR-012 addendum.
+  - id: oom-detected
+    type: k8s_status
+    severity: critical
+    summary: "OutOfMemory / OOMKilled — pod bị giết vì hết RAM (INC-2/S07)"
+    k8s_namespace: techx-tf1
+    service_label_key: "opentelemetry.io/name"
+    lookback_seconds: 300
+    # Giu lai match_phrases lam tai lieu/du phong tuong lai (vd neu sau nay co
+    # container hook ghi log truoc khi bi kill) - KHONG con dung de gate nua.
+    match_phrases:
+      - "OutOfMemory"
+      - "OOMKilled"
+      - "Cannot allocate memory"
+    window_minutes: 5
+    min_count: 1
+
+  - id: dns-resolution-error
+    type: log
+    severity: warning
+    summary: "Lỗi phân giải DNS / NXDOMAIN (S02) — service không gọi được dependency"
+    match_phrases:
+      - "NXDOMAIN"
+      - "no such host"
+      - "name resolution"
+      - "Temporary failure in name resolution"
+    # Review K2 (recall dominates): min_count 3->1, window 5->10m.
+    window_minutes: 10
+    min_count: 1
+
+  # ---- DRAFT (review K4) ----
+  # Rule `error-budget-burn-fast` (K1) DA BO 29/07. Ly do: no TRUNG HOAN TOAN voi cap
+  # `error-budget-burn-fast-standard` + `-checkout` o tren — hop cua hai rule do la moi
+  # service, cung cua so 5m/1h, cung nguong 14.4x. Giu ca ba nghia la mot su co checkout
+  # sinh HAI alert critical cho cung mot dieu kien.
+  # Nang hon: K1 ap budget 0.005 cho MOI service, ke ca checkout — ma SLO cua checkout la
+  # 99% (budget 0.01), khong phai 99.5%. Tuc no bao dong som gap doi tren dung luong ra tien.
+  # Cap `-standard`/`-checkout` tach dung hai bac SLO nen thay the duoc hoan toan.
+
+  # SEMANTICS-VERIFIED 12/07 (compose + chaos productCatalogFailure): loi flag nay hien o tang gRPC
+  # (rpc_grpc_status_code=13) va KHONG sinh HTTP 5xx nao -> cac rule http_server_* mu voi no.
+  # Rule nay do error-ratio gRPC; do thuc te duoi chaos: product-catalog = 6.6% (fire voi threshold 5%).
+  #
+  # DOI NEN METRIC 27/07 (rpc_server_duration_* -> spanmetrics). Do that tren EKS, so o
+  # report/mandate22-detection-gaps/verify.md. Hai ly do, deu la so do chu khong phai y kien:
+  #
+  # 1. COVERAGE. rpc_server_duration_milliseconds chi co o 3/20 service (ad, checkout,
+  #    product-catalog). traces_span_metrics_calls_total co o 17 service, vi spanmetrics
+  #    connector (values.yaml:2255) sinh metric TU TRACE nen khong doi service tu xuat metric.
+  #
+  # 2. HEALTH-CHECK PHA LOANG MAU SO. Do 26/07 tren checkout: grpc.health.v1.Health/Check
+  #    0.582 req/s vs PlaceOrder 0.071 req/s — health-check chiem 89% mau so. Hau qua: ke ca
+  #    khi 100% don hang that bai, ti le chi bo len 0.109-0.18 so voi nguong 0.05, nen mat
+  #    380s moi vuot nguong (lead-time do duoc cua MANDATE-15). Bo loc phai ap DOI XUNG ca
+  #    tu so lan mau so.
+  #
+  # Doi ten id: rule khong con chi ve gRPC nua (spanmetrics phu ca HTTP lan Kafka).
+  # `id` la khoa cua metric_history/dedup_key/alerter_history.jsonl nen doi ten lam DUT MACH
+  # lich su alert cua rule cu — chap nhan, va ghi ra day de nguoi doc so lieu cu khong bi lo.
+  - id: service-error-rate-high
+    type: metric
+    severity: critical
+    summary: "Tỉ lệ lỗi của service > 10% (đã loại health-check) — lỗi tầng RPC/HTTP/Kafka"
+    summary_dynamic: "Tỉ lệ lỗi TĂNG BẤT THƯỜNG so với baseline (chưa vượt ngưỡng — cảnh báo sớm)"
+    query: >-
+      sum by (service_name) (rate(traces_span_metrics_calls_total{
+        status_code="STATUS_CODE_ERROR",
+        span_name!="grpc.health.v1.Health/Check",
+        span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[5m]))
+      /
+      clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total{
+        span_name!="grpc.health.v1.Health/Check",
+        span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[5m])), 0.001)
+    op: gt
+    # 0.05 -> 0.10. Bo health-check ra thi mau so nho di ~9 lan, nen ti le nen cua CHINH
+    # trang thai binh thuong cung cao len: do 12h, checkout co p50 0.0153 va p95 dung bang
+    # 0.0500, tuc vuot nguong cu suot 4.9% thoi gian ma khong co su co gi.
+    # Backtest so bao dong/12h: 0.05 -> 14, 0.10 -> 3, 0.15 -> 3, 0.20 -> 3, 0.30 -> 2.
+    # 0.10 la diem gay. Van cach xa su co that: mau so nho di 9 lan nghia la su co that day
+    # ti le len gan 1.0 (max do duoc 1.0000, p99 0.5714) chu khong bo len 0.109-0.18 nhu truoc.
+    threshold: 0.10
+    # Cong SLO cho tang 3-sigma (backtest 12h tren EKS 27/07 — addendum ADR-012).
+    # Do thuc te tren chuoi that (1391 diem, 42% bang 0): 3-sigma keu 16 lan trong 12h,
+    # trong khi su co that DUY NHAT lai do tang TINH bat duoc (ratio 0.1325 > 0.05).
+    # Tuc tang dong dong gop 16 lan keu va 0 phat hien rieng. Nguyen nhan: chuoi lech-khong,
+    # phuong sai nen rat nho, nen mot nhip len 0.02 da vuot mean+3sigma du con thap hon
+    # nguong SLO 2.5 lan.
+    # Dat cong 0.50 (tuc 2.5%): 16 lan keu -> 2, VAN bat duoc su co that. Chon 0.50 chu
+    # khong phai 0.20 vi o 0.20 chi giam duoc 16 -> 15 (da do ca hai muc).
+    dynamic_min_fraction: 0.50
+
+  # K4: leading indicator cho lop su co OOM (INC-2, review J1 valkey-cart) - bat TRUOC khi kubelet kill.
+  - id: memory-saturation-high
+    type: metric
+    severity: warning
+    summary: "DRAFT K4: RAM container > 85% limit kéo dài 10m — nguy cơ OOMKill (valkey-cart/J1, INC-2)"
+    # Label `namespace` o day la NAMESPACE K8S (techx-tf1 tren EKS - xem
+    # platform/gitops/applications/application.yaml:31), KHONG phai service_namespace
+    # cua OTel (techx-corp). Hai label khac nguon, dung nham la rule cau 0 series.
+    # PHEP CHIA PHAI CO `on(...)`. Ban cu chia thang, khong khai vector matching, nen
+    # PromQL doi HAI VE TRUNG TOAN BO nhan (tru __name__) — dieu khong bao gio xay ra:
+    #   ve trai  (cAdvisor)          : 48 nhan, rieng co id/image/name/karpenter_*/topology_*
+    #   ve phai  (kube-state-metrics): 18 nhan, rieng co uid/unit/resource/node/helm_sh_chart
+    #   chung    :                     container, instance, job, namespace, pod  (5)
+    # Ket qua: 0 series. Do 30/07 — bo hai metric DEU CO du lieu (616 va 207 series), nen
+    # khong ai nghi rule mu; no chi im lang. Day la lop loi KHAC voi "sai ten metric":
+    # sai ten thi grep ra, sai vector matching thi phai chay that moi thay.
+    #
+    # `on (namespace, pod, container)` — CO Y bo `instance` va `job` du chung co mat o ca hai
+    # ve: hai metric den tu hai job scrape khac nhau nen gia tri hai nhan do luon lech.
+    #
+    # `max by (namespace, pod, container)` o CA HAI VE truoc khi chia: container vua restart
+    # de lai series cu trong cua so staleness (cAdvisor phan biet bang `id`/`name`), thanh ra
+    # nhieu series cho cung mot (pod, container) -> loi "many-to-one matching must be
+    # explicit". Do 30/07: 3 cap bi trung (ml-guard, thanos-query x2). Gom truoc thi het,
+    # va gom bang `max` la dung y do: quan tam dinh cao nhat, khong phai trung binh.
+    #
+    # `container!=""` bo chuoi muc POD (cgroup cha) — no khong co limit tuong ung ben
+    # kube-state-metrics nen chi lam nhieu.
+    #
+    # DO SAU KHI SUA (30/07): 0 -> 37 series. Hai container VUOT nguong ngay tai thoi diem do:
+    #   opensearch 0.891 · prometheus-server 0.887
+    # Va `prometheus-0` da OOMKilled that (exit 137) truoc do vai chuc phut. Tuc rule nay,
+    # neu khong mu, da bao truoc chinh su co vua xay ra tren cum.
+    query: >-
+      max by (container) (
+        max by (namespace, pod, container) (
+          avg_over_time(container_memory_working_set_bytes{namespace="techx-tf1", container!=""}[10m])
+        )
+        / on (namespace, pod, container)
+        max by (namespace, pod, container) (
+          clamp_min(kube_pod_container_resource_limits{namespace="techx-tf1", resource="memory"}, 1)
+        )
+      )
+    op: gt
+    threshold: 0.85
+
+  # De bai AIOps core: "da tin hieu ... queue lag".
+  #
+  # VERIFY TREN CUM 27/07 — ban truoc co BA loi chong nhau, khong phai mot. Sua moi ten
+  # metric van ra chuoi rong. So o report/mandate22-detection-gaps/verify.md muc V6:
+  #   1. `kafka_consumer_group_lag` KHONG TON TAI. Ten that: kafka_consumer_records_lag.
+  #      Ly do goc: metric cu la cua kafkametrics receiver, ma receiver do tro vao
+  #      `kafka:9092` — mot broker khong ton tai, vi chart dat kafka.enabled=false
+  #      (values.yaml:1989). Cum dung Amazon MSK, va MSK tat ca jmx lan node exporter
+  #      (terraform/modules/msk/main.tf:98-106).
+  #   2. `max by (group)` — KHONG HE co nhan `group`. Do la nhan cua metric cu. Nhan that
+  #      cua metric moi: client_id, partition, topic, service_name. Gom theo nhan khong ton
+  #      tai cho ra mot chuoi khong nhan -> svc = "unknown" -> dedup key, nhom alert va cham
+  #      diem incident_replay deu don ve mot ro "unknown".
+  #   3. `{namespace="techx-tf1"}` — nhan that la `k8s_namespace_name`. Bo loc sai nhan
+  #      khong bao loi, no chi khop 0 chuoi.
+  #
+  # PHAM VI THAT, khong noi qua: metric nay chi co DUY NHAT 1 chuoi, cua `fraud-detection`
+  # (JVM tu bao qua OTLP). Cac consumer khac — payment (group `payment` tren
+  # domain.checkout.orders), email, shipping — KHONG QUAN SAT DUOC lag, vi MSK tat
+  # open_monitoring. Muon phu ho can bat open_monitoring tren MSK: cham ha tang chung va co
+  # chi phi, nen la ticket rieng cho CDO chu khong lam trong PR nay.
+  # Gom theo service_name (nhan co that) chu khong theo group.
+  - id: kafka-consumer-lag-high
+    type: metric
+    severity: warning
+    summary: "Kafka consumer lag > 1000 msg trong 10m (chỉ phủ fraud-detection) — consumer tụt hậu"
+    query: >-
+      max by (service_name) (avg_over_time(kafka_consumer_records_lag{k8s_namespace_name="techx-tf1"}[10m]))
+    op: gt
+    threshold: 1000
+
+  # ---- HONG-KHONG-CON-TIN-HIEU (silent failure) ----
+  # Do tren EKS 26/07: giet pod `payment` -> detector im lang HOAN TOAN. Moi rule tren day
+  # deu do "hong ma van tra loi" (latency cao, 5xx, error-ratio). Khong rule nao do duoc
+  # "khong con tra loi gi ca": chuoi cua service chet khong bao gio > threshold.
+  # Nguon: spanmetrics connector (values.yaml:2255) sinh metric TU TRACE nen phu 17 service,
+  # trong khi rpc_server_duration_* chi phu 3. Toan bo so do o report/mandate22-detection-gaps/verify.md
+  - id: service-traffic-collapse
+    type: metric
+    severity: critical
+    summary: "Luồng request của service SỤT SÂU so với phần còn lại của hệ — dịch vụ có thể đã chết"
+    # span_kind SERVER|CONSUMER = "viec ma service duoc YEU CAU lam", ca dong bo lan bat dong bo.
+    # BAT BUOC co CONSUMER: `payment` lam viec qua Kafka (process domain.checkout.orders) va
+    # KHONG co mot span SERVER nao (do V2). Loc SERVER don thuan se bo sot dung service ma
+    # ca thay doi nay nham vao. CLIENT/PRODUCER la loi goi DI RA, co y loai.
+    #
+    # Ti le SO VOI PHAN CON LAI CUA HE, khong phai so voi qua khu cua chinh no. Ca he cung
+    # tut (nguon tai doi, dem vang khach) thi tu va mau cung tut -> ~1.0, khong keu; chi MOT
+    # service chet thi ti le cua no -> 0 con cua he ~1 -> keu.
+    # Do duoc 12h: cach "tu than" bao dong DONG LOAT 8 service luc 06:17 vi load-generator di
+    # tu 43.9 xuong 6.9 span/s (sum(up) giu nguyen 23 nen khong phai ho scrape - traffic that
+    # su tut 6 lan). So ban triet tieu dung loai do: frontend 0.191->0.828, recommendation
+    # 0.160->0.598. Tong 25 -> 9 bao dong.
+    #
+    # Cua so [15m] chu khong [5m]: service it tai co the im 5 phut mot cach hop le. Do 12h,
+    # nguong 0.20: 5m -> 9 bao dong, 15m -> 2, 30m -> 2 (khong cai thien them nen 15m la diem gay).
+    # GIA PHAI TRA: service chet han mat ~12-15 phut moi bi bat, cham hon 380s cua rule
+    # error-rate. Chap nhan vi loai su co nay hien KHONG BAO GIO bi bat. Cach sua dung la
+    # truong `for:` (doi dieu kien keo dai) ma detector khong co - han che da biet.
+    #
+    # Ve phai `and (rate[1h] > 0.02)` la CONG HOAT DONG: service nhan roi hop le tu dong nam
+    # ngoai pham vi, khong can allowlist tay. 0.02 chu khong 0.05: san thap nhat do duoc la
+    # payment 0.0648 req/s, cong 0.05 chi cho bien 1.3x - qua mong cho dung service quan trong
+    # nhat. 0.02 cho bien 3.2x.
+    #
+    # `sum by (service_name)` song sot qua ca phep chia lan `and` -> tra ve DUNG nhan
+    # service_name (da kiem: 15 chuoi, chi 1 nhan). Nho vay dedup key, cooldown, nhom alert va
+    # cham diem incident_replay deu mang ten service that thay vi "unknown".
+    query: >-
+      (
+        sum by (service_name) (rate(traces_span_metrics_calls_total{span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[15m]))
+        / clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total{span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h])), 0.001)
+      )
+      / scalar(clamp_min(
+          sum(rate(traces_span_metrics_calls_total{span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[15m]))
+          / clamp_min(sum(rate(traces_span_metrics_calls_total{span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h])), 0.001), 0.001))
+      and (sum by (service_name) (rate(traces_span_metrics_calls_total{span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h])) > 0.02)
+    op: lt
+    threshold: 0.20
+    # Tang 3-sigma vo nghia o day: chuoi nay quanh quan 1.0 voi phuong sai rat nho nen mot
+    # nhip xuong 0.7 vo nghia ve van hanh van vuot mean-3sigma. Va cong SLO (dynamic_min_fraction)
+    # KHONG ap cho nhanh lt nen khong cuu duoc. Tat luon ca viec ghi metric_history -> khong co
+    # baseline nhiem doc sau su co (chuoi 0 cua luc chet keo mean xuong).
+    dynamic_enabled: false

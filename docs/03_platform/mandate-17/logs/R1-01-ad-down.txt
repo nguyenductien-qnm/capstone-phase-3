@@ -1,0 +1,5 @@
+### R1 - AD KILLED @ 2026-07-22T10:23:34Z
+NAME   READY   UP-TO-DATE   AVAILABLE   AGE
+ad     0/0     0            0           3d6h
+--- pods ad (mong đợi: rỗng) ---
+No resources found in techx-develop namespace.

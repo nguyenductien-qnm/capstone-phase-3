@@ -1,0 +1,55 @@
+MANDATE-18 Prompt 7 - final runtime verification
+Capture time: 2026-07-22T09:07:54Z onward
+AWS profile: phase3-cdo
+Account/caller: [REDACTED]
+Region: us-east-1
+Cluster: ecommerce-dev-eks
+Namespace: techx-tf1
+Argo app: techx-corp, Synced, Healthy
+Mutation performed: none
+
+Workload comparability
+----------------------
+- Existing load-generator Deployment: 1/1 Ready; no new load was generated.
+- Baseline 5m frontend|cart|checkout rate: 4.65000597226794 calls/s.
+- Verification 5m rate: 5.5083396701652925 calls/s.
+- Difference: +18.4588%.
+- Assumption: comparable means within +/-20% with the same running load
+  generator and request mix. Result: PASS, but close to the upper boundary.
+
+SLO queries, 5m
+---------------
+- Checkout success: 100% (threshold >=99%): PASS.
+- Browse/frontend success: 100% (threshold >=99.5%): PASS.
+- Cart success: 100% (threshold >=99.5%): PASS.
+- Storefront/frontend-proxy p95: 15000 ms (threshold <1000 ms): FAIL.
+
+The storefront result is backed by non-empty histogram data, not NaN/no-data.
+Five-minute cumulative bucket rates included:
+- le=1000 ms: 0.024999513910010533/s
+- le=5000 ms: 0.06666447927126216/s
+- le=10000 ms: 0.07499777788251795/s
+- le=15000 ms: 0.08333107649377373/s
+- le=+Inf: 0.09166437510502952/s
+
+Runtime health
+--------------
+- Argo: Synced/Healthy.
+- All Deployments showed READY=AVAILABLE=DESIRED.
+- OpenSearch StatefulSet: 1/1 Ready.
+- OTel DaemonSet: 7/7 Ready.
+- All current pods: Running and Ready.
+- No current ImagePullBackOff, ErrImagePull, CrashLoopBackOff, or container
+  creation error was found.
+- Warning events around 43-58 minutes earlier recorded rollout-time startup
+  probe, preStop hook, and transient HPA metrics errors. Current replacement
+  pods are Ready; these historical warnings are not hidden.
+- Concurrent 15m log scan for all Helm techx-corp pods plus focused 30m scans
+  for shopping-copilot and AIOps found no AccessDenied, UnauthorizedOperation,
+  ExpiredToken, InvalidClientTokenId, NoCredentialProviders, WebIdentityErr,
+  AWS API, or RequestError match.
+
+Limit
+-----
+This verifies the current runtime. Prompt 6 code has not been rolled out, so
+this is not after-change evidence for telemetry retention/debug removal.

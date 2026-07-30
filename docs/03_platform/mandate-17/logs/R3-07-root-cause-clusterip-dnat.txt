@@ -1,0 +1,13 @@
+### R3 - TRUY VẾT NGUYÊN NHÂN ksm CrashLoop @ 2026-07-22T11:33:09Z
+Thí nghiệm: pod thử nghiệm bị default-deny + chỉ mở 10.60.0.0/16:443 (đúng rule apiServerEgress).
+=== A. TRUOC KHI CO POLICY (baseline, ca hai phai THONG) ===
+  ClusterIP 172.20.0.1:443  -> 401
+  ENI-IP    10.60.11.189:443 -> 401
+  ENI-IP    10.60.12.65:443  -> 401
+SLEEP 120s - trong luc nay policy se duoc apply
+=== B. SAU KHI CO POLICY (chi mo 10.60.0.0/16:443) ===
+  ClusterIP 172.20.0.1:443  -> 000
+  ENI-IP    10.60.11.189:443 -> 401
+  ENI-IP    10.60.12.65:443  -> 401
+KET LUAN: ClusterIP=000 nhung ENI-IP=401/403 => policy xet TRUOC DNAT (gia thuyet DUNG)
+          ca hai deu thong => gia thuyet SAI, nguyen nhan khac

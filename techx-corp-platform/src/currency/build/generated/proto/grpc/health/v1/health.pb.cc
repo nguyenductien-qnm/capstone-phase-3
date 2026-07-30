@@ -100,22 +100,21 @@ static const ::_pb::Message* const file_default_instances[] = {
 const char descriptor_table_protodef_grpc_2fhealth_2fv1_2fhealth_2eproto[] PROTOBUF_SECTION_VARIABLE(protodesc_cold) = {
     "\n\033grpc/health/v1/health.proto\022\016grpc.heal"
     "th.v1\"%\n\022HealthCheckRequest\022\017\n\007service\030\001"
-    " \001(\t\"\251\001\n\023HealthCheckResponse\022A\n\006status\030\001"
+    " \001(\t\"\224\001\n\023HealthCheckResponse\022A\n\006status\030\001"
     " \001(\01621.grpc.health.v1.HealthCheckRespons"
-    "e.ServingStatus\"O\n\rServingStatus\022\013\n\007UNKN"
-    "OWN\020\000\022\013\n\007SERVING\020\001\022\017\n\013NOT_SERVING\020\002\022\023\n\017S"
-    "ERVICE_UNKNOWN\020\0032\256\001\n\006Health\022P\n\005Check\022\".g"
-    "rpc.health.v1.HealthCheckRequest\032#.grpc."
-    "health.v1.HealthCheckResponse\022R\n\005Watch\022\""
-    ".grpc.health.v1.HealthCheckRequest\032#.grp"
-    "c.health.v1.HealthCheckResponse0\001b\006proto"
-    "3"
+    "e.ServingStatus\":\n\rServingStatus\022\013\n\007UNKN"
+    "OWN\020\000\022\013\n\007SERVING\020\001\022\017\n\013NOT_SERVING\020\0022Z\n\006H"
+    "ealth\022P\n\005Check\022\".grpc.health.v1.HealthCh"
+    "eckRequest\032#.grpc.health.v1.HealthCheckR"
+    "esponseBa\n\021io.grpc.health.v1B\013HealthProt"
+    "oP\001Z,google.golang.org/grpc/health/grpc_"
+    "health_v1\252\002\016Grpc.Health.V1b\006proto3"
 };
 static ::absl::once_flag descriptor_table_grpc_2fhealth_2fv1_2fhealth_2eproto_once;
 const ::_pbi::DescriptorTable descriptor_table_grpc_2fhealth_2fv1_2fhealth_2eproto = {
     false,
     false,
-    441,
+    434,
     descriptor_table_protodef_grpc_2fhealth_2fv1_2fhealth_2eproto,
     "grpc/health/v1/health.proto",
     &descriptor_table_grpc_2fhealth_2fv1_2fhealth_2eproto_once,
@@ -159,7 +158,6 @@ bool HealthCheckResponse_ServingStatus_IsValid(int value) {
     case 0:
     case 1:
     case 2:
-    case 3:
       return true;
     default:
       return false;
@@ -171,7 +169,6 @@ bool HealthCheckResponse_ServingStatus_IsValid(int value) {
 constexpr HealthCheckResponse_ServingStatus HealthCheckResponse::UNKNOWN;
 constexpr HealthCheckResponse_ServingStatus HealthCheckResponse::SERVING;
 constexpr HealthCheckResponse_ServingStatus HealthCheckResponse::NOT_SERVING;
-constexpr HealthCheckResponse_ServingStatus HealthCheckResponse::SERVICE_UNKNOWN;
 constexpr HealthCheckResponse_ServingStatus HealthCheckResponse::ServingStatus_MIN;
 constexpr HealthCheckResponse_ServingStatus HealthCheckResponse::ServingStatus_MAX;
 constexpr int HealthCheckResponse::ServingStatus_ARRAYSIZE;

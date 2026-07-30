@@ -1,0 +1,301 @@
+data "aws_caller_identity" "current" {}
+
+data "aws_iam_role" "github_terraform" {
+  name = var.github_terraform_role_name
+}
+
+locals {
+  github_terraform_access_entry = {
+    github_terraform = {
+      principal_arn      = data.aws_iam_role.github_terraform.arn
+      access_policy_name = "AmazonEKSClusterAdminPolicy"
+      access_scope_type  = "cluster"
+      namespaces         = []
+      kubernetes_groups  = []
+    }
+  }
+
+  # Tên CỐ ĐỊNH làm CloudFront origin. ALB (do Ingress frontend-proxy sinh) phục vụ
+  # tên này; external-dns tự tạo record trỏ về ALB. Terraform biết giá trị ngay lúc
+  # plan -> apply 1 lần, không cần dò ALB runtime, không cần toggle/commit lần 2.
+  # PHẢI khớp ingress host trong platform/charts/application/values.yaml.
+  # Dùng "origin-" (1 cấp con) để khớp cert wildcard *.nguyenductien.cloud.
+  origin_hostname = "origin-${var.subdomain}"
+}
+
+module "vpc" {
+  source = "../../modules/vpc"
+
+  project_name         = var.project_name
+  environment          = var.environment
+  vpc_cidr             = var.vpc_cidr
+  public_subnets       = var.public_subnets
+  private_app_subnets  = var.private_app_subnets
+  private_data_subnets = var.private_data_subnets
+  private_mq_subnets   = var.private_mq_subnets
+  enable_nat_gateway   = var.enable_nat_gateway
+  single_nat_gateway   = var.single_nat_gateway
+  public_subnet_tags   = var.public_subnet_tags
+  private_subnet_tags  = var.private_subnet_tags
+  private_app_subnet_tags = merge(
+    var.private_app_subnet_tags,
+    {
+      "karpenter.sh/discovery" = "${var.project_name}-${var.environment}-eks"
+    }
+  )
+}
+
+module "vpc_endpoints" {
+  source = "../../modules/vpc-endpoints"
+
+  project_name    = var.project_name
+  environment     = var.environment
+  aws_region      = var.aws_region
+  vpc_id          = module.vpc.vpc_id
+  route_table_ids = module.vpc.private_egress_route_table_ids
+
+  # S3 gateway endpoints have no fixed hourly footprint. Keep interface
+  # endpoints opt-in until service-specific NAT bytes exceed their AZ-hour cost.
+  enable_s3_gateway_endpoint = true
+}
+
+module "eks" {
+  source = "../../modules/eks"
+
+  project_name       = var.project_name
+  environment        = var.environment
+  app_namespace      = "techx-develop"
+  cluster_version    = var.eks_cluster_version
+  private_subnet_ids = values(module.vpc.private_app_subnet_ids)
+
+  endpoint_public_access = var.eks_endpoint_public_access
+  public_access_cidrs    = var.eks_public_access_cidrs
+
+  enabled_cluster_log_types        = var.eks_enabled_cluster_log_types
+  control_plane_log_retention_days = var.eks_control_plane_log_retention_days
+  enable_control_plane_log_kms     = var.eks_enable_control_plane_log_kms
+
+  node_instance_types = var.eks_node_instance_types
+  node_capacity_type  = var.eks_node_capacity_type
+  node_disk_size_gib  = var.eks_node_disk_size_gib
+  node_scaling        = var.eks_node_scaling
+
+  ops_node_subnet_id      = module.vpc.private_app_subnet_ids[var.eks_ops_node_subnet_key]
+  ops_node_instance_types = var.eks_ops_node_instance_types
+  ops_node_disk_size_gib  = var.eks_ops_node_disk_size_gib
+
+  access_entries = merge(var.eks_access_entries, local.github_terraform_access_entry)
+
+  # M17-R3: bật enforce NetworkPolicy cho cluster develop (ecommerce-develop-dev-eks).
+  enable_network_policy = true
+
+  # MANDATE-13: SQS interruption queue + EventBridge rule chỉ bật ở develop —
+  # environment đang làm mandate này, không ảnh hưởng sandbox dùng chung module.
+  enable_karpenter_interruption_queue = true
+}
+
+module "rds" {
+  source = "../../modules/rds"
+
+  project_name           = var.project_name
+  environment            = var.environment
+  vpc_id                 = module.vpc.vpc_id
+  database_subnet_ids    = values(module.vpc.private_data_subnet_ids)
+  app_subnet_ids         = values(module.vpc.private_app_subnet_ids)
+  app_subnet_cidr_blocks = [for s in var.private_app_subnets : s.cidr_block]
+
+  db_name                    = var.db_name
+  db_username                = var.db_username
+  engine_version             = var.rds_engine_version
+  instance_class             = var.rds_instance_class
+  allocated_storage          = var.rds_allocated_storage
+  enable_read_replica        = var.enable_read_replica
+  replica_instance_class     = var.replica_instance_class
+  enable_rds_proxy           = var.enable_rds_proxy
+  multi_az                   = var.rds_multi_az
+  eks_node_security_group_id = module.eks.cluster_security_group_id
+
+  enable_rotation                         = var.rds_enable_rotation
+  rotation_rules_automatically_after_days = var.rds_rotation_rules_automatically_after_days
+  enable_logical_replication              = true
+  track_activity_query_size               = var.rds_track_activity_query_size
+
+  # Mandate 20 (CDO-252): chống xoá nhầm Primary + snapshot mang tag.
+  # skip_final_snapshot giữ true: drill dựa vào PITR + AWS Backup, không vào final snapshot.
+  deletion_protection   = true
+  copy_tags_to_snapshot = true
+
+  # Backup Selection của module backup chọn resource theo tag Backup=true;
+  # không gắn tag thì backup plan chạy nhưng không backup instance nào.
+  enable_aws_backup_tag = true
+}
+
+module "elasticache" {
+  source = "../../modules/elasticache"
+
+  project_name           = var.project_name
+  environment            = var.environment
+  vpc_id                 = module.vpc.vpc_id
+  cache_subnet_ids       = values(module.vpc.private_data_subnet_ids)
+  app_subnet_cidr_blocks = [for s in var.private_app_subnets : s.cidr_block]
+
+  node_type                  = var.valkey_node_type
+  num_cache_clusters         = var.valkey_num_cache_clusters
+  eks_node_security_group_id = module.eks.cluster_security_group_id
+
+  # Mandate 20 (CDO-253): cart có backup. cache.t4g.micro hỗ trợ snapshot.
+  # RPO cart = 1 ngày (snapshot hằng ngày, Valkey không có PITR). Cửa sổ 03:00-04:00 UTC = thấp điểm.
+  snapshot_retention_limit = 7
+  snapshot_window          = "03:00-04:00"
+}
+
+# IRSA cho external-dns: quyền ghi record trong ĐÚNG hosted zone của subdomain.
+module "external_dns_irsa" {
+  source = "../../modules/external-dns-irsa"
+  count  = var.enable_cloudfront ? 1 : 0
+
+  project_name      = var.project_name
+  environment       = var.environment
+  oidc_provider_arn = module.eks.oidc_provider_arn
+  oidc_issuer_url   = module.eks.oidc_issuer_url
+  hosted_zone_id    = var.route53_zone_id
+}
+
+# CloudFront lấy nội dung từ ALB qua tên cố định origin-<subdomain>, không phải DNS
+# ngẫu nhiên của ALB. Record do external-dns tự tạo khi Ingress frontend-proxy lên.
+# ALB bị thay -> external-dns trỏ lại; origin không đổi, CloudFront không phải sửa.
+#
+# Lần apply đầu: record chưa tồn tại -> origin lỗi cho tới khi external-dns tạo xong
+# (thường <1 phút sau khi ALB ready). Eventual consistency, không blocking.
+module "cloudfront" {
+  source = "../../modules/cloudfront"
+  count  = var.enable_cloudfront ? 1 : 0
+
+  project_name        = var.project_name
+  environment         = var.environment
+  origin_domain_name  = local.origin_hostname
+  acm_certificate_arn = var.acm_certificate_arn
+  aliases             = [var.subdomain]
+}
+
+# Cửa vào cho người dùng: <subdomain> -> CloudFront. Thiếu record này thì tên miền
+# không phân giải được và request không bao giờ tới CloudFront -- aliases ở module
+# chỉ dạy CloudFront CHẤP NHẬN Host header, nó không tạo DNS.
+# external-dns không tạo hộ: nó chỉ quản host khai trong Ingress (origin-<subdomain>).
+resource "aws_route53_record" "cloudfront_alias" {
+  count = var.enable_cloudfront ? 1 : 0
+
+  zone_id = var.route53_zone_id
+  name    = var.subdomain
+  type    = "A"
+
+  alias {
+    name                   = module.cloudfront[0].cloudfront_domain_name
+    zone_id                = module.cloudfront[0].cloudfront_hosted_zone_id
+    evaluate_target_health = false
+  }
+}
+
+module "msk" {
+  source = "../../modules/msk"
+
+  project_name          = var.project_name
+  environment           = var.environment
+  vpc_id                = module.vpc.vpc_id
+  mq_subnet_ids         = values(module.vpc.private_mq_subnet_ids)
+  eks_security_group_id = module.eks.cluster_security_group_id
+  kafka_version         = var.kafka_version
+}
+
+module "cost_guard_automation" {
+  count = var.enable_cost_guard_automation ? 1 : 0
+
+  source = "../../modules/cost_guard_automation"
+
+  project_name   = var.project_name
+  environment    = var.environment
+  account_id     = data.aws_caller_identity.current.account_id
+  budget_limit   = var.budget_limit
+  budget_periods = var.budget_periods
+
+  alert_emails = {
+    threshold_80 = var.budget_alert_email_80
+    threshold_95 = var.budget_alert_email_95
+  }
+
+  eks_cluster_name = module.eks.cluster_name
+  eks_cluster_arn  = module.eks.cluster_arn
+
+  rds_instance_identifiers = [module.rds.instance_id]
+  elasticache_cluster_ids  = [module.elasticache.cluster_id]
+
+  lambda_timeout                = var.lambda_timeout
+  lambda_memory                 = var.lambda_memory
+  cloudwatch_log_retention_days = var.cloudwatch_log_retention_days
+}
+
+module "cloudtrail" {
+  source = "../../modules/cloudtrail"
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  enable_kms_encryption                = var.cloudtrail_enable_kms_encryption
+  enable_cloudwatch_logs               = var.cloudtrail_enable_cloudwatch_logs
+  cloudwatch_log_retention_days        = var.cloudtrail_cloudwatch_log_retention_days
+  s3_retention_days                    = var.cloudtrail_s3_retention_days
+  s3_transition_days                   = var.cloudtrail_s3_transition_days
+  s3_transition_storage_class          = var.cloudtrail_s3_transition_storage_class
+  enable_object_lock                   = var.cloudtrail_enable_object_lock
+  object_lock_retention_days           = var.cloudtrail_object_lock_retention_days
+  audit_administrator_principals       = var.audit_administrator_principals
+  break_glass_principals               = var.audit_break_glass_principals
+  operator_role_names                  = var.audit_operator_role_names
+  cloudtrail_s3_data_event_bucket_arns = var.cloudtrail_s3_data_event_bucket_arns
+  enable_mandate_12_alert              = var.enable_mandate_12_alert
+  mandate_12_alert_email               = var.mandate_12_alert_email
+}
+
+# IRSA role cho External Secrets Operator đọc endpoint/credential từ Secrets Manager
+# (RDS/Valkey/MSK) và đồng bộ vào cluster. Least-privilege: chỉ đúng các secret ARN.
+module "external_secrets_irsa" {
+  source = "../../modules/external-secrets-irsa"
+
+  project_name      = var.project_name
+  environment       = var.environment
+  oidc_provider_arn = module.eks.oidc_provider_arn
+  oidc_issuer_url   = module.eks.oidc_issuer_url
+
+  secret_arns = [
+    module.rds.db_secret_arn,
+    module.rds.db_endpoint_secret_arn,
+    module.elasticache.secret_arn,
+    module.msk.msk_secret_arn,
+    module.msk.msk_endpoint_secret_arn,
+  ]
+
+  # Secret MSK mã hoá bằng KMS key riêng của module msk -> ESO cần kms:Decrypt trên
+  # key này, nếu không sẽ lỗi "AccessDeniedException: Access to KMS is not allowed".
+  # RDS/Valkey dùng key mặc định aws/secretsmanager nên không cần liệt kê.
+  kms_key_arns = [
+    module.msk.kms_key_arn,
+  ]
+}
+
+# Mandate 20 (CDO-259 + CDO-260): backup vault + KMS CMK có guardrail + IAM Deny
+module "backup" {
+  source = "../../modules/backup"
+
+  project_name = var.project_name
+  environment  = var.environment
+}
+
+# Mandate 20 (CDO-260): IAM Explicit Deny chặn xoá recovery point / snapshot
+module "backup_protection" {
+  source = "../../modules/backup_protection"
+
+  project_name        = var.project_name
+  environment         = var.environment
+  operator_role_names = var.audit_operator_role_names
+}
+

@@ -12,6 +12,7 @@ import FrontendTracer from '../utils/telemetry/FrontendTracer';
 import SessionGateway from '../gateways/Session.gateway';
 import { OpenFeatureProvider, OpenFeature } from '@openfeature/react-sdk';
 import { FlagdWebProvider } from '@openfeature/flagd-web-provider';
+import CopilotChat from '../components/CopilotChat/CopilotChat';
 
 declare global {
   interface Window {
@@ -66,6 +67,7 @@ function MyApp({ Component, pageProps }: AppProps) {
           <CurrencyProvider>
             <CartProvider>
               <Component {...pageProps} />
+              <CopilotChat />
             </CartProvider>
           </CurrencyProvider>
         </QueryClientProvider>

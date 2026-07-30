@@ -1,0 +1,62 @@
+# MANDATE-02 — Karpenter Controller (Node Autoscaler).
+# Watch pods pending và provision EC2 worker nodes trực tiếp qua EC2 Fleet API.
+# Auth: EKS Pod Identity (aws_eks_pod_identity_association.karpenter_controller).
+# Quản lý qua ArgoCD (App-of-Apps: root-app recurse platform/gitops/applications/).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: karpenter
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"  # Install Controller sau CRD, trước NodePool
+spec:
+  project: default
+  source:
+    repoURL: public.ecr.aws/karpenter
+    chart: karpenter
+    targetRevision: 1.14.0
+    helm:
+      skipCrds: true  # CRD lifecycle được quản lý bởi Application karpenter-crd
+      values: |
+        settings:
+          clusterName: ecommerce-dev-eks
+          # Yêu cầu: SQS queue (terraform/modules/eks/karpenter.tf:
+          # aws_sqs_queue.karpenter_interruption) đã apply thật trên sandbox
+          # trước khi merge PR này (PR #415 phải merge + terraform-apply chạy
+          # xong trước). Nếu chưa, selfHeal sync sẽ trỏ queue không tồn tại.
+          interruptionQueue: ecommerce-dev-eks-karpenter
+        serviceAccount:
+          create: true
+          name: karpenter
+          annotations: {}  # Bỏ trống vì dùng Pod Identity Association ở IAM
+        # Cluster dùng prometheus-community/prometheus (classic scrape config qua
+        # pod annotation), KHÔNG có Prometheus Operator/ServiceMonitor CRD (đã xác
+        # nhận: `kubectl get crd servicemonitors.monitoring.coreos.com` -> NotFound).
+        # Không bật settings serviceMonitor.enabled ở chart này vì sẽ tạo resource
+        # kind lạ, ArgoCD sync fail.
+        podAnnotations:
+          prometheus.io/scrape: "true"
+          prometheus.io/port: "8080"
+        controller:
+          env:
+            - name: AWS_REGION
+              value: "us-east-1"
+            - name: AWS_DEFAULT_REGION
+              value: "us-east-1"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

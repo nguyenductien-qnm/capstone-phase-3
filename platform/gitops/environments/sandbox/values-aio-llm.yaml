@@ -1,0 +1,99 @@
+# AIO: cắm LLM thật thay mock (envOverrides = upsert, không xoá env khác).
+# Secret llm-api-key tạo trước: kubectl -n techx-<aio> create secret generic llm-api-key --from-literal=key=<REAL_KEY>
+components:
+  # ml-guard v2 (ADR-015): Nova judge + optional Bedrock Guardrail gọi TỪ ml-guard
+  # (v1 nằm ở 2 service) -> ml-guard cần egress + cross-account role như 2 service.
+  ml-guard:
+    podLabels:
+      egress-internet: "true"
+    envOverrides:
+      - name: LLM_BEDROCK_GUARDRAIL
+        value: "true"
+      - name: BEDROCK_GUARDRAIL_ID
+        valueFrom:
+          secretKeyRef:
+            name: bedrock-config
+            key: guardrail_id
+      - name: BEDROCK_AWS_ROLE_ARN
+        valueFrom:
+          secretKeyRef:
+            name: bedrock-config
+            key: role_arn
+      - name: BEDROCK_AWS_EXTERNAL_ID
+        valueFrom:
+          secretKeyRef:
+            name: bedrock-config
+            key: external_id
+      - name: AWS_REGION
+        value: "us-east-1"
+  product-reviews:
+    # M17-R3: gọi AWS Bedrock (cross-account, public 443) -> cần egress ra Internet.
+    podLabels:
+      egress-internet: "true"
+    envOverrides:
+      # (Guardrail flags dời sang ml-guard v2 — service chỉ còn cần role cho LLM generation)
+      - name: BEDROCK_AWS_ROLE_ARN
+        valueFrom:
+          secretKeyRef:
+            name: bedrock-config
+            key: role_arn
+      - name: BEDROCK_AWS_EXTERNAL_ID
+        valueFrom:
+          secretKeyRef:
+            name: bedrock-config
+            key: external_id
+      - name: AWS_REGION
+        value: "us-east-1"
+      - name: ML_GUARD_TIMEOUT
+        value: "40.0"
+      - name: LLM_REVIEWS_TIMEOUT
+        value: "45.0"
+  shopping-copilot:
+    # M17-R3: gọi AWS Bedrock (cross-account, public 443) -> cần egress ra Internet.
+    podLabels:
+      egress-internet: "true"
+    securityContext:
+      allowPrivilegeEscalation: false
+      runAsNonRoot: true
+      runAsUser: 10001
+      capabilities:
+        drop:
+          - ALL
+    envOverrides:
+      # (Guardrail flags dời sang ml-guard v2 — service chỉ còn cần role cho LLM generation)
+      - name: BEDROCK_AWS_ROLE_ARN
+        valueFrom:
+          secretKeyRef:
+            name: bedrock-config
+            key: role_arn
+      - name: BEDROCK_AWS_EXTERNAL_ID
+        valueFrom:
+          secretKeyRef:
+            name: bedrock-config
+            key: external_id
+      - name: AWS_REGION
+        value: "us-east-1"
+      - name: ML_GUARD_TIMEOUT
+        value: "40.0"
+      - name: LLM_COPILOT_TIMEOUT
+        value: "45.0"
+  product-catalog:
+    # Cross-account AWS Bedrock Titan Embeddings (us-east-1, public 443)
+    podLabels:
+      egress-internet: "true"
+    envOverrides:
+      - name: SEMANTIC_SEARCH_ENABLED
+        value: "true"
+      - name: BEDROCK_AWS_ROLE_ARN
+        valueFrom:
+          secretKeyRef:
+            name: bedrock-config
+            key: role_arn
+      - name: BEDROCK_AWS_EXTERNAL_ID
+        valueFrom:
+          secretKeyRef:
+            name: bedrock-config
+            key: external_id
+      - name: AWS_REGION
+        value: "us-east-1"
+

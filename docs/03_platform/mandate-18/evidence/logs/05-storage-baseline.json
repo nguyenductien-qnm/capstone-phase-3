@@ -1,0 +1,20 @@
+{
+  "capture": "2026-07-22T07:31:19Z",
+  "region": "us-east-1",
+  "volumes": [
+    {"id":"vol-06db628f3e5320302","state":"in-use","type":"gp3","sizeGiB":50,"iops":3000,"throughput":125,"az":"us-east-1a","device":"/dev/xvda","deleteOnTermination":true},
+    {"id":"vol-0252d11693615e50d","state":"in-use","type":"gp3","sizeGiB":30,"iops":3000,"throughput":125,"az":"us-east-1c","device":"/dev/xvda","deleteOnTermination":true},
+    {"id":"vol-040fb98dd58b9f2ba","state":"in-use","type":"gp3","sizeGiB":30,"iops":3000,"throughput":125,"az":"us-east-1c","device":"/dev/xvda","deleteOnTermination":true},
+    {"id":"vol-0b23d740442706f19","state":"in-use","type":"gp3","sizeGiB":30,"iops":3000,"throughput":125,"az":"us-east-1b","device":"/dev/xvda","deleteOnTermination":true},
+    {"id":"vol-06998a929465d9eb2","state":"in-use","type":"gp3","sizeGiB":30,"iops":3000,"throughput":125,"az":"us-east-1c","device":"/dev/xvda","deleteOnTermination":true},
+    {"id":"vol-0292d203ab12af28f","state":"in-use","type":"gp3","sizeGiB":20,"iops":3000,"throughput":125,"az":"us-east-1b","device":"/dev/xvdab","deleteOnTermination":false,"pvc":"prometheus"},
+    {"id":"vol-01982a5488a286711","state":"in-use","type":"gp3","sizeGiB":30,"iops":3000,"throughput":125,"az":"us-east-1c","device":"/dev/xvda","deleteOnTermination":true},
+    {"id":"vol-0717b8dcdfb9a1184","state":"in-use","type":"gp3","sizeGiB":50,"iops":3000,"throughput":125,"az":"us-east-1c","device":"/dev/xvda","deleteOnTermination":true},
+    {"id":"vol-0c46a97379f928a24","state":"in-use","type":"gp3","sizeGiB":10,"iops":3000,"throughput":125,"az":"us-east-1b","device":"/dev/xvdaa","deleteOnTermination":false,"pvc":"opensearch-opensearch-0"}
+  ],
+  "persistentVolumes": [
+    {"pvc":"opensearch-opensearch-0","capacity":"10Gi","storageClass":"gp3-observability","phase":"Bound","reclaimPolicy":"Retain","capacityBytes":10464022528,"usedBytes":8032915456,"availableBytes":2414329856,"usedPercent":76.77,"decision":"DO_NOT_SHRINK; low headroom"},
+    {"pvc":"prometheus","capacity":"20Gi","storageClass":"gp3-observability","phase":"Bound","reclaimPolicy":"Retain","capacityBytes":20957446144,"usedBytes":5329268736,"availableBytes":15611400192,"usedPercent":25.43,"decision":"RIGHTSIZE_CANDIDATE; EBS cannot shrink in place, migration and rollback required"}
+  ],
+  "note": "Usage is an instantaneous kubelet volume-stats sample. No volume was modified."
+}

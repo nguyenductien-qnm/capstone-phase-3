@@ -1,0 +1,9 @@
+{
+  "group": "semantic",
+  "case": "negation-must-miss",
+  "passed": true,
+  "reason": "câu phủ định: miss (không được hit_semantic)",
+  "latency": 4.19,
+  "cache_status": "miss",
+  "response": "Dạ, mình rất vui được giúp đỡ. Tuy nhiên, để có thể trả lời chính xác, mình cần biết tên sản phẩm mà bạn đang quan tâm. Bạn có thể cho mình biết tên sản phẩm không?"
+}

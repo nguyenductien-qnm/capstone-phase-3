@@ -1,0 +1,20 @@
+﻿{
+    "repository":  "nguyenductien-qnm/capstone-phase-3",
+    "revision":  "77ed0358f53346ab36426fc1797d1b5d521bbda0",
+    "commit_url":  "https://github.com/nguyenductien-qnm/capstone-phase-3/commit/77ed0358f53346ab36426fc1797d1b5d521bbda0",
+    "author_login":  "nguyenductien-qnm",
+    "commit_author":  "nguyenductien.qnm",
+    "committed_at":  "2026-07-15T08:25:07Z",
+    "message":  "Merge pull request #87 from nguyenductien-qnm/feat/eso-endpoint-sync\n\nFeat/eso endpoint sync",
+    "associated_pulls":  [
+                             {
+                                 "number":  87,
+                                 "title":  "Feat/eso endpoint sync",
+                                 "url":  "https://github.com/nguyenductien-qnm/capstone-phase-3/pull/87",
+                                 "state":  "closed",
+                                 "merged_at":  "2026-07-15T08:25:07Z",
+                                 "author":  "lken1514",
+                                 "body":  "## 📝 Mô tả thay đổi\r\n\r\nThay toàn bộ endpoint MSK/RDS/Valkey đang hardcode trong Helm values bằng đồng bộ tự động từ AWS Secrets Manager qua External Secrets Operator. Sửa luôn một bug đang tồn tại trên `develop`: endpoint hardcode đã cũ, không khớp hạ tầng thật.\r\n\r\n## 🔗 Liên kết Task trên Jira\r\n\r\n- Link Jira Task: #CDO-49\r\n\r\n## 🛠 Những gì đã làm\r\n\r\n- [x] **Sửa bug thật**: `develop` hiện còn **9 chỗ** trỏ endpoint đã chết — `KAFKA_ADDR` = `b-1.ecommercedevmsk.61s37h.c4...` trong khi cluster MSK thật là `...jnlrdk.c5...`; `VALKEY_ADDR` = `master.ecommerce-dev-valkey.7ylfic...`. initContainer `wait-for-kafka`/`wait-for-valkey-cart` sẽ chờ vô hạn → pod treo ở init.\r\n- [x] Module `external-secrets-irsa`: IRSA cho SA `external-secrets/external-secrets`, giới hạn `GetSecretValue`/`DescribeSecret` đúng 5 secret ARN (least-privilege)\r\n- [x] ArgoCD Application `external-secrets` (chart v0.10.7)\r\n- [x] Chart: `SecretStore` aws-secrets-manager + 3 `ExternalSecret` (msk/db/valkey); `db-secret` dựng connection string riêng cho accounting (`Host=;Port=;...`) và catalog/reviews (`postgresql://...`)\r\n- [x] MSK: tách secret endpoint riêng — SCRAM association yêu cầu secret **chỉ** chứa username/password nên không nhét endpoint chung được\r\n- [x] RDS: tách secret endpoint riêng để tránh dependency cycle với `aws_db_proxy`\r\n- [x] Valkey: thêm field `address` (host:port) vì field `endpoint` cũ chỉ có host\r\n- [x] `env` + `initContainers` đổi sang `secretKeyRef`, giữ nguyên pin `busybox:1.38.0` của develop\r\n- [x] Đã chạy test thử ở máy cá nhân (Local Test)\r\n\r\n## 📸 Hình ảnh / Minh chứng (nếu có)\r\n\r\nLocal:\r\n- `terraform validate` → **Success! The configuration is valid.**\r\n- `terraform fmt -recursive terraform/` → sạch\r\n- `values.yaml` parse YAML hợp lệ; **0 chỗ** còn `61s37h`/`7ylfic`\r\n- Xác nhận ALB Ingress của develop (PR #83/#85) **nguyên vẹn**: `service.type = ClusterIP`, `ingress.enabled = true`, `ingressClassName = alb`, host `ecommerce.nguyenductien.cloud`\r\n- 4 initContainer đều giữ `busybox:1.38.0` + đọc env từ secret\r\n- `git merge-tree` với `origin/develop` → **không conflict**\r\n\r\nXác nhận trên AWS (account 804, `AWS_PROFILE=sso`): các secret `ecommerce-dev-valkey-secret`, `ecommerce-dev-rds-secret`, `AmazonMSK_ecommerce-dev-msk-secret` tồn tại; MSK cluster `ecommerce-dev-msk` ACTIVE.\r\n\r\nChưa chạy được ở local: `helm template` (máy không có helm) — trông chờ job `validate-manifest` trên CI.\r\n\r\n## ⚠️ Lưu ý đặc biệt đối với Reviewer\r\n\r\n**PR này thay thế PR #84.** PR #84 dựng trên giả định frontend-proxy tạo NLB (CloudFront → NLB + external-dns). Giả định đó không còn đúng sau PR #83 (ClusterIP + ALB Ingress) và PR #85 (AWS LB Controller) — nên phần CloudFront/external-dns đã bỏ, chỉ giữ lại ESO vốn độc lập với chuyện edge. **Đề nghị đóng PR #84.**\r\n\r\n**Không cần đổi `TFVARS_SANDBOX`** — PR này không thêm/xoá biến Terraform nào."
+                             }
+                         ]
+}

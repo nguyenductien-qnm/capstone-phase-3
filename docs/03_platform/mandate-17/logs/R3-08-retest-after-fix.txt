@@ -1,0 +1,17 @@
+### R3 - APPLY LẠI SAU KHI VÁ (thêm ClusterIP API server) @ 2026-07-22T11:34:44Z
+networkpolicy.networking.k8s.io/allow-datastore-egress-rds created
+networkpolicy.networking.k8s.io/allow-internet-egress-selected created
+--- số policy ---
+31
+--- ksm trước khi theo dõi ---
+develop-techx-corp-kube-state-metrics-f7dd44847-9pgjn   1/1   Running   7 (14m ago)   3d8h
+  +30s: 1/1 Running restarts=7
+  +60s: 1/1 Running restarts=7
+  +90s: 1/1 Running restarts=7
+  +120s: 1/1 Running restarts=7
+  +150s: 1/1 Running restarts=7
+  +180s: 1/1 Running restarts=7
+  +210s: 1/1 Running restarts=7
+  +240s: 1/1 Running restarts=7
+  +270s: 1/1 Running restarts=7
+  +300s: 1/1 Running restarts=7

@@ -1,0 +1,52 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "pinDigests": true,
+  "packageRules": [
+    {
+      "description": "NE moi image ECR rieng (*.dkr.ecr): Renovate khong co credential AWS de tra digest -> bo qua, tranh loi getAuthorizationToken. Image nay da duoc pin digest trong pipeline build.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["/.*\\.dkr\\.ecr\\..*/"],
+      "enabled": false
+    },
+    {
+      "description": "PR1 - PIN ACTION SHA: chi viec pin github-actions theo commit SHA (YC4a). groupSlug rieng -> co gi moi commit vao cung PR nay.",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["pin", "pinDigest", "digest"],
+      "groupName": "pin github actions (sha)",
+      "groupSlug": "pin-actions"
+    },
+    {
+      "description": "PR2 - PIN DOCKER DIGEST: chi viec pin base image Docker theo sha256 (YC4b). Tach khoi PR pin action.",
+      "matchManagers": ["dockerfile"],
+      "matchUpdateTypes": ["pin", "pinDigest", "digest"],
+      "groupName": "pin docker base-image (digest)",
+      "groupSlug": "pin-docker"
+    },
+    {
+      "description": "Accounting targets net8.0; EF provider majors 10+ require net10.0.",
+      "matchPackageNames": ["Npgsql.EntityFrameworkCore.PostgreSQL", "EFCore.NamingConventions"],
+      "allowedVersions": "<10.0.0"
+    },
+    {
+      "description": "eslint-plugin-react 7.x does not declare ESLint 10 peer compatibility yet.",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["eslint"],
+      "allowedVersions": "<10.0.0"
+    },
+    {
+      "description": "php-http/guzzle7-adapter requires Guzzle 7; exclude Guzzle 8 until an adapter is available.",
+      "matchManagers": ["composer"],
+      "matchPackageNames": ["guzzlehttp/guzzle"],
+      "allowedVersions": "<8.0.0"
+    },
+    {
+      "description": "PR3 - VERSION: gom moi nang version (major/minor/patch) cua MOI manager vao 1 PR rieng, tach khoi 2 PR pin tren.",
+      "matchUpdateTypes": ["major", "minor", "patch"],
+      "groupName": "version updates",
+      "groupSlug": "version-all"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "group": "bypass",
+  "case": "cart-not-cached",
+  "passed": true,
+  "reason": "câu chạm giỏ hàng: bypass (phải bypass)",
+  "latency": 3.7,
+  "cache_status": "bypass",
+  "response": "Xin chào! Bạn muốn tìm sản phẩm gì, xem review, hay kiểm tra giỏ hàng?"
+}

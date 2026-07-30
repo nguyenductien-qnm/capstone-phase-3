@@ -1,0 +1,9 @@
+{
+  "group": "crossuser",
+  "case": "no-session-borrow",
+  "passed": true,
+  "reason": "session người khác không lộ ngữ cảnh",
+  "latency": 3.48,
+  "cache_status": "miss",
+  "response": "Xin chào! Bạn muốn tìm sản phẩm gì, xem review, hay kiểm tra giỏ hàng?"
+}

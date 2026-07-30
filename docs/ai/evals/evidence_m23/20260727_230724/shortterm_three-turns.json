@@ -1,0 +1,9 @@
+{
+  "group": "shortterm",
+  "case": "three-turns",
+  "passed": true,
+  "reason": "lượt 3 nhắc lại sản phẩm của lượt trước: ['Eclipsmart Travel Refractor Telescope']",
+  "latency": 2.74,
+  "cache_status": "miss",
+  "response": "Eclipsmart Travel Refractor Telescope là một lựa chọn tốt cho người mới bắt đầu. Nó có thiết kế nhỏ gọn, dễ dàng mang đi khắp nơi, và đủ chức năng để khám phá thiên văn."
+}

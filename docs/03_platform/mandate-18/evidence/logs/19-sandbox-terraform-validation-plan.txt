@@ -1,0 +1,66 @@
+MANDATE-18 sandbox remediation - Terraform validation and full-plan gate
+Capture date: 2026-07-23
+Terraform root: terraform/environments/sandbox
+AWS profile/region: phase3-cdo / us-east-1
+Account: [REDACTED_ACCOUNT_ID]
+Mutation performed: none; terraform apply was NOT run
+
+Code scope
+----------
+- Added module.vpc_endpoints in the canonical sandbox root.
+- Endpoint type: S3 Gateway.
+- Route tables: module.vpc.private_egress_route_table_ids only.
+- NAT Gateway is retained.
+- No interface endpoint, endpoint security group, public route table or
+  storefront resource is in this module input.
+- Added only the endpoint ID output.
+
+Static validation
+-----------------
+- terraform fmt/check for sandbox main.tf, outputs.tf and vpc-endpoints: PASS.
+- terraform validate for sandbox root after clean backend-disabled init: PASS.
+- terraform test in terraform/modules/vpc-endpoints: PASS, 1 passed / 0 failed.
+- Remote backend init against s3://terraform-state-phase-3/dev/terraform.tfstate:
+  PASS.
+- Remote state read: PASS, 301 resources.
+
+Full plan input handling
+------------------------
+GitHub CLI was not installed locally, so GitHub Environment variables could
+not be read directly. To avoid placeholders, required infrastructure inputs
+were reconstructed in memory from the current remote state and existing AWS
+resources. Protected Slack/email values were read in memory from their current
+Secrets Manager/SNS resources and were never printed or written to evidence.
+The committed primary-capacity.tfvars was also supplied, matching infra-cd.
+
+Full plan result
+----------------
+Detailed exit code: 2 (valid plan with changes).
+Summary: Plan: 1 to add, 20 to change, 0 to destroy.
+Replacement actions: 0.
+
+Expected in-scope action:
+- CREATE module.vpc_endpoints.aws_vpc_endpoint.s3[0]
+
+Unrelated in-place actions detected:
+- UPDATE module.eks.aws_eks_node_group.this
+- UPDATE module.msk.aws_msk_cluster.this
+- UPDATE module.msk.aws_msk_configuration.this
+- UPDATE 17 module.audit_detection EventBridge processing_queue targets:
+  cloudtrail_tampering, cloudwatch_log_tampering, destructive_eks,
+  destructive_elasticache, destructive_elb, destructive_msk, destructive_rds,
+  destructive_vpc, eks_access_changes, iam_credential_persistence,
+  iam_guardrail_removal, iam_privilege_escalation, kms_audit_tampering,
+  network_exposure, root_activity, s3_audit_tampering,
+  secrets_manager_changes.
+
+Gate decision
+-------------
+BLOCKED FOR APPLY. Although there is no destroy or replacement, the full plan
+contains 20 changes outside Mandate 18. The prompt requires stopping on any
+unrelated action. A state/config owner must reconcile or explicitly separate
+those changes and produce a clean reviewed full plan before the S3 endpoint can
+be applied. A targeted plan alone is not an acceptable apply artifact.
+
+The required exact apply approval phrase has also not been supplied. No apply
+was attempted.

@@ -1,0 +1,17 @@
+{
+  "capture": "2026-07-22T07:31:19Z",
+  "dlmPolicies": [],
+  "s3": [
+    {"bucket":"ecommerce-dev-cloudtrail-logs","status":"Enabled","ruleId":"archive-and-retain-audit-logs","transitionAfterDays":90,"storageClass":"GLACIER_IR","expirationDays":2555,"noncurrentExpirationDays":2555},
+    {"bucket":"terraform-state-phase-3","status":"NoSuchLifecycleConfiguration","note":"No lifecycle exists at capture time; no change made."}
+  ],
+  "cloudWatchLogGroups": [
+    {"name":"/aws/cloudtrail/ecommerce-dev-audit-trail","retentionDays":90,"storedBytes":147163554},
+    {"name":"/aws/eks/ecommerce-dev-eks/cluster","retentionDays":7,"storedBytes":2624158451},
+    {"name":"/aws/lambda/ecommerce-dev-audit-slack-alert","retentionDays":30,"storedBytes":26439},
+    {"name":"/aws/lambda/ecommerce-dev-rds-rotation","retentionDays":null,"storedBytes":8684,"classification":"RETENTION_GAP"},
+    {"name":"/aws/msk/ecommerce-dev-msk","retentionDays":3,"storedBytes":14940125},
+    {"name":"/aws/rds/proxy/ecommerce-dev-rds-proxy","retentionDays":null,"storedBytes":62189841,"classification":"RETENTION_GAP"}
+  ],
+  "note": "KMS key ARNs/account ID were removed. No lifecycle or retention setting was changed."
+}

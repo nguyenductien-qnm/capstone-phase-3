@@ -1,0 +1,58 @@
+### R3 - KHÔNG CẮT OAN DỊCH VỤ HỢP LỆ @ 2026-07-22T11:20:15Z
+--- số policy trong cluster ---
+31
+--- pod không khỏe (kỳ vọng: rỗng) ---
+  accounting-cb697b598-8nlwz                              1/1   Running            0                87m
+  ad-8d7c89b8b-c8j4h                                      1/1   Running            0                22m
+  ad-8d7c89b8b-tkzx7                                      1/1   Running            0                22m
+  cart-569b5f8695-5v8dn                                   1/1   Running            0                23m
+  cart-569b5f8695-lrfjs                                   1/1   Running            0                22m
+  checkout-7f48d84994-vk99c                               1/1   Running            0                23m
+  checkout-7f48d84994-wdgkv                               1/1   Running            0                23m
+  currency-645db6d5c7-6nq49                               1/1   Running            0                23m
+  currency-645db6d5c7-xkq8g                               1/1   Running            0                23m
+  develop-techx-corp-kube-state-metrics-f7dd44847-9pgjn   0/1   CrashLoopBackOff   4 (53s ago)      3d7h
+  email-6b4f76d9cd-jbjmk                                  1/1   Running            0                22m
+  email-6b4f76d9cd-ln8wb                                  1/1   Running            0                22m
+  flagd-579f977db6-b22hf                                  1/1   Running            0                87m
+  fraud-detection-d9788c556-lhg2w                         1/1   Running            0                87m
+  frontend-56fbb9757c-c4hx7                               1/1   Running            0                23m
+  frontend-56fbb9757c-p6jl9                               1/1   Running            0                22m
+  frontend-proxy-cd6d95b7d-2phs6                          1/1   Running            0                23m
+  frontend-proxy-cd6d95b7d-q9qxr                          1/1   Running            0                23m
+  grafana-57b4747fd8-pbvw5                                4/4   Running            0                3d7h
+  image-provider-776d4469b9-hxd2q                         1/1   Running            0                87m
+  jaeger-587f9c6b55-gh5q2                                 1/1   Running            20 (5h19m ago)   3d7h
+  llm-6f7686ffbc-cnbgt                                    1/1   Running            0                87m
+  opensearch-0                                            1/1   Running            0                3d7h
+  otel-collector-agent-4t6ps                              1/1   Running            0                3d7h
+  otel-collector-agent-8m5sk                              1/1   Running            0                3d7h
+  otel-collector-agent-bvk2s                              1/1   Running            0                43h
+  otel-collector-agent-nfz6v                              1/1   Running            0                3d7h
+  payment-7cb7f85cdb-b97zs                                1/1   Running            0                23m
+  payment-7cb7f85cdb-lrb2v                                1/1   Running            0                22m
+  product-catalog-75df4ddf7d-9tj6f                        1/1   Running            0                23m
+  product-catalog-75df4ddf7d-tb6n4                        1/1   Running            0                23m
+  product-reviews-5464b4fd9f-s5qmn                        1/1   Running            0                86m
+  product-reviews-5464b4fd9f-snnwp                        1/1   Running            0                87m
+  prometheus-644d8cd596-ks8wg                             1/1   Running            0                80m
+  quote-69b596b85f-2999p                                  1/1   Running            0                22m
+  quote-69b596b85f-rqbs5                                  1/1   Running            0                22m
+  recommendation-77469d58f4-t7rdn                         1/1   Running            0                23m
+  recommendation-77469d58f4-zq2tb                         1/1   Running            0                22m
+  reloader-reloader-54dc9ccdf7-h58m4                      1/1   Running            0                3d3h
+  shipping-b7b8c4dcd-6lf9d                                1/1   Running            0                23m
+  shipping-b7b8c4dcd-rz5rz                                1/1   Running            0                23m
+  shopping-copilot-6649597c66-4vwr6                       1/1   Running            0                87m
+--- restart tăng bất thường? (top 5) ---
+  jaeger-587f9c6b55-gh5q2 restarts=20
+  develop-techx-corp-kube-state-metrics-f7dd44847-9pgjn restarts=5
+  shopping-copilot-6649597c66-4vwr6 restarts=0
+  shipping-b7b8c4dcd-rz5rz restarts=0
+  shipping-b7b8c4dcd-6lf9d restarts=0
+--- prometheus còn scrape được không (targets up) ---
+
+--- reloader còn watch được API không (log lỗi?) ---
+I0722 11:17:27.739186       1 reflector.go:578] "Warning: watch ended with error" reflector="pkg/mod/k8s.io/client-go@v0.35.3/tools/cache/reflector.go:289" type="*v1.Secret" err="an error on the server (\"unable to decode an event from the watch stream: http2: client connection lost\") has prevented the request from succeeding"
+I0722 11:17:27.740899       1 reflector.go:578] "Warning: watch ended with error" reflector="pkg/mod/k8s.io/client-go@v0.35.3/tools/cache/reflector.go:289" type="*v1.ConfigMap" err="an error on the server (\"unable to decode an event from the watch stream: http2: client connection lost\") has prevented the request from succeeding"
+  (rỗng = không lỗi)

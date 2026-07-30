@@ -1,0 +1,288 @@
+# Sandbox observability runs on the HA primary MNG (workload-tier=platform).
+
+observabilityStorage:
+  enabled: true
+  parameters:
+    type: gp3
+    encrypted: "true"
+
+opentelemetry-collector:
+  # DaemonSet stays on application nodes for node-local OTLP intake. Helm replaces
+  # this whole list, so retain the Karpenter spot toleration.
+  # techx.io/capacity=spot: thiếu cái này thì node spot của Karpenter (ad,
+  # product-reviews) không có collector cục bộ -> otel-collector Service dùng
+  # internalTrafficPolicy: Local nên mất hẳn endpoint (không phải chậm), OTLP
+  # export từ pod trên node đó luôn fail.
+  tolerations:
+    - key: techx.io/capacity
+      operator: Equal
+      value: spot
+      effect: NoSchedule
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  config:
+    service:
+      pipelines:
+        # Keep all real backends and spanmetrics; remove only the duplicate
+        # stdout debug exporter in the canonical sandbox runtime.
+        traces:
+          exporters: [otlp/jaeger, spanmetrics]
+        metrics:
+          exporters: [otlphttp/prometheus]
+        logs:
+          exporters: [opensearch]
+
+telemetryRetention:
+  # 2026-07-26: disk lên 91% (flood-stage, index otel-logs bị block ghi), chặn
+  # collector's opensearch exporter -> currency's blocking OTLP export nghẽn theo
+  # -> checkout DeadlineExceeded/500 (xác nhận qua log thật). Owner approved bật
+  # gate này để giải phóng đĩa. 7d (không phải 3d mặc định): giữ log gần nhất lâu
+  # hơn, đủ giải phóng ~1.6GB (otel-logs-07-16/17/18, đưa disk usage ~91% -> ~73%).
+  # Không có backup/snapshot cho index bị xóa (đã xác nhận _snapshot rỗng) -- mất
+  # là mất luôn, chấp nhận đánh đổi vì chưa có backup khả dụng.
+  enabled: true
+  minIndexAge: 7d
+
+jaeger:
+  jaeger:
+    replicas: 2
+    nodeSelector:
+      workload-tier: platform
+    topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: DoNotSchedule
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/name: jaeger
+    resources:
+      requests:
+        cpu: 100m
+        memory: 640Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+  userconfig:
+    extensions:
+      jaeger_query:
+        storage:
+          traces: opensearch_backend
+          metrics: metrics_backend
+      jaeger_storage:
+        backends:
+          memory_backend: null
+          opensearch_backend:
+            opensearch:
+              server_urls:
+                - http://opensearch:9200
+              indices:
+                index_prefix: jaeger
+                spans:
+                  shards: 1
+                  replicas: 1
+                services:
+                  shards: 1
+                  replicas: 1
+                dependencies:
+                  shards: 1
+                  replicas: 1
+                sampling:
+                  shards: 1
+                  replicas: 1
+    exporters:
+      jaeger_storage_exporter:
+        trace_storage: opensearch_backend
+
+prometheus:
+  kube-state-metrics:
+    nodeSelector:
+      workload-tier: platform
+    resources:
+      requests:
+        cpu: 25m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+  server:
+    replicaCount: 2
+    statefulSet:
+      enabled: true
+    podAntiAffinity: hard
+    podAntiAffinityTopologyKey: topology.kubernetes.io/zone
+    global:
+      external_labels:
+        cluster: ecommerce-dev-eks
+        replica: ${POD_NAME}
+    extraArgs:
+      enable-feature: expand-external-labels
+    env:
+      - name: POD_NAME
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.name
+    remoteWrite:
+      - url: http://thanos-receive:19291/api/v1/receive
+    nodeSelector:
+      workload-tier: platform
+    persistentVolume:
+      enabled: true
+      storageClass: gp3-observability
+      accessModes:
+        - ReadWriteOnce
+      size: 20Gi
+    resources:
+      requests:
+        cpu: 250m
+        memory: 768Mi
+      limits:
+        cpu: 1000m
+        memory: 1536Mi
+
+grafana:
+  replicas: 2
+  nodeSelector:
+    workload-tier: platform
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: DoNotSchedule
+      labelSelector:
+        matchLabels:
+          app.kubernetes.io/name: grafana
+  podLabels:
+    egress-internet: "true"
+  plugins:
+    - grafana-opensearch-datasource
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      cpu: 500m
+      memory: 768Mi
+  sidecar:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 96Mi
+      limits:
+        cpu: 50m
+        memory: 128Mi
+
+thanos:
+  enabled: true
+  fullnameOverride: thanos
+  # Bitnami removed this immutable tag from bitnami/thanos. The legacy
+  # repository preserves the same Bitnami filesystem and entrypoint expected
+  # by chart 17.3.1; using the upstream image would require command overrides.
+  image:
+    registry: docker.io
+    repository: bitnamilegacy/thanos
+    tag: 0.39.2-debian-12-r2
+  objectStorage:
+    bucket: ecommerce-dev-thanos-384511757667
+    region: us-east-1
+  existingObjstoreSecret: thanos-objstore
+  serviceAccount:
+    create: true
+    name: thanos
+  query:
+    replicaCount: 2
+    replicaLabel: [replica, receive_replica]
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
+    podAntiAffinityPreset: hard
+    nodeSelector:
+      workload-tier: platform
+  queryFrontend:
+    enabled: false
+  receive:
+    enabled: true
+    replicaCount: 3
+    replicaLabel: receive_replica
+    replicationFactor: 3
+    service:
+      additionalHeadless: true
+      publishNotReadyAddresses: true
+    resources:
+      requests:
+        cpu: 200m
+        memory: 1Gi
+      limits:
+        cpu: "1"
+        memory: 4Gi
+    podAntiAffinityPreset: hard
+    nodeSelector:
+      workload-tier: platform
+    persistence:
+      enabled: true
+      storageClass: gp3-observability
+      size: 20Gi
+  storegateway:
+    enabled: true
+    replicaCount: 2
+    service:
+      additionalHeadless: true
+    podAntiAffinityPreset: hard
+    nodeSelector:
+      workload-tier: platform
+    persistence:
+      enabled: true
+      storageClass: gp3-observability
+      size: 10Gi
+  compactor:
+    enabled: true
+    nodeSelector:
+      workload-tier: platform
+    persistence:
+      enabled: true
+      storageClass: gp3-observability
+      size: 20Gi
+
+opensearch:
+  enabled: true
+  singleNode: false
+  replicas: 3
+  antiAffinity: hard
+  nodeSelector:
+    workload-tier: platform
+  persistence:
+    enabled: true
+    storageClass: gp3-observability
+    size: 10Gi
+    # Tắt initContainer fsgroup-volume (busybox root chown). Dùng podSecurityContext.fsGroup:1000
+    # (chart default) — kubelet tự chown PVC trên EBS gp3. Bỏ container root =>
+    # hết vi phạm priv-esc/caps/non-root/floating-tag của fsgroup-volume.
+    enableInitChown: false
+  # Resources cho init còn lại (configfile) => thỏa require-cpu-memory.
+  initResources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      cpu: 50m
+      memory: 32Mi
+
+components:
+  load-generator:
+    schedulingRules:
+      nodeSelector:
+        workload-tier: platform
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 750m
+        memory: 512Mi

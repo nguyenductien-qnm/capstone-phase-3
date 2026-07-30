@@ -1,0 +1,41 @@
+# MANDATE-10 P2 — đưa 2 workload aiops (detector, remediation) vào GitOps.
+#
+# Trước mandate này chúng được `kubectl apply -f` bằng tay: không ArgoCD app nào quản
+# (deploy trên prod không có tracking-id), image push tay bằng docker buildx với tag
+# trôi không -<sha>. Kết quả là 2 pod duy nhất trong techx-tf1 không truy được về
+# commit/PR/run nào — đúng cái mà Kyverno verifyImages sẽ chặn khi flip Enforce.
+#
+# Vì sao 1 Application cho cả hai: manifest nằm ở aiops/detector/deploy và
+# aiops/remediation/deploy, chung namespace techx-tf1, cùng vòng đời (remediation
+# import code của detector). `include` glob gom đúng 2 thư mục đó và loại các YAML
+# KHÔNG phải K8s manifest nằm cạnh code (detector/rules.yaml,
+# remediation/remediation_policy.yaml) — recurse trần sẽ nuốt luôn chúng và sync lỗi.
+#
+# LƯU Ý vận hành: secret `aiops-alert` (webhook Discord) vẫn tạo TAY một lần, không
+# nằm trong Git (xem comment đầu aiops/detector/deploy/deployment.yaml). Deployment
+# đọc nó với optional: true nên app Healthy kể cả khi secret chưa có.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: aiops
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: "https://github.com/nguyenductien-qnm/capstone-phase-3.git"
+    targetRevision: develop
+    path: aiops
+    directory:
+      recurse: true
+      include: "{detector,remediation}/deploy/*.yaml"
+  destination:
+    server: "https://kubernetes.default.svc"
+    # Manifest đã ghi rõ namespace techx-tf1 ở từng object; field này chỉ là default
+    # cho object thiếu namespace. Không đặt CreateNamespace: ns đã do techx-corp quản.
+    namespace: techx-tf1
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

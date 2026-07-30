@@ -1,0 +1,57 @@
+### TRẠNG THÁI CUỐI - DEVELOP ĐÃ VỀ NGUYÊN TRẠNG @ 2026-07-22T11:24:42Z
+--- NetworkPolicy còn lại (kỳ vọng 0) ---
+0
+--- pod KHÔNG khỏe (kỳ vọng: không có dòng nào) ---
+  accounting-cb697b598-8nlwz                              1/1   Running   0                91m
+  ad-8d7c89b8b-c8j4h                                      1/1   Running   0                26m
+  ad-8d7c89b8b-tkzx7                                      1/1   Running   0                26m
+  cart-569b5f8695-5v8dn                                   1/1   Running   0                27m
+  cart-569b5f8695-lrfjs                                   1/1   Running   0                26m
+  checkout-7f48d84994-vk99c                               1/1   Running   0                27m
+  checkout-7f48d84994-wdgkv                               1/1   Running   0                27m
+  currency-645db6d5c7-6nq49                               1/1   Running   0                27m
+  currency-645db6d5c7-xkq8g                               1/1   Running   0                27m
+  develop-techx-corp-kube-state-metrics-f7dd44847-9pgjn   1/1   Running   7 (3m27s ago)    3d7h
+  email-6b4f76d9cd-jbjmk                                  1/1   Running   0                27m
+  email-6b4f76d9cd-ln8wb                                  1/1   Running   0                27m
+  flagd-579f977db6-b22hf                                  1/1   Running   0                91m
+  fraud-detection-d9788c556-lhg2w                         1/1   Running   0                91m
+  frontend-56fbb9757c-c4hx7                               1/1   Running   0                27m
+  frontend-56fbb9757c-p6jl9                               1/1   Running   0                27m
+  frontend-proxy-cd6d95b7d-2phs6                          1/1   Running   0                27m
+  frontend-proxy-cd6d95b7d-q9qxr                          1/1   Running   0                27m
+  grafana-57b4747fd8-pbvw5                                4/4   Running   0                3d7h
+  image-provider-776d4469b9-hxd2q                         1/1   Running   0                91m
+  jaeger-587f9c6b55-gh5q2                                 1/1   Running   20 (5h23m ago)   3d7h
+  llm-6f7686ffbc-cnbgt                                    1/1   Running   0                91m
+  opensearch-0                                            1/1   Running   0                3d7h
+  otel-collector-agent-4t6ps                              1/1   Running   0                3d7h
+  otel-collector-agent-8m5sk                              1/1   Running   0                3d7h
+  otel-collector-agent-bvk2s                              1/1   Running   0                43h
+  otel-collector-agent-nfz6v                              1/1   Running   0                3d7h
+  payment-7cb7f85cdb-b97zs                                1/1   Running   0                27m
+  payment-7cb7f85cdb-lrb2v                                1/1   Running   0                27m
+  product-catalog-75df4ddf7d-9tj6f                        1/1   Running   0                27m
+  product-catalog-75df4ddf7d-tb6n4                        1/1   Running   0                27m
+  product-reviews-5464b4fd9f-s5qmn                        1/1   Running   0                90m
+  product-reviews-5464b4fd9f-snnwp                        1/1   Running   0                91m
+  prometheus-644d8cd596-ks8wg                             1/1   Running   0                85m
+  quote-69b596b85f-2999p                                  1/1   Running   0                27m
+  quote-69b596b85f-rqbs5                                  1/1   Running   0                27m
+  recommendation-77469d58f4-t7rdn                         1/1   Running   0                27m
+  recommendation-77469d58f4-zq2tb                         1/1   Running   0                26m
+  reloader-reloader-54dc9ccdf7-h58m4                      1/1   Running   0                3d4h
+  shipping-b7b8c4dcd-6lf9d                                1/1   Running   0                27m
+  shipping-b7b8c4dcd-rz5rz                                1/1   Running   0                27m
+  shopping-copilot-6649597c66-4vwr6                       1/1   Running   0                91m
+--- node (kỳ vọng: 4 Ready, không SchedulingDisabled) ---
+  ip-10-60-11-81.ec2.internal Ready
+  ip-10-60-12-102.ec2.internal Ready
+  ip-10-60-12-251.ec2.internal Ready
+  ip-10-60-12-28.ec2.internal Ready
+--- HPA ad đã khôi phục ---
+ad    Deployment/ad   cpu: 6%/70%   2     4     2     58m
+--- storefront ---
+  HTTP 200
+  HTTP 200
+  HTTP 200

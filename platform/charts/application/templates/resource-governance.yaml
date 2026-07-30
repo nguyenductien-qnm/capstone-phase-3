@@ -1,0 +1,50 @@
+{{/*
+CDO-42 — Namespace-level resource governance.
+ResourceQuota (trần cứng namespace) + LimitRange (default/max mỗi container).
+Namespace kế thừa từ ArgoCD/helm destination — KHÔNG set metadata.namespace.
+*/}}
+{{- $gov := .Values.resourceGovernance | default dict }}
+{{- $rq := $gov.resourceQuota | default dict }}
+{{- if $rq.enabled }}
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: {{ .Release.Name }}-quota
+  labels:
+    app.kubernetes.io/part-of: techx-corp
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  hard:
+    {{- toYaml $rq.hard | nindent 4 }}
+{{- end }}
+{{- $lr := $gov.limitRange | default dict }}
+{{- if $lr.enabled }}
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: {{ .Release.Name }}-limits
+  labels:
+    app.kubernetes.io/part-of: techx-corp
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  limits:
+    - type: Container
+      {{- with $lr.default }}
+      default:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $lr.defaultRequest }}
+      defaultRequest:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $lr.max }}
+      max:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $lr.min }}
+      min:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

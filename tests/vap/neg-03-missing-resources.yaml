@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: vaptest-neg-03-missing-resources
+  labels: { vaptest: "true" }
+spec:
+  containers:
+  - name: app
+    image: ecommerce-dev-techx-corp:1.0-cart-aadff38
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      allowPrivilegeEscalation: false
+      capabilities: { drop: ["ALL"] }
+    # cố ý KHÔNG khai resources -> vi phạm require-resources

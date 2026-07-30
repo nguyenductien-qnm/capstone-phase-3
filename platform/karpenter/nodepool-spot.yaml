@@ -1,0 +1,62 @@
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: spot
+  namespace: kube-system
+spec:
+  weight: 20
+  template:
+    metadata:
+      labels:
+        techx.io/capacity: spot
+    spec:
+      taints:
+        - key: techx.io/capacity
+          value: spot
+          effect: NoSchedule
+      requirements:
+        - key: kubernetes.io/arch
+          operator: In
+          values: ["amd64"]
+        - key: kubernetes.io/os
+          operator: In
+          values: ["linux"]
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["spot"]
+        - key: karpenter.k8s.aws/instance-family
+          operator: In
+          values: ["m6a", "c6a", "c7i"]
+        - key: karpenter.k8s.aws/instance-size
+          operator: In
+          values: ["large", "xlarge"]
+        - key: karpenter.k8s.aws/instance-generation
+          operator: Gt
+          values: ["2"]
+        # 27/07/2026: mở lại us-east-1a — chẩn đoán "1a fragment" (f90d230) đo lại đã
+        # đảo ngược: 1a còn 12/16 khối /28, 1b/1c mới là bên cạn (1/16 và 2/16) và đang
+        # sinh lỗi InsufficientCidrBlocks thật. Chi tiết + số đo: nodepool-default.yaml.
+        - key: topology.kubernetes.io/zone
+          operator: In
+          values: ["us-east-1a", "us-east-1b", "us-east-1c"]
+      nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
+        name: default
+      expireAfter: 168h
+      terminationGracePeriod: 24h
+  # Mandate-13 (mở rộng sandbox spot, 27-07-2026): nâng trần từ 8 -> 32 vCPU,
+  # memory 32Gi -> 64Gi. Trước đây pool này chỉ có ad+product-reviews (max 4
+  # replica x 200m/500m limit = 2.8 vCPU đỉnh). Sau khi thêm image-provider, llm,
+  # ml-guard (2 replica cố định x 2000m limit/pod = 4 vCPU riêng ml-guard), tổng
+  # limit đỉnh của cả pool ước tính ~8.8 vCPU — đã sát/vượt trần cũ 8, Karpenter
+  # sẽ ngừng launch node mới dù còn pod Pending nếu không nâng. 32 cho dư khoảng
+  # 3.6x so với ước tính đỉnh hiện tại, tính lại nếu thêm service mới vào pool này.
+  limits:
+    cpu: "32"
+    memory: 64Gi
+  disruption:
+    consolidationPolicy: WhenEmptyOrUnderutilized
+    consolidateAfter: 1m
+    budgets:
+      - nodes: "1"

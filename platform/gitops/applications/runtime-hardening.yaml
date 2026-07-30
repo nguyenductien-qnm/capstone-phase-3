@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: runtime-hardening
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"   # policies before workloads
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/nguyenductien-qnm/capstone-phase-3.git
+    targetRevision: develop
+    path: platform/policies/runtime-hardening
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true

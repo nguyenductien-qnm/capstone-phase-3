@@ -1,0 +1,7 @@
+Validating log files for trail arn:aws:cloudtrail:us-east-1:<ACCOUNT_ID>:trail/ecommerce-dev-audit-trail between 2026-07-21T10:00:00Z and 2026-07-21T11:00:00Z
+
+Results requested for 2026-07-21T10:00:00Z to 2026-07-21T11:00:00Z
+Results found for 2026-07-21T10:00:00Z to 2026-07-21T11:00:00Z:
+
+2/2 digest files valid
+85/85 log files valid

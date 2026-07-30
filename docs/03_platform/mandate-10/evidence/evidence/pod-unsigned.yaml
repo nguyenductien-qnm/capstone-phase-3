@@ -1,0 +1,32 @@
+# Pod test: digest CÓ THẬT trên ECR nhưng KHÔNG có chữ ký Cosign.
+# Đây là image aiops-detector push TAY ngày 17/07/2026, trước khi aiops được kéo
+# vào app-build (PR #307) — đúng lỗ hổng mà mandate 10 sinh ra để đóng.
+#
+# Kỳ vọng:  Audit  -> ĐƯỢC NHẬN (test A4, vế "trước")
+#           Enforce -> BỊ CHẶN  (test B1, vế "sau")
+#
+# Dùng @sha256 chứ KHÔNG phải :latest — VAP deny-floating-image-tag sẽ chặn
+# :latest trước và cho thông điệp sai chỗ (nói về tag trôi, không phải chữ ký).
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kyverno-test-unsigned
+  namespace: techx-tf1
+spec:
+  restartPolicy: Never
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    seccompProfile: { type: RuntimeDefault }
+  containers:
+    - name: test
+      image: 804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp@sha256:0311458d9347de8d79727bc1ed7f97866e3c54625099a5808157c26e796bdc9e
+      command: ["sleep", "300"]
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities: { drop: ["ALL"] }
+      resources:
+        requests: { cpu: "10m", memory: "32Mi" }
+        limits:   { cpu: "100m", memory: "64Mi" }

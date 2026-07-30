@@ -1,0 +1,46 @@
+output "vpc_id" {
+  description = "ID của VPC"
+  value       = aws_vpc.this.id
+}
+
+output "vpc_cidr_block" {
+  description = "CIDR block của VPC"
+  value       = aws_vpc.this.cidr_block
+}
+
+output "public_subnet_ids" {
+  description = "Map ID của Public Subnets"
+  value       = { for k, v in aws_subnet.public : k => v.id }
+}
+
+output "private_app_subnet_ids" {
+  description = "Map ID của Private Application Subnets"
+  value       = { for k, v in aws_subnet.private_app : k => v.id }
+}
+
+output "private_node_subnet_ids" {
+  description = "Map ID của Private Node Subnets (Karpenter)"
+  value       = { for k, v in aws_subnet.private_node : k => v.id }
+}
+
+output "private_data_subnet_ids" {
+  description = "Map ID của Private Data Subnets"
+  value       = { for k, v in aws_subnet.private_data : k => v.id }
+}
+
+output "private_mq_subnet_ids" {
+  description = "Map ID của Private Message Queue Subnets"
+  value       = { for k, v in aws_subnet.private_mq : k => v.id }
+}
+
+output "private_egress_route_table_ids" {
+  description = "Private app/MQ route tables used for controlled egress and gateway endpoints"
+  value = var.enable_nat_gateway ? [
+    for route_table in values(aws_route_table.private) : route_table.id
+  ] : [aws_route_table.private_isolated.id]
+}
+
+output "nat_gateway_ips" {
+  description = "Map public IP của các NAT Gateways"
+  value       = { for k, v in aws_eip.nat : k => v.public_ip }
+}

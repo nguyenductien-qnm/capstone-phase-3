@@ -1,0 +1,9 @@
+{
+  "group": "longterm",
+  "case": "recall-new-session",
+  "passed": false,
+  "reason": "phiên mới nhớ lại: False",
+  "latency": 6.48,
+  "cache_status": "miss",
+  "response": "Rất tiếc, hiện tại chưa có sản phẩm nào phù hợp với yêu cầu của bạn. Hãy thử với các từ khóa khác hoặc liên hệ với chúng tôi để được hỗ trợ tìm kiếm."
+}

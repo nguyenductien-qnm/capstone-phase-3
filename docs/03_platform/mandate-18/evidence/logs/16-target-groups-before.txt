@@ -1,0 +1,30 @@
+MANDATE-18 - authorized Target Groups before cleanup
+Capture window: 2026-07-23T08:08:58Z to 2026-07-23T08:13:00Z
+Account: [REDACTED_ACCOUNT_ID]
+Profile/region: phase3-cdo / us-east-1
+
+123123321
+- VPC: vpc-06d4c34ec03f55c6d (runtime project VPC)
+- Load balancer/listener/rule references: 0
+- Registered targets: 0
+- Terraform/CloudFormation/Kubernetes/repository references: none found
+- Controller/owner tags: none
+- Recent use activity: none found; only CreateTargetGroup on 2026-07-15
+- Pre-action classification: DELETE_CANDIDATE
+
+89345789437843
+- VPC: vpc-06d4c34ec03f55c6d (runtime project VPC)
+- Load balancer/listener/rule references: 0
+- Registered targets: 0
+- Terraform/CloudFormation/Kubernetes/repository references: none found
+- Controller/owner tags: none
+- Recent use activity: none found; only CreateTargetGroup on 2026-07-15
+- Pre-action classification: DELETE_CANDIDATE
+
+Protected controls
+- testt: different VPC; UNKNOWN/HOLD; no mutation authorized.
+- k8s-techxtf1-frontend-da03cf6043: one active NLB association, two healthy
+  targets and Kubernetes controller ownership; KEEP; no mutation authorized.
+
+The complete redacted ARNs, health-check configuration, attributes and recreate
+plans are preserved in 16-target-group-predelete-audit.txt.

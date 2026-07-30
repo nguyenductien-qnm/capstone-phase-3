@@ -1,0 +1,10 @@
+### R1 - MONEY PATH KHI AD CHẾT @ 2026-07-22T10:25:11Z  sessionId=m17-1784715911
+--- 1) add to cart ---
+HTTP 200 0.620220s
+--- 2) get cart ---
+HTTP 200 0.581872s
+{"userId":"m17-1784715911","items":[{"productId":"OLJCESPC7Z","quantity":1,"product":{"id":"OLJCESPC7Z","name":"National Park Foundation Explorascope","description":"The National Park Foundation's (NPF) Explorascope 60AZ is a manual alt-azimuth, refractor telescope perfect for celestial viewing on t
+--- 3) CHECKOUT (đặt hàng thật) ---
+HTTP 200 1.383309s
+--- order response ---
+{"orderId":"a07c3cd8-85b7-11f1-a180-7e04759d1d47","shippingTrackingId":"985a4f43-305b-42fc-ac61-1318ff6037af","shippingCost":{"currencyCode":"USD","units":8,"nanos":990000000},"shippingAddress":{"streetAddress":"1600 Amphitheatre","city":"Mountain View","state":"CA","country":"United States","zipCode":"94043"},"items":[{"cost":{"currencyCode":"USD","units":101,"nanos":959999999},"item":{"productId

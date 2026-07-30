@@ -1,0 +1,392 @@
+{
+    "queryLanguage": "CWLI",
+    "results": [
+        [
+            {
+                "field": "@timestamp",
+                "value": "2026-07-15 08:28:03.225"
+            },
+            {
+                "field": "username",
+                "value": "arn:aws:sts::<ACCOUNT_ID_REDACTED>:assumed-role/AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568/huynt"
+            },
+            {
+                "field": "groups",
+                "value": "[\"system:authenticated\"]"
+            },
+            {
+                "field": "verb",
+                "value": "create"
+            },
+            {
+                "field": "requestURI",
+                "value": "/api/v1/namespaces/audit-forensic-demo/configmaps?fieldManager=kubectl-create&fieldValidation=Strict"
+            },
+            {
+                "field": "namespace",
+                "value": "audit-forensic-demo"
+            },
+            {
+                "field": "resource",
+                "value": "configmaps"
+            },
+            {
+                "field": "resourceName",
+                "value": "forensic-20260715082752"
+            },
+            {
+                "field": "sourceIP",
+                "value": "14.236.19.171"
+            },
+            {
+                "field": "userAgent",
+                "value": "kubectl.exe/v1.30.2 (windows/amd64) kubernetes/3968350"
+            },
+            {
+                "field": "responseCode",
+                "value": "201"
+            },
+            {
+                "field": "auditID",
+                "value": "33f9bbb4-0f47-491b-8167-cb91d6404665"
+            },
+            {
+                "field": "@ptr",
+                "value": "CrkBCnkKLzgwNDM3MjQ0NDc4NzovYXdzL2Vrcy9lY29tbWVyY2UtZGV2LWVrcy9jbHVzdGVyEAAaJGE1M2YwNzg0LTQ4MmEtNGZiNC1hOWU2LWMwMDg3YzBhNTA0NSIOCMD7h6f2MxCHq5qn9jM4xK2t2vEzQN+8kZv2M0gAEjoaGAIGkeLjHQAAAAKSmziEAAaldEZAAAAH0iABKMf/jaf2MzDAwpOn9jM4wgRAhN7JAUjF+RdQ3fIWIAIQnAMYAQ=="
+            }
+        ],
+        [
+            {
+                "field": "@timestamp",
+                "value": "2026-07-15 08:28:05.382"
+            },
+            {
+                "field": "username",
+                "value": "arn:aws:sts::<ACCOUNT_ID_REDACTED>:assumed-role/AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568/huynt"
+            },
+            {
+                "field": "groups",
+                "value": "[\"system:authenticated\"]"
+            },
+            {
+                "field": "verb",
+                "value": "patch"
+            },
+            {
+                "field": "requestURI",
+                "value": "/api/v1/namespaces/audit-forensic-demo/configmaps/forensic-20260715082752?fieldManager=kubectl-annotate"
+            },
+            {
+                "field": "namespace",
+                "value": "audit-forensic-demo"
+            },
+            {
+                "field": "resource",
+                "value": "configmaps"
+            },
+            {
+                "field": "resourceName",
+                "value": "forensic-20260715082752"
+            },
+            {
+                "field": "sourceIP",
+                "value": "14.236.19.171"
+            },
+            {
+                "field": "userAgent",
+                "value": "kubectl.exe/v1.30.2 (windows/amd64) kubernetes/3968350"
+            },
+            {
+                "field": "responseCode",
+                "value": "200"
+            },
+            {
+                "field": "auditID",
+                "value": "327ff948-bc67-4f0f-9732-32ba4dedd3f1"
+            },
+            {
+                "field": "@ptr",
+                "value": "CrkBCnkKLzgwNDM3MjQ0NDc4NzovYXdzL2Vrcy9lY29tbWVyY2UtZGV2LWVrcy9jbHVzdGVyEAAaJGE1M2YwNzg0LTQ4MmEtNGZiNC1hOWU2LWMwMDg3YzBhNTA0NSIOCMD7h6f2MxCHq5qn9jM4xK2t2vEzQN+8kZv2M0gAEjoaGAIGkeLjHQAAAAKSmziEAAaldEZAAAAH0iABKMf/jaf2MzDAwpOn9jM4wgRAhN7JAUjF+RdQ3fIWIAIQswMYAQ=="
+            }
+        ],
+        [
+            {
+                "field": "@timestamp",
+                "value": "2026-07-15 08:28:05.382"
+            },
+            {
+                "field": "username",
+                "value": "arn:aws:sts::<ACCOUNT_ID_REDACTED>:assumed-role/AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568/huynt"
+            },
+            {
+                "field": "groups",
+                "value": "[\"system:authenticated\"]"
+            },
+            {
+                "field": "verb",
+                "value": "get"
+            },
+            {
+                "field": "requestURI",
+                "value": "/api/v1/namespaces/audit-forensic-demo/configmaps/forensic-20260715082752"
+            },
+            {
+                "field": "namespace",
+                "value": "audit-forensic-demo"
+            },
+            {
+                "field": "resource",
+                "value": "configmaps"
+            },
+            {
+                "field": "resourceName",
+                "value": "forensic-20260715082752"
+            },
+            {
+                "field": "sourceIP",
+                "value": "14.236.19.171"
+            },
+            {
+                "field": "userAgent",
+                "value": "kubectl.exe/v1.30.2 (windows/amd64) kubernetes/3968350"
+            },
+            {
+                "field": "responseCode",
+                "value": "200"
+            },
+            {
+                "field": "auditID",
+                "value": "5b1f39be-ab49-4f8a-8e0c-b90ca4315c20"
+            },
+            {
+                "field": "@ptr",
+                "value": "CrkBCnkKLzgwNDM3MjQ0NDc4NzovYXdzL2Vrcy9lY29tbWVyY2UtZGV2LWVrcy9jbHVzdGVyEAAaJGE1M2YwNzg0LTQ4MmEtNGZiNC1hOWU2LWMwMDg3YzBhNTA0NSIOCMD7h6f2MxCHq5qn9jM4xK2t2vEzQN+8kZv2M0gAEjoaGAIGkeLjHQAAAAKSmziEAAaldEZAAAAH0iABKMf/jaf2MzDAwpOn9jM4wgRAhN7JAUjF+RdQ3fIWIAIQsgMYAQ=="
+            }
+        ],
+        [
+            {
+                "field": "@timestamp",
+                "value": "2026-07-15 08:28:07.386"
+            },
+            {
+                "field": "username",
+                "value": "arn:aws:sts::<ACCOUNT_ID_REDACTED>:assumed-role/AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568/huynt"
+            },
+            {
+                "field": "groups",
+                "value": "[\"system:authenticated\"]"
+            },
+            {
+                "field": "verb",
+                "value": "get"
+            },
+            {
+                "field": "requestURI",
+                "value": "/api/v1/namespaces/audit-forensic-demo/configmaps/forensic-20260715082752"
+            },
+            {
+                "field": "namespace",
+                "value": "audit-forensic-demo"
+            },
+            {
+                "field": "resource",
+                "value": "configmaps"
+            },
+            {
+                "field": "resourceName",
+                "value": "forensic-20260715082752"
+            },
+            {
+                "field": "sourceIP",
+                "value": "14.236.19.171"
+            },
+            {
+                "field": "userAgent",
+                "value": "kubectl.exe/v1.30.2 (windows/amd64) kubernetes/3968350"
+            },
+            {
+                "field": "responseCode",
+                "value": "200"
+            },
+            {
+                "field": "auditID",
+                "value": "394c6442-7462-470d-b510-c127fa4106de"
+            },
+            {
+                "field": "@ptr",
+                "value": "CrkBCnkKLzgwNDM3MjQ0NDc4NzovYXdzL2Vrcy9lY29tbWVyY2UtZGV2LWVrcy9jbHVzdGVyEAAaJGE1M2YwNzg0LTQ4MmEtNGZiNC1hOWU2LWMwMDg3YzBhNTA0NSIOCMD7h6f2MxCHq5qn9jM4xK2t2vEzQN+8kZv2M0gAEjoaGAIGkeLjHQAAAAKSmziEAAaldEZAAAAH0iABKMf/jaf2MzDAwpOn9jM4wgRAhN7JAUjF+RdQ3fIWIAIQxAMYAQ=="
+            }
+        ],
+        [
+            {
+                "field": "@timestamp",
+                "value": "2026-07-15 08:28:07.390"
+            },
+            {
+                "field": "username",
+                "value": "arn:aws:sts::<ACCOUNT_ID_REDACTED>:assumed-role/AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568/huynt"
+            },
+            {
+                "field": "groups",
+                "value": "[\"system:authenticated\"]"
+            },
+            {
+                "field": "verb",
+                "value": "patch"
+            },
+            {
+                "field": "requestURI",
+                "value": "/api/v1/namespaces/audit-forensic-demo/configmaps/forensic-20260715082752?fieldManager=kubectl-label"
+            },
+            {
+                "field": "namespace",
+                "value": "audit-forensic-demo"
+            },
+            {
+                "field": "resource",
+                "value": "configmaps"
+            },
+            {
+                "field": "resourceName",
+                "value": "forensic-20260715082752"
+            },
+            {
+                "field": "sourceIP",
+                "value": "14.236.19.171"
+            },
+            {
+                "field": "userAgent",
+                "value": "kubectl.exe/v1.30.2 (windows/amd64) kubernetes/3968350"
+            },
+            {
+                "field": "responseCode",
+                "value": "200"
+            },
+            {
+                "field": "auditID",
+                "value": "3850761d-af61-41ae-9e75-26fa1eecd85b"
+            },
+            {
+                "field": "@ptr",
+                "value": "CrkBCnkKLzgwNDM3MjQ0NDc4NzovYXdzL2Vrcy9lY29tbWVyY2UtZGV2LWVrcy9jbHVzdGVyEAAaJGE1M2YwNzg0LTQ4MmEtNGZiNC1hOWU2LWMwMDg3YzBhNTA0NSIOCMD7h6f2MxCHq5qn9jM4xK2t2vEzQN+8kZv2M0gAEjoaGAIGkeLjHQAAAAKSmziEAAaldEZAAAAH0iABKMf/jaf2MzDAwpOn9jM4wgRAhN7JAUjF+RdQ3fIWIAIQzQMYAQ=="
+            }
+        ],
+        [
+            {
+                "field": "@timestamp",
+                "value": "2026-07-15 08:28:09.643"
+            },
+            {
+                "field": "username",
+                "value": "arn:aws:sts::<ACCOUNT_ID_REDACTED>:assumed-role/AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568/huynt"
+            },
+            {
+                "field": "groups",
+                "value": "[\"system:authenticated\"]"
+            },
+            {
+                "field": "verb",
+                "value": "get"
+            },
+            {
+                "field": "requestURI",
+                "value": "/api/v1/namespaces/audit-forensic-demo/configmaps/forensic-20260715082752"
+            },
+            {
+                "field": "namespace",
+                "value": "audit-forensic-demo"
+            },
+            {
+                "field": "resource",
+                "value": "configmaps"
+            },
+            {
+                "field": "resourceName",
+                "value": "forensic-20260715082752"
+            },
+            {
+                "field": "sourceIP",
+                "value": "14.236.19.171"
+            },
+            {
+                "field": "userAgent",
+                "value": "kubectl.exe/v1.30.2 (windows/amd64) kubernetes/3968350"
+            },
+            {
+                "field": "responseCode",
+                "value": "404"
+            },
+            {
+                "field": "auditID",
+                "value": "6b52606b-4f0c-4f1c-9744-b6e3d424b5f8"
+            },
+            {
+                "field": "@ptr",
+                "value": "CrkBCnkKLzgwNDM3MjQ0NDc4NzovYXdzL2Vrcy9lY29tbWVyY2UtZGV2LWVrcy9jbHVzdGVyEAAaJGE1M2YwNzg0LTQ4MmEtNGZiNC1hOWU2LWMwMDg3YzBhNTA0NSIOCMD7h6f2MxCHq5qn9jM4xK2t2vEzQN+8kZv2M0gAEjoaGAIGpWOofwAAAAFDAGGPAAaldEcwAAAA8iABKIHYjaf2MzCd8pKn9jM4xgVAkvC5AUjezRRQl4YUIAIQ8gMYAQ=="
+            }
+        ],
+        [
+            {
+                "field": "@timestamp",
+                "value": "2026-07-15 08:28:09.643"
+            },
+            {
+                "field": "username",
+                "value": "arn:aws:sts::<ACCOUNT_ID_REDACTED>:assumed-role/AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568/huynt"
+            },
+            {
+                "field": "groups",
+                "value": "[\"system:authenticated\"]"
+            },
+            {
+                "field": "verb",
+                "value": "delete"
+            },
+            {
+                "field": "requestURI",
+                "value": "/api/v1/namespaces/audit-forensic-demo/configmaps/forensic-20260715082752"
+            },
+            {
+                "field": "namespace",
+                "value": "audit-forensic-demo"
+            },
+            {
+                "field": "resource",
+                "value": "configmaps"
+            },
+            {
+                "field": "resourceName",
+                "value": "forensic-20260715082752"
+            },
+            {
+                "field": "sourceIP",
+                "value": "14.236.19.171"
+            },
+            {
+                "field": "userAgent",
+                "value": "kubectl.exe/v1.30.2 (windows/amd64) kubernetes/3968350"
+            },
+            {
+                "field": "responseCode",
+                "value": "200"
+            },
+            {
+                "field": "auditID",
+                "value": "40f99ffd-39a3-459b-89bc-c6b5b5b083a1"
+            },
+            {
+                "field": "@ptr",
+                "value": "CrkBCnkKLzgwNDM3MjQ0NDc4NzovYXdzL2Vrcy9lY29tbWVyY2UtZGV2LWVrcy9jbHVzdGVyEAAaJGE1M2YwNzg0LTQ4MmEtNGZiNC1hOWU2LWMwMDg3YzBhNTA0NSIOCMD7h6f2MxCHq5qn9jM4xK2t2vEzQN+8kZv2M0gAEjoaGAIGpWOofwAAAAFDAGGPAAaldEcwAAAA8iABKIHYjaf2MzCd8pKn9jM4xgVAkvC5AUjezRRQl4YUIAIQ8AMYAQ=="
+            }
+        ]
+    ],
+    "statistics": {
+        "recordsMatched": 7.0,
+        "recordsScanned": 6172.0,
+        "estimatedRecordsSkipped": 0.0,
+        "bytesScanned": 15282958.0,
+        "estimatedBytesSkipped": 0.0,
+        "logGroupsScanned": 1.0
+    },
+    "status": "Complete"
+}

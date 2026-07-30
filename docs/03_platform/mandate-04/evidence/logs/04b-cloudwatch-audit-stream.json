@@ -1,0 +1,34 @@
+[
+    {
+        "Stream": "kube-apiserver-audit-074813e7662bcfd7bdd28d0eef4f951c",
+        "LastEvent": 1784101127435
+    },
+    {
+        "Stream": "kube-apiserver-audit-474df1a5b4edc4cf6d2fc95d5960d9ae",
+        "LastEvent": 1784101431329
+    },
+    {
+        "Stream": "kube-apiserver-audit-93d0413c591e066489c9c89c60bdaa90",
+        "LastEvent": 1784085470316
+    },
+    {
+        "Stream": "kube-apiserver-audit-bf60126c3e7cf9b84328cce473523252",
+        "LastEvent": 1784085219658
+    },
+    {
+        "Stream": "kube-apiserver-audit-c5704c17680f9d74a601fcac700e4db0",
+        "LastEvent": 1784085212843
+    },
+    {
+        "Stream": "kube-apiserver-audit-cbc99beebe163234dc151ba1dc066335",
+        "LastEvent": 1784101489566
+    },
+    {
+        "Stream": "kube-apiserver-audit-d33e9214ff895dc6008272bb88eabd10",
+        "LastEvent": 1784101344636
+    },
+    {
+        "Stream": "kube-apiserver-audit-fc6d69ce<ACCOUNT_ID_REDACTED>ea8f2fd89b90",
+        "LastEvent": 1784101125229
+    }
+]

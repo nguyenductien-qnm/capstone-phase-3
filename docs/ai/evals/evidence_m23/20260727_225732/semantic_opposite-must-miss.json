@@ -1,0 +1,9 @@
+{
+  "group": "semantic",
+  "case": "opposite-must-miss",
+  "passed": true,
+  "reason": "đổi mốc giá dưới→trên: miss (không được hit_semantic)",
+  "latency": 7.04,
+  "cache_status": "miss",
+  "response": "Rất tiếc, hiện tại chúng tôi không có kính thiên văn nào có giá trên [unverified] USD. Bạn có thể xem xét các sản phẩm khác trong danh mục của chúng tôi."
+}

@@ -1,57 +1,332 @@
 [
   {
-    "product_id": "L9ECAV7KIM",
-    "product_name": "Celestron Lens Cleaning Kit",
-    "reviews": [
-      {"rating": 5, "comment": "Great cleaning kit, works perfectly on telescope lenses and binoculars."},
-      {"rating": 5, "comment": "Removes fingerprints without leaving residue. Perfect for my camera too."},
-      {"rating": 4, "comment": "Good quality but a bit pricey for what you get."},
-      {"rating": 5, "comment": "Essential accessory for any telescope owner. Keeps optics crystal clear."}
-    ],
-    "expected_summary_keywords": ["cleaning", "lens", "telescope", "quality", "fingerprint"]
-  },
-  {
     "product_id": "OLJCESPC7Z",
-    "product_name": "Celestron AstroMaster 70",
+    "product_name": "National Park Foundation Explorascope",
     "reviews": [
-      {"rating": 4, "comment": "Perfect for beginners, really easy to set up and use."},
-      {"rating": 4, "comment": "Clear views of the moon and brighter planets. Great value."},
-      {"rating": 3, "comment": "Manual controls are a bit tricky to master at first."},
-      {"rating": 5, "comment": "My 10-year-old loves it. Simple enough for kids, good enough for adults."}
+      {
+        "rating": 4.5,
+        "comment": "Great entry-level telescope! Easy to set up and provides clear views of the moon and brighter planets. Highly recommend for new astronomers."
+      },
+      {
+        "rating": 4.0,
+        "comment": "For the price, this Explorascope delivers excellent performance. I was able to see Jupiter's moons clearly. A fantastic purchase for casual viewing."
+      },
+      {
+        "rating": 3.5,
+        "comment": "A bit tricky to get used to the manual controls, but once you do, it's very rewarding. Saw the Orion Nebula for the first time! Good value."
+      },
+      {
+        "rating": 4.0,
+        "comment": "Perfect for camping trips. It's lightweight and portable, making it easy to take anywhere. The views are surprisingly good for its size."
+      },
+      {
+        "rating": 3.0,
+        "comment": "Not the most powerful scope, but it's great for kids and beginners. My children love looking at the moon with it. A solid choice for family fun."
+      }
     ],
-    "expected_summary_keywords": ["beginner", "easy", "moon", "setup", "value"]
+    "expected_summary_keywords": [
+      "beginner",
+      "easy",
+      "setup",
+      "value",
+      "kids"
+    ]
   },
   {
     "product_id": "66VCHSJNUP",
-    "product_name": "StarSense Explorer Refractor",
+    "product_name": "StarSense Explorer Refractor Telescope",
     "reviews": [
-      {"rating": 5, "comment": "The StarSense app is revolutionary! Finds objects automatically."},
-      {"rating": 5, "comment": "Excellent optical quality, very sharp images."},
-      {"rating": 4, "comment": "Perfect smartphone integration but drains the phone battery fast."},
-      {"rating": 5, "comment": "Best telescope purchase I've ever made. The app tutorials are amazing."}
+      {
+        "rating": 5.0,
+        "comment": "The StarSense app is revolutionary! It made finding celestial objects incredibly easy. This telescope is a game-changer for beginners."
+      },
+      {
+        "rating": 4.5,
+        "comment": "Amazing technology, the smartphone integration works flawlessly. I've never had so much fun exploring the night sky. Worth every penny."
+      },
+      {
+        "rating": 4.0,
+        "comment": "Setup was a breeze, and the tutorials in the app are very helpful. The views are crisp and clear. My only minor gripe is battery drain on the phone."
+      },
+      {
+        "rating": 5.0,
+        "comment": "Finally, a telescope that takes the guesswork out of stargazing. The real-time positioning is incredibly accurate. Highly recommended for anyone new to techx."
+      },
+      {
+        "rating": 4.5,
+        "comment": "Fantastic product, the app truly guides you. It's like having a personal astronomer with you. The optical quality is also very good."
+      }
     ],
-    "expected_summary_keywords": ["StarSense", "app", "smartphone", "optical", "battery"]
+    "expected_summary_keywords": [
+      "StarSense",
+      "app",
+      "smartphone",
+      "tutorial",
+      "guid"
+    ]
+  },
+  {
+    "product_id": "1YMWWN1N4O",
+    "product_name": "Eclipsmart Travel Refractor Telescope",
+    "reviews": [
+      {
+        "rating": 5.0,
+        "comment": "Perfect for solar observations! The Solar Safe filter gives peace of mind. I used it for the last partial eclipse and it was fantastic."
+      },
+      {
+        "rating": 4.5,
+        "comment": "Compact and easy to carry, this telescope is ideal for eclipse events. The included backpack is a nice touch. Views of the sun are incredibly clear and safe."
+      },
+      {
+        "rating": 4.0,
+        "comment": "Excellent travel scope for solar viewing. The magnification is much better than binoculars for the sun. A must-have for any solar enthusiast."
+      },
+      {
+        "rating": 5.0,
+        "comment": "Very impressed with the safety features and clarity. Sharing the sun with family has never been easier or safer. Great value for a dedicated solar scope."
+      },
+      {
+        "rating": 4.5,
+        "comment": "The ISO compliant filter is reassuring. It's a well-designed product for safe solar observation. Highly recommend for educational purposes too."
+      }
+    ],
+    "expected_summary_keywords": [
+      "solar",
+      "filter",
+      "safe",
+      "travel",
+      "eclipse"
+    ]
+  },
+  {
+    "product_id": "L9ECAV7KIM",
+    "product_name": "Lens Cleaning Kit",
+    "reviews": [
+      {
+        "rating": 5.0,
+        "comment": "This kit is a lifesaver for all my optics. The brush and wipes work perfectly without leaving any residue. My lenses have never been cleaner."
+      },
+      {
+        "rating": 4.5,
+        "comment": "Essential for any photographer or telescope owner. It safely removes dust and fingerprints. A high-quality cleaning solution."
+      },
+      {
+        "rating": 4.0,
+        "comment": "I use this on my binoculars, camera lenses, and even my phone screen. It's very effective and gentle. A versatile cleaning kit."
+      },
+      {
+        "rating": 5.0,
+        "comment": "Great value for money. The different cleaning options cover all needs. Keeps my expensive equipment in pristine condition."
+      },
+      {
+        "rating": 4.5,
+        "comment": "Works as advertised, my telescope views are much clearer after using this. The fluid and cloth are excellent. Definitely recommend."
+      }
+    ],
+    "expected_summary_keywords": [
+      "clean",
+      "lens",
+      "optic",
+      "dust",
+      "value"
+    ]
   },
   {
     "product_id": "2ZYFJ3GM2N",
-    "product_name": "Celestron Outland X 10x42 Binoculars",
+    "product_name": "Roof Binoculars",
     "reviews": [
-      {"rating": 5, "comment": "Incredibly clear and bright. ED glass makes a huge difference."},
-      {"rating": 4, "comment": "Perfect for bird watching and hiking. Lightweight and durable."},
-      {"rating": 5, "comment": "Waterproof design held up during a rainy birding trip. Excellent."},
-      {"rating": 4, "comment": "Great close focus capability. Images are sharp to the edge."}
+      {
+        "rating": 5.0,
+        "comment": "Incredible clarity and brightness, perfect for bird watching. The ED glass really makes a difference. I can spot the subtlest markings."
+      },
+      {
+        "rating": 4.5,
+        "comment": "These binoculars are fantastic for nature observation. The close focus is a huge advantage for viewing nearby wildlife. Very comfortable to hold."
+      },
+      {
+        "rating": 4.0,
+        "comment": "Lightweight and durable, these are my go-to binoculars for hiking. The wide field of view is excellent. Highly recommend for outdoor enthusiasts."
+      },
+      {
+        "rating": 4.0,
+        "comment": "Took these to a game and had an amazing view of the action. They perform great in various lighting conditions. A solid all-around binocular."
+      },
+      {
+        "rating": 4.5,
+        "comment": "Excellent build quality and optical performance. They feel robust and provide sharp images. A great investment for any outdoor activity."
+      }
     ],
-    "expected_summary_keywords": ["clear", "ED glass", "waterproof", "birding", "lightweight"]
+    "expected_summary_keywords": [
+      "clarity",
+      "bright",
+      "bird",
+      "hiking",
+      "ED glass"
+    ]
+  },
+  {
+    "product_id": "0PUK6V6EV0",
+    "product_name": "Solar System Color Imager",
+    "reviews": [
+      {
+        "rating": 5.0,
+        "comment": "This imager is a fantastic step up for planetary photography. The color quality is superb. Easy to use with my existing telescope setup."
+      },
+      {
+        "rating": 4.5,
+        "comment": "Finally capturing stunning images of Saturn and Jupiter! The NexImage 10 makes it so accessible. Great for beginners in astrophotography."
+      },
+      {
+        "rating": 4.0,
+        "comment": "Excellent resolution and color rendition for its price point. It's a perfect solution for those looking to start imaging planets. Highly satisfied."
+      },
+      {
+        "rating": 5.0,
+        "comment": "The detail I can capture with this imager is incredible. It integrates well with various software. A must-have for serious planetary observers."
+      },
+      {
+        "rating": 4.5,
+        "comment": "A solid choice for getting into solar system imaging. The setup was straightforward. Produces beautiful, vibrant planetary images."
+      }
+    ],
+    "expected_summary_keywords": [
+      "planet",
+      "imag",
+      "color",
+      "Saturn",
+      "Jupiter"
+    ]
+  },
+  {
+    "product_id": "LS4PSXUNUM",
+    "product_name": "Red Flashlight",
+    "reviews": [
+      {
+        "rating": 5.0,
+        "comment": "The red light is perfect for preserving night vision during techx sessions. The hand warmer is an unexpected bonus. Very practical device."
+      },
+      {
+        "rating": 4.5,
+        "comment": "This flashlight is indispensable for star parties. The red mode is gentle on the eyes, and the power bank feature is super handy. Love it!"
+      },
+      {
+        "rating": 4.5,
+        "comment": "Rugged and versatile, this flashlight is great for camping and night walks. The hand warmer function is a game-changer on cold nights. Highly recommend."
+      },
+      {
+        "rating": 4.0,
+        "comment": "A fantastic multi-tool for my emergency kit. The red light is useful, and the power bank means I can charge my phone. Great design."
+      },
+      {
+        "rating": 5.0,
+        "comment": "Every astronomer needs one of these. The red light is essential, and the hand warmer and power bank make it incredibly useful. A top-tier accessory."
+      }
+    ],
+    "expected_summary_keywords": [
+      "red light",
+      "night vision",
+      "flashlight",
+      "camping",
+      "hand"
+    ]
+  },
+  {
+    "product_id": "9SIQT8TOJO",
+    "product_name": "Optical Tube Assembly (RASA V2)",
+    "reviews": [
+      {
+        "rating": 5.0,
+        "comment": "The RASA V2 is a dream come true for deep-sky imaging. The f/2.2 speed drastically cuts down exposure times. My best astrophotography investment yet."
+      },
+      {
+        "rating": 5.0,
+        "comment": "Unbelievable performance for wide-field astrophotography. The short focal length makes guiding less critical. Produces stunning, detailed images."
+      },
+      {
+        "rating": 4.5,
+        "comment": "This OTA is a beast! The fast optics mean more data in less time. If you're serious about deep-sky imaging, this is the one."
+      },
+      {
+        "rating": 5.0,
+        "comment": "Worth every penny for the quality and speed it offers. My images have never been sharper or more vibrant. A truly professional piece of equipment."
+      },
+      {
+        "rating": 4.5,
+        "comment": "The engineering behind this RASA is exceptional. It's incredibly efficient for capturing faint objects. A high-end choice for dedicated imagers."
+      }
+    ],
+    "expected_summary_keywords": [
+      "deep-sky",
+      "f/2.2",
+      "fast",
+      "astrophotography",
+      "imaging"
+    ]
   },
   {
     "product_id": "6E92ZMYYFZ",
-    "product_name": "EclipSmart Solar Filter 8-inch",
+    "product_name": "Solar Filter",
     "reviews": [
-      {"rating": 5, "comment": "Essential for safe solar viewing. ISO compliant and very sturdy."},
-      {"rating": 5, "comment": "Crystal clear solar views. Velcro straps hold it firmly in place."},
-      {"rating": 4, "comment": "Well built, attaches easily, gives peace of mind for solar events."},
-      {"rating": 5, "comment": "Used it during the last eclipse — absolutely perfect. No glare at all."}
+      {
+        "rating": 5.0,
+        "comment": "Essential for safe solar viewing with my 8-inch telescope. The Velcro straps ensure it stays securely in place. Peace of mind during solar observations."
+      },
+      {
+        "rating": 4.5,
+        "comment": "This EclipSmart filter is a perfect addition to my setup. The ISO compliance is crucial. Highly recommend for anyone looking to view the sun safely."
+      },
+      {
+        "rating": 5.0,
+        "comment": "Easy to attach and provides crystal clear, safe views of the sun. The build quality is excellent. A must-have accessory for solar enthusiasts."
+      },
+      {
+        "rating": 4.5,
+        "comment": "Works perfectly with my 8-inch scope. No more worries about accidental dislodgement. Great product for protecting your eyes and equipment."
+      },
+      {
+        "rating": 5.0,
+        "comment": "Bought this for the upcoming eclipse, and it fits perfectly. Tested it out, and the views are fantastic and safe. Very happy with this purchase."
+      }
     ],
-    "expected_summary_keywords": ["solar", "ISO", "safe", "Velcro", "eclipse"]
+    "expected_summary_keywords": [
+      "solar",
+      "filter",
+      "safe",
+      "8-inch",
+      "fit"
+    ]
+  },
+  {
+    "product_id": "HQTGWGPNH4",
+    "product_name": "The Comet Book",
+    "reviews": [
+      {
+        "rating": 5.0,
+        "comment": "A fascinating glimpse into historical astronomical thought. The content is incredibly insightful. A must-read for anyone interested in the history of science."
+      },
+      {
+        "rating": 4.5,
+        "comment": "Beautifully presented historical document. It's amazing to see how comets were understood centuries ago. A valuable addition to any techx library."
+      },
+      {
+        "rating": 4.0,
+        "comment": "Such a unique and intriguing read. The historical context is captivating. It offers a different perspective on celestial events."
+      },
+      {
+        "rating": 5.0,
+        "comment": "I love historical techx, and this book delivers. It's well-researched and provides a window into past beliefs. Highly recommended for scholars."
+      },
+      {
+        "rating": 4.5,
+        "comment": "A truly special book for enthusiasts of astronomical history. The details about ancient astrologers are very interesting. Great for a deeper understanding."
+      }
+    ],
+    "expected_summary_keywords": [
+      "historical",
+      "comet",
+      "book",
+      "research",
+      "astronom"
+    ]
   }
 ]

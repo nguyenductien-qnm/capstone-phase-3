@@ -1,0 +1,9 @@
+  [inject] running: kubectl scale deploy/cart -n techx-tf1 --replicas=0
+deployment.apps/cart scaled
+  [inject] running: kubectl scale deploy/cart -n techx-tf1 --replicas=2
+deployment.apps/cart scaled
+  [inject] running: kubectl scale deploy/cart -n techx-tf1 --replicas=0
+deployment.apps/cart scaled
+  [inject] running: kubectl scale deploy/cart -n techx-tf1 --replicas=2
+deployment.apps/cart scaled
+  [inject] settling 300s before scoring...

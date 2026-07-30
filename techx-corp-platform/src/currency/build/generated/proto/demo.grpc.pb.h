@@ -59,6 +59,15 @@ class CartService final {
     std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::Empty>> PrepareAsyncAddItem(::grpc::ClientContext* context, const ::oteldemo::AddItemRequest& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::Empty>>(PrepareAsyncAddItemRaw(context, request, cq));
     }
+    // Atomic client workflow: update the cart and return its post-update snapshot.
+    // AddItem remains for backwards compatibility with existing clients.
+    virtual ::grpc::Status AddItemAndGetCart(::grpc::ClientContext* context, const ::oteldemo::AddItemRequest& request, ::oteldemo::Cart* response) = 0;
+    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::Cart>> AsyncAddItemAndGetCart(::grpc::ClientContext* context, const ::oteldemo::AddItemRequest& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::Cart>>(AsyncAddItemAndGetCartRaw(context, request, cq));
+    }
+    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::Cart>> PrepareAsyncAddItemAndGetCart(::grpc::ClientContext* context, const ::oteldemo::AddItemRequest& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::Cart>>(PrepareAsyncAddItemAndGetCartRaw(context, request, cq));
+    }
     virtual ::grpc::Status GetCart(::grpc::ClientContext* context, const ::oteldemo::GetCartRequest& request, ::oteldemo::Cart* response) = 0;
     std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::Cart>> AsyncGetCart(::grpc::ClientContext* context, const ::oteldemo::GetCartRequest& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::Cart>>(AsyncGetCartRaw(context, request, cq));
@@ -78,6 +87,10 @@ class CartService final {
       virtual ~async_interface() {}
       virtual void AddItem(::grpc::ClientContext* context, const ::oteldemo::AddItemRequest* request, ::oteldemo::Empty* response, std::function<void(::grpc::Status)>) = 0;
       virtual void AddItem(::grpc::ClientContext* context, const ::oteldemo::AddItemRequest* request, ::oteldemo::Empty* response, ::grpc::ClientUnaryReactor* reactor) = 0;
+      // Atomic client workflow: update the cart and return its post-update snapshot.
+      // AddItem remains for backwards compatibility with existing clients.
+      virtual void AddItemAndGetCart(::grpc::ClientContext* context, const ::oteldemo::AddItemRequest* request, ::oteldemo::Cart* response, std::function<void(::grpc::Status)>) = 0;
+      virtual void AddItemAndGetCart(::grpc::ClientContext* context, const ::oteldemo::AddItemRequest* request, ::oteldemo::Cart* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       virtual void GetCart(::grpc::ClientContext* context, const ::oteldemo::GetCartRequest* request, ::oteldemo::Cart* response, std::function<void(::grpc::Status)>) = 0;
       virtual void GetCart(::grpc::ClientContext* context, const ::oteldemo::GetCartRequest* request, ::oteldemo::Cart* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       virtual void EmptyCart(::grpc::ClientContext* context, const ::oteldemo::EmptyCartRequest* request, ::oteldemo::Empty* response, std::function<void(::grpc::Status)>) = 0;
@@ -89,6 +102,8 @@ class CartService final {
    private:
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::Empty>* AsyncAddItemRaw(::grpc::ClientContext* context, const ::oteldemo::AddItemRequest& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::Empty>* PrepareAsyncAddItemRaw(::grpc::ClientContext* context, const ::oteldemo::AddItemRequest& request, ::grpc::CompletionQueue* cq) = 0;
+    virtual ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::Cart>* AsyncAddItemAndGetCartRaw(::grpc::ClientContext* context, const ::oteldemo::AddItemRequest& request, ::grpc::CompletionQueue* cq) = 0;
+    virtual ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::Cart>* PrepareAsyncAddItemAndGetCartRaw(::grpc::ClientContext* context, const ::oteldemo::AddItemRequest& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::Cart>* AsyncGetCartRaw(::grpc::ClientContext* context, const ::oteldemo::GetCartRequest& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::Cart>* PrepareAsyncGetCartRaw(::grpc::ClientContext* context, const ::oteldemo::GetCartRequest& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::Empty>* AsyncEmptyCartRaw(::grpc::ClientContext* context, const ::oteldemo::EmptyCartRequest& request, ::grpc::CompletionQueue* cq) = 0;
@@ -103,6 +118,13 @@ class CartService final {
     }
     std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::oteldemo::Empty>> PrepareAsyncAddItem(::grpc::ClientContext* context, const ::oteldemo::AddItemRequest& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::oteldemo::Empty>>(PrepareAsyncAddItemRaw(context, request, cq));
+    }
+    ::grpc::Status AddItemAndGetCart(::grpc::ClientContext* context, const ::oteldemo::AddItemRequest& request, ::oteldemo::Cart* response) override;
+    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::oteldemo::Cart>> AsyncAddItemAndGetCart(::grpc::ClientContext* context, const ::oteldemo::AddItemRequest& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::oteldemo::Cart>>(AsyncAddItemAndGetCartRaw(context, request, cq));
+    }
+    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::oteldemo::Cart>> PrepareAsyncAddItemAndGetCart(::grpc::ClientContext* context, const ::oteldemo::AddItemRequest& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::oteldemo::Cart>>(PrepareAsyncAddItemAndGetCartRaw(context, request, cq));
     }
     ::grpc::Status GetCart(::grpc::ClientContext* context, const ::oteldemo::GetCartRequest& request, ::oteldemo::Cart* response) override;
     std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::oteldemo::Cart>> AsyncGetCart(::grpc::ClientContext* context, const ::oteldemo::GetCartRequest& request, ::grpc::CompletionQueue* cq) {
@@ -123,6 +145,8 @@ class CartService final {
      public:
       void AddItem(::grpc::ClientContext* context, const ::oteldemo::AddItemRequest* request, ::oteldemo::Empty* response, std::function<void(::grpc::Status)>) override;
       void AddItem(::grpc::ClientContext* context, const ::oteldemo::AddItemRequest* request, ::oteldemo::Empty* response, ::grpc::ClientUnaryReactor* reactor) override;
+      void AddItemAndGetCart(::grpc::ClientContext* context, const ::oteldemo::AddItemRequest* request, ::oteldemo::Cart* response, std::function<void(::grpc::Status)>) override;
+      void AddItemAndGetCart(::grpc::ClientContext* context, const ::oteldemo::AddItemRequest* request, ::oteldemo::Cart* response, ::grpc::ClientUnaryReactor* reactor) override;
       void GetCart(::grpc::ClientContext* context, const ::oteldemo::GetCartRequest* request, ::oteldemo::Cart* response, std::function<void(::grpc::Status)>) override;
       void GetCart(::grpc::ClientContext* context, const ::oteldemo::GetCartRequest* request, ::oteldemo::Cart* response, ::grpc::ClientUnaryReactor* reactor) override;
       void EmptyCart(::grpc::ClientContext* context, const ::oteldemo::EmptyCartRequest* request, ::oteldemo::Empty* response, std::function<void(::grpc::Status)>) override;
@@ -140,11 +164,14 @@ class CartService final {
     class async async_stub_{this};
     ::grpc::ClientAsyncResponseReader< ::oteldemo::Empty>* AsyncAddItemRaw(::grpc::ClientContext* context, const ::oteldemo::AddItemRequest& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::oteldemo::Empty>* PrepareAsyncAddItemRaw(::grpc::ClientContext* context, const ::oteldemo::AddItemRequest& request, ::grpc::CompletionQueue* cq) override;
+    ::grpc::ClientAsyncResponseReader< ::oteldemo::Cart>* AsyncAddItemAndGetCartRaw(::grpc::ClientContext* context, const ::oteldemo::AddItemRequest& request, ::grpc::CompletionQueue* cq) override;
+    ::grpc::ClientAsyncResponseReader< ::oteldemo::Cart>* PrepareAsyncAddItemAndGetCartRaw(::grpc::ClientContext* context, const ::oteldemo::AddItemRequest& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::oteldemo::Cart>* AsyncGetCartRaw(::grpc::ClientContext* context, const ::oteldemo::GetCartRequest& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::oteldemo::Cart>* PrepareAsyncGetCartRaw(::grpc::ClientContext* context, const ::oteldemo::GetCartRequest& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::oteldemo::Empty>* AsyncEmptyCartRaw(::grpc::ClientContext* context, const ::oteldemo::EmptyCartRequest& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::oteldemo::Empty>* PrepareAsyncEmptyCartRaw(::grpc::ClientContext* context, const ::oteldemo::EmptyCartRequest& request, ::grpc::CompletionQueue* cq) override;
     const ::grpc::internal::RpcMethod rpcmethod_AddItem_;
+    const ::grpc::internal::RpcMethod rpcmethod_AddItemAndGetCart_;
     const ::grpc::internal::RpcMethod rpcmethod_GetCart_;
     const ::grpc::internal::RpcMethod rpcmethod_EmptyCart_;
   };
@@ -155,6 +182,9 @@ class CartService final {
     Service();
     virtual ~Service();
     virtual ::grpc::Status AddItem(::grpc::ServerContext* context, const ::oteldemo::AddItemRequest* request, ::oteldemo::Empty* response);
+    // Atomic client workflow: update the cart and return its post-update snapshot.
+    // AddItem remains for backwards compatibility with existing clients.
+    virtual ::grpc::Status AddItemAndGetCart(::grpc::ServerContext* context, const ::oteldemo::AddItemRequest* request, ::oteldemo::Cart* response);
     virtual ::grpc::Status GetCart(::grpc::ServerContext* context, const ::oteldemo::GetCartRequest* request, ::oteldemo::Cart* response);
     virtual ::grpc::Status EmptyCart(::grpc::ServerContext* context, const ::oteldemo::EmptyCartRequest* request, ::oteldemo::Empty* response);
   };
@@ -179,12 +209,32 @@ class CartService final {
     }
   };
   template <class BaseClass>
+  class WithAsyncMethod_AddItemAndGetCart : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithAsyncMethod_AddItemAndGetCart() {
+      ::grpc::Service::MarkMethodAsync(1);
+    }
+    ~WithAsyncMethod_AddItemAndGetCart() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status AddItemAndGetCart(::grpc::ServerContext* /*context*/, const ::oteldemo::AddItemRequest* /*request*/, ::oteldemo::Cart* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    void RequestAddItemAndGetCart(::grpc::ServerContext* context, ::oteldemo::AddItemRequest* request, ::grpc::ServerAsyncResponseWriter< ::oteldemo::Cart>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
+      ::grpc::Service::RequestAsyncUnary(1, context, request, response, new_call_cq, notification_cq, tag);
+    }
+  };
+  template <class BaseClass>
   class WithAsyncMethod_GetCart : public BaseClass {
    private:
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithAsyncMethod_GetCart() {
-      ::grpc::Service::MarkMethodAsync(1);
+      ::grpc::Service::MarkMethodAsync(2);
     }
     ~WithAsyncMethod_GetCart() override {
       BaseClassMustBeDerivedFromService(this);
@@ -195,7 +245,7 @@ class CartService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestGetCart(::grpc::ServerContext* context, ::oteldemo::GetCartRequest* request, ::grpc::ServerAsyncResponseWriter< ::oteldemo::Cart>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(1, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(2, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -204,7 +254,7 @@ class CartService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithAsyncMethod_EmptyCart() {
-      ::grpc::Service::MarkMethodAsync(2);
+      ::grpc::Service::MarkMethodAsync(3);
     }
     ~WithAsyncMethod_EmptyCart() override {
       BaseClassMustBeDerivedFromService(this);
@@ -215,10 +265,10 @@ class CartService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestEmptyCart(::grpc::ServerContext* context, ::oteldemo::EmptyCartRequest* request, ::grpc::ServerAsyncResponseWriter< ::oteldemo::Empty>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(2, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(3, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
-  typedef WithAsyncMethod_AddItem<WithAsyncMethod_GetCart<WithAsyncMethod_EmptyCart<Service > > > AsyncService;
+  typedef WithAsyncMethod_AddItem<WithAsyncMethod_AddItemAndGetCart<WithAsyncMethod_GetCart<WithAsyncMethod_EmptyCart<Service > > > > AsyncService;
   template <class BaseClass>
   class WithCallbackMethod_AddItem : public BaseClass {
    private:
@@ -247,18 +297,45 @@ class CartService final {
       ::grpc::CallbackServerContext* /*context*/, const ::oteldemo::AddItemRequest* /*request*/, ::oteldemo::Empty* /*response*/)  { return nullptr; }
   };
   template <class BaseClass>
+  class WithCallbackMethod_AddItemAndGetCart : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithCallbackMethod_AddItemAndGetCart() {
+      ::grpc::Service::MarkMethodCallback(1,
+          new ::grpc::internal::CallbackUnaryHandler< ::oteldemo::AddItemRequest, ::oteldemo::Cart>(
+            [this](
+                   ::grpc::CallbackServerContext* context, const ::oteldemo::AddItemRequest* request, ::oteldemo::Cart* response) { return this->AddItemAndGetCart(context, request, response); }));}
+    void SetMessageAllocatorFor_AddItemAndGetCart(
+        ::grpc::MessageAllocator< ::oteldemo::AddItemRequest, ::oteldemo::Cart>* allocator) {
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(1);
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::oteldemo::AddItemRequest, ::oteldemo::Cart>*>(handler)
+              ->SetMessageAllocator(allocator);
+    }
+    ~WithCallbackMethod_AddItemAndGetCart() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status AddItemAndGetCart(::grpc::ServerContext* /*context*/, const ::oteldemo::AddItemRequest* /*request*/, ::oteldemo::Cart* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    virtual ::grpc::ServerUnaryReactor* AddItemAndGetCart(
+      ::grpc::CallbackServerContext* /*context*/, const ::oteldemo::AddItemRequest* /*request*/, ::oteldemo::Cart* /*response*/)  { return nullptr; }
+  };
+  template <class BaseClass>
   class WithCallbackMethod_GetCart : public BaseClass {
    private:
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithCallbackMethod_GetCart() {
-      ::grpc::Service::MarkMethodCallback(1,
+      ::grpc::Service::MarkMethodCallback(2,
           new ::grpc::internal::CallbackUnaryHandler< ::oteldemo::GetCartRequest, ::oteldemo::Cart>(
             [this](
                    ::grpc::CallbackServerContext* context, const ::oteldemo::GetCartRequest* request, ::oteldemo::Cart* response) { return this->GetCart(context, request, response); }));}
     void SetMessageAllocatorFor_GetCart(
         ::grpc::MessageAllocator< ::oteldemo::GetCartRequest, ::oteldemo::Cart>* allocator) {
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(1);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(2);
       static_cast<::grpc::internal::CallbackUnaryHandler< ::oteldemo::GetCartRequest, ::oteldemo::Cart>*>(handler)
               ->SetMessageAllocator(allocator);
     }
@@ -279,13 +356,13 @@ class CartService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithCallbackMethod_EmptyCart() {
-      ::grpc::Service::MarkMethodCallback(2,
+      ::grpc::Service::MarkMethodCallback(3,
           new ::grpc::internal::CallbackUnaryHandler< ::oteldemo::EmptyCartRequest, ::oteldemo::Empty>(
             [this](
                    ::grpc::CallbackServerContext* context, const ::oteldemo::EmptyCartRequest* request, ::oteldemo::Empty* response) { return this->EmptyCart(context, request, response); }));}
     void SetMessageAllocatorFor_EmptyCart(
         ::grpc::MessageAllocator< ::oteldemo::EmptyCartRequest, ::oteldemo::Empty>* allocator) {
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(2);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(3);
       static_cast<::grpc::internal::CallbackUnaryHandler< ::oteldemo::EmptyCartRequest, ::oteldemo::Empty>*>(handler)
               ->SetMessageAllocator(allocator);
     }
@@ -300,7 +377,7 @@ class CartService final {
     virtual ::grpc::ServerUnaryReactor* EmptyCart(
       ::grpc::CallbackServerContext* /*context*/, const ::oteldemo::EmptyCartRequest* /*request*/, ::oteldemo::Empty* /*response*/)  { return nullptr; }
   };
-  typedef WithCallbackMethod_AddItem<WithCallbackMethod_GetCart<WithCallbackMethod_EmptyCart<Service > > > CallbackService;
+  typedef WithCallbackMethod_AddItem<WithCallbackMethod_AddItemAndGetCart<WithCallbackMethod_GetCart<WithCallbackMethod_EmptyCart<Service > > > > CallbackService;
   typedef CallbackService ExperimentalCallbackService;
   template <class BaseClass>
   class WithGenericMethod_AddItem : public BaseClass {
@@ -320,12 +397,29 @@ class CartService final {
     }
   };
   template <class BaseClass>
+  class WithGenericMethod_AddItemAndGetCart : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithGenericMethod_AddItemAndGetCart() {
+      ::grpc::Service::MarkMethodGeneric(1);
+    }
+    ~WithGenericMethod_AddItemAndGetCart() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status AddItemAndGetCart(::grpc::ServerContext* /*context*/, const ::oteldemo::AddItemRequest* /*request*/, ::oteldemo::Cart* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+  };
+  template <class BaseClass>
   class WithGenericMethod_GetCart : public BaseClass {
    private:
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithGenericMethod_GetCart() {
-      ::grpc::Service::MarkMethodGeneric(1);
+      ::grpc::Service::MarkMethodGeneric(2);
     }
     ~WithGenericMethod_GetCart() override {
       BaseClassMustBeDerivedFromService(this);
@@ -342,7 +436,7 @@ class CartService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithGenericMethod_EmptyCart() {
-      ::grpc::Service::MarkMethodGeneric(2);
+      ::grpc::Service::MarkMethodGeneric(3);
     }
     ~WithGenericMethod_EmptyCart() override {
       BaseClassMustBeDerivedFromService(this);
@@ -374,12 +468,32 @@ class CartService final {
     }
   };
   template <class BaseClass>
+  class WithRawMethod_AddItemAndGetCart : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithRawMethod_AddItemAndGetCart() {
+      ::grpc::Service::MarkMethodRaw(1);
+    }
+    ~WithRawMethod_AddItemAndGetCart() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status AddItemAndGetCart(::grpc::ServerContext* /*context*/, const ::oteldemo::AddItemRequest* /*request*/, ::oteldemo::Cart* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    void RequestAddItemAndGetCart(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
+      ::grpc::Service::RequestAsyncUnary(1, context, request, response, new_call_cq, notification_cq, tag);
+    }
+  };
+  template <class BaseClass>
   class WithRawMethod_GetCart : public BaseClass {
    private:
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawMethod_GetCart() {
-      ::grpc::Service::MarkMethodRaw(1);
+      ::grpc::Service::MarkMethodRaw(2);
     }
     ~WithRawMethod_GetCart() override {
       BaseClassMustBeDerivedFromService(this);
@@ -390,7 +504,7 @@ class CartService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestGetCart(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(1, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(2, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -399,7 +513,7 @@ class CartService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawMethod_EmptyCart() {
-      ::grpc::Service::MarkMethodRaw(2);
+      ::grpc::Service::MarkMethodRaw(3);
     }
     ~WithRawMethod_EmptyCart() override {
       BaseClassMustBeDerivedFromService(this);
@@ -410,7 +524,7 @@ class CartService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestEmptyCart(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(2, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(3, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -436,12 +550,34 @@ class CartService final {
       ::grpc::CallbackServerContext* /*context*/, const ::grpc::ByteBuffer* /*request*/, ::grpc::ByteBuffer* /*response*/)  { return nullptr; }
   };
   template <class BaseClass>
+  class WithRawCallbackMethod_AddItemAndGetCart : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithRawCallbackMethod_AddItemAndGetCart() {
+      ::grpc::Service::MarkMethodRawCallback(1,
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+            [this](
+                   ::grpc::CallbackServerContext* context, const ::grpc::ByteBuffer* request, ::grpc::ByteBuffer* response) { return this->AddItemAndGetCart(context, request, response); }));
+    }
+    ~WithRawCallbackMethod_AddItemAndGetCart() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status AddItemAndGetCart(::grpc::ServerContext* /*context*/, const ::oteldemo::AddItemRequest* /*request*/, ::oteldemo::Cart* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    virtual ::grpc::ServerUnaryReactor* AddItemAndGetCart(
+      ::grpc::CallbackServerContext* /*context*/, const ::grpc::ByteBuffer* /*request*/, ::grpc::ByteBuffer* /*response*/)  { return nullptr; }
+  };
+  template <class BaseClass>
   class WithRawCallbackMethod_GetCart : public BaseClass {
    private:
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawCallbackMethod_GetCart() {
-      ::grpc::Service::MarkMethodRawCallback(1,
+      ::grpc::Service::MarkMethodRawCallback(2,
           new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
                    ::grpc::CallbackServerContext* context, const ::grpc::ByteBuffer* request, ::grpc::ByteBuffer* response) { return this->GetCart(context, request, response); }));
@@ -463,7 +599,7 @@ class CartService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawCallbackMethod_EmptyCart() {
-      ::grpc::Service::MarkMethodRawCallback(2,
+      ::grpc::Service::MarkMethodRawCallback(3,
           new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
                    ::grpc::CallbackServerContext* context, const ::grpc::ByteBuffer* request, ::grpc::ByteBuffer* response) { return this->EmptyCart(context, request, response); }));
@@ -507,12 +643,39 @@ class CartService final {
     virtual ::grpc::Status StreamedAddItem(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::oteldemo::AddItemRequest,::oteldemo::Empty>* server_unary_streamer) = 0;
   };
   template <class BaseClass>
+  class WithStreamedUnaryMethod_AddItemAndGetCart : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithStreamedUnaryMethod_AddItemAndGetCart() {
+      ::grpc::Service::MarkMethodStreamed(1,
+        new ::grpc::internal::StreamedUnaryHandler<
+          ::oteldemo::AddItemRequest, ::oteldemo::Cart>(
+            [this](::grpc::ServerContext* context,
+                   ::grpc::ServerUnaryStreamer<
+                     ::oteldemo::AddItemRequest, ::oteldemo::Cart>* streamer) {
+                       return this->StreamedAddItemAndGetCart(context,
+                         streamer);
+                  }));
+    }
+    ~WithStreamedUnaryMethod_AddItemAndGetCart() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable regular version of this method
+    ::grpc::Status AddItemAndGetCart(::grpc::ServerContext* /*context*/, const ::oteldemo::AddItemRequest* /*request*/, ::oteldemo::Cart* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    // replace default version of method with streamed unary
+    virtual ::grpc::Status StreamedAddItemAndGetCart(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::oteldemo::AddItemRequest,::oteldemo::Cart>* server_unary_streamer) = 0;
+  };
+  template <class BaseClass>
   class WithStreamedUnaryMethod_GetCart : public BaseClass {
    private:
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithStreamedUnaryMethod_GetCart() {
-      ::grpc::Service::MarkMethodStreamed(1,
+      ::grpc::Service::MarkMethodStreamed(2,
         new ::grpc::internal::StreamedUnaryHandler<
           ::oteldemo::GetCartRequest, ::oteldemo::Cart>(
             [this](::grpc::ServerContext* context,
@@ -539,7 +702,7 @@ class CartService final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithStreamedUnaryMethod_EmptyCart() {
-      ::grpc::Service::MarkMethodStreamed(2,
+      ::grpc::Service::MarkMethodStreamed(3,
         new ::grpc::internal::StreamedUnaryHandler<
           ::oteldemo::EmptyCartRequest, ::oteldemo::Empty>(
             [this](::grpc::ServerContext* context,
@@ -560,9 +723,9 @@ class CartService final {
     // replace default version of method with streamed unary
     virtual ::grpc::Status StreamedEmptyCart(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::oteldemo::EmptyCartRequest,::oteldemo::Empty>* server_unary_streamer) = 0;
   };
-  typedef WithStreamedUnaryMethod_AddItem<WithStreamedUnaryMethod_GetCart<WithStreamedUnaryMethod_EmptyCart<Service > > > StreamedUnaryService;
+  typedef WithStreamedUnaryMethod_AddItem<WithStreamedUnaryMethod_AddItemAndGetCart<WithStreamedUnaryMethod_GetCart<WithStreamedUnaryMethod_EmptyCart<Service > > > > StreamedUnaryService;
   typedef Service SplitStreamedService;
-  typedef WithStreamedUnaryMethod_AddItem<WithStreamedUnaryMethod_GetCart<WithStreamedUnaryMethod_EmptyCart<Service > > > StreamedService;
+  typedef WithStreamedUnaryMethod_AddItem<WithStreamedUnaryMethod_AddItemAndGetCart<WithStreamedUnaryMethod_GetCart<WithStreamedUnaryMethod_EmptyCart<Service > > > > StreamedService;
 };
 
 // ---------------Recommendation service----------
@@ -2569,11 +2732,20 @@ class PaymentService final {
     std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::ChargeResponse>> PrepareAsyncCharge(::grpc::ClientContext* context, const ::oteldemo::ChargeRequest& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::ChargeResponse>>(PrepareAsyncChargeRaw(context, request, cq));
     }
+    virtual ::grpc::Status Validate(::grpc::ClientContext* context, const ::oteldemo::ValidatePaymentRequest& request, ::oteldemo::ValidatePaymentResponse* response) = 0;
+    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::ValidatePaymentResponse>> AsyncValidate(::grpc::ClientContext* context, const ::oteldemo::ValidatePaymentRequest& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::ValidatePaymentResponse>>(AsyncValidateRaw(context, request, cq));
+    }
+    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::ValidatePaymentResponse>> PrepareAsyncValidate(::grpc::ClientContext* context, const ::oteldemo::ValidatePaymentRequest& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::ValidatePaymentResponse>>(PrepareAsyncValidateRaw(context, request, cq));
+    }
     class async_interface {
      public:
       virtual ~async_interface() {}
       virtual void Charge(::grpc::ClientContext* context, const ::oteldemo::ChargeRequest* request, ::oteldemo::ChargeResponse* response, std::function<void(::grpc::Status)>) = 0;
       virtual void Charge(::grpc::ClientContext* context, const ::oteldemo::ChargeRequest* request, ::oteldemo::ChargeResponse* response, ::grpc::ClientUnaryReactor* reactor) = 0;
+      virtual void Validate(::grpc::ClientContext* context, const ::oteldemo::ValidatePaymentRequest* request, ::oteldemo::ValidatePaymentResponse* response, std::function<void(::grpc::Status)>) = 0;
+      virtual void Validate(::grpc::ClientContext* context, const ::oteldemo::ValidatePaymentRequest* request, ::oteldemo::ValidatePaymentResponse* response, ::grpc::ClientUnaryReactor* reactor) = 0;
     };
     typedef class async_interface experimental_async_interface;
     virtual class async_interface* async() { return nullptr; }
@@ -2581,6 +2753,8 @@ class PaymentService final {
    private:
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::ChargeResponse>* AsyncChargeRaw(::grpc::ClientContext* context, const ::oteldemo::ChargeRequest& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::ChargeResponse>* PrepareAsyncChargeRaw(::grpc::ClientContext* context, const ::oteldemo::ChargeRequest& request, ::grpc::CompletionQueue* cq) = 0;
+    virtual ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::ValidatePaymentResponse>* AsyncValidateRaw(::grpc::ClientContext* context, const ::oteldemo::ValidatePaymentRequest& request, ::grpc::CompletionQueue* cq) = 0;
+    virtual ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::ValidatePaymentResponse>* PrepareAsyncValidateRaw(::grpc::ClientContext* context, const ::oteldemo::ValidatePaymentRequest& request, ::grpc::CompletionQueue* cq) = 0;
   };
   class Stub final : public StubInterface {
    public:
@@ -2592,11 +2766,20 @@ class PaymentService final {
     std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::oteldemo::ChargeResponse>> PrepareAsyncCharge(::grpc::ClientContext* context, const ::oteldemo::ChargeRequest& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::oteldemo::ChargeResponse>>(PrepareAsyncChargeRaw(context, request, cq));
     }
+    ::grpc::Status Validate(::grpc::ClientContext* context, const ::oteldemo::ValidatePaymentRequest& request, ::oteldemo::ValidatePaymentResponse* response) override;
+    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::oteldemo::ValidatePaymentResponse>> AsyncValidate(::grpc::ClientContext* context, const ::oteldemo::ValidatePaymentRequest& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::oteldemo::ValidatePaymentResponse>>(AsyncValidateRaw(context, request, cq));
+    }
+    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::oteldemo::ValidatePaymentResponse>> PrepareAsyncValidate(::grpc::ClientContext* context, const ::oteldemo::ValidatePaymentRequest& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::oteldemo::ValidatePaymentResponse>>(PrepareAsyncValidateRaw(context, request, cq));
+    }
     class async final :
       public StubInterface::async_interface {
      public:
       void Charge(::grpc::ClientContext* context, const ::oteldemo::ChargeRequest* request, ::oteldemo::ChargeResponse* response, std::function<void(::grpc::Status)>) override;
       void Charge(::grpc::ClientContext* context, const ::oteldemo::ChargeRequest* request, ::oteldemo::ChargeResponse* response, ::grpc::ClientUnaryReactor* reactor) override;
+      void Validate(::grpc::ClientContext* context, const ::oteldemo::ValidatePaymentRequest* request, ::oteldemo::ValidatePaymentResponse* response, std::function<void(::grpc::Status)>) override;
+      void Validate(::grpc::ClientContext* context, const ::oteldemo::ValidatePaymentRequest* request, ::oteldemo::ValidatePaymentResponse* response, ::grpc::ClientUnaryReactor* reactor) override;
      private:
       friend class Stub;
       explicit async(Stub* stub): stub_(stub) { }
@@ -2610,7 +2793,10 @@ class PaymentService final {
     class async async_stub_{this};
     ::grpc::ClientAsyncResponseReader< ::oteldemo::ChargeResponse>* AsyncChargeRaw(::grpc::ClientContext* context, const ::oteldemo::ChargeRequest& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::oteldemo::ChargeResponse>* PrepareAsyncChargeRaw(::grpc::ClientContext* context, const ::oteldemo::ChargeRequest& request, ::grpc::CompletionQueue* cq) override;
+    ::grpc::ClientAsyncResponseReader< ::oteldemo::ValidatePaymentResponse>* AsyncValidateRaw(::grpc::ClientContext* context, const ::oteldemo::ValidatePaymentRequest& request, ::grpc::CompletionQueue* cq) override;
+    ::grpc::ClientAsyncResponseReader< ::oteldemo::ValidatePaymentResponse>* PrepareAsyncValidateRaw(::grpc::ClientContext* context, const ::oteldemo::ValidatePaymentRequest& request, ::grpc::CompletionQueue* cq) override;
     const ::grpc::internal::RpcMethod rpcmethod_Charge_;
+    const ::grpc::internal::RpcMethod rpcmethod_Validate_;
   };
   static std::unique_ptr<Stub> NewStub(const std::shared_ptr< ::grpc::ChannelInterface>& channel, const ::grpc::StubOptions& options = ::grpc::StubOptions());
 
@@ -2619,6 +2805,7 @@ class PaymentService final {
     Service();
     virtual ~Service();
     virtual ::grpc::Status Charge(::grpc::ServerContext* context, const ::oteldemo::ChargeRequest* request, ::oteldemo::ChargeResponse* response);
+    virtual ::grpc::Status Validate(::grpc::ServerContext* context, const ::oteldemo::ValidatePaymentRequest* request, ::oteldemo::ValidatePaymentResponse* response);
   };
   template <class BaseClass>
   class WithAsyncMethod_Charge : public BaseClass {
@@ -2640,7 +2827,27 @@ class PaymentService final {
       ::grpc::Service::RequestAsyncUnary(0, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
-  typedef WithAsyncMethod_Charge<Service > AsyncService;
+  template <class BaseClass>
+  class WithAsyncMethod_Validate : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithAsyncMethod_Validate() {
+      ::grpc::Service::MarkMethodAsync(1);
+    }
+    ~WithAsyncMethod_Validate() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Validate(::grpc::ServerContext* /*context*/, const ::oteldemo::ValidatePaymentRequest* /*request*/, ::oteldemo::ValidatePaymentResponse* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    void RequestValidate(::grpc::ServerContext* context, ::oteldemo::ValidatePaymentRequest* request, ::grpc::ServerAsyncResponseWriter< ::oteldemo::ValidatePaymentResponse>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
+      ::grpc::Service::RequestAsyncUnary(1, context, request, response, new_call_cq, notification_cq, tag);
+    }
+  };
+  typedef WithAsyncMethod_Charge<WithAsyncMethod_Validate<Service > > AsyncService;
   template <class BaseClass>
   class WithCallbackMethod_Charge : public BaseClass {
    private:
@@ -2668,7 +2875,34 @@ class PaymentService final {
     virtual ::grpc::ServerUnaryReactor* Charge(
       ::grpc::CallbackServerContext* /*context*/, const ::oteldemo::ChargeRequest* /*request*/, ::oteldemo::ChargeResponse* /*response*/)  { return nullptr; }
   };
-  typedef WithCallbackMethod_Charge<Service > CallbackService;
+  template <class BaseClass>
+  class WithCallbackMethod_Validate : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithCallbackMethod_Validate() {
+      ::grpc::Service::MarkMethodCallback(1,
+          new ::grpc::internal::CallbackUnaryHandler< ::oteldemo::ValidatePaymentRequest, ::oteldemo::ValidatePaymentResponse>(
+            [this](
+                   ::grpc::CallbackServerContext* context, const ::oteldemo::ValidatePaymentRequest* request, ::oteldemo::ValidatePaymentResponse* response) { return this->Validate(context, request, response); }));}
+    void SetMessageAllocatorFor_Validate(
+        ::grpc::MessageAllocator< ::oteldemo::ValidatePaymentRequest, ::oteldemo::ValidatePaymentResponse>* allocator) {
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(1);
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::oteldemo::ValidatePaymentRequest, ::oteldemo::ValidatePaymentResponse>*>(handler)
+              ->SetMessageAllocator(allocator);
+    }
+    ~WithCallbackMethod_Validate() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Validate(::grpc::ServerContext* /*context*/, const ::oteldemo::ValidatePaymentRequest* /*request*/, ::oteldemo::ValidatePaymentResponse* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    virtual ::grpc::ServerUnaryReactor* Validate(
+      ::grpc::CallbackServerContext* /*context*/, const ::oteldemo::ValidatePaymentRequest* /*request*/, ::oteldemo::ValidatePaymentResponse* /*response*/)  { return nullptr; }
+  };
+  typedef WithCallbackMethod_Charge<WithCallbackMethod_Validate<Service > > CallbackService;
   typedef CallbackService ExperimentalCallbackService;
   template <class BaseClass>
   class WithGenericMethod_Charge : public BaseClass {
@@ -2683,6 +2917,23 @@ class PaymentService final {
     }
     // disable synchronous version of this method
     ::grpc::Status Charge(::grpc::ServerContext* /*context*/, const ::oteldemo::ChargeRequest* /*request*/, ::oteldemo::ChargeResponse* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+  };
+  template <class BaseClass>
+  class WithGenericMethod_Validate : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithGenericMethod_Validate() {
+      ::grpc::Service::MarkMethodGeneric(1);
+    }
+    ~WithGenericMethod_Validate() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Validate(::grpc::ServerContext* /*context*/, const ::oteldemo::ValidatePaymentRequest* /*request*/, ::oteldemo::ValidatePaymentResponse* /*response*/) override {
       abort();
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
@@ -2708,6 +2959,26 @@ class PaymentService final {
     }
   };
   template <class BaseClass>
+  class WithRawMethod_Validate : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithRawMethod_Validate() {
+      ::grpc::Service::MarkMethodRaw(1);
+    }
+    ~WithRawMethod_Validate() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Validate(::grpc::ServerContext* /*context*/, const ::oteldemo::ValidatePaymentRequest* /*request*/, ::oteldemo::ValidatePaymentResponse* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    void RequestValidate(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
+      ::grpc::Service::RequestAsyncUnary(1, context, request, response, new_call_cq, notification_cq, tag);
+    }
+  };
+  template <class BaseClass>
   class WithRawCallbackMethod_Charge : public BaseClass {
    private:
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
@@ -2727,6 +2998,28 @@ class PaymentService final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     virtual ::grpc::ServerUnaryReactor* Charge(
+      ::grpc::CallbackServerContext* /*context*/, const ::grpc::ByteBuffer* /*request*/, ::grpc::ByteBuffer* /*response*/)  { return nullptr; }
+  };
+  template <class BaseClass>
+  class WithRawCallbackMethod_Validate : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithRawCallbackMethod_Validate() {
+      ::grpc::Service::MarkMethodRawCallback(1,
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+            [this](
+                   ::grpc::CallbackServerContext* context, const ::grpc::ByteBuffer* request, ::grpc::ByteBuffer* response) { return this->Validate(context, request, response); }));
+    }
+    ~WithRawCallbackMethod_Validate() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Validate(::grpc::ServerContext* /*context*/, const ::oteldemo::ValidatePaymentRequest* /*request*/, ::oteldemo::ValidatePaymentResponse* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    virtual ::grpc::ServerUnaryReactor* Validate(
       ::grpc::CallbackServerContext* /*context*/, const ::grpc::ByteBuffer* /*request*/, ::grpc::ByteBuffer* /*response*/)  { return nullptr; }
   };
   template <class BaseClass>
@@ -2756,9 +3049,36 @@ class PaymentService final {
     // replace default version of method with streamed unary
     virtual ::grpc::Status StreamedCharge(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::oteldemo::ChargeRequest,::oteldemo::ChargeResponse>* server_unary_streamer) = 0;
   };
-  typedef WithStreamedUnaryMethod_Charge<Service > StreamedUnaryService;
+  template <class BaseClass>
+  class WithStreamedUnaryMethod_Validate : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithStreamedUnaryMethod_Validate() {
+      ::grpc::Service::MarkMethodStreamed(1,
+        new ::grpc::internal::StreamedUnaryHandler<
+          ::oteldemo::ValidatePaymentRequest, ::oteldemo::ValidatePaymentResponse>(
+            [this](::grpc::ServerContext* context,
+                   ::grpc::ServerUnaryStreamer<
+                     ::oteldemo::ValidatePaymentRequest, ::oteldemo::ValidatePaymentResponse>* streamer) {
+                       return this->StreamedValidate(context,
+                         streamer);
+                  }));
+    }
+    ~WithStreamedUnaryMethod_Validate() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable regular version of this method
+    ::grpc::Status Validate(::grpc::ServerContext* /*context*/, const ::oteldemo::ValidatePaymentRequest* /*request*/, ::oteldemo::ValidatePaymentResponse* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    // replace default version of method with streamed unary
+    virtual ::grpc::Status StreamedValidate(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::oteldemo::ValidatePaymentRequest,::oteldemo::ValidatePaymentResponse>* server_unary_streamer) = 0;
+  };
+  typedef WithStreamedUnaryMethod_Charge<WithStreamedUnaryMethod_Validate<Service > > StreamedUnaryService;
   typedef Service SplitStreamedService;
-  typedef WithStreamedUnaryMethod_Charge<Service > StreamedService;
+  typedef WithStreamedUnaryMethod_Charge<WithStreamedUnaryMethod_Validate<Service > > StreamedService;
 };
 
 // -------------Email service-----------------

@@ -1,0 +1,3 @@
+2026-07-28 07:34:15,632 INFO aiops.remediation AIOps remediation engine khoi dong | dry_run=False | 1 policy | poll=15s
+2026-07-28 07:39:14,423 INFO aiops.remediation.k8s restart_pod: xoa pod techx-tf1/tf1107-unready-fd4874bd4-7kk9l (grace=30s)
+2026-07-28 07:41:18,652 WARNING aiops.remediation.verifier verify: het 120s ma pod van chua Ready on dinh, FAIL

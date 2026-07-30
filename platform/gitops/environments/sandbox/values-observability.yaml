@@ -1,0 +1,43 @@
+# Observability dùng chung: bật 5 subchart, tắt TẤT CẢ app component.
+opentelemetry-collector: { enabled: true }
+jaeger: { enabled: true }
+prometheus:
+  enabled: true
+  # Expose Deployment/HPA/Pod/Node state metrics for the scaling dashboard.
+  kube-state-metrics:
+    enabled: true
+grafana:
+  enabled: true
+  # P0: grafana v13 OOMKilled ở 300Mi (restart 16 lần) → nâng limit chống OOM
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      cpu: 300m
+      memory: 768Mi
+opensearch: { enabled: true }
+
+components:
+  accounting: { enabled: false }
+  ad: { enabled: false }
+  cart: { enabled: false }
+  checkout: { enabled: false }
+  currency: { enabled: false }
+  email: { enabled: false }
+  fraud-detection: { enabled: false }
+  frontend: { enabled: false }
+  frontend-proxy: { enabled: false }
+  image-provider: { enabled: false }
+  load-generator: { enabled: false }
+  payment: { enabled: false }
+  product-catalog: { enabled: false }
+  product-reviews: { enabled: false }
+  quote: { enabled: false }
+  recommendation: { enabled: false }
+  shipping: { enabled: false }
+  flagd: { enabled: false }
+  kafka: { enabled: false }
+  llm: { enabled: false }
+  postgresql: { enabled: false }
+  valkey-cart: { enabled: false }

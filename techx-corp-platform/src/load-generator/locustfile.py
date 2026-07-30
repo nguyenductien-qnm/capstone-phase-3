@@ -110,12 +110,21 @@ products = [
 people_file = open('people.json')
 people = json.load(people_file)
 
+
+def checkout_headers():
+    # /api/checkout requires an Idempotency-Key. The browser generates one per
+    # "Place Order" click; this HTTP user has no browser, so it generates its own.
+    return {"Idempotency-Key": str(uuid.uuid4())}
+
+
 class WebsiteUser(HttpUser):
     wait_time = between(1, 10)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.tracer = trace.get_tracer(__name__)
+        # Keep one cart/session identity for this virtual user.
+        self.user_id = str(uuid.uuid1())
 
     @task(1)
     def index(self):
@@ -172,12 +181,12 @@ class WebsiteUser(HttpUser):
     def view_cart(self):
         with self.tracer.start_as_current_span("user_view_cart", context=Context()):
             logging.info("User viewing cart")
-            self.client.get("/api/cart")
+            self.client.get("/api/cart", params={"sessionId": self.user_id})
 
     @task(2)
     def add_to_cart(self, user=""):
         if user == "":
-            user = str(uuid.uuid1())
+            user = self.user_id
         product = random.choice(products)
         quantity = random.choice([1, 2, 3, 4, 5, 10])
         with self.tracer.start_as_current_span("user_add_to_cart", context=Context(), attributes={"user.id": user, "product.id": product, "quantity": quantity}):
@@ -199,7 +208,7 @@ class WebsiteUser(HttpUser):
             self.add_to_cart(user=user)
             checkout_person = random.choice(people)
             checkout_person["userId"] = user
-            self.client.post("/api/checkout", json=checkout_person)
+            self.client.post("/api/checkout", json=checkout_person, headers=checkout_headers())
             logging.info(f"Checkout completed for user {user}")
 
     @task(1)
@@ -212,8 +221,44 @@ class WebsiteUser(HttpUser):
                 self.add_to_cart(user=user)
             checkout_person = random.choice(people)
             checkout_person["userId"] = user
-            self.client.post("/api/checkout", json=checkout_person)
+            self.client.post("/api/checkout", json=checkout_person, headers=checkout_headers())
             logging.info(f"Multi-item checkout completed for user {user}")
+
+    @task(1)
+    def checkout_replay(self):
+        # Sends the same body under the same Idempotency-Key twice, the way a
+        # client behaves when it loses the response and retries. The second call
+        # must replay the first order rather than place a new one, so this is the
+        # task that actually exercises idempotency while the database is being
+        # migrated, upgraded or failed over.
+        user = str(uuid.uuid1())
+        with self.tracer.start_as_current_span("user_checkout_replay", context=Context(), attributes={"user.id": user}):
+            self.add_to_cart(user=user)
+            checkout_person = dict(random.choice(people))
+            checkout_person["userId"] = user
+            headers = checkout_headers()
+
+            first_order_id = None
+            with self.client.post("/api/checkout", json=checkout_person, headers=headers,
+                                  name="checkout-replay", catch_response=True) as response:
+                if response.status_code != 202:
+                    response.failure(f"first checkout returned {response.status_code}")
+                else:
+                    first_order_id = response.json().get("orderId")
+                    if not first_order_id:
+                        response.failure("first checkout returned no orderId")
+
+            if not first_order_id:
+                return
+
+            with self.client.post("/api/checkout", json=checkout_person, headers=headers,
+                                  name="checkout-replay", catch_response=True) as response:
+                if response.status_code != 202:
+                    response.failure(f"replay returned {response.status_code}")
+                elif response.json().get("orderId") != first_order_id:
+                    response.failure("replay created a second order instead of returning the first")
+
+            logging.info(f"Checkout replay verified for user {user}")
 
     @task(5)
     def flood_home(self):
@@ -240,14 +285,10 @@ if browser_traffic_enabled:
     class WebsiteBrowserUser(PlaywrightUser):
         headless = True  # to use a headless browser, without a GUI
 
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self.tracer = trace.get_tracer(__name__)
-
         @task
         @pw
         async def open_cart_page_and_change_currency(self, page: PageWithRetry):
-            with self.tracer.start_as_current_span("browser_change_currency", context=Context()):
+            with trace.get_tracer(__name__).start_as_current_span("browser_change_currency", context=Context()):
                 try:
                     page.on("console", lambda msg: print(msg.text))
                     await page.route('**/*', add_baggage_header)
@@ -261,7 +302,7 @@ if browser_traffic_enabled:
         @task
         @pw
         async def add_product_to_cart(self, page: PageWithRetry):
-            with self.tracer.start_as_current_span("browser_add_to_cart", context=Context()):
+            with trace.get_tracer(__name__).start_as_current_span("browser_add_to_cart", context=Context()):
                 try:
                     page.on("console", lambda msg: print(msg.text))
                     await page.route('**/*', add_baggage_header)

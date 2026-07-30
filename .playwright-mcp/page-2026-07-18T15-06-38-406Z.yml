@@ -1,0 +1,41 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - navigation [ref=e4]:
+        - generic [ref=e5]:
+          - link [ref=e6] [cursor=pointer]:
+            - /url: /
+          - generic [ref=e8]:
+            - generic [ref=e10]:
+              - generic [ref=e11]: $
+              - combobox [ref=e12] [cursor=pointer]
+              - img "arrow" [ref=e13]
+            - img "Cart icon" [ref=e15] [cursor=pointer]
+    - main [ref=e16]:
+      - generic [ref=e17]:
+        - generic [ref=e21]:
+          - heading "The best telescopes to see the world closer" [level=1] [ref=e22]
+          - link [ref=e23] [cursor=pointer]:
+            - /url: /#hot-products
+            - button "Go Shopping" [ref=e24]
+        - heading "Hot Products" [level=1] [ref=e29]
+    - contentinfo [ref=e30]:
+      - generic [ref=e31]:
+        - paragraph [ref=e32]: This website is hosted for demo purpose only. It is not an actual shop.
+        - paragraph [ref=e33]:
+          - generic [ref=e34]: "session-id: 5ddc7e2c-80eb-409f-87f1-8b7ce384b552"
+      - paragraph [ref=e35]: "@ 2026 TechX Corp"
+      - generic [ref=e36]: kubernetes
+    - generic [ref=e37]:
+      - button [ref=e38] [cursor=pointer]
+      - generic:
+        - generic:
+          - generic:
+            - heading "Shopping Copilot" [level=3]
+            - generic: Online and ready to assist
+          - button
+        - generic: Hi there! I am your Shopping Copilot. How can I help you find the perfect product today?
+        - generic:
+          - textbox "Ask about products, sizes, or shipping..."
+          - button [disabled]
+  - alert [ref=e44]

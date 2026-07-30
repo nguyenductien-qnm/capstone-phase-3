@@ -127,22 +127,60 @@ CREATE SCHEMA catalog;
 GRANT USAGE ON SCHEMA catalog TO otelu;
 
 -- Product Catalog Service: create tables
+-- CDO-TBD2 final shape for greenfield installs (image_url replaces legacy picture).
+-- Existing RDS: run docs/shared/ops-reviews/tbd2-sql/* expand-contract under load.
 CREATE TABLE catalog.products (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     description TEXT,
-    picture TEXT,
+    image_url TEXT NOT NULL,
     price_currency_code TEXT NOT NULL,
     price_units BIGINT NOT NULL,
     price_nanos INT NOT NULL,
     categories TEXT
 );
 
+-- Semantic search: pgvector extension + dedicated embeddings_v2 table (ADR-008)
+CREATE EXTENSION IF NOT EXISTS vector;
+CREATE TABLE IF NOT EXISTS catalog.product_embeddings_v2 (
+    product_id VARCHAR(255) PRIMARY KEY,
+    embedding VECTOR(1024)
+);
+CREATE INDEX IF NOT EXISTS idx_product_embeddings_v2 ON catalog.product_embeddings_v2 USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64);
+
+-- AI tables: user_memory is MANDATE-23; semantic_cache remains for product-reviews compatibility
+CREATE SCHEMA IF NOT EXISTS ai;
+
+CREATE TABLE IF NOT EXISTS ai.semantic_cache (
+    id SERIAL PRIMARY KEY,
+    scope_key TEXT NOT NULL,
+    question TEXT NOT NULL,
+    question_embedding VECTOR(1024),
+    answer TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_semantic_cache_embedding ON ai.semantic_cache USING hnsw (question_embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64);
+CREATE INDEX IF NOT EXISTS idx_semantic_cache_scope ON ai.semantic_cache (scope_key);
+CREATE INDEX IF NOT EXISTS idx_semantic_cache_created_at ON ai.semantic_cache (created_at);
+
+CREATE TABLE IF NOT EXISTS ai.user_memory (
+    user_id TEXT NOT NULL,
+    key TEXT NOT NULL,
+    value TEXT NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, key)
+);
+
+GRANT USAGE ON SCHEMA ai TO otelu;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA ai TO otelu;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA ai TO otelu;
+
 -- Product Catalog Service: grant permission to schema
 GRANT SELECT ON ALL TABLES IN SCHEMA catalog TO otelu;
+GRANT SELECT, INSERT, UPDATE ON catalog.product_embeddings_v2 TO otelu;
 
 -- Product Catalog Service: add product data
-INSERT INTO catalog.products (id, name, description, picture, price_currency_code, price_units, price_nanos, categories)
+INSERT INTO catalog.products (id, name, description, image_url, price_currency_code, price_units, price_nanos, categories)
 VALUES
     ('OLJCESPC7Z', 'National Park Foundation Explorascope', 'The National Park Foundation''s (NPF) Explorascope 60AZ is a manual alt-azimuth, refractor telescope perfect for celestial viewing on the go. The NPF Explorascope 60 can view the planets, moon, star clusters and brighter deep sky objects like the Orion Nebula and Andromeda Galaxy.', 'NationalParkFoundationExplorascope.jpg', 'USD', 101, 960000000, 'telescopes'),
     ('66VCHSJNUP', 'Starsense Explorer Refractor Telescope', 'The first telescope that uses your smartphone to analyze the night sky and calculate its position in real time. StarSense Explorer is ideal for beginners thanks to the app''s user-friendly interface and detailed tutorials. It''s like having your own personal tour guide of the night sky', 'StarsenseExplorer.jpg', 'USD', 349, 950000000, 'telescopes'),

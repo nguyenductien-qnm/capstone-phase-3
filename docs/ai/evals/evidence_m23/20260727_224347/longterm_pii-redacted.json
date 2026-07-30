@@ -1,0 +1,9 @@
+{
+  "group": "longterm",
+  "case": "pii-redacted",
+  "passed": true,
+  "reason": "PII không nằm trong ai.user_memory",
+  "latency": 0.0,
+  "cache_status": null,
+  "response": ""
+}

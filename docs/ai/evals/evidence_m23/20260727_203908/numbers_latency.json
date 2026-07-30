@@ -1,0 +1,9 @@
+{
+  "group": "numbers",
+  "case": "latency",
+  "passed": true,
+  "reason": "p50/p95 hit 1.03s/1.2s · miss 5.28s/14.25s",
+  "latency": 0.0,
+  "cache_status": null,
+  "response": ""
+}

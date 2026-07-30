@@ -1,0 +1,74 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: "deny-floating-image-tag"
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups:   [""]
+      apiVersions: ["v1"]
+      operations:  ["CREATE", "UPDATE"]
+      resources:   ["pods"]
+    - apiGroups:   ["apps"]
+      apiVersions: ["v1"]
+      operations:  ["CREATE", "UPDATE"]
+      resources:   ["deployments", "statefulsets", "daemonsets", "replicasets"]
+    - apiGroups:   ["batch"]
+      apiVersions: ["v1"]
+      operations:  ["CREATE", "UPDATE"]
+      resources:   ["jobs", "cronjobs"]
+    namespaceSelector:
+      matchExpressions:
+      - key: kubernetes.io/metadata.name
+        operator: NotIn
+        values:
+        - kube-system
+        - kube-public
+        - kube-node-lease
+        - gatekeeper-system
+        - argocd
+        - tailscale
+        - external-dns
+        - external-secrets
+  variables:
+  - name: podSpec
+    expression: |
+      object.kind == 'Pod' ? object.spec :
+      (object.kind == 'CronJob' ? object.spec.jobTemplate.spec.template.spec :
+      object.spec.template.spec)
+  - name: containers
+    expression: 'variables.podSpec.containers'
+  - name: initContainers
+    expression: 'has(variables.podSpec.initContainers) ? variables.podSpec.initContainers : []'
+  - name: ephemeralContainers
+    expression: 'has(variables.podSpec.ephemeralContainers) ? variables.podSpec.ephemeralContainers : []'
+  - name: allContainers
+    expression: 'variables.containers + variables.initContainers + variables.ephemeralContainers'
+  validations:
+  - expression: |
+      variables.allContainers.all(c, 
+        (!c.image.contains('/') ? 
+          (c.image.contains(':') || c.image.contains('@')) : 
+          (c.image.substring(c.image.lastIndexOf('/') + 1).contains(':') || c.image.substring(c.image.lastIndexOf('/') + 1).contains('@'))
+        ) &&
+        !['latest', 'dev', 'master', 'main', 'stable', 'edge'].exists(tag, c.image.lowerAscii().endsWith(':' + tag))
+      )
+    messageExpression: |
+      "container has disallowed image tag or no tag specified: " + 
+      variables.allContainers.filter(c, 
+        !((!c.image.contains('/') ? 
+            (c.image.contains(':') || c.image.contains('@')) : 
+            (c.image.substring(c.image.lastIndexOf('/') + 1).contains(':') || c.image.substring(c.image.lastIndexOf('/') + 1).contains('@'))
+          ) && 
+          !['latest', 'dev', 'master', 'main', 'stable', 'edge'].exists(tag, c.image.lowerAscii().endsWith(':' + tag))
+        )
+      ).map(c, c.name + " (" + c.image + ")").join(", ")
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: "deny-floating-image-tag-binding"
+spec:
+  policyName: "deny-floating-image-tag"
+  validationActions: [Deny]

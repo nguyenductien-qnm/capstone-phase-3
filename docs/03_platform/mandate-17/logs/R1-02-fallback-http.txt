@@ -1,0 +1,14 @@
+### R1 - GỌI /api/data KHI AD CHẾT @ 2026-07-22T10:23:57Z
+Kỳ vọng: HTTP 200 + ads:[] (fallback), KHÔNG phải 5xx; latency giảm dần khi mạch mở.
+req 1  -> HTTP 200  0.601565s  body=[]
+req 2  -> HTTP 200  0.568689s  body=[]
+req 3  -> HTTP 200  0.558700s  body=[]
+req 4  -> HTTP 200  0.544846s  body=[]
+req 5  -> HTTP 200  0.534399s  body=[]
+req 6  -> HTTP 200  0.529317s  body=[]
+req 7  -> HTTP 200  0.542886s  body=[]
+req 8  -> HTTP 200  0.552025s  body=[]
+req 9  -> HTTP 200  0.537502s  body=[]
+req 10 -> HTTP 200  0.549869s  body=[]
+req 11 -> HTTP 200  0.560933s  body=[]
+req 12 -> HTTP 200  0.557907s  body=[]

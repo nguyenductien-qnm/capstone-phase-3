@@ -1,0 +1,11 @@
+### R3 - OBSERVABILITY VẪN CHẠY DƯỚI 31 POLICY @ 2026-07-22T11:42:25Z
+  count(up==1)  =>  7
+  count(up==0)  =>  10
+  count(kube_pod_info)  =>  74
+  count(group by(job)(up==1))  =>  5
+--- job nào đang UP ---
+    kubernetes-service-endpoints
+    kubernetes-nodes
+    kubernetes-nodes-cadvisor
+    kubernetes-api-servers
+    prometheus

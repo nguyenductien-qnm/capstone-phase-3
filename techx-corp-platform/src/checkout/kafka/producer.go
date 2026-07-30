@@ -5,6 +5,7 @@ package kafka
 import (
 	"fmt"
 	"log/slog"
+	"os"
 
 	"github.com/IBM/sarama"
 )
@@ -33,6 +34,12 @@ func CreateKafkaProducer(brokers []string, logger *slog.Logger) (sarama.AsyncPro
 	sarama.Logger = &saramaLogger{logger: logger}
 
 	saramaConfig := sarama.NewConfig()
+	saramaConfig.Net.TLS.Enable = true
+	saramaConfig.Net.SASL.Enable = true
+	saramaConfig.Net.SASL.User = os.Getenv("KAFKA_USER")
+	saramaConfig.Net.SASL.Password = os.Getenv("KAFKA_PASSWORD")
+	saramaConfig.Net.SASL.Mechanism = sarama.SASLTypeSCRAMSHA512
+	saramaConfig.Net.SASL.SCRAMClientGeneratorFunc = func() sarama.SCRAMClient { return &XDGSCRAMClient{HashGeneratorFcn: SHA512} }
 	saramaConfig.Producer.Return.Successes = true
 	saramaConfig.Producer.Return.Errors = true
 
@@ -50,12 +57,7 @@ func CreateKafkaProducer(brokers []string, logger *slog.Logger) (sarama.AsyncPro
 		return nil, err
 	}
 
-	// We will log to STDOUT if we're not able to produce messages.
-	go func() {
-		for err := range producer.Errors() {
-			logger.Error(fmt.Sprintf("Failed to write message: %+v", err))
-
-		}
-	}()
+	// The Checkout OrderEventPublisher exclusively drains and correlates both
+	// Successes and Errors. Do not add another consumer here.
 	return producer, nil
 }

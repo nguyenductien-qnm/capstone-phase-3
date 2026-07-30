@@ -1,0 +1,25 @@
+# MANDATE-02 — Karpenter NodePool và EC2NodeClass.
+# Định nghĩa capacity policy (nhóm node nào được tạo) và capacity source (SG, subnet).
+# Wave 1: Đảm bảo chạy SAU khi Karpenter Controller (Wave 0) đã sẵn sàng để có CRD.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: karpenter-nodepool
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/nguyenductien-qnm/capstone-phase-3.git
+    targetRevision: develop
+    path: platform/karpenter
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

@@ -1,0 +1,9 @@
+{
+  "group": "shortterm",
+  "case": "three-turns",
+  "passed": false,
+  "reason": "lượt 3 nhắc lại sản phẩm của lượt trước: KHÔNG",
+  "latency": 2.56,
+  "cache_status": "miss",
+  "response": "Xin chào! Bạn muốn tìm sản phẩm gì, xem review, hay kiểm tra giỏ hàng?"
+}

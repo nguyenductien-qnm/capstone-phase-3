@@ -1,0 +1,9 @@
+{
+  "group": "semantic",
+  "case": "paraphrase-hit",
+  "passed": false,
+  "reason": "diễn đạt khác cùng ý: miss (similarity=0)",
+  "latency": 15.88,
+  "cache_status": "miss",
+  "response": "The price of the Roof Binoculars is $209.95."
+}

@@ -1,0 +1,9 @@
+{
+  "group": "numbers",
+  "case": "cost-before-after",
+  "passed": true,
+  "reason": "token 134297 → 66157 (-68140) · USD $0.044288 → $0.021019 (-53%)",
+  "latency": 0.0,
+  "cache_status": null,
+  "response": ""
+}

@@ -1,0 +1,2673 @@
+# yaml-language-server: $schema=./values.schema.json
+default:
+  # List of environment variables applied to all components
+  env:
+    - name: OTEL_SERVICE_NAME
+      valueFrom:
+        fieldRef:
+          apiVersion: v1
+          fieldPath: "metadata.labels['app.kubernetes.io/component']"
+    - name: OTEL_COLLECTOR_NAME
+      value: otel-collector
+    - name: OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE
+      value: cumulative
+  # Allows overriding and additions to .Values.default.env
+  envOverrides: []
+  #  - name: OTEL_K8S_NODE_NAME
+  #    value: "someConstantValue"
+  image:
+    # SEED registry (image mẫu BTC cấp). Mỗi TF ĐỔI sang ECR của account mình:
+    #   helm ... --set default.image.repository=<ACCOUNT>.dkr.ecr.<REGION>.amazonaws.com/techx-corp
+    # 29/07/2026: đổi 804372444787 -> 384511757667 sau sự cố AWS credits (account
+    # cũ đã destroy toàn bộ, xem report/credit-incident/).
+    repository: 384511757667.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp
+    # Overrides the image tag whose default is the chart appVersion.
+    # The service's name will be applied to the end of this value.
+    tag: "1.0"
+    pullPolicy: Always
+    pullSecrets: []
+  # Default # of replicas for all components
+  replicas: 1
+  # default revisionHistoryLimit for all components (number of old ReplicaSets to retain)
+  revisionHistoryLimit: 10
+  # Default schedulingRules for all components
+  schedulingRules:
+    nodeSelector: {}
+    affinity: {}
+    tolerations: []
+  # Default securityContext for all components
+  # Default securityContext for all components
+  securityContext:
+    allowPrivilegeEscalation: false
+    runAsNonRoot: true
+    capabilities:
+      drop:
+        - ALL
+  # Default podSecurityContext for all components
+  podSecurityContext:
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  # CDO-220 (M17-R4): mặc định không mount token ServiceAccount cho mọi pod.
+  # Override per-component: components.<name>.automountServiceAccountToken: true (chỉ service cần K8s API).
+  automountServiceAccountToken: false
+
+# CDO-219/230 (M17-R3): NetworkPolicy khoanh mạng (chống lateral movement + chặn egress).
+# Mặc định TẮT để review kỹ trước khi bật. Bật: --set networkPolicy.enabled=true
+networkPolicy:
+  enabled: false
+  # DNS egress (bắt buộc, nếu không gọi theo tên service sẽ hỏng).
+  allowDNS: true
+  # Cho phép EGRESS trong cùng namespace (caller gọi callee). Containment nằm ở ingress per-service.
+  allowIntraNamespaceEgress: true
+  # Cổng flagd — mọi pod app được ingress tới flagd ở cổng này (config chung, không đụng flagd).
+  flagdPort: 8013
+  # Service ở rìa public (nhận traffic từ ALB/Internet) — mở ingress từ mọi nguồn.
+  publicIngress:
+    - frontend-proxy
+  # Observability (subchart -> nhãn app.kubernetes.io/name, KHÁC opentelemetry.io/name).
+  observability:
+    # Được phép scrape/nhận từ MỌI pod app (nếu thiếu -> mất metrics -> mất dashboard SLO).
+    scrapers:
+      - prometheus
+      - opentelemetry-collector
+    # Sink nhận telemetry ingress từ mọi pod trong namespace.
+    sinks:
+      - opentelemetry-collector
+      - jaeger
+      - prometheus
+    # Pod cần egress tới Kubernetes API server (443) — SD/list-watch/k8sattributes.
+    apiServerEgress:
+      - prometheus
+      - kube-state-metrics
+      - opentelemetry-collector
+      # reloader watch ConfigMap/Secret qua API server để restart pod khi config đổi;
+      # thiếu rule này thì default-deny cắt watch -> reloader im lặng ngừng hoạt động.
+      - reloader
+      # grafana chạy 3 container k8s-sidecar (dashboard/datasource/alert) watch ConfigMap
+      # qua API server. Đây là ca hỏng IM LẶNG nguy hiểm nhất nhóm: sidecar retry vô hạn
+      # chứ không crash, pod vẫn 4/4 Running, dashboard cũ vẫn hiện vì đã nằm trên đĩa —
+      # chỉ dashboard/datasource MỚI là không bao giờ xuất hiện. Kiểm tra "pod có khỏe
+      # không" KHÔNG bắt được ca này; phải đọc log sidecar.
+      - grafana
+    # Dải chứa ENI control-plane (API server IP xoay) — VPC CIDR cluster này.
+    apiServerCIDR: 10.0.0.0/16
+    # ClusterIP của Service `kubernetes` (đích TRƯỚC DNAT khi client gọi
+    # kubernetes.default). Bắt buộc phải mở kèm apiServerCIDR — xem chú thích trong
+    # templates/networkpolicy.yaml. Luôn là IP đầu của service CIDR.
+    apiServerClusterIP: 172.20.0.1/32
+    # Scraper còn phải lấy metrics NGOÀI namespace: kubelet/cadvisor trên node và pod
+    # hạ tầng ở kube-system (CoreDNS, ALB controller). Thiếu phần này thì default-deny
+    # cắt 6 target node + CoreDNS -> dashboard tài nguyên trống (verify develop 22/07/2026).
+    scraperEgress:
+      # Cổng kubelet trên node (job kubernetes-nodes + kubernetes-nodes-cadvisor).
+      kubeletPort: 10250
+      # Dải chứa NODE (kubelet), KHÁC ý nghĩa với apiServerCIDR (dải chứa ENI
+      # control-plane) dù hiện tại hai dải trùng nhau. Tách riêng để lỡ ai thu hẹp
+      # apiServerCIDR xuống đúng subnet control-plane — việc hardening rất hợp lý —
+      # thì scrape kubelet không gãy theo. Gãy kiểu đó rất khó truy: triệu chứng là
+      # 6 target node DOWN + dashboard tài nguyên trống, cách nguyên nhân rất xa.
+      nodeCIDR: 10.0.0.0/16
+      # Namespace hạ tầng cho phép scrape cross-namespace.
+      infraNamespaces:
+        - kube-system
+      # Cổng metrics của pod hạ tầng: 9153 CoreDNS, 8080 aws-load-balancer-controller.
+      infraPorts:
+        - 9153
+        - 8080
+  # Egress tới managed datastore NGOÀI cluster (kafka/valkey/postgresql tắt in-cluster ->
+  # app gọi ElastiCache/MSK/RDS ở IP VPC 10.x; default-deny egress sẽ chặn nếu thiếu rule).
+  datastoreEgress:
+    vpcCidr: 10.0.0.0/16
+    stores:
+      - name: elasticache      # Redis/Valkey (VALKEY_ADDR, TLS)
+        ports: [6379]
+        consumers: [cart, cart-consumer-worker, product-reviews]
+      - name: msk              # Kafka (KAFKA_ADDR; 9092 plaintext / 9094 TLS / 9096 SASL)
+        ports: [9092, 9094, 9096]
+        consumers: [accounting, cart, cart-consumer-worker, checkout, email, fraud-detection, payment, shipping]
+      - name: rds              # Postgres (DB_CONNECTION_STRING)
+        ports: [5432]
+        consumers: [accounting, checkout, product-catalog, product-reviews, recommendation]
+  # per-service INGRESS: mỗi đích chỉ nhận từ đúng caller (đồ thị phụ thuộc đã xác minh từ *_ADDR).
+  # flagd xử lý riêng ở trên; DB/queue (valkey-cart, kafka) và service lá cũng liệt kê.
+  serviceIngress:
+    cart: [frontend, checkout, shopping-copilot]
+    checkout: [frontend]
+    currency: [frontend, checkout]
+    product-catalog: [frontend, checkout, recommendation, shopping-copilot]
+    product-reviews: [frontend, shopping-copilot]
+    recommendation: [frontend]
+    shipping: [frontend, checkout]
+    payment: [checkout]
+    email: [checkout]
+    ad: [frontend]
+    shopping-copilot: [frontend]
+    quote: [shipping]
+    ml-guard: [product-reviews, shopping-copilot]
+    valkey-cart: [cart]
+    kafka: [accounting, checkout, fraud-detection]
+    llm: [shopping-copilot]
+    image-provider: [frontend-proxy, frontend]
+    frontend: [frontend-proxy, load-generator]
+
+  # Pod gắn label `egress-internet: "true"` mới được ra Internet (payment provider, Bedrock...).
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+components:
+  ## Demo Components are named objects (services) with several properties
+  # demoService:
+  ## Enable the component (service)
+  #   enabled: true
+  #   useDefault:
+  ## Use default environment variables
+  #     env: true
+  ## Override Image repository and Tag. Tag will use appVersion as default.
+  ## Component's name will be applied to end of this value.
+  #   imageOverride: {}
+  ## Optional service definitions to apply
+  #   service:
+  ## Service Type to use for this component. Default is ClusterIP.
+  #     type: ClusterIP
+  ## Service Port to use to expose this component. Default is nil
+  #     port: 8080
+  ## Service Node Port to use to expose this component on a NodePort service. Default is nil
+  #     nodePort: 30080
+  ## Service Annotations to add to this component
+  #     annotations: {}
+  ## Additional service ports to use to expose this component
+  #   ports:
+  #     - name: extraServicePort
+  #       value: 8081
+  ## Environment variables to add to the component's pod
+  #   env:
+  ## Environment variables that upsert (append + merge) into the `env` specification for this component.
+  ## A variable named OTEL_RESOURCE_ATTRIBUTES_EXTRA will have its value appended to the OTEL_RESOURCE_ATTRIBUTES value.
+  #   envOverrides:
+  ## Pod Scheduling rules for nodeSelector, affinity, or tolerations.
+  #   schedulingRules:
+  #     nodeSelector: {}
+  #     affinity: {}
+  #     tolerations: []
+  ## Pod labels to add to this component
+  #   podLabels: {}
+  ## Pod Annotations to add to this component
+  #   podAnnotations: {}
+  ## Resources for this component
+  #   resources: {}
+  ## Container security context for setting user ID (UID), group ID (GID) and other security policies
+  #   securityContext:
+  ## Ingresses rules to add for the to the component
+  # ingress:
+  ## Enable the creation of Ingress rules. Default is false
+  #   enabled: false
+  ## Annotations to add to the ingress rule
+  #   annotations: {}
+  ## Which Ingress class (controller) to use. Default is unspecified.
+  #   ingressClassName: nginx
+  ## Hosts definitions for the Ingress rule
+  #   hosts:
+  #     - host: demo.example.com
+  ## Each host can have multiple paths/routes
+  #       paths:
+  #         - path: /
+  #           pathType: Prefix
+  #           port: 8080
+  ## Optional TLS specifications for the Ingress rule
+  #   tls:
+  #     - secretName: demo-tls
+  #       hosts:
+  #         - demo.example.com
+  ## Additional ingresses - only created if ingress.enabled is true
+  ## Useful for when differently annotated ingress services are required
+  ## Each additional ingress needs key "name" set to something unique
+  #   additionalIngresses: []
+  #     - name: extra-demo-ingress
+  #       ingressClassName: nginx
+  #       annotations: {}
+  #       hosts:
+  #         - host: demo.example.com
+  #           paths:
+  #             - path: /
+  #               pathType: Prefix
+  #               port: 8080
+  #       tls:
+  #         - secretName: demo-tls
+  #           hosts:
+  #             - demo.example.com
+  ## Command to use in the container spec, in case you don't want to go with the default command from the image.
+  #   command: []
+  ## Configuration to for this component; will create a Volume, and Mount backed by an optionally created ConfigMap.
+  ## The name, mountPath are required, and one of existingConfigMap or data is required.
+  ## If an existing ConfigMap is not provided, the contents under data will be used for the created ConfigMap.
+  #   mountedConfigMaps: []
+  #     - name: my-config
+  #       mountPath: /etc/config
+  #       subPath:
+  #       existingConfigMap: my-configmap
+  #       data:
+  #         my-config.yaml: |
+  #           key: value
+  ## Configuration to create an custom Volume
+  #   additionalVolumes:
+  #     - name: nginx-logs
+  #       hostPath:
+  #         path: /var/log/nginx
+  #       type: ""
+  ## Configuration to mount the custom Volume to the container
+  # additionalVolumeMounts:
+  #     - name: nginx-logs
+  #       mountPath: /var/log/nginx
+  # # Kubernetes container health check options
+  #   livenessProbe: {}
+  #   readinessProbe: {}
+  # # Optional init container to run before the pod starts.
+  #   initContainers:
+  #     - name: <init-container-name>
+  #       image: <init-container-image>
+  #       command: [list of commands for the init container to run]
+  # # Replicas for the component
+  #  replicas: 1
+  # # Number of old ReplicaSets to retain
+  #  revisionHistoryLimit: 10
+  # # Optional pod security context for setting user ID (UID), group ID (GID) and other security policies
+  # # This will be applied at pod level, can be applied globally for all pods: .Values.default.podSecurityContext
+  # # Or it can be applied to a specific component: .Values.components.<component-name>.podSecurityContext
+  #    podSecurityContext:
+  #      runAsGroup: 65534
+  #      runAsNonRoot: true
+  #      runAsUser: 65534
+
+  accounting:
+    enabled: true
+    useDefault:
+      env: true
+    # Consumer Kafka async, KHÔNG HPA (scale nên theo lag, không phải CPU) và ngoài
+    # critical path storefront → không cần PDB/spread (gián đoạn ngắn được Kafka đệm).
+    annotations:
+      reloader.stakater.com/auto: "true"
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: techx-corp
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep: { seconds: 5 }   # M17: sleep native (K8s>=1.29) thay exec /bin/sh — image distroless không có shell → exec fail (FailedPreStopHook).
+    deploymentStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 0
+        maxSurge: 1
+    env:
+      - name: KAFKA_ADDR
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: brokers_sasl_scram
+      - name: KAFKA_USER
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: username
+      - name: KAFKA_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: password
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://$(OTEL_COLLECTOR_NAME):4318
+      - name: DB_CONNECTION_STRING
+        valueFrom:
+          secretKeyRef:
+            name: db-secret
+            key: accounting-db-conn
+      - name: ACCOUNTING_ORDER_SCHEMA_PHASE
+        # Move every accounting pod to dual_read before checkout enters
+        # write_new; use read_new only when closing the rollback horizon.
+        value: "legacy"
+      - name: OTEL_DOTNET_AUTO_TRACES_ENTITYFRAMEWORKCORE_INSTRUMENTATION_ENABLED
+        value: "false"
+      - name: KAFKA_TOPIC
+        value: "domain.fulfillment.events"
+      - name: KAFKA_GROUP_ID
+        value: "accounting"
+    resources:
+      requests:
+        cpu: 100m         # P0 right-size: OOMKilled 36 lần, .NET cần RAM cao (PR#49, restore sau PR#106)
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+    initContainers:
+      - name: wait-for-kafka
+        image: busybox:1.38.0   # Pinned: do NOT use :latest — breaks reproducibility.
+        # Broker lấy từ msk-secret (ESO sync từ Secrets Manager) — KHÔNG hardcode:
+        # MSK tạo lại thì AWS cấp ID mới, hostname cũ chết DNS -> init loop vô hạn.
+        env:
+          - name: KAFKA_ADDR
+            valueFrom:
+              secretKeyRef:
+                name: msk-secret
+                key: brokers_sasl_scram
+        command:
+          - sh
+          - -c
+          - |
+            # brokers_sasl_scram = "host1:9096,host2:9096" -> lấy broker đầu tiên
+            broker=$(echo "$KAFKA_ADDR" | cut -d, -f1)
+            host=${broker%:*}; port=${broker##*:}
+            until nc -z -v -w30 "$host" "$port"; do echo waiting for kafka; sleep 2; done
+        securityContext:
+          runAsUser: 1000
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 50m
+            memory: 32Mi
+
+  ad:
+    enabled: true
+    useDefault:
+      env: true
+    service:
+      port: 8080
+    topologySpread: true   # M17-R2: trải pod ra ≥2 AZ (browse-path SLO)
+    podDisruptionBudget:   # M17-R2: drain-az không hạ cả 2 pod cùng lúc
+      maxUnavailable: 1
+    # Audit mở rộng Mandate-13 sang sandbox (27-07-2026): ad đã nằm trên NodePool
+    # spot của sandbox từ trước (values-application.yaml) nhưng thiếu preStop/grace —
+    # circuit breaker M17-R1 chỉ bảo vệ CALLER (frontend) khỏi lỗi gọi ad, không bảo
+    # vệ request đang xử lý DỞ trong chính pod ad khi bị SIGTERM lúc Karpenter
+    # consolidate/spot interruption. Thêm cho khớp pattern đã dùng ở mọi service khác.
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep: { seconds: 5 }
+    hpa:
+      enabled: true
+      minReplicas: 2       # M17-R2: HA, mất 1 AZ vẫn còn pod
+      maxReplicas: 4
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: techx-corp
+    env:
+      - name: AD_PORT
+        value: "8080"
+      - name: FLAGD_HOST
+        value: flagd
+      - name: FLAGD_PORT
+        value: "8013"
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://$(OTEL_COLLECTOR_NAME):4318
+      - name: OTEL_LOGS_EXPORTER
+        value: otlp
+    resources:
+      requests:
+        cpu: 50m          # CDO-42: cần cho HPA CPU-utilization
+        memory: 128Mi     # Mandate 5: bắt buộc đủ 4 field requests/limits
+      limits:
+        cpu: 200m
+        memory: 300Mi
+    securityContext:
+      runAsUser: 1000
+      runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+      readOnlyRootFilesystem: true
+
+  # Dedicated gRPC API for Frontend & Checkout
+  cart:
+    enabled: true
+    imageOverride:
+      tag: "1.1-cart-ae89fa2" # CDO-80 gRPC health; incident 2026-07-16: tag tran bi ECR lifecycle xoa, rebuild
+    # Image chạy root (Dockerfile upstream không có USER) -> ép UID từ chart.
+    # Template dùng `default` (thay cả block, KHÔNG merge) nên phải lặp lại đủ field
+    # của defaultValues.securityContext, nếu không sẽ mất drop ALL.
+    # Verify: docker run --user 1000:1000 <image 1.1-cart> -> chạy tới logic app.
+    securityContext:
+      allowPrivilegeEscalation: false
+      runAsNonRoot: true
+      runAsUser: 1000
+      capabilities:
+        drop:
+          - ALL
+    useDefault:
+      env: true
+    service:
+      port: 8080
+    # --- Reliability (CDO-34/80/29) ---
+    podDisruptionBudget:
+      maxUnavailable: 1
+    topologySpread: true
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep: { seconds: 5 }   # M17: sleep native (K8s>=1.29) thay exec /bin/sh — image distroless không có shell → exec fail (FailedPreStopHook).
+    deploymentStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 0
+        maxSurge: 1
+    startupProbe: # .NET + chờ valkey, JIT warmup lâu hơn
+      grpc: { port: 8080, service: "readiness" }
+      periodSeconds: 5
+      timeoutSeconds: 5
+      failureThreshold: 30
+    readinessProbe:
+      grpc: { port: 8080, service: "readiness" }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
+    livenessProbe:
+      grpc: { port: 8080, service: "liveness" }
+      periodSeconds: 10
+      timeoutSeconds: 2
+      failureThreshold: 6
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: techx-corp
+    env:
+      - name: CART_PORT
+        value: "8080"
+      - name: ASPNETCORE_URLS
+        value: http://*:$(CART_PORT)
+      - name: ENABLE_KAFKA_CONSUMER
+        value: "false"
+      - name: CART_MAX_CONCURRENT_REQUESTS
+        value: "128"
+      - name: CART_MAX_QUEUED_REQUESTS
+        value: "256"
+      - name: VALKEY_ADDR
+        valueFrom:
+          secretKeyRef:
+            name: valkey-secret
+            key: address
+      - name: VALKEY_TLS
+        value: "true"
+      - name: VALKEY_AUTH_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: valkey-secret
+            key: auth_token
+      - name: FLAGD_HOST
+        value: flagd
+      - name: FLAGD_PORT
+        value: "8013"
+      - name: KAFKA_ADDR
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: brokers_sasl_scram
+      - name: KAFKA_USER
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: username
+      - name: KAFKA_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: password
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://$(OTEL_COLLECTOR_NAME):4317
+    resources:
+      requests:
+        cpu: 100m         # CDO-42: cart ghi/đọc mỗi session, tải tăng theo user -> HPA (PR#49, restore sau PR#106)
+        memory: 64Mi      # P0 right-size: thêm request, giữ limit
+      limits:
+        cpu: 200m
+        memory: 160Mi
+    hpa:
+      enabled: true
+      minReplicas: 2 # có PDB (CDO-34) -> min>=2, tránh Karpenter consolidate giết pod duy nhất (INC-2)
+      maxReplicas: 6 # write-heavy, tải tăng tuyến tính theo user
+    initContainers:
+      - name: wait-for-valkey-cart
+        image: busybox:1.38.0 # Pinned: do NOT use :latest — breaks reproducibility.
+        env:
+          - name: VALKEY_ADDR
+            valueFrom:
+              secretKeyRef:
+                name: valkey-secret
+                key: address
+        # VALKEY_ADDR = "host:port" -> tách cho nc.
+        command: ["sh", "-c", "HOST=$(echo \"$VALKEY_ADDR\" | cut -d: -f1); PORT=$(echo \"$VALKEY_ADDR\" | cut -d: -f2); until nc -z -v -w30 \"$HOST\" \"$PORT\"; do echo waiting for valkey-cart; sleep 2; done;"]
+        securityContext:
+          runAsUser: 1000
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 50m
+            memory: 32Mi
+
+  # Dedicated background MSK Kafka Worker
+  cart-consumer-worker:
+    enabled: true
+
+    # 30/07/2026 — KHAI QUAN HỆ ẢNH RA CHO CI ĐỌC ĐƯỢC.
+    #
+    # Component này KHÔNG có Dockerfile riêng (techx-corp-platform/src/cart-consumer-worker/
+    # không tồn tại): nó chạy CHÍNH ảnh của `cart`, chỉ khác `command`. Vì không có
+    # Dockerfile nên job `detect` của app-build.yaml không xếp nó vào build matrix, mà
+    # bước bump lại duyệt đúng matrix đó -> nó KHÔNG BAO GIỜ được ghi tag.
+    #
+    # Hệ quả nếu để nguyên: mỗi lần `cart` được bump sang SHA mới, worker vẫn giữ tag
+    # cũ. Phát hiện 30/07/2026 khi dựng lại account: tags-file trỏ worker vào
+    # `1.0-cart-4986041`, tag đó không tồn tại trên ECR mới -> ImagePullBackOff.
+    #
+    # Trước đây quan hệ "worker dùng ảnh của cart" KHÔNG được khai ở đâu cả. Hai dòng
+    # tag bằng nhau trong values-image-tags.yaml chỉ là do có người gõ cùng một chuỗi
+    # hai lần — một sự trùng khớp, không phải một khai báo, nên CI không có cách nào
+    # suy ra được. `imageFrom` biến nó thành khai báo máy đọc được.
+    #
+    # Bump đọc key này (xem app-build.yaml, bước "Bump imageOverride.tag từng service")
+    # và ghi tag của `cart` sang đây. Gate "Verify diff chỉ chạm service đã build" cũng
+    # đọc nó để cho phép worker xuất hiện trong diff — nhưng CHỈ khi `cart` nằm trong
+    # tập vừa build, nên gate vẫn giữ nguyên tác dụng chặn tag trỏ vào ảnh chưa có.
+    #
+    # Thêm worker dùng chung ảnh với service khác sau này thì khai `imageFrom` là xong,
+    # KHÔNG cần sửa workflow nữa.
+    imageFrom: cart
+    imageOverride: {}
+    initContainers:
+      - name: wait-for-valkey-cart
+        image: busybox:1.38.0
+        env:
+          - name: VALKEY_ADDR
+            valueFrom:
+              secretKeyRef:
+                name: valkey-secret
+                key: address
+        command: ["sh", "-c", "HOST=$(echo \"$VALKEY_ADDR\" | cut -d: -f1); PORT=$(echo \"$VALKEY_ADDR\" | cut -d: -f2); until nc -z -v -w30 \"$HOST\" \"$PORT\"; do echo waiting for valkey-cart; sleep 2; done;"]
+        securityContext:
+          runAsUser: 1000
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 50m
+            memory: 32Mi
+    securityContext:
+      allowPrivilegeEscalation: false
+      runAsNonRoot: true
+      runAsUser: 1000
+      capabilities:
+        drop:
+          - ALL
+      readOnlyRootFilesystem: true
+    useDefault:
+      env: true
+    # Note: No `service:` field defined -> Helm will NOT expose inbound ports/K8s Service
+    podDisruptionBudget:
+      maxUnavailable: 1
+    topologySpread: true
+    terminationGracePeriodSeconds: 30
+    deploymentStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 0
+        maxSurge: 1
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: techx-corp
+    env:
+      - name: ENABLE_KAFKA_CONSUMER
+        value: "true"                  # Enable Kafka Consumer in Worker pods
+      - name: VALKEY_ADDR
+        valueFrom:
+          secretKeyRef:
+            name: valkey-secret
+            key: address
+      - name: VALKEY_TLS
+        value: "true"
+      - name: VALKEY_AUTH_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: valkey-secret
+            key: auth_token
+      - name: KAFKA_ADDR
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: brokers_sasl_scram
+      - name: KAFKA_USER
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: username
+      - name: KAFKA_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: password
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://$(OTEL_COLLECTOR_NAME):4317
+    resources:
+      requests:
+        cpu: 100m
+        memory: 64Mi
+      limits:
+        cpu: 300m
+        memory: 128Mi
+    hpa:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 4
+
+  checkout:
+    enabled: true
+    imageOverride:
+      tag: "1.1-checkout" # CDO-80: image mới có gRPC health tách liveness/readiness (bump từ 1.0 để atomic với probe)
+    useDefault:
+      env: true
+    service:
+      port: 8080
+    # --- Reliability (CDO-34/80/29) ---
+    # replicas do HPA quản (hpa.enabled → template tự bỏ replicas cứng, tránh fight HPA).
+    podDisruptionBudget:
+      maxUnavailable: 1 # CDO-34: luôn còn >=1 pod khi Karpenter drain node
+    topologySpread: true # CDO-34: trải 2 pod ra khác node (ScheduleAnyway)
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep: { seconds: 5 }   # CDO-29: chờ endpoint propagate, không rơi request. M17: sleep native (K8s>=1.29) — image distroless không có /bin/sh nên exec fail (FailedPreStopHook).
+    deploymentStrategy: # CDO-29: rollout không hạ pod cũ trước khi pod mới Ready
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 0
+        maxSurge: 1
+    startupProbe: # CDO-80: che boot chờ kafka (<=150s)
+      grpc: { port: 8080, service: "readiness" }
+      periodSeconds: 5
+      failureThreshold: 30
+    readinessProbe: # CDO-80: gate traffic theo dependency
+      grpc: { port: 8080, service: "readiness" }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
+    livenessProbe: # CDO-80: chỉ process sống — KHÔNG phụ thuộc kafka (Option C)
+      grpc: { port: 8080, service: "liveness" }
+      periodSeconds: 10
+      timeoutSeconds: 2
+      failureThreshold: 6
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: techx-corp
+    env:
+      - name: CHECKOUT_PORT
+        value: "8080"
+      - name: DATABASE_URL
+        valueFrom:
+          secretKeyRef:
+            name: db-secret
+            key: catalog-db-conn
+      - name: CHECKOUT_ORDER_SCHEMA_PHASE
+        # Migration order: legacy -> dual_write -> SQL 13-16a -> write_new.
+        # Never enter write_new while a legacy accounting pod is consuming.
+        value: "legacy"
+      - name: CART_ADDR
+        value: cart:8080
+      - name: CURRENCY_ADDR
+        value: currency:8080
+      - name: EMAIL_ADDR
+        value: http://email:8080
+      - name: PAYMENT_ADDR
+        value: payment:8080
+      - name: PRODUCT_CATALOG_ADDR
+        value: product-catalog:8080
+      - name: SHIPPING_ADDR
+        value: http://shipping:8080
+      - name: KAFKA_ADDR
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: brokers_sasl_scram
+      - name: KAFKA_USER
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: username
+      - name: KAFKA_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: password
+      - name: FLAGD_HOST
+        value: flagd
+      - name: FLAGD_PORT
+        value: "8013"
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://$(OTEL_COLLECTOR_NAME):4317
+      - name: GOMEMLIMIT
+        value: 96MiB # P0 right-size: nâng cùng limit để Go dùng được RAM mới
+    resources:
+      requests:
+        cpu: 100m # P0: revenue-critical, limit cũ 20Mi quá thấp
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi # >= request 64Mi; khớp GOMEMLIMIT 96MiB ở trên
+    hpa:
+      enabled: true
+      minReplicas: 2      # có PDB (CDO-34) + revenue-critical SLO 99% -> min>=2 (tránh INC-2)
+      maxReplicas: 5      # cho headroom scale
+    initContainers:
+      - name: wait-for-kafka
+        image: busybox:1.38.0   # Pinned: do NOT use :latest — breaks reproducibility.
+        # Broker lấy từ msk-secret (ESO sync từ Secrets Manager) — KHÔNG hardcode:
+        # MSK tạo lại thì AWS cấp ID mới, hostname cũ chết DNS -> init loop vô hạn.
+        env:
+          - name: KAFKA_ADDR
+            valueFrom:
+              secretKeyRef:
+                name: msk-secret
+                key: brokers_sasl_scram
+        command:
+          - sh
+          - -c
+          - |
+            # brokers_sasl_scram = "host1:9096,host2:9096" -> lấy broker đầu tiên
+            broker=$(echo "$KAFKA_ADDR" | cut -d, -f1)
+            host=${broker%:*}; port=${broker##*:}
+            until nc -z -v -w30 "$host" "$port"; do echo waiting for kafka; sleep 2; done
+        securityContext:
+          runAsUser: 1000
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 50m
+            memory: 32Mi
+
+  currency:
+    enabled: true
+    useDefault:
+      env: true
+    service:
+      port: 8080
+    # M17 deploy-safety: dependency luồng ra tiền — readiness gate (không đẩy traffic vào pod chưa listening khi node churn)
+    # + preStop sleep native (K8s>=1.29, khỏi cần shell → an toàn cho mọi image) + grace. Fix rớt request khi Karpenter consolidate.
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep:
+          seconds: 5
+    readinessProbe:
+      tcpSocket: { port: 8080 }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: techx-corp
+    env:
+      - name: CURRENCY_PORT
+        value: "8080"
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://$(OTEL_COLLECTOR_NAME):4317
+      - name: VERSION
+        value: "{{ .Chart.AppVersion }}"
+      - name: IPV6_ENABLED
+        value: "false"
+    resources:
+      requests:
+        cpu: 50m          # CDO-42: cần cho HPA CPU-utilization
+        memory: 16Mi      # Mandate 5: bắt buộc đủ 4 field requests/limits
+      limits:
+        cpu: 100m
+        memory: 20Mi
+    topologySpread: true   # M17-R2: trải pod ra ≥2 AZ (money-path)
+    podDisruptionBudget:   # M17-R2: drain-az/rollout không hạ cả 2 pod cùng lúc
+      maxUnavailable: 1
+    hpa:
+      enabled: true
+      minReplicas: 2       # M17-R2: HA, mất 1 AZ vẫn còn pod
+      maxReplicas: 4
+
+  email:
+    enabled: true
+    imageOverride:
+      tag: "1.0-email-ae89fa2" # incident 2026-07-16: tag tran bi ECR lifecycle xoa, image rebuild tu source
+    # Image chạy root (Dockerfile không có USER) -> ép UID từ chart.
+    # Template dùng `default` (thay cả block, KHÔNG merge) nên phải lặp lại đủ field.
+    # Verify: docker run --user 1000:1000 <image 1.0-email> -> Sinatra/Puma lên bình thường.
+    securityContext:
+      allowPrivilegeEscalation: false
+      runAsNonRoot: true
+      runAsUser: 1000
+      capabilities:
+        drop:
+          - ALL
+    useDefault:
+      env: true
+    service:
+      port: 8080
+    # M17 deploy-safety: dependency luồng ra tiền — readiness gate + preStop sleep native + grace 30s. Fix rớt request khi drain/Karpenter consolidate.
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep:
+          seconds: 5
+    readinessProbe:
+      tcpSocket: { port: 8080 }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: techx-corp
+    env:
+      - name: EMAIL_PORT
+        value: "8080"
+      - name: APP_ENV
+        value: production
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://$(OTEL_COLLECTOR_NAME):4318
+      - name: FLAGD_HOST
+        value: flagd
+      - name: FLAGD_PORT
+        value: "8013"
+      - name: KAFKA_ADDR
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: brokers_sasl_scram
+      - name: KAFKA_USER
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: username
+      - name: KAFKA_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: password
+      - name: KAFKA_TOPIC
+        value: "domain.fulfillment.events"
+      - name: KAFKA_GROUP_ID
+        value: "email"
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 100Mi
+    initContainers:
+      - name: wait-for-kafka
+        image: busybox:1.38.0
+        env:
+          - name: KAFKA_ADDR
+            valueFrom:
+              secretKeyRef:
+                name: msk-secret
+                key: brokers_sasl_scram
+        command:
+          - sh
+          - -c
+          - |
+            broker=$(echo "$KAFKA_ADDR" | cut -d, -f1)
+            host=${broker%:*}; port=${broker##*:}
+            until nc -z -v -w30 "$host" "$port"; do echo waiting for kafka; sleep 2; done
+        securityContext:
+          runAsUser: 1000
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 50m
+            memory: 32Mi
+  fraud-detection:
+    enabled: true
+    imageOverride:
+      tag: "1.0-fraud-detection-ae89fa2" # incident 2026-07-16: tag tran bi ECR lifecycle xoa, image rebuild tu source
+    useDefault:
+      env: true
+    # Consumer Kafka async, KHÔNG HPA (scale nên theo lag, không phải CPU) và ngoài
+    # critical path storefront → không cần PDB/spread (gián đoạn ngắn được Kafka đệm).
+    # Mandate-13: develop không pin service nào vào on-demand (1 NodePool duy nhất,
+    # Karpenter tự cân đối spot/on-demand) -> fraud-detection có thể rơi vào spot
+    # bất kỳ lúc nào. Thiếu preStop/grace thì message Kafka đang xử lý dở bị cắt
+    # ngang khi node bị drain/thu hồi, khác accounting (đã có field này từ trước).
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep: { seconds: 5 }
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: techx-corp
+    env:
+      - name: KAFKA_ADDR
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: brokers_sasl_scram
+      - name: KAFKA_USER
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: username
+      - name: KAFKA_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: password
+      - name: FLAGD_HOST
+        value: flagd
+      - name: FLAGD_PORT
+        value: "8013"
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://$(OTEL_COLLECTOR_NAME):4318
+      - name: OTEL_INSTRUMENTATION_KAFKA_EXPERIMENTAL_SPAN_ATTRIBUTES
+        value: "true"
+      - name: OTEL_INSTRUMENTATION_MESSAGING_EXPERIMENTAL_RECEIVE_TELEMETRY_ENABLED
+        value: "true"
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 150m
+        memory: 300Mi
+    initContainers:
+      - name: wait-for-kafka
+        image: busybox:1.38.0   # Pinned: do NOT use :latest — breaks reproducibility.
+        # Broker lấy từ msk-secret (ESO sync từ Secrets Manager) — KHÔNG hardcode:
+        # MSK tạo lại thì AWS cấp ID mới, hostname cũ chết DNS -> init loop vô hạn.
+        env:
+          - name: KAFKA_ADDR
+            valueFrom:
+              secretKeyRef:
+                name: msk-secret
+                key: brokers_sasl_scram
+        command:
+          - sh
+          - -c
+          - |
+            # brokers_sasl_scram = "host1:9096,host2:9096" -> lấy broker đầu tiên
+            broker=$(echo "$KAFKA_ADDR" | cut -d, -f1)
+            host=${broker%:*}; port=${broker##*:}
+            until nc -z -v -w30 "$host" "$port"; do echo waiting for kafka; sleep 2; done
+        securityContext:
+          runAsUser: 1000
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 50m
+            memory: 32Mi
+
+  frontend:
+    enabled: true
+    imageOverride:
+      tag: "1.0-frontend-ae89fa2" # incident 2026-07-16: tag tran bi ECR lifecycle xoa, image rebuild tu source
+    useDefault:
+      env: true
+    service:
+      port: 8080
+    # --- Reliability (CDO-34/80/29) ---
+    podDisruptionBudget:
+      maxUnavailable: 1
+    topologySpread: true
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep: { seconds: 5 }   # M17: sleep native (K8s>=1.29) thay exec /bin/sh — image distroless không có shell → exec fail (FailedPreStopHook).
+    deploymentStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 0
+        maxSurge: 1
+    startupProbe: # Next.js HTTP — không gRPC
+      httpGet: { path: /, port: 8080 }
+      periodSeconds: 5
+      failureThreshold: 24
+    readinessProbe:
+      httpGet: { path: /, port: 8080 }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
+    livenessProbe:
+      httpGet: { path: /, port: 8080 }
+      periodSeconds: 10
+      timeoutSeconds: 2
+      failureThreshold: 6
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: techx-corp
+    env:
+      - name: FRONTEND_PORT
+        value: "8080"
+      - name: PORT
+        value: $(FRONTEND_PORT)
+      - name: FRONTEND_ADDR
+        value: :8080
+      - name: AD_ADDR
+        value: ad:8080
+      - name: CART_ADDR
+        value: cart:8080
+      - name: CHECKOUT_ADDR
+        value: checkout:8080
+      - name: CURRENCY_ADDR
+        value: currency:8080
+      - name: PRODUCT_CATALOG_ADDR
+        value: product-catalog:8080
+      - name: PRODUCT_REVIEWS_ADDR
+        value: product-reviews:3551
+      - name: RECOMMENDATION_ADDR
+        value: recommendation:8080
+      - name: SHIPPING_ADDR
+        value: http://shipping:8080
+      - name: SHOPPING_COPILOT_ADDR
+        value: shopping-copilot:50051
+      - name: FLAGD_HOST
+        value: flagd
+      - name: FLAGD_PORT
+        value: "8013"
+      - name: ENV_PLATFORM
+        value: kubernetes
+      - name: OTEL_COLLECTOR_HOST
+        value: $(OTEL_COLLECTOR_NAME)
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://$(OTEL_COLLECTOR_NAME):4317
+      - name: WEB_OTEL_SERVICE_NAME
+        value: frontend-web
+      - name: PUBLIC_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+        value: http://localhost:8080/otlp-http/v1/traces # This expects users to use `kubectl port-forward ...`
+    resources:
+      requests:
+        cpu: 100m         # CDO-42: frontend Next.js, hot-path browse -> HPA
+        memory: 128Mi     # Mandate 5: bắt buộc đủ 4 field requests/limits
+      limits:
+        cpu: 200m
+        memory: 250Mi
+    hpa:
+      enabled: true
+      minReplicas: 2 # có PDB (CDO-34) -> min>=2, tránh INC-2 khi node consolidate
+      maxReplicas: 6
+    securityContext:
+      runAsUser: 1001 # nextjs
+      runAsGroup: 1001
+      runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+
+  frontend-proxy:
+    enabled: true
+    imageOverride:
+      tag: "1.0-frontend-proxy"
+    useDefault:
+      env: true
+    service:
+      port: 80
+      targetPort: 8080
+      type: LoadBalancer
+      annotations:
+        service.beta.kubernetes.io/aws-load-balancer-type: "external"
+        service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "ip"
+        service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
+        external-dns.alpha.kubernetes.io/hostname: "origin-ecommerce.nguyenductien.cloud"
+    ingress:
+      enabled: false
+      ingressClassName: alb
+      annotations:
+        alb.ingress.kubernetes.io/scheme: internet-facing
+        alb.ingress.kubernetes.io/target-type: ip
+        # TODO(29/07/2026): ARN này là CERT CỤ THỂ ở account cũ 804372444787, không
+        # phải thứ đổi số account là xong — account 384511757667 chưa có cert nào.
+        # CỐ Ý GIỮ NGUYÊN: sửa thành 384511757667:certificate/58a4ee05-... sẽ tạo ra
+        # một ARN trông hợp lệ nhưng trỏ vào hư không, ALB fail lúc tạo listener và
+        # lỗi khó lần hơn hẳn so với một ARN cũ nhìn là biết cũ.
+        # Hiện KHÔNG ảnh hưởng gì: `ingress.enabled: false` ngay phía trên — cụm
+        # đang ra ngoài bằng Service type LoadBalancer (NLB), không dùng ALB Ingress.
+        # Khi nào bật ingress: request cert mới trong ACM us-east-1 của account mới
+        # cho origin-ecommerce.nguyenductien.cloud rồi dán ARN thật vào đây.
+        alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:us-east-1:804372444787:certificate/58a4ee05-8248-4e70-bc30-f7dfe47e0720"
+        alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+      hosts:
+        - host: "origin-ecommerce.nguyenductien.cloud"
+          paths:
+            - path: /
+              pathType: Prefix
+              port: 8080
+    # --- Reliability (CDO-34/80/29) — cửa ngõ storefront, quan trọng nhất ---
+    podDisruptionBudget:
+      maxUnavailable: 1
+    topologySpread: true
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep: { seconds: 5 }   # cực quan trọng cho Envoy: drain kết nối trước khi tắt. M17: sleep native (K8s>=1.29) thay exec — không phụ thuộc shell trong image.
+    deploymentStrategy: # CDO-29: zero-downtime khi rollout Envoy cho Mandate 01
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 0
+        maxSurge: 1
+    # CDO-80: Envoy config (envoy.tmpl.yaml) KHÔNG bật admin → không có /ready:10000.
+    # Dùng tcpSocket:8080 (listener chính) — Envoy bind ngay khi khởi động = process sống + listener mở.
+    # MANDATE-01 dùng image đã rebuild; digest annotation buộc rollout vì tag 1.0 được tái sử dụng.
+    readinessProbe:
+      tcpSocket: { port: 8080 }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
+    livenessProbe:
+      tcpSocket: { port: 8080 }
+      periodSeconds: 10
+      timeoutSeconds: 2
+      failureThreshold: 6
+    podAnnotations:
+      mandate-01/image-index-digest: "sha256:ea6155465ee5877e570fcc412b68b2ae0fb4ef15bf3a0e2785bc12a7dd37235f"
+      resource.opentelemetry.io/service.namespace: techx-corp
+      io.opentelemetry.discovery.metrics/enabled: "true"
+      io.opentelemetry.discovery.metrics/scraper: httpcheck
+      io.opentelemetry.discovery.metrics/config: |
+        targets:
+          - endpoint: "http://`endpoint`"
+    env:
+      - name: ENVOY_PORT
+        value: "8080"
+      - name: ENVOY_ADDR
+        value: "0.0.0.0"
+      - name: ENVOY_ADMIN_PORT
+        value: "10000"
+      - name: FLAGD_HOST
+        value: flagd
+      - name: FLAGD_PORT
+        value: "8013"
+      - name: FLAGD_UI_HOST
+        value: flagd
+      - name: FLAGD_UI_PORT
+        value: "4000"
+      - name: FRONTEND_HOST
+        value: frontend
+      - name: FRONTEND_PORT
+        value: "8080"
+      - name: GRAFANA_HOST
+        value: grafana
+      - name: GRAFANA_PORT
+        value: "80"
+      - name: IMAGE_PROVIDER_HOST
+        value: image-provider
+      - name: IMAGE_PROVIDER_PORT
+        value: "8081"
+      - name: JAEGER_HOST
+        value: jaeger
+      - name: JAEGER_UI_PORT
+        value: "16686"
+      - name: LOCUST_WEB_HOST
+        value: load-generator
+      - name: LOCUST_WEB_PORT
+        value: "8089"
+      - name: OTEL_COLLECTOR_HOST
+        value: $(OTEL_COLLECTOR_NAME)
+      - name: OTEL_COLLECTOR_PORT_GRPC
+        value: "4317"
+      - name: OTEL_COLLECTOR_PORT_HTTP
+        value: "4318"
+      - name: SHOPPING_COPILOT_HOST
+        value: shopping-copilot
+      - name: SHOPPING_COPILOT_PORT
+        value: "50051"
+    resources:
+      requests:
+        cpu: 100m # CDO-42: Envoy edge, mọi traffic đi qua -> scale sớm nhất
+        memory: 48Mi # Mandate 5: bắt buộc đủ 4 field requests/limits
+      limits:
+        cpu: 200m
+        memory: 65Mi
+    hpa:
+      enabled: true
+      minReplicas: 2 # edge duy nhất sau NLB -> giữ 2 cho HA (khớp PDB CDO-34)
+      maxReplicas: 6
+    securityContext:
+      runAsUser: 101 # envoy
+      runAsGroup: 101
+      runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+
+  image-provider:
+    enabled: true
+    imageOverride:
+      tag: "1.0-image-provider-ae89fa2" # incident 2026-07-16: tag tran bi ECR lifecycle xoa, image rebuild tu source
+    useDefault:
+      env: true
+    service:
+      port: 8081
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: techx-corp
+      io.opentelemetry.discovery.metrics/enabled: "true"
+      io.opentelemetry.discovery.metrics/scraper: nginx
+      io.opentelemetry.discovery.metrics/config: |
+        endpoint: "http://`endpoint`/status"
+        collection_interval: "10s"
+        timeout: "20s"
+    env:
+      - name: IMAGE_PROVIDER_PORT
+        value: "8081"
+      - name: OTEL_COLLECTOR_PORT_GRPC
+        value: "4317"
+      - name: OTEL_COLLECTOR_HOST
+        value: $(OTEL_COLLECTOR_NAME)
+    resources:
+      requests:
+        cpu: 50m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 50Mi
+    # Mandate-13 (mở rộng sandbox spot, 27-07-2026): ứng viên spot mới, browse-path
+    # (ảnh sản phẩm), không nằm trên luồng tiền. Trước đây replicas mặc định=1 (chart
+    # default) và không có PDB/grace — 1 replica + PDB thì PDB vô nghĩa (K8s vẫn được
+    # phép evict pod duy nhất). Bump lên 2 + đủ bộ graceful-drain trước khi cho vào
+    # NodePool spot (platform/gitops/environments/sandbox/values-application.yaml).
+    replicas: 2
+    topologySpread: true
+    podDisruptionBudget:
+      maxUnavailable: 1
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep: { seconds: 5 }
+  load-generator:
+    enabled: true
+    useDefault:
+      env: true
+    service:
+      port: 8089
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: techx-corp
+    env:
+      - name: LOCUST_WEB_HOST
+        value: "0.0.0.0"
+      - name: LOCUST_WEB_PORT
+        value: "8089"
+      - name: LOCUST_USERS
+        value: "10"
+      - name: LOCUST_SPAWN_RATE
+        value: "1"
+      - name: LOCUST_HOST
+        value: http://frontend-proxy:80
+      - name: LOCUST_HEADLESS
+        value: "false"
+      - name: LOCUST_AUTOSTART
+        value: "true"
+      - name: LOCUST_BROWSER_TRAFFIC_ENABLED
+        value: "false" # P0: HTTP thuần -> giảm RAM (browser traffic ăn ~1.2Gi ở 10 user)
+      - name: PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION
+        value: python
+      - name: FLAGD_HOST
+        value: flagd
+      - name: FLAGD_PORT
+        value: "8013"
+      - name: FLAGD_OFREP_PORT
+        value: "8016"
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://$(OTEL_COLLECTOR_NAME):4317
+    resources:
+      requests:
+        cpu: 200m # P0 right-size: giảm RAM để giải phóng cho app
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 500Mi     # P0 right-size: LOCUST_BROWSER_TRAFFIC_ENABLED=false -> HTTP thuần (PR#49, restore sau PR#106)
+  ml-guard:
+    # Self-hosted ML Guard v2 (ADR-015, MANDATE-06 §7.1): central async gRPC policy
+    # service — Presidio PII + ProtectAI prompt-injection classifier + mDeBERTa-xnli
+    # grounding NLI + Nova judge, called over gRPC by product-reviews/shopping-copilot
+    # (ML_GUARD_URL). Model load takes 25-90s -> startupProbe covers warm-up before
+    # readiness is checked; health chỉ SERVING sau khi model load xong.
+    # LƯU Ý v2: judge Nova gọi Bedrock TỪ ml-guard (v1 do 2 service gọi) -> env nào
+    # có Bedrock phải cấp egress-internet + BEDROCK_AWS_ROLE_ARN cho ml-guard
+    # (xem sandbox values-aio-llm.yaml); thiếu thì judge fail-open, chỉ còn regex+local ML.
+    enabled: true
+    serviceAccount:
+      create: true
+      annotations: {}
+      name: ml-guard
+    useDefault:
+      env: true
+    imageOverride:
+      tag: "1.0-ml-guard"
+    service:
+      port: 8090
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: techx-corp
+    startupProbe:
+      grpc: { port: 8090 }
+      periodSeconds: 5
+      failureThreshold: 24
+    readinessProbe:
+      grpc: { port: 8090 }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
+    livenessProbe:
+      grpc: { port: 8090 }
+      periodSeconds: 10
+      timeoutSeconds: 2
+      failureThreshold: 6
+    env:
+      - name: ML_GUARD_PORT
+        value: "8090"
+      # v2: các knob cascade chuyển từ 2 client service vào đây (server-side).
+      - name: LLM_LOCAL_ML_GUARD
+        value: "true"
+      # nova-lite cho grounding judge: eval 24/07 24/25 (micro 23/25 — trượt partial-
+      # entailment); judge chỉ chạy khi NLI phân vân nên delta cost nhỏ trong budget.
+      - name: LLM_JUDGE_MODEL
+        value: amazon.nova-lite-v1:0
+      - name: LLM_INJECTION_JUDGE_MODEL
+        value: amazon.nova-lite-v1:0
+    resources:
+      requests:
+        cpu: 400m
+        memory: 1536Mi
+      limits:
+        cpu: 2000m
+        memory: 2048Mi
+    hpa:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 2
+    podDisruptionBudget:
+      maxUnavailable: 1
+    topologySpread: true
+    # Mandate-13 (mở rộng sandbox spot, 27-07-2026): ml-guard là ứng viên spot lớn
+    # nhất về CPU (400m request), off money-path, gọi qua async gRPC với fail-open
+    # sẵn (regex+local ML khi Bedrock lỗi) — nhưng thiếu preStop nên request đang
+    # xử lý dở (model inference 25-90s warm-up, có thể lâu hơn cho 1 lần gọi) có
+    # thể bị cắt ngang khi Karpenter drain node spot/on-demand. Thêm cho khớp
+    # pattern các service khác.
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep: { seconds: 5 }
+  payment:
+    enabled: true
+    replicas: 2            # M17-R2: HA money-path
+    topologySpread: true   # M17-R2: trải pod ra ≥2 AZ
+    podDisruptionBudget:   # M17-R2: drain-az/rollout không hạ cả 2 pod cùng lúc
+      maxUnavailable: 1
+    imageOverride:
+      tag: "1.0-payment-ae89fa2" # incident 2026-07-16: tag tran bi ECR lifecycle xoa, image rebuild tu source
+    useDefault:
+      env: true
+    service:
+      port: 8080
+    # M17 deploy-safety: dependency luồng ra tiền — readiness gate + preStop sleep native + grace 30s. Fix rớt request khi drain/Karpenter consolidate.
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep:
+          seconds: 5
+    readinessProbe:
+      tcpSocket: { port: 8080 }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: techx-corp
+    env:
+      - name: PAYMENT_PORT
+        value: "8080"
+      - name: FLAGD_HOST
+        value: flagd
+      - name: FLAGD_PORT
+        value: "8013"
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://$(OTEL_COLLECTOR_NAME):4317
+      - name: IPV6_ENABLED
+        value: "false"
+      - name: KAFKA_ADDR
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: brokers_sasl_scram
+      - name: KAFKA_USER
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: username
+      - name: KAFKA_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: password
+      - name: KAFKA_TOPIC
+        value: "domain.checkout.orders"
+      - name: KAFKA_GROUP_ID
+        value: "payment"
+    resources:
+      requests:
+        cpu: 50m
+        memory: 96Mi
+      limits:
+        cpu: 100m
+        # 140Mi -> 256Mi: image fix-CVE (bump @opentelemetry/sdk-node 0.217 +
+        # auto-instrumentations-node 0.75) tăng heap Node.js -> OOMKilled (exit 137)
+        # CrashLoop -> endpoint payment rỗng -> checkout dial refused -> 504.
+        # Ngang tầm frontend (250Mi) cho service Node.js + OTel mới.
+        memory: 256Mi
+    initContainers:
+      - name: wait-for-kafka
+        image: busybox:1.38.0
+        env:
+          - name: KAFKA_ADDR
+            valueFrom:
+              secretKeyRef:
+                name: msk-secret
+                key: brokers_sasl_scram
+        command:
+          - sh
+          - -c
+          - |
+            broker=$(echo "$KAFKA_ADDR" | cut -d, -f1)
+            host=${broker%:*}; port=${broker##*:}
+            until nc -z -v -w30 "$host" "$port"; do echo waiting for kafka; sleep 2; done
+        securityContext:
+          runAsUser: 1000
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 50m
+            memory: 32Mi
+    securityContext:
+      runAsUser: 1000 # node
+      runAsGroup: 1000
+      runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+
+  product-catalog:
+    enabled: true
+    serviceAccount:
+      create: true
+      annotations: {}
+      name: product-catalog
+    imageOverride:
+      tag: "1.1-product-catalog" # CDO-80: image mới có gRPC health tách liveness/readiness
+    useDefault:
+      env: true
+    service:
+      port: 8080
+    # --- Reliability (CDO-34/80/29) ---
+    podDisruptionBudget:
+      maxUnavailable: 1
+    topologySpread: true
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep: { seconds: 5 }   # M17: sleep native (K8s>=1.29) thay exec /bin/sh — image distroless không có shell → exec fail (FailedPreStopHook).
+    deploymentStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 0
+        maxSurge: 1
+    startupProbe: # Go + chờ Postgres (~120s)
+      grpc: { port: 8080, service: "readiness" }
+      periodSeconds: 5
+      timeoutSeconds: 5
+      failureThreshold: 24
+    readinessProbe:
+      grpc: { port: 8080, service: "readiness" }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
+    livenessProbe:
+      grpc: { port: 8080, service: "liveness" }
+      periodSeconds: 10
+      timeoutSeconds: 2
+      failureThreshold: 6
+    annotations:
+      reloader.stakater.com/auto: "true"
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: techx-corp
+    env:
+      - name: PRODUCT_CATALOG_PORT
+        value: "8080"
+      - name: FLAGD_HOST
+        value: flagd
+      - name: FLAGD_PORT
+        value: "8013"
+      - name: GOMEMLIMIT
+        value: 96MiB # P0 right-size: nâng cùng limit để Go dùng được RAM mới
+      - name: DB_CONNECTION_STRING
+        valueFrom:
+          secretKeyRef:
+            name: db-secret
+            key: catalog-db-conn
+      # CDO-TBD2: dual_read = COALESCE(image_url, picture); set read_new after backfill
+      # and BEFORE DROP COLUMN picture (contract). Greenfield init.sql uses image_url only → read_new.
+      - name: CATALOG_SCHEMA_PHASE
+        value: "dual_read"
+      - name: OTEL_SEMCONV_STABILITY_OPT_IN
+        value: database
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://$(OTEL_COLLECTOR_NAME):4317
+    resources:
+      requests:
+        cpu: 100m # CDO-42: read-heavy (mọi browse gọi tới) -> bottleneck -> HPA
+        memory: 32Mi # P0 right-size: OOMKilled 4 lần, Go runtime
+      limits:
+        cpu: 200m
+        memory: 128Mi # >= request 32Mi; đầu headroom cho Go runtime sau 4 lần OOMKill
+    hpa:
+      enabled: true
+      minReplicas: 2 # có PDB (CDO-34) -> min>=2, tránh INC-2 khi node consolidate
+      maxReplicas: 6 # read-heavy bottleneck dưới flash-sale
+
+  product-reviews:
+    enabled: true
+    useDefault:
+      env: true
+    serviceAccount:
+      create: true
+      annotations: {}
+      name: product-reviews
+    service:
+      port: 3551
+    annotations:
+      reloader.stakater.com/auto: "true"
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: techx-corp
+    podDisruptionBudget:
+      maxUnavailable: 1
+    topologySpread: true
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep: { seconds: 5 }   # M17: sleep native (K8s>=1.29) thay exec /bin/sh — image distroless không có shell → exec fail (FailedPreStopHook).
+    deploymentStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 0
+        maxSurge: 1
+    env:
+      - name: OPENAI_API_KEY
+        value: dummy
+      - name: AWS_REGION
+        value: us-east-1
+      - name: AWS_BEDROCK_MODEL
+        value: amazon.nova-lite-v1:0
+      - name: LLM_REVIEWS_TIMEOUT
+        value: "2.6"
+      - name: LLM_REVIEWS_FALLBACK_TIMEOUT
+        value: "2.3"
+      - name: LLM_HOST
+        value: llm
+      - name: LLM_PORT
+        value: "8000"
+      - name: PRODUCT_REVIEWS_PORT
+        value: "3551"
+      - name: PRODUCT_CATALOG_ADDR
+        value: product-catalog:8080
+      - name: FLAGD_HOST
+        value: flagd
+      - name: FLAGD_PORT
+        value: "8013"
+      - name: DB_CONNECTION_STRING
+        valueFrom:
+          secretKeyRef:
+            name: db-secret
+            key: reviews-db-conn
+      - name: PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION
+        value: python
+      - name: OTEL_PYTHON_LOG_CORRELATION
+        value: "true"
+      - name: OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT
+        value: "true"
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://$(OTEL_COLLECTOR_NAME):4317
+      - name: VALKEY_ADDR
+        valueFrom:
+          secretKeyRef:
+            name: valkey-secret
+            key: address
+      - name: VALKEY_TLS
+        value: "true"
+      - name: VALKEY_AUTH_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: valkey-secret
+            key: auth_token
+      - name: ML_GUARD_URL
+        value: ml-guard:8090
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    hpa:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 4
+
+  quote:
+    enabled: true
+    useDefault:
+      env: true
+    service:
+      port: 8080
+    # M17 deploy-safety: dependency luồng ra tiền (shipping→quote) — readiness gate + preStop sleep native + grace 30s. Fix rớt request khi drain/Karpenter consolidate.
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep:
+          seconds: 5
+    readinessProbe:
+      tcpSocket: { port: 8080 }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: techx-corp
+    env:
+      - name: QUOTE_PORT
+        value: "8080"
+      - name: OTEL_PHP_AUTOLOAD_ENABLED
+        value: "true"
+      - name: OTEL_PHP_INTERNAL_METRICS_ENABLED
+        value: "true"
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://$(OTEL_COLLECTOR_NAME):4318
+      - name: IPV6_ENABLED
+        value: "false"
+    resources:
+      requests:
+        cpu: 50m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi     # P0 right-size (PR#49, restore sau PR#106)
+    securityContext:
+      runAsUser: 33 # www-data
+      runAsGroup: 33
+      runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+
+  recommendation:
+    enabled: true
+    useDefault:
+      env: true
+    service:
+      port: 8080
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: techx-corp
+    env:
+      - name: RECOMMENDATION_PORT
+        value: "8080"
+      - name: PRODUCT_CATALOG_ADDR
+        value: product-catalog:8080
+      - name: OTEL_PYTHON_LOG_CORRELATION
+        value: "true"
+      - name: PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION
+        value: python
+      - name: FLAGD_HOST
+        value: flagd
+      - name: FLAGD_PORT
+        value: "8013"
+      - name: DB_CONNECTION_STRING
+        valueFrom:
+          secretKeyRef:
+            name: db-secret
+            key: catalog-db-conn
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://$(OTEL_COLLECTOR_NAME):4317
+    resources:
+      requests:
+        cpu: 100m # CDO-42: gọi mỗi lần render trang -> HPA
+        memory: 128Mi # Mandate 5: bắt buộc đủ 4 field requests/limits
+      limits:
+        cpu: 200m # Mandate 5: bắt buộc đủ 4 field requests/limits
+        memory: 500Mi # This is high to enable supporting the recommendationCache feature flag use case
+    topologySpread: true   # M17-R2: trải pod ra ≥2 AZ (browse-path SLO)
+    podDisruptionBudget:   # M17-R2: drain-az không hạ cả 2 pod cùng lúc
+      maxUnavailable: 1
+    # Mandate-13 (mở rộng sandbox, 27-07-2026): recommendation được thêm vào
+    # NodePool spot của sandbox (platform/gitops/environments/sandbox/
+    # values-application.yaml) — cần preStop/grace trước khi nhận toleration
+    # spot, cùng lý do với payment/currency: Karpenter consolidate hoặc spot
+    # interruption drain node bất kỳ lúc nào, không có sleep native thì
+    # Envoy/kube-proxy chưa kịp gỡ IP pod khỏi Service endpoints đã bị SIGTERM,
+    # gây rớt request browse đang gọi recommendation.
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep:
+          seconds: 5
+    hpa:
+      enabled: true
+      minReplicas: 2       # M17-R2: HA, mất 1 AZ vẫn còn pod (tăng từ 1)
+      maxReplicas: 4
+
+  shopping-copilot:
+    enabled: true
+    replicas: 1 # confirmation tokens/session history are in-memory; keep single pod until Valkey-backed.
+    useDefault:
+      env: true
+    # Dockerfile dùng `USER copilot` (tên chữ, useradd -u 10001) -> kubelet không
+    # verify được runAsNonRoot với user không phải UID số -> CreateContainerConfigError.
+    # Khai UID số ở đây; giữ nguyên các field còn lại của default securityContext
+    # vì component-level securityContext THAY THẾ default, không merge.
+    securityContext:
+      runAsUser: 10001
+      runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+    imageOverride:
+      tag: "1.0-shopping-copilot"
+    serviceAccount:
+      create: true
+      annotations: {}
+      name: shopping-copilot
+    service:
+      port: 50051
+    startupProbe:
+      grpc: { port: 50051 }
+      periodSeconds: 5
+      failureThreshold: 24
+    readinessProbe:
+      grpc: { port: 50051 }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
+    livenessProbe:
+      grpc: { port: 50051 }
+      periodSeconds: 10
+      timeoutSeconds: 2
+      failureThreshold: 6
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: techx-corp
+    env:
+      - name: SHOPPING_COPILOT_PORT
+        value: "50051"
+      - name: LLM_HOST
+        value: llm
+      - name: LLM_PORT
+        value: "8000"
+      - name: LLM_BASE_URL
+        value: http://$(LLM_HOST):$(LLM_PORT)/v1
+      - name: LLM_MODEL
+        value: techx-llm
+      - name: OPENAI_API_KEY
+        value: dummy
+      - name: AWS_REGION
+        value: us-east-1
+      - name: LLM_COPILOT_MAIN_MODEL
+        value: amazon.nova-pro-v1:0
+      - name: LLM_COPILOT_FALLBACK_MODEL
+        value: amazon.nova-lite-v1:0
+      - name: LLM_COPILOT_TIMEOUT
+        value: "6.9"
+      - name: LLM_COPILOT_FALLBACK_TIMEOUT
+        value: "2.7"
+      - name: PRODUCT_CATALOG_ADDR
+        value: product-catalog:8080
+      - name: CART_ADDR
+        value: cart:8080
+      - name: CART_SERVICE_ADDR
+        value: cart:8080
+      - name: PRODUCT_REVIEWS_ADDR
+        value: product-reviews:3551
+      - name: FLAGD_HOST
+        value: flagd
+      - name: FLAGD_PORT
+        value: "8013"
+      - name: PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION
+        value: python
+      - name: OTEL_PYTHON_LOG_CORRELATION
+        value: "true"
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://$(OTEL_COLLECTOR_NAME):4317
+      - name: ML_GUARD_URL
+        value: ml-guard:8090
+      # MANDATE-23 — cache + memory. Cùng MỘT đường code với local: local trỏ
+      # valkey-cart không TLS, prod trỏ ElastiCache TLS + auth token; chỉ khác giá trị
+      # env. CHƯA APPLY lên cluster (vòng này chốt ở local) — apply phải kèm bước
+      # migration docs/ai/migrations/m23_ai_schema.sql cho user_memory.
+      - name: VALKEY_ADDR
+        valueFrom:
+          secretKeyRef:
+            name: valkey-secret
+            key: address
+      - name: VALKEY_TLS
+        value: "true"
+      - name: VALKEY_AUTH_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: valkey-secret
+            key: auth_token
+      # Long-term memory remains in Postgres; L2 semantic cache uses Valkey Search
+      # on ElastiCache Valkey 8.2. Cache eviction is acceptable for L2.
+      - name: DB_CONNECTION_STRING
+        valueFrom:
+          secretKeyRef:
+            name: db-secret
+            key: reviews-db-conn
+      - name: SEMANTIC_CACHE_ENABLED
+        value: "true"
+      # 0.85 do sweep đo mà ra, kèm rule-guard pb/semantic_guard.py — không phải số
+      # chọn theo cảm tính. Bảng đầy đủ: docs/ai/evals/param_sweep_m23.md
+      - name: SEMANTIC_CACHE_MIN_SIM
+        value: "0.85"
+      - name: COPILOT_CACHE_TTL
+        value: "3600"
+      - name: COPILOT_SESSION_TTL
+        value: "3600"
+      - name: COPILOT_MAX_SESSION_MESSAGES
+        value: "20"
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 100Mi
+  shipping:
+    enabled: true
+    replicas: 2            # M17-R2: HA money-path
+    topologySpread: true   # M17-R2: trải pod ra ≥2 AZ
+    podDisruptionBudget:   # M17-R2: drain-az/rollout không hạ cả 2 pod cùng lúc
+      maxUnavailable: 1
+    useDefault:
+      env: true
+    service:
+      port: 8080
+    # M17 deploy-safety: dependency luồng ra tiền — readiness gate + preStop sleep native + grace 30s. Fix rớt request khi drain/Karpenter consolidate.
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep:
+          seconds: 5
+    readinessProbe:
+      tcpSocket: { port: 8080 }
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 3
+      successThreshold: 1
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: techx-corp
+    env:
+      - name: SHIPPING_PORT
+        value: "8080"
+      - name: QUOTE_ADDR
+        value: http://quote:8080
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://$(OTEL_COLLECTOR_NAME):4317
+      - name: IPV6_ENABLED
+        value: "false"
+      - name: KAFKA_ADDR
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: brokers_sasl_scram
+      - name: KAFKA_USER
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: username
+      - name: KAFKA_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: msk-secret
+            key: password
+      - name: KAFKA_TOPIC
+        value: "domain.checkout.orders"
+      - name: KAFKA_GROUP_ID
+        value: "shipping"
+    resources:
+      requests:
+        cpu: 50m # P0 right-size: limit cũ 20Mi quá thấp
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 96Mi # >= request 32Mi
+    initContainers:
+      - name: wait-for-kafka
+        image: busybox:1.38.0
+        env:
+          - name: KAFKA_ADDR
+            valueFrom:
+              secretKeyRef:
+                name: msk-secret
+                key: brokers_sasl_scram
+        command:
+          - sh
+          - -c
+          - |
+            broker=$(echo "$KAFKA_ADDR" | cut -d, -f1)
+            host=${broker%:*}; port=${broker##*:}
+            until nc -z -v -w30 "$host" "$port"; do echo waiting for kafka; sleep 2; done
+        securityContext:
+          runAsUser: 1000
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 50m
+            memory: 32Mi
+  flagd:
+    enabled: true
+    imageOverride:
+      repository: "ghcr.io/open-feature/flagd"
+      tag: "v0.12.9"
+    useDefault:
+      env: true
+    replicas: 1
+    ports:
+      - name: rpc
+        value: 8013
+      - name: ofrep
+        value: 8016
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: techx-corp
+    env:
+      - name: FLAGD_METRICS_EXPORTER
+        value: otel
+      - name: FLAGD_OTEL_COLLECTOR_URI
+        value: $(OTEL_COLLECTOR_NAME):4317
+      - name: GOMEMLIMIT
+        value: 60MiB
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 75Mi
+    command:
+      - "/flagd-build"
+      - "start"
+      - "--port"
+      - "8013"
+      - "--ofrep-port"
+      - "8016"
+      - "--uri"
+      - "file:./etc/flagd/demo.flagd.json"
+    mountedEmptyDirs:
+      - name: config-rw
+        mountPath: /etc/flagd
+    # flagd-ui as a sidecar container in the same pod so the flag json file can be shared
+    sidecarContainers:
+      - name: flagd-ui
+        useDefault:
+          env: true
+        service:
+          port: 4000
+        env:
+          - name: FLAGD_METRICS_EXPORTER
+            value: otel
+          - name: OTEL_EXPORTER_OTLP_ENDPOINT
+            value: http://$(OTEL_COLLECTOR_NAME):4318
+          - name: FLAGD_UI_PORT
+            value: "4000"
+          - name: SECRET_KEY_BASE
+            value: yYrECL4qbNwleYInGJYvVnSkwJuSQJ4ijPTx5tirGUXrbznFIBFVJdPl5t6O9ASw
+          - name: PHX_HOST
+            value: localhost
+        # VAP require-resources (cluster develop) bắt đủ CPU/Mem requests+limits;
+        # flagd-ui là container duy nhất trong chart còn thiếu.
+        resources:
+          requests:
+            cpu: 25m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 250Mi
+        volumeMounts:
+          - name: config-rw
+            mountPath: /app/data
+    initContainers:
+      - name: init-config
+        image: busybox:1.38.0 # Pinned: was untagged (defaults to :latest).
+        command:
+          [
+            "sh",
+            "-c",
+            "cp /config-ro/demo.flagd.json /config-rw/demo.flagd.json && cat /config-rw/demo.flagd.json",
+          ]
+        securityContext:
+          runAsUser: 1000
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+        resources:
+          requests:
+            cpu: 10m
+            memory: 16Mi
+          limits:
+            cpu: 50m
+            memory: 32Mi
+        volumeMounts:
+          - mountPath: /config-ro
+            name: config-ro
+          - mountPath: /config-rw
+            name: config-rw
+    additionalVolumes:
+      - name: config-ro
+        configMap:
+          name: flagd-config
+
+  kafka:
+    enabled: false
+    useDefault:
+      env: true
+    replicas: 1
+    ports:
+      - name: plaintext
+        value: 9092
+      - name: controller
+        value: 9093
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: techx-corp
+    env:
+      - name: KAFKA_ADVERTISED_LISTENERS
+        value: PLAINTEXT://kafka:9092
+      - name: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://$(OTEL_COLLECTOR_NAME):4318
+      - name: KAFKA_HEAP_OPTS
+        value: "-Xmx400M -Xms400M"
+      - name: KAFKA_LISTENERS
+        value: PLAINTEXT://:9092,CONTROLLER://:9093
+      - name: KAFKA_CONTROLLER_LISTENER_NAMES
+        value: CONTROLLER
+      - name: KAFKA_CONTROLLER_QUORUM_VOTERS
+        value: 1@kafka:9093
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 100Mi
+    securityContext:
+      runAsUser: 1000 # appuser
+      runAsGroup: 1000
+      runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+
+  llm:
+    enabled: true
+    useDefault:
+      env: true
+    service:
+      port: 8000
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: techx-corp
+    # Mandate-13 (mở rộng sandbox spot, 27-07-2026): ứng viên spot mới. Caller
+    # (product-reviews) đã có timeout + fallback riêng cho llm (LLM_REVIEWS_TIMEOUT/
+    # LLM_REVIEWS_FALLBACK_TIMEOUT) nên chịu được llm gián đoạn ngắn — nhưng bản thân
+    # llm trước đây replicas mặc định=1, không PDB/grace. Bump 2 + đủ bộ graceful-drain
+    # trước khi cho vào NodePool spot (values-application.yaml sandbox).
+    replicas: 2
+    topologySpread: true
+    podDisruptionBudget:
+      maxUnavailable: 1
+    terminationGracePeriodSeconds: 30
+    lifecycle:
+      preStop:
+        sleep: { seconds: 5 }
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  postgresql:
+    enabled: false
+    useDefault:
+      env: false
+    imageOverride:
+      repository: "postgres"
+      tag: "17.6"
+    replicas: 1
+    service:
+      port: 5432
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: techx-corp
+      io.opentelemetry.discovery.metrics/enabled: "true"
+      io.opentelemetry.discovery.metrics/scraper: postgresql
+      io.opentelemetry.discovery.metrics/config: |
+        username: root
+        password: otel
+        metrics:
+          postgresql.blks_hit:
+            enabled: true
+          postgresql.blks_read:
+            enabled: true
+          postgresql.tup_fetched:
+            enabled: true
+          postgresql.tup_returned:
+            enabled: true
+          postgresql.tup_inserted:
+            enabled: true
+          postgresql.tup_updated:
+            enabled: true
+          postgresql.tup_deleted:
+            enabled: true
+          postgresql.deadlocks:
+            enabled: true
+        tls:
+          insecure: true
+    env:
+      - name: POSTGRES_USER
+        value: root
+      - name: POSTGRES_PASSWORD
+        value: otel
+      - name: POSTGRES_DB
+        value: otel
+    mountedConfigMaps:
+      - name: postgresql-init
+        mountPath: /docker-entrypoint-initdb.d
+        existingConfigMap: postgresql-init
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 100Mi
+  valkey-cart:
+    enabled: false
+    useDefault:
+      env: false
+    imageOverride:
+      repository: "valkey/valkey"
+      tag: "9.0.1-alpine3.23"
+    replicas: 1
+    command:
+      - valkey-server
+      - --maxmemory-policy
+      - volatile-lru
+    ports:
+      - name: valkey-cart
+        value: 6379
+    podAnnotations:
+      resource.opentelemetry.io/service.namespace: techx-corp
+      io.opentelemetry.discovery.metrics/enabled: "true"
+      io.opentelemetry.discovery.metrics/scraper: redis
+      io.opentelemetry.discovery.metrics/config: |
+        username: valkey
+        collection_interval: 10s
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 100Mi
+    securityContext:
+      runAsUser: 999 # valkey
+      runAsGroup: 1000
+      runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+
+observabilityStorage:
+  enabled: false
+  name: gp3-observability
+  reclaimPolicy: Retain
+  volumeBindingMode: WaitForFirstConsumer
+  allowVolumeExpansion: true
+  parameters:
+    type: gp3
+    encrypted: "true"
+
+opentelemetry-collector:
+  enabled: true
+  image:
+    repository: "otel/opentelemetry-collector-contrib"
+  fullnameOverride: otel-collector
+  mode: daemonset
+  presets:
+    hostMetrics:
+      enabled: true
+    kubernetesAttributes:
+      enabled: true
+    kubeletMetrics:
+      enabled: true
+    clusterMetrics:
+      enabled: true
+    annotationDiscovery:
+      metrics:
+        enabled: true
+  resources:
+    limits:
+      memory: 200Mi
+  service:
+    enabled: true
+  ports:
+    metrics:
+      enabled: true
+  config:
+    receivers:
+      otlp:
+        protocols:
+          http:
+            # Since this collector needs to receive data from the web, enable cors for all origins
+            # `allowed_origins` can be refined for your deployment domain
+            cors:
+              allowed_origins:
+                - "http://*"
+                - "https://*"
+      kafkametrics:
+        scrapers:
+          - brokers
+          - topics
+          - consumers
+        brokers:
+          - kafka:9092
+        collection_interval: 10s
+    exporters:
+      otlp/jaeger:
+        endpoint: jaeger:4317
+        tls:
+          insecure: true
+        sending_queue:
+          batch: {}
+      otlphttp/prometheus:
+        endpoint: http://prometheus:9090/api/v1/otlp
+        tls:
+          insecure: true
+        sending_queue:
+          batch: {}
+      opensearch:
+        logs_index: otel-logs
+        logs_index_time_format: "yyyy-MM-dd"
+        http:
+          endpoint: http://opensearch:9200
+          tls:
+            insecure: true
+
+    processors:
+      memory_limiter:
+        check_interval: 5s
+        limit_percentage: 80
+        spike_limit_percentage: 25
+      resourcedetection:
+        detectors: [env, system]
+      transform:
+        error_mode: ignore
+        trace_statements:
+          # Sanitize spans to prevent span metrics cardinality explosion
+          # caused by non-compliant high cardinality span names:
+          # 1. Define missing http.route on key HTTP operations for meaningful operation names
+          # 2. Then normalize span names; http server spans lacking http.route default to operations "GET", "POST", etc.
+          - context: span
+            # FRONTEND SERVICE
+            conditions:
+              - span.kind == SPAN_KIND_SERVER and resource.attributes["service.name"] == "frontend" and span.attributes["http.route"] == nil
+            statements:
+              # Workaround for Next.js high cardinality span name issue: https://github.com/vercel/next.js/issues/54694
+              - set(span.attributes["http.route"], "/api/cart") where IsMatch(span.attributes["http.target"], "\\/api\\/cart") # e.g. # /api/cart
+              - set(span.attributes["http.route"], "/api/checkout") where IsMatch(span.attributes["http.target"], "\\/api\\/checkout") # e.g. # /api/checkout
+              - set(span.attributes["http.route"], "/api/products/{productId}") where IsMatch(span.attributes["http.target"], "\\/api\\/products\\/.*") # e.g. /api/products/1YMWWN1N4O
+              - set(span.attributes["http.route"], "/api/recommendations") where IsMatch(span.attributes["http.target"], "\\/api\\/recommendations") # e.g. # /api/recommendations?productIds=...
+              - set(span.attributes["http.route"], "/api/data") where IsMatch(span.attributes["http.target"], "\\/api\\/data.*") # e.g. # " /api/data?contextKeys=telescopes" or /api/data/?contextKeys=cameras
+          - context: span
+            statements:
+              # SANITIZE ALL SPAN NAMES TO PREVENT CARDINALITY EXPLOSION
+              - set_semconv_span_name("1.37.0", "unsanitized_span_name")
+      resource:
+        attributes:
+          - key: service.instance.id
+            from_attribute: k8s.pod.uid
+            action: insert
+
+    connectors:
+      spanmetrics: {}
+
+    service:
+      pipelines:
+        traces:
+          processors:
+            [memory_limiter, resourcedetection, resource, transform, batch]
+          exporters: [otlp/jaeger, debug, spanmetrics]
+        metrics:
+          receivers: [otlp, kafkametrics, spanmetrics]
+          processors: [memory_limiter, resourcedetection, resource, batch]
+          exporters: [otlphttp/prometheus, debug]
+        logs:
+          processors: [memory_limiter, resourcedetection, resource, batch]
+          exporters: [opensearch, debug]
+      telemetry:
+        metrics:
+          level: detailed
+          readers:
+            - periodic:
+                interval: 10000
+                timeout: 5000
+                exporter:
+                  otlp:
+                    protocol: http/protobuf
+                    endpoint: http://otel-collector:4318
+                    insecure: true
+
+jaeger:
+  enabled: true
+  fullnameOverride: jaeger
+  jaeger:
+    storage:
+      type: memory
+    extraEnv:
+      - name: MEMORY_MAX_TRACES
+        value: "25000"
+      - name: PROMETHEUS_ADDR
+        value: prometheus:9090
+      - name: OTEL_COLLECTOR_HOST
+        value: otel-collector
+      - name: OTEL_COLLECTOR_PORT_HTTP
+        value: "4318"
+      - name: JAEGER_HOST
+        value: "0.0.0.0"
+      - name: JAEGER_GRPC_PORT
+        value: "4317"
+    resources:
+      requests:
+        cpu: 100m # P0 right-size: memory storage phình
+        memory: 256Mi
+      limits:
+        cpu: 200m
+        memory: 1Gi       # PR#49 restore; limit cũ 100Mi < request 256Mi -> spec invalid, K8s reject
+  userconfig:
+    service:
+      extensions: [jaeger_storage, jaeger_query, healthcheckv2]
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [jaeger_storage_exporter]
+      telemetry:
+        resource:
+          service.name: jaeger
+        metrics:
+          level: detailed
+          readers:
+            - periodic:
+                interval: 10000
+                timeout: 5000
+                exporter:
+                  otlp:
+                    protocol: http/protobuf
+                    endpoint: http://${env:OTEL_COLLECTOR_HOST}:${env:OTEL_COLLECTOR_PORT_HTTP}
+                    insecure: true
+        logs:
+          level: info
+    extensions:
+      healthcheckv2:
+        use_v2: true
+        http:
+          endpoint: 0.0.0.0:13133
+      jaeger_query:
+        storage:
+          traces: memory_backend
+          metrics: metrics_backend
+        base_path: /jaeger/ui
+      jaeger_storage:
+        backends:
+          memory_backend:
+            memory:
+              max_traces: ${env:MEMORY_MAX_TRACES}
+        metric_backends:
+          metrics_backend:
+            prometheus:
+              endpoint: "http://${env:PROMETHEUS_ADDR}"
+              normalize_calls: true
+              normalize_duration: true
+
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: ${env:JAEGER_HOST}:${env:JAEGER_GRPC_PORT}
+
+    processors:
+      batch: {}
+
+    exporters:
+      jaeger_storage_exporter:
+        trace_storage: memory_backend
+
+prometheus:
+  enabled: true
+  alertmanager:
+    enabled: false
+  configmapReload:
+    prometheus:
+      enabled: false
+  kube-state-metrics:
+    # Required by the Kubernetes scaling dashboard (Deployment/HPA/Pod/Node state).
+    enabled: true
+  prometheus-node-exporter:
+    enabled: false
+  prometheus-pushgateway:
+    enabled: false
+  server:
+    fullnameOverride: prometheus
+    extraFlags:
+      - "enable-feature=exemplar-storage"
+      - "web.enable-otlp-receiver"
+    retention: 7d
+    tsdb:
+      out_of_order_time_window: 30m
+    otlp:
+      keep_identifying_resource_attributes: true
+      # Recommended attributes to be promoted to labels.
+      promote_resource_attributes:
+        - service.instance.id
+        - service.name
+        - service.namespace
+        - service.version
+        - cloud.availability_zone
+        - cloud.region
+        - deployment.environment.name
+        # When deploying on Kubernetes, resource attributes used to identify the
+        # kubernetes resources in dashboards and alerts.
+        - k8s.cluster.name
+        - k8s.container.name
+        - k8s.cronjob.name
+        - k8s.daemonset.name
+        - k8s.deployment.name
+        - k8s.job.name
+        - k8s.namespace.name
+        - k8s.node.name
+        - k8s.pod.name
+        - k8s.replicaset.name
+        - k8s.statefulset.name
+        - container.name
+        # When deploying on VMs, resource attributes used to identify
+        # the host in dashboards and alerts.
+        - host.name
+        # PostgreSQL resource attributes produced by the OTel Collector PostgreSQL receiver
+        # and used in dashboards and alerts.
+        # See https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/receiver/postgresqlreceiver/metadata.yaml
+        - postgresql.database.name
+        - postgresql.schema.name
+        - postgresql.table.name
+        - postgresql.index.name
+    persistentVolume:
+      enabled: false
+    service:
+      servicePort: 9090
+    # Right-size theo usage đo thực tế (~1Gi, retention 7d): request thấp giả tạo
+    # làm scheduler binpack cả obs stack lên 1 node -> node 96% mem, chết chùm.
+    resources:
+      requests:
+        cpu: 100m
+        memory: 1200Mi
+      limits:
+        cpu: 500m
+        memory: 1500Mi
+grafana:
+  enabled: true
+  fullnameOverride: grafana
+  testFramework:
+    enabled: false
+  grafana.ini:
+    auth:
+      disable_login_form: true
+    auth.anonymous:
+      enabled: true
+      org_name: Main Org.
+      org_role: Admin
+    server:
+      root_url: "%(protocol)s://%(domain)s:%(http_port)s/grafana"
+      serve_from_sub_path: true
+  adminPassword: admin
+  podLabels:
+    egress-internet: "true"
+  plugins:
+    - grafana-opensearch-datasource
+  sidecar:
+    alerts:
+      enabled: true
+    dashboards:
+      enabled: true
+    datasources:
+      enabled: true
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 100Mi
+  resources:
+    requests:
+      cpu: 50m
+      memory: 384Mi     # usage đo ~418Mi; request thật để scheduler không binpack
+    limits:
+      memory: 512Mi
+
+opensearch:
+  enabled: true
+  fullnameOverride: opensearch
+  # The chart appends "-headless" to masterService for discovery.seed_hosts.
+  # Keep this aligned with fullnameOverride; the chart default
+  # "opensearch-cluster-master" points at a Service that does not exist.
+  masterService: opensearch
+  clusterName: demo-cluster
+  nodeGroup: techx-corp
+  singleNode: true
+  opensearchJavaOpts: "-Xms400m -Xmx400m"
+  persistence:
+    enabled: false
+  extraEnvs:
+    - name: "bootstrap.memory_lock"
+      value: "true"
+    - name: "DISABLE_INSTALL_DEMO_CONFIG"
+      value: "true"
+    - name: "DISABLE_SECURITY_PLUGIN"
+      value: "true"
+  # CDO-42 fix: opensearch chart mặc định requests.cpu=1 nhưng KHÔNG khai limits.cpu.
+  # LimitRange (default cpu 200m) tự bơm limit=200m < request=1 -> Pod invalid (FailedCreate).
+  # Khai tường minh cpu request/limit (nằm trong LimitRange max cpu "2") để không bị clamp.
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi     # node obs t3.medium 3.9Gi: request 1Gi làm tổng vượt node -> Pending.
+                        # Right-size thật cần resize node (terraform EKS module) - xem follow-up.
+    limits:
+      cpu: "1"
+      memory: 1100Mi
+
+# Finite retention for application telemetry only. This policy never matches
+# AWS audit/security log groups, which retain their independent CloudWatch/S3
+# lifecycle controls. The PostSync job is idempotent and also attaches the
+# policy to pre-existing unmanaged otel-logs-* indices.
+telemetryRetention:
+  enabled: false
+  policyId: otel-logs-retention
+  indexPattern: "otel-logs-*"
+  minIndexAge: 3d
+  image: curlimages/curl:8.9.1
+
+externalSecrets:
+  enabled: false

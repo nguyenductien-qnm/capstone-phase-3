@@ -1,0 +1,77 @@
+# CI-managed image tags — CHỈ CI (app-build.yaml) ghi file này, KHÔNG sửa tay.
+# Tách khỏi values.yaml gốc để bump tag không reformat/phá comment của chart.
+# Load SAU values.yaml (helm -f cuối cùng thắng) -> override imageOverride.tag.
+# Tag convention: <version>-<service>-<sha>. ArgoCD selfHeal sync khi file này đổi.
+#
+# TẠM NGƯNG (29/07/2026): cụm develop đã destroy sau sự cố AWS credits, chỉ còn MỘT
+# môi trường. app-build.yaml (env TAGS_FILE) nay bump THẲNG vào file này; hai bước
+# app-attest + app-promote tạm ngưng, KHÔNG còn PR promote nào ghi vào đây nữa.
+# Ghi chú "chi doi qua promote PR" ở khối cart bên dưới là trạng thái CŨ, giữ lại
+# để truy vết. Dựng lại môi trường thứ hai thì khôi phục đường promote trước.
+components:
+  cart:
+    imageOverride:
+      # Sua tay 1 lan (incident 2026-07-16): tag tran "1.1-cart" bi ECR lifecycle
+      # policy xoa -> ImagePullBackOff; image rebuild tu source, push tag sha.
+      # Tags file prod chi doi qua promote PR (CI khong bump thang vao sandbox).
+      tag: "1.0-cart-aaa392b"
+  cart-consumer-worker:
+    imageOverride:
+      tag: "1.0-cart-aaa392b"
+  checkout:
+    imageOverride:
+      tag: "1.0-checkout-aaa392b"
+  frontend-proxy:
+    imageOverride:
+      tag: "1.0-frontend-proxy-5b99f29"
+  product-catalog:
+    imageOverride:
+      tag: "1.0-product-catalog-aaa392b"
+  ad:
+    imageOverride:
+      tag: 1.0-ad-5b99f29
+  currency:
+    imageOverride:
+      tag: 1.0-currency-aaa392b
+  accounting:
+    imageOverride:
+      tag: 1.0-accounting-5b99f29
+  product-reviews:
+    imageOverride:
+      tag: 1.0-product-reviews-aaa392b
+  llm:
+    imageOverride:
+      tag: 1.0-llm-5b99f29
+  load-generator:
+    imageOverride:
+      tag: 1.0-load-generator-5b99f29
+  quote:
+    imageOverride:
+      tag: 1.0-quote-5b99f29
+  recommendation:
+    imageOverride:
+      tag: 1.0-recommendation-aaa392b
+  shipping:
+    imageOverride:
+      tag: 1.0-shipping-5b99f29
+  shopping-copilot:
+    imageOverride:
+      tag: 1.0-shopping-copilot-aaa392b
+  ml-guard:
+    imageOverride:
+      tag: 1.0-ml-guard-aaa392b
+  fraud-detection:
+    imageOverride:
+      tag: 1.0-fraud-detection-9ef67dd
+  frontend:
+    imageOverride:
+      tag: 1.0-frontend-9ef67dd
+  image-provider:
+    imageOverride:
+      tag: 1.0-image-provider-5b99f29
+  payment:
+    imageOverride:
+      tag: 1.0-payment-9ef67dd
+  email:
+    imageOverride:
+      tag: 1.0-email-aaa392b

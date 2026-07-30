@@ -1,0 +1,48 @@
+{
+  "id": "case-masking-001",
+  "type": "masking",
+  "description": "MANDATE-15 masking case, ban cho EKS. Hai su co RIENG BIET tren CUNG rule+service (service-error-rate-high / frontend) nen chung dung MOT xo metric_history trong detector.py — dung cho xo bi nhiem doc. Su co 1 la gian doan lon (ti le ~0.28, tang TINH keu). Su co 2, ~9 phut sau, NHO HON nhieu va co y nam trong khoang (0.05, 0.10): TREN cong SLO nhung DUOI nguong tinh, tuc CHI tang 3-sigma bat duoc. Neu su co 1 keo mean/std len thi su co 2 bi che va ca nay FAIL. Xem report/mandate15/calibration.md de biet vi sao chon frontend + 60s.",
+  "settle_seconds": 300,
+  "events": [
+    {
+      "label": "noise-spike",
+      "service": "frontend",
+      "expected_rule_ids": [
+        "service-error-rate-high"
+      ],
+      "expect_fire": true,
+      "offset_seconds": 0,
+      "duration_seconds": 360,
+      "inject": {
+        "type": "command",
+        "on": "kubectl scale deploy/cart -n techx-tf1 --replicas=0",
+        "off": "kubectl scale deploy/cart -n techx-tf1 --replicas=2"
+      }
+    },
+    {
+      "label": "subtle-incident",
+      "service": "frontend",
+      "expected_rule_ids": [
+        "service-error-rate-high"
+      ],
+      "expect_fire": true,
+      "offset_seconds": 900,
+      "duration_seconds": 60,
+      "inject": {
+        "type": "command",
+        "on": "kubectl scale deploy/cart -n techx-tf1 --replicas=0",
+        "off": "kubectl scale deploy/cart -n techx-tf1 --replicas=2"
+      }
+    }
+  ],
+  "notes": [
+    "VI SAO frontend CHU KHONG checkout. Do that: moi phu thuoc DONG BO cua checkout deu duoc goi tren MOI request (CurrencyService/Convert 2.7 lan/don, ProductCatalogService/GetProduct 1.7, CartService/GetCart 1.0), nen giet bat ky cai nao cung day ti le loi cua checkout thang len 1.0 — khong co nac trung gian nao. frontend thi chi 0.2796 trong cung su co do, vi cart chi nam tren mot phan luong cua no. Thap hon 3.6 lan nghia la su co 2 can gian doan DAI HON, va nhieu +-15s cua pod tro thanh sai so nho thay vi chi phoi ket qua.",
+    "LAN CHAY DAU (checkout + 15s) KHONG DUNG DUOC: verdict la PASS nhung su co 2 dat 0.1458, VUOT nguong tinh 0.10 — tuc tang TINH keu chu khong phai 3-sigma. Bai test khong he kiem masking. Nguyen nhan: ngoai suy tuyen tinh tu mot diem do (20s -> 0.0909 nen tuong 15s -> 0.068), thuc te 15s -> 0.1458, KHONG DON DIEU. Gian doan that bi chi phoi boi thoi gian pod tat/khoi dong chu khong ti le voi thoi luong khai bao.",
+    "60s cho su co 2, suy tu so do: frontend full-outage = 0.2796; he so khuech dai 1.36 (tu du lieu checkout: 20s cho 0.0909 trong khi 20/300 x 1.0 = 0.0667). 60s -> ~0.075. Voi nhieu +-15s thi dai la 0.056-0.094 — TRON VEN trong (0.05, 0.10). 47s hay 71s deu co the tran ra ngoai.",
+    "Da thu `recommendation` lam diem bom cho su co 2 va BO: giet no 360s cho ti le frontend = 0.0000 suot. frontend chiu duoc recommendation chet (mat widget goi y chu khong loi). Do la ky thuat tot cua ung dung, nhung lam no vo dung de bom loi.",
+    "settle_seconds 300: score_events kep cua so khop alert o t_end + settle. Ti le can ~85s moi vao dai va dinh muon hon, nen settle ngan se lam alert roi ra ngoai va bi cham la 'bi che' OAN.",
+    "duration su co 1 la 360s vi rule dung rate(...[5m]) — cua so bom phai vuot 5 phut. Bai hoc da tra gia o #7b (150s khong du), xac nhan lai o #434.",
+    "off scale ve 2 = dung minReplicas cua HPA cart (2/6). Sau moi lan bom HPA day len ~5 replica roi tu thu ve 2.",
+    "Tong thoi gian mot lan chay: 900 + 60 + 300 = 1260s (~21 phut)."
+  ]
+}

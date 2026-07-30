@@ -1,0 +1,9 @@
+{
+  "group": "numbers",
+  "case": "hit-rate",
+  "passed": true,
+  "reason": "hit-rate 50% (6/12: exact 6, semantic 0)",
+  "latency": 0.0,
+  "cache_status": null,
+  "response": ""
+}

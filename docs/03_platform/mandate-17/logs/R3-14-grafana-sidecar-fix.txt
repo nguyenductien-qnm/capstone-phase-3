@@ -1,0 +1,10 @@
+### R3 - VÁ LỖ HỔNG 3: grafana k8s-sidecar mất API server @ 2026-07-22T12:48:28Z
+Trước khi vá: cả 3 sidecar ConnectTimeoutError tới 172.20.0.1:443, retry vô hạn,
+pod vẫn 4/4 Running -> kiểm tra sức khỏe pod KHÔNG bắt được.
+
+  grafana-sc-dashboard: lỗi timeout trong 90s gần nhất = 0
+     log cuối: {"time": "2026-07-22T12:48:14.374531+00:00", "level": "INFO", "msg": "Loading incluster config..."}
+  grafana-sc-datasources: lỗi timeout trong 90s gần nhất = 0
+     log cuối: {"time": "2026-07-22T12:48:40.919739+00:00", "level": "INFO", "msg": "Loading incluster config..."}
+  grafana-sc-alerts: lỗi timeout trong 90s gần nhất = 0
+     log cuối: {"time": "2026-07-22T12:48:50.981497+00:00", "level": "WARNING", "msg": "No data/binaryData field in configmap"}

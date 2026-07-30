@@ -1,0 +1,116 @@
+# Subnet Group cho ElastiCache Valkey
+resource "aws_elasticache_subnet_group" "this" {
+  name        = "${var.project_name}-${var.environment}-valkey-subnet-group"
+  subnet_ids  = var.cache_subnet_ids
+  description = "Subnet group cho ElastiCache Valkey"
+}
+
+# Security Group cho ElastiCache Valkey
+resource "aws_security_group" "valkey" {
+  name        = "${var.project_name}-${var.environment}-valkey-sg"
+  vpc_id      = var.vpc_id
+  description = "Security Group cho ElastiCache Valkey"
+
+  ingress {
+    from_port       = 6379
+    to_port         = 6379
+    protocol        = "tcp"
+    security_groups = [var.eks_node_security_group_id]
+    description     = "Allow connection from application subnets to Valkey"
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "Allow all outbound traffic"
+  }
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-valkey-sg"
+    Environment = var.environment
+    Project     = var.project_name
+  }
+}
+
+# Valkey Search cần dành riêng % bộ nhớ cho index — không cấu hình thì FT.CREATE lỗi
+# "please configure memory reserve to 50% on a micro instance or 30% on a small".
+# Giá trị theo đúng khuyến nghị đó (AWS docs: redis-memory-management-need).
+locals {
+  valkey_search_reserved_memory_percent = strcontains(var.node_type, "micro") ? 50 : 30
+}
+
+resource "aws_elasticache_parameter_group" "valkey_search" {
+  name        = "${var.project_name}-${var.environment}-valkey8-search"
+  family      = "valkey8"
+  description = "Valkey8 params cho ${var.project_name} - reserved-memory-percent cho Search/L2 semantic cache"
+
+  parameter {
+    name  = "reserved-memory-percent"
+    value = local.valkey_search_reserved_memory_percent
+  }
+}
+
+# Replication Group cho Valkey
+resource "aws_elasticache_replication_group" "this" {
+  replication_group_id = "${var.project_name}-${var.environment}-valkey"
+  description          = "Valkey replication group cho ${var.project_name}"
+  node_type            = var.node_type
+  num_cache_clusters   = var.num_cache_clusters
+  port                 = 6379
+
+  engine         = "valkey"
+  engine_version = "8.2"
+
+  parameter_group_name = aws_elasticache_parameter_group.valkey_search.name
+  subnet_group_name    = aws_elasticache_subnet_group.this.name
+  security_group_ids   = [aws_security_group.valkey.id]
+
+  automatic_failover_enabled = true
+  # CDO-91 / ADR-REL-004: guarantee cross-AZ chính thức. Yêu cầu num_cache_clusters >= 2 (đang = 2).
+  # $0 chi phí. Lưu ý: apply có thể gây 1 lần failover ngắn -> chạy ngoài giờ cao điểm.
+  multi_az_enabled           = true
+  transit_encryption_enabled = true
+  at_rest_encryption_enabled = true
+  auth_token                 = random_password.valkey_auth.result
+  auth_token_update_strategy = "SET"
+
+  # Mandate 20: snapshot hằng ngày cho cart. snapshot_retention_limit=0 -> tắt (default);
+  # snapshot_window chỉ có hiệu lực khi retention > 0. Valkey không có PITR liên tục nên
+  # RPO của cart = 1 ngày (chốt trong ADR: mất giỏ hàng chấp nhận được, khác đơn đã đặt).
+  snapshot_retention_limit = var.snapshot_retention_limit
+  snapshot_window          = var.snapshot_window
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-valkey"
+    Environment = var.environment
+    Project     = var.project_name
+  }
+}
+
+resource "random_password" "valkey_auth" {
+  length  = 32
+  special = false
+}
+
+resource "aws_secretsmanager_secret" "valkey_credentials" {
+  name                    = "${var.project_name}-${var.environment}-valkey-secret"
+  recovery_window_in_days = 0
+
+  tags = {
+    Environment = var.environment
+    Project     = var.project_name
+  }
+}
+
+resource "aws_secretsmanager_secret_version" "valkey_credentials" {
+  secret_id = aws_secretsmanager_secret.valkey_credentials.id
+  secret_string = jsonencode({
+    auth_token = random_password.valkey_auth.result
+    endpoint   = aws_elasticache_replication_group.this.primary_endpoint_address
+    port       = 6379
+    # address = host:port — container dùng trực tiếp cho VALKEY_ADDR (khớp format cũ).
+    address = "${aws_elasticache_replication_group.this.primary_endpoint_address}:6379"
+  })
+}

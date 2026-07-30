@@ -1,0 +1,30 @@
+{
+  "capture": "2026-07-22T07:31:19Z",
+  "natGateway": {"id":"nat-0233cc7213a8c7b94","name":"ecommerce-dev-nat-gw-single","state":"available","connectivityType":"public","vpcId":"vpc-06d4c34ec03f55c6d"},
+  "cloudWatch": {
+    "namespace":"AWS/NATGateway",
+    "window":{"start":"2026-07-21T07:13:18Z","end":"2026-07-22T07:13:18Z","periodSeconds":86400},
+    "metrics":[
+      {"name":"BytesInFromSource","sum":185263825,"unit":"Bytes"},
+      {"name":"BytesOutToDestination","sum":185263825,"unit":"Bytes"},
+      {"name":"BytesInFromDestination","sum":4648077078,"unit":"Bytes"},
+      {"name":"BytesOutToSource","sum":4648077078,"unit":"Bytes"},
+      {"name":"ActiveConnectionCount","average":56.6430555556,"maximum":202,"unit":"Count"},
+      {"name":"ConnectionAttemptCount","sum":18069,"maximum":174,"unit":"Count"},
+      {"name":"ConnectionEstablishedCount","sum":4576,"maximum":85,"unit":"Count"},
+      {"name":"IdleTimeoutCount","sum":54575,"maximum":503,"unit":"Count"},
+      {"name":"ErrorPortAllocation","sum":0,"maximum":0,"unit":"Count"},
+      {"name":"PacketsDropCount","sum":0,"maximum":0,"unit":"Count"}
+    ]
+  },
+  "costExplorerSameAccountWindow": {
+    "window":{"start":"2026-07-15","endExclusive":"2026-07-23"},
+    "NatGateway-Bytes":{"amount":"61.9773010455","unit":"GB"},
+    "NatGateway-Hours":{"amount":"158","unit":"Hrs"},
+    "DataTransfer-Regional-Bytes":{"amount":"357.6794858022","unit":"GB"},
+    "USE1-DataTransfer-xAZ-Out-Bytes":{"amount":"1.603371047","unit":"GB"},
+    "USE1-DataTransfer-xAZ-In-Bytes":{"amount":"1.2116824725","unit":"GB"},
+    "scopeWarning":"Account-wide because Project=ecommerce is not available as a Cost Explorer tag filter."
+  },
+  "interpretation": "Do not add mirrored NAT byte counters: BytesInFromSource equals BytesOutToDestination for the same outbound payload, and BytesInFromDestination equals BytesOutToSource for the same return payload. Cost Explorer NatGateway-Bytes is the billing-usage baseline."
+}

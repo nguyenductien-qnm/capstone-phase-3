@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: vaptest-neg-06-initcontainer-latest
+  labels: { vaptest: "true" }
+spec:
+  # initContainer dùng tag latest -> CEL gộp initContainers vào allContainers phải bắt được
+  initContainers:
+  - name: init-bad
+    image: busybox:latest                     # VI PHẠM: floating tag ở initContainer
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      allowPrivilegeEscalation: false
+      capabilities: { drop: ["ALL"] }
+    resources:
+      requests: { cpu: "10m", memory: "16Mi" }
+      limits: { cpu: "50m", memory: "32Mi" }
+  containers:
+  - name: app                                 # container chính hoàn toàn hợp lệ
+    image: ecommerce-dev-techx-corp:1.0-cart-aadff38
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      allowPrivilegeEscalation: false
+      capabilities: { drop: ["ALL"] }
+    resources:
+      requests: { cpu: "10m", memory: "16Mi" }
+      limits: { cpu: "50m", memory: "32Mi" }

@@ -1,0 +1,14 @@
+# Mandate 17 — TRẠNG THÁI TRƯỚC KHI TEST (sau khi PR #259 merged + terraform apply)
+Thời điểm: 2026-07-22 10:04:41 UTC
+PR #259 merged: 2026-07-22T09:14:20Z | terraform apply develop: 09:26, 09:28 (workflow_dispatch)
+
+## CNI NetworkPolicy enforce
+"--enable-network-policy=true"
+"--log-file=/var/log/aws-routed-eni/network-policy-agent.log"
+
+## NetworkPolicy (chưa bật enabled -> 0)
+No resources found in techx-develop namespace.
+
+## Tổng pod
+44 pod
+     44 Running

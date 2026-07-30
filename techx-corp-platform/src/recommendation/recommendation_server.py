@@ -7,10 +7,17 @@
 # Python
 import os
 import random
+import logging
+import threading
 from concurrent import futures
+
+logger = logging.getLogger('main')
 
 # Pip
 import grpc
+import psycopg2
+import psycopg2.pool
+from pgvector.psycopg2 import register_vector
 from opentelemetry import trace, metrics
 from opentelemetry._logs import set_logger_provider
 from opentelemetry.exporter.otlp.proto.grpc._log_exporter import (
@@ -40,6 +47,12 @@ cached_ids = []
 first_run = True
 
 class RecommendationService(demo_pb2_grpc.RecommendationServiceServicer):
+    """Recommendation Service.
+
+    Provides AI-driven product recommendations based on product embeddings stored in PostgreSQL (pgvector).
+    Includes a feature flag (aiRecommendationsEnabled) to fallback to random recommendations if disabled or if
+    the database is unavailable.
+    """
     def ListRecommendations(self, request, context):
         prod_list = get_product_list(request.product_ids)
         span = trace.get_current_span()
@@ -65,52 +78,144 @@ class RecommendationService(demo_pb2_grpc.RecommendationServiceServicer):
 
 
 def get_product_list(request_product_ids):
-    global first_run
-    global cached_ids
     with tracer.start_as_current_span("get_product_list") as span:
         max_responses = 5
 
         # Formulate the list of characters to list of strings
         request_product_ids_str = ''.join(request_product_ids)
-        request_product_ids = request_product_ids_str.split(',')
+        request_product_ids_list = request_product_ids_str.split(',')
 
-        # Feature flag scenario - Cache Leak
-        if check_feature_flag("recommendationCacheFailure"):
-            span.set_attribute("app.recommendation.cache_enabled", True)
-            if random.random() < 0.5 or first_run:
-                first_run = False
-                span.set_attribute("app.cache_hit", False)
-                logger.info("get_product_list: cache miss")
-                cat_response = product_catalog_stub.GetProduct(demo_pb2.Empty())
-                response_ids = [x.id for x in cat_response.products]
-                cached_ids = cached_ids + response_ids
-                cached_ids = cached_ids + cached_ids[:len(cached_ids) // 4]
-                product_ids = cached_ids
-            else:
-                span.set_attribute("app.cache_hit", True)
-                logger.info("get_product_list: cache hit")
-                product_ids = cached_ids
+        if check_feature_flag("aiRecommendationsEnabled"):
+            span.set_attribute("app.recommendation.type", "ai-embedding")
+            return _get_ai_recommendations(request_product_ids_list, max_responses)
         else:
-            span.set_attribute("app.recommendation.cache_enabled", False)
-            cat_response = product_catalog_stub.ListProducts(demo_pb2.Empty())
-            product_ids = [x.id for x in cat_response.products]
+            span.set_attribute("app.recommendation.type", "random-fallback")
+            return _get_random_recommendations(request_product_ids_list, max_responses)
 
-        span.set_attribute("app.products.count", len(product_ids))
 
-        # Create a filtered list of products excluding the products received as input
-        filtered_products = list(set(product_ids) - set(request_product_ids))
-        num_products = len(filtered_products)
-        span.set_attribute("app.filtered_products.count", num_products)
-        num_return = min(max_responses, num_products)
+db_pool = None
+_db_pool_lock = threading.Lock()
 
-        # Sample list of indicies to return
-        indices = random.sample(range(num_products), num_return)
-        # Fetch product ids from indices
-        prod_list = [filtered_products[i] for i in indices]
+# Cùng lý do như product-reviews/database.py: app đi qua RDS Proxy
+# (MaxConnectionsPercent 100) và instance là db.t4g.micro (~100 max_connections),
+# nên pool phía client giữ nhỏ thay vì 10 mỗi pod.
+_POOL_MAX = int(os.environ.get('DB_POOL_MAX', '3'))
 
-        span.set_attribute("app.filtered_products.list", prod_list)
 
-        return prod_list
+def get_db_pool():
+    global db_pool
+    if db_pool is None:
+        # Lock + double-check: server chạy ThreadPoolExecutor(max_workers=10); không
+        # khoá thì hai thread cùng dựng pool, một pool bị bỏ rơi kèm connection của nó.
+        with _db_pool_lock:
+            if db_pool is None:
+                db_connection_str = os.environ.get('DB_CONNECTION_STRING')
+                if db_connection_str:
+                    # ThreadedConnectionPool: SimpleConnectionPool không thread-safe.
+                    db_pool = psycopg2.pool.ThreadedConnectionPool(1, _POOL_MAX, db_connection_str)
+    return db_pool
+
+def _get_ai_recommendations(input_product_ids, max_results=5):
+    """Retrieve AI-based recommendations using pgvector.
+
+    Computes the average embedding vector of seed products, queries PostgreSQL using pgvector cosine distance,
+    and returns the top 5 similar products. Fallbacks to random selection if any database error occurs.
+    """
+    with tracer.start_as_current_span("recommendation.ai_inference") as span:
+        pool = get_db_pool()
+        if not pool:
+            logger.warning("DB_CONNECTION_STRING not set, falling back to random recommendations")
+            return _get_random_recommendations(input_product_ids, max_results)
+            
+        connection = None
+        broken = False
+        try:
+            connection = pool.getconn()
+            try:
+                register_vector(connection)
+                with connection.cursor() as cursor:
+                    placeholders = ','.join(['%s'] * len(input_product_ids))
+                    cursor.execute(f"""
+                        SELECT AVG(embedding) as avg_embedding
+                        FROM catalog.product_embeddings_v2
+                        WHERE product_id IN ({placeholders}) AND embedding IS NOT NULL
+                    """, input_product_ids)
+                    
+                    avg_embedding = cursor.fetchone()[0]
+                    if avg_embedding is None:
+                        return _get_random_recommendations(input_product_ids, max_results)
+                    
+                    # PostgreSQL requires vector types to be cast properly or converted to string format
+                    # The python list is casted to string format e.g. '[0.1, 0.2, ...]'
+                    embedding_str = str(list(avg_embedding))
+                    cursor.execute("""
+                        SELECT product_id as id
+                        FROM catalog.product_embeddings_v2
+                        WHERE product_id != ALL(%s) AND embedding IS NOT NULL
+                        ORDER BY embedding <=> %s::vector
+                        LIMIT %s
+                    """, (input_product_ids, embedding_str, max_results))
+                    
+                    results = [row[0] for row in cursor.fetchall()]
+                    span.set_attribute("app.ai_recommendations.count", len(results))
+                    # Fallback to random if no results
+                    if not results:
+                        return _get_random_recommendations(input_product_ids, max_results)
+                    return results
+            except (psycopg2.OperationalError, psycopg2.InterfaceError):
+                # Đánh dấu TRƯỚC khi finally chạy, nếu không thì `broken` vẫn False
+                # lúc trả connection về pool.
+                broken = True
+                raise
+            finally:
+                # close=broken: connection chết vì RDS failover mà trả nguyên vẹn về
+                # pool thì lần sau bốc trúng lại chính nó.
+                pool.putconn(connection, close=broken)
+        except Exception as e:
+            logger.error(f"Error in AI recommendations: {e}")
+            return _get_random_recommendations(input_product_ids, max_results)
+
+def _get_random_recommendations(request_product_ids, max_responses=5):
+    global first_run
+    global cached_ids
+    span = trace.get_current_span()
+    # Feature flag scenario - Cache Leak
+    if check_feature_flag("recommendationCacheFailure"):
+        span.set_attribute("app.recommendation.cache_enabled", True)
+        if random.random() < 0.5 or first_run:
+            first_run = False
+            span.set_attribute("app.cache_hit", False)
+            logger.info("get_product_list: cache miss")
+            cat_response = product_catalog_stub.GetProduct(demo_pb2.Empty())
+            response_ids = [x.id for x in cat_response.products]
+            cached_ids = cached_ids + response_ids
+            cached_ids = cached_ids + cached_ids[:len(cached_ids) // 4]
+            product_ids = cached_ids
+        else:
+            span.set_attribute("app.cache_hit", True)
+            logger.info("get_product_list: cache hit")
+            product_ids = cached_ids
+    else:
+        span.set_attribute("app.recommendation.cache_enabled", False)
+        cat_response = product_catalog_stub.ListProducts(demo_pb2.Empty())
+        product_ids = [x.id for x in cat_response.products]
+
+    span.set_attribute("app.products.count", len(product_ids))
+
+    # Create a filtered list of products excluding the products received as input
+    filtered_products = list(set(product_ids) - set(request_product_ids))
+    num_products = len(filtered_products)
+    span.set_attribute("app.filtered_products.count", num_products)
+    num_return = min(max_responses, num_products)
+
+    # Sample list of indicies to return
+    indices = random.sample(range(num_products), num_return)
+    # Fetch product ids from indices
+    prod_list = [filtered_products[i] for i in indices]
+
+    span.set_attribute("app.filtered_products.list", prod_list)
+
+    return prod_list
 
 
 def must_map_env(key: str):
@@ -123,7 +228,7 @@ def must_map_env(key: str):
 def check_feature_flag(flag_name: str):
     # Initialize OpenFeature
     client = api.get_client()
-    return client.get_boolean_value("recommendationCacheFailure", False)
+    return client.get_boolean_value(flag_name, False)
 
 
 if __name__ == "__main__":

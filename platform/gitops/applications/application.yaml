@@ -1,0 +1,56 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: techx-corp
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    # Mandate-13 Phương án B (27-07-2026): sync-wave "0" tường minh (trước đây
+    # ngầm định 0, không ghi ra) — PHẢI đứng trước karpenter-nodepool (wave "1",
+    # xem karpenter-nodepool.yaml) để 13+ Deployment nhận nodeSelector
+    # karpenter.sh/capacity-type=on-demand và rollout Healthy TRƯỚC KHI NodePool
+    # `default` được phép nhận spot. Tránh cửa sổ thời gian pod luồng tiền mới
+    # sinh ra (do HPA scale-out/crash-restart) chưa có nodeSelector lúc NodePool
+    # đã cho phép spot. LƯU Ý: cả 2 app đều có syncPolicy.automated riêng (tự
+    # sync độc lập khi phát hiện git drift, không phải do 1 lần sync chung do app
+    # cha điều phối) — sync-wave giữa 2 Application độc lập kiểu này chỉ giảm rủi
+    # ro, KHÔNG đảm bảo tuyệt đối như sync-wave giữa các resource trong cùng 1
+    # Application. Lần đầu bật NodePool spot vẫn nên tách 2 PR/2 lần merge riêng
+    # (xem docs/cdo09/evidence-mandate-13/ nếu có ghi runbook) thay vì chỉ dựa
+    # vào annotation này.
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: default
+
+  source:
+    # URL của git repository chứa mã nguồn của bạn
+    repoURL: "https://github.com/nguyenductien-qnm/capstone-phase-3.git"
+    targetRevision: develop
+    # Đường dẫn trỏ tới thư mục Helm Chart của bạn trong Git
+    path: platform/charts/application
+
+    # Cấu hình ArgoCD chạy Helm để sinh tài nguyên
+    helm:
+      valueFiles:
+        - ../../gitops/environments/sandbox/values-flagd-sync.yaml
+        - ../../gitops/environments/sandbox/values-ops-observability.yaml
+        - ../../gitops/environments/sandbox/values-external-secrets.yaml
+        - ../../gitops/environments/sandbox/values-aio-llm.yaml
+        # Mandate-19 sizing + HPA (port từ develop, bằng chứng EVIDENCE.md E7/E8).
+        - ../../gitops/environments/sandbox/values-application.yaml
+        # CI-managed image tags (app-build.yaml bump) — load CUỐI để override tag.
+        - ../../gitops/environments/sandbox/values-image-tags.yaml
+
+  destination:
+    # URL API của cụm Kubernetes (nội bộ cụm)
+    server: "https://kubernetes.default.svc"
+    # Namespace muốn deploy ứng dụng lên
+    namespace: techx-tf1
+
+  syncPolicy:
+    automated:
+      prune: true # Tự động xóa các tài nguyên trên k8s nếu chúng bị xóa trên Git
+      selfHeal: true # Tự động ghi đè lại nếu có ai sửa đổi cấu hình thủ công trên EKS
+    syncOptions:
+      - CreateNamespace=true # Tự động tạo namespace techx-tf1 nếu chưa có

@@ -1,0 +1,9 @@
+{
+  "group": "cache",
+  "case": "first-miss",
+  "passed": true,
+  "reason": "lần đầu miss",
+  "latency": 21.55,
+  "cache_status": "miss",
+  "response": "Giá của ống nhòm Roof Binoculars là $209.95."
+}

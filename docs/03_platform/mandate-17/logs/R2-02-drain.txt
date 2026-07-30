@@ -1,0 +1,419 @@
+### R2 - DRAIN node ip-10-60-11-81 (us-east-1a) @ 2026-07-22T10:45:44Z
+Lưu ý: KHÔNG drain node observability theo yêu cầu tech lead.
+node/ip-10-60-11-81.ec2.internal cordoned
+Warning: ignoring DaemonSet-managed Pods: kube-system/aws-node-djn5z, kube-system/ebs-csi-node-5sxbk, kube-system/eks-pod-identity-agent-z9s4r, kube-system/kube-proxy-mvcw8, techx-develop/otel-collector-agent-nfz6v
+evicting pod techx-develop/shipping-65cdfb486d-kv52z
+evicting pod techx-develop/email-6bc859d59-v4xqc
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+evicting pod techx-develop/frontend-proxy-dd4c75cf7-n5bks
+evicting pod argocd/argocd-applicationset-controller-6c87c7cd46-hb5mj
+evicting pod external-secrets/develop-external-secrets-cert-controller-77b88b667d-z99fl
+evicting pod techx-develop/currency-5bcc987d58-g4q5t
+evicting pod techx-develop/frontend-5c8c6f6865-5lzk4
+evicting pod techx-develop/product-catalog-dd8756f5-dhgxv
+evicting pod techx-develop/frontend-5c8c6f6865-khb7z
+evicting pod techx-develop/checkout-bd88cc78b-cntxw
+evicting pod argocd/argocd-dex-server-669f65668c-6h86v
+evicting pod argocd/argocd-notifications-controller-697f9944f8-fzfpk
+evicting pod techx-develop/quote-9c44d4586-g4w5t
+evicting pod kube-system/ebs-csi-controller-5d6557b58c-c642j
+evicting pod techx-develop/ad-6674445b84-txhhn
+evicting pod techx-develop/recommendation-8b6b866bf-7wv6c
+evicting pod techx-develop/product-catalog-dd8756f5-nj788
+evicting pod argocd/argocd-application-controller-0
+evicting pod kube-system/develop-metrics-server-57795f4f74-nb6qk
+evicting pod external-secrets/develop-external-secrets-webhook-dcfb68dd-vt8sw
+evicting pod techx-develop/cart-56666cdfd-xzrhs
+error when evicting pods/"frontend-5c8c6f6865-khb7z" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+error when evicting pods/"product-catalog-dd8756f5-nj788" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+I0722 17:45:50.740785   38400 request.go:752] "Waited before sending request" delay="1.2010579s" reason="client-side throttling, not priority and fairness" verb="POST" URL="https://69EA7D4B6FCDE7C9FFA99CBC33DA6E4B.gr7.us-east-1.eks.amazonaws.com/api/v1/namespaces/argocd/pods/argocd-applicationset-controller-6c87c7cd46-hb5mj/eviction"
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+pod/shipping-65cdfb486d-kv52z evicted
+pod/develop-external-secrets-cert-controller-77b88b667d-z99fl evicted
+pod/frontend-5c8c6f6865-5lzk4 evicted
+pod/quote-9c44d4586-g4w5t evicted
+pod/argocd-dex-server-669f65668c-6h86v evicted
+pod/argocd-notifications-controller-697f9944f8-fzfpk evicted
+pod/ebs-csi-controller-5d6557b58c-c642j evicted
+pod/develop-external-secrets-webhook-dcfb68dd-vt8sw evicted
+evicting pod techx-develop/frontend-5c8c6f6865-khb7z
+pod/product-catalog-dd8756f5-dhgxv evicted
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+evicting pod techx-develop/product-catalog-dd8756f5-nj788
+error when evicting pods/"frontend-5c8c6f6865-khb7z" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+pod/checkout-bd88cc78b-cntxw evicted
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+pod/email-6bc859d59-v4xqc evicted
+pod/argocd-applicationset-controller-6c87c7cd46-hb5mj evicted
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+pod/ad-6674445b84-txhhn evicted
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+pod/argocd-application-controller-0 evicted
+pod/develop-metrics-server-57795f4f74-nb6qk evicted
+pod/product-catalog-dd8756f5-nj788 evicted
+pod/cart-56666cdfd-xzrhs evicted
+evicting pod techx-develop/frontend-5c8c6f6865-khb7z
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-khb7z" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-khb7z
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-khb7z" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-khb7z
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-khb7z" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-khb7z
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-khb7z" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+pod/recommendation-8b6b866bf-7wv6c evicted
+evicting pod techx-develop/frontend-5c8c6f6865-khb7z
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+pod/currency-5bcc987d58-g4q5t evicted
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+pod/frontend-proxy-dd4c75cf7-n5bks evicted
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+pod/frontend-5c8c6f6865-khb7z evicted
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+error when evicting pods/"frontend-5c8c6f6865-fglx8" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-fglx8
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+pod/frontend-5c8c6f6865-fglx8 evicted
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+error when evicting pods/"frontend-5c8c6f6865-9lz66" -n "techx-develop" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+evicting pod techx-develop/frontend-5c8c6f6865-9lz66
+pod/frontend-5c8c6f6865-9lz66 evicted
+node/ip-10-60-11-81.ec2.internal drained
+--- exit=0 ---

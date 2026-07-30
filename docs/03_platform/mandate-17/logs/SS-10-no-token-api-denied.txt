@@ -1,0 +1,51 @@
+# SS-10 - R4: Pod app KHONG duoc mount token ServiceAccount
+Thoi diem: 2026-07-22 10:12:25 UTC
+
+CACH CHUNG MINH: khi automountServiceAccountToken=false, kubelet KHONG tao volume
+'kube-api-access-xxxxx' trong pod -> trong pod KHONG TON TAI file token ->
+pod khong the xac thuc vao K8s API. Day la bang chung CAU TRUC (manh hon exec,
+va exec khong lam duoc vi image app la distroless - khong co shell/ls).
+
+## Pod APP (ky vong: KHONG co volume kube-api-access)
+   [OK]   ad-6674445b84-ddlq8: automount=False  -> KHONG co token volume
+   [OK]   ad-6674445b84-hkdzm: automount=False  -> KHONG co token volume
+   [OK]   cart-56666cdfd-2hzqc: automount=False  -> KHONG co token volume
+   [OK]   cart-56666cdfd-4mm8v: automount=False  -> KHONG co token volume
+   [OK]   cart-56666cdfd-9l5xn: automount=False  -> KHONG co token volume
+   [OK]   cart-56666cdfd-jp8q9: automount=False  -> KHONG co token volume
+   [OK]   cart-56666cdfd-xzrhs: automount=False  -> KHONG co token volume
+   [OK]   checkout-bd88cc78b-9lsxc: automount=False  -> KHONG co token volume
+   [OK]   checkout-bd88cc78b-cntxw: automount=False  -> KHONG co token volume
+   [OK]   currency-5bcc987d58-c2hfv: automount=False  -> KHONG co token volume
+   [OK]   currency-5bcc987d58-g4q5t: automount=False  -> KHONG co token volume
+   [OK]   email-6bc859d59-ksf6t: automount=False  -> KHONG co token volume
+   [OK]   email-6bc859d59-v4xqc: automount=False  -> KHONG co token volume
+   [OK]   frontend-5c8c6f6865-5lzk4: automount=False  -> KHONG co token volume
+   [OK]   frontend-5c8c6f6865-982tj: automount=False  -> KHONG co token volume
+   [OK]   payment-6b4446cdfb-6h4pj: automount=False  -> KHONG co token volume
+   [OK]   payment-6b4446cdfb-7rmpm: automount=False  -> KHONG co token volume
+   [OK]   payment-6b4446cdfb-bnjbv: automount=False  -> KHONG co token volume
+   [OK]   payment-6b4446cdfb-rdzt7: automount=False  -> KHONG co token volume
+   [OK]   product-catalog-dd8756f5-h2mzz: automount=False  -> KHONG co token volume
+   [OK]   product-catalog-dd8756f5-nj788: automount=False  -> KHONG co token volume
+   [OK]   quote-9c44d4586-g4w5t: automount=False  -> KHONG co token volume
+   [OK]   quote-9c44d4586-qlvd5: automount=False  -> KHONG co token volume
+   [OK]   recommendation-8b6b866bf-7llt5: automount=False  -> KHONG co token volume
+   [OK]   recommendation-8b6b866bf-7wv6c: automount=False  -> KHONG co token volume
+   [OK]   shipping-65cdfb486d-kv52z: automount=False  -> KHONG co token volume
+   [OK]   shipping-65cdfb486d-qbfbr: automount=False  -> KHONG co token volume
+
+KET QUA APP: 27 pod khong co token / 0 pod con token
+
+## DOI CHUNG - pod observability (CAN token that su -> co volume)
+   develop-techx-corp-kube-state-metrics-f7dd44847-9pgjn: token_volume=CO  (SA=develop-techx-corp-kube-state-metrics)
+   grafana-57b4747fd8-pbvw5: token_volume=CO  (SA=grafana)
+   jaeger-587f9c6b55-gh5q2: token_volume=CO  (SA=jaeger)
+   otel-collector-agent-4t6ps: token_volume=CO  (SA=otel-collector)
+   otel-collector-agent-8m5sk: token_volume=CO  (SA=otel-collector)
+   otel-collector-agent-bvk2s: token_volume=CO  (SA=otel-collector)
+   otel-collector-agent-nfz6v: token_volume=CO  (SA=otel-collector)
+   prometheus-644d8cd596-ks8wg: token_volume=CO  (SA=prometheus)
+
+## Ghi chu: image app la DISTROLESS (khong co shell) -> ke chiem pod khong co
+## ca shell lan token => be mat tan cong cang hep.

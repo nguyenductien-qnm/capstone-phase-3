@@ -1,0 +1,31 @@
+{
+  "category": "review_surface",
+  "input": [
+    "OLJCESPC7Z",
+    "Sản phẩm này có bền không? Khách hàng nói sao?"
+  ],
+  "latency": 0.939460039138794,
+  "tokens": {
+    "input": 0,
+    "output": 0,
+    "embedding": 0
+  },
+  "usd_cost": 0.0,
+  "embed_cost": 0.0,
+  "passed": true,
+  "reason": "Got review summary",
+  "response": {
+    "text": "Khách hàng cho đánh giá trung bình 4.0 sao cho sản phẩm này.",
+    "traceId": "",
+    "citations": [],
+    "traceSteps": [
+      {
+        "stepName": "Input Guardrail (PII/Prompt Guard)",
+        "latencyMs": 929,
+        "status": "pass",
+        "detail": "{\"question\": \"S\\u1ea3n ph\\u1ea9m n\\u00e0y c\\u00f3 b\\u1ec1n kh\\u00f4ng? Kh\\u00e1ch h\\u00e0ng n\\u00f3i sao?\", \"blocked\": false}"
+      }
+    ]
+  },
+  "spans": []
+}

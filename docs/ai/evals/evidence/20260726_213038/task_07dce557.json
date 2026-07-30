@@ -1,0 +1,180 @@
+{
+  "category": "task",
+  "input": [
+    "Đổi 500 USD sang VND và báo giá ship tới Hà Nội",
+    [
+      "convert_currency",
+      "get_shipping_quote"
+    ],
+    "task-intent6"
+  ],
+  "latency": 6.337780952453613,
+  "tokens": {
+    "input": 16882,
+    "output": 432,
+    "embedding": 0
+  },
+  "usd_cost": 0.0011166,
+  "embed_cost": 0.0,
+  "passed": true,
+  "reason": "All expected tools called successfully: ['convert_currency', 'get_shipping_quote']",
+  "response": {
+    "response": "Rất tiếc, kết quả đổi tiền vẫn không hợp lý. Bây giờ, tôi sẽ cung cấp cho bạn báo giá ship ước lượng từ [unverified] USD sang VND. Đây là báo giá ước lượng cho 1 sản phẩm mẫu (chưa có giỏ hàng cụ thể). Chi phí vận chuyển ước lượng là 8 USD.",
+    "actionsTaken": [
+      {
+        "toolName": "convert_currency",
+        "argumentsJson": "{\"amount\": 500, \"from_code\": \"USD\", \"to_code\": \"VND\"}",
+        "succeeded": true,
+        "startedAtUnix": 1785076924,
+        "durationMs": 44
+      },
+      {
+        "toolName": "get_shipping_quote",
+        "argumentsJson": "{\"address\": {\"country\": \"Vietnam\", \"city\": \"Hanoi\", \"street_address\": \"1600 Amphitheatre Parkway\", \"state\": \"CA\", \"zip_code\": \"94043\"}}",
+        "succeeded": true,
+        "startedAtUnix": 1785076924,
+        "durationMs": 26
+      },
+      {
+        "toolName": "convert_currency",
+        "argumentsJson": "{\"amount\": 500, \"from_code\": \"USD\", \"to_code\": \"VND\"}",
+        "succeeded": true,
+        "startedAtUnix": 1785076925,
+        "durationMs": 38
+      }
+    ],
+    "degraded": false,
+    "traceId": "4ac8e100f18643d2cb49fd893472d6b6",
+    "citations": [],
+    "traceSteps": [
+      {
+        "stepName": "Input Guardrail (PII/Prompt Guard)",
+        "latencyMs": 1015,
+        "status": "pass",
+        "detail": "{\"question\": \"\\u0110\\u1ed5i 500 USD sang VND v\\u00e0 b\\u00e1o gi\\u00e1 ship t\\u1edbi H\\u00e0 N\\u1ed9i\", \"blocked\": false}"
+      },
+      {
+        "stepName": "Model Gateway & Bedrock Nova",
+        "latencyMs": 5266,
+        "status": "ok",
+        "detail": "{\"routed_model\": \"amazon.nova-lite-v1:0\"}"
+      },
+      {
+        "stepName": "LLM → gọi tool: convert_currency, get_shipping_quote",
+        "latencyMs": 1771,
+        "status": "ok",
+        "detail": "{\"decided_tools\": [\"convert_currency\", \"get_shipping_quote\"], \"stop_reason\": \"tool_use\", \"reasoning\": \"<thinking>Kh\\u00e1ch h\\u1ecfi v\\u1ec1 hai vi\\u1ec7c: \\u0111\\u1ed5i ti\\u1ec1n t\\u1eeb USD sang VND v\\u00e0 b\\u00e1o gi\\u00e1 ship t\\u1edbi H\\u00e0 N\\u1ed9i. T\\u00f4i c\\u1ea7n g\\u1ecdi hai tool kh\\u00e1c nhau cho m\\u1ed7i vi\\u1ec7c: convert_currency \\u0111\\u1ec3 \\u0111\\u1ed5i ti\\u1ec1n v\\u00e0 get_shipping_quote \\u0111\\u1ec3 b\\u00e1o gi\\u00e1 ship.</thinking>\"}"
+      },
+      {
+        "stepName": "Tool: convert_currency (VND)",
+        "latencyMs": 44,
+        "status": "ok",
+        "detail": "{\"args\": {\"amount\": 500, \"from_code\": \"USD\", \"to_code\": \"VND\"}, \"succeeded\": true}"
+      },
+      {
+        "stepName": "Tool: get_shipping_quote",
+        "latencyMs": 26,
+        "status": "ok",
+        "detail": "{\"args\": {\"address\": {\"country\": \"Vietnam\", \"city\": \"Hanoi\", \"street_address\": \"1600 Amphitheatre Parkway\", \"state\": \"CA\", \"zip_code\": \"94043\"}}, \"succeeded\": true}"
+      },
+      {
+        "stepName": "LLM → gọi tool: convert_currency",
+        "latencyMs": 1801,
+        "status": "ok",
+        "detail": "{\"decided_tools\": [\"convert_currency\"], \"stop_reason\": \"tool_use\", \"reasoning\": \"<thinking>Tool convert_currency cho bi\\u1ebft s\\u1ed1 l\\u01b0\\u1ee3ng VND l\\u00e0 0, nh\\u01b0ng \\u0111\\u00e2y l\\u00e0 k\\u1ebft qu\\u1ea3 kh\\u00f4ng h\\u1ee3p l\\u00fd. Tool get_shipping_quote cho bi\\u1ebft b\\u00e1o gi\\u00e1 \\u01b0\\u1edbc l\\u01b0\\u1ee3ng cho 1 s\\u1ea3n ph\\u1ea9m m\\u1eabu. T\\u00f4i s\\u1ebd b\\u00e1o cho kh\\u00e1ch bi\\u1ebft k\\u1ebft qu\\u1ea3 \\u0111\\u1ed5i ti\\u1ec1n kh\\u00f4ng h\\u1ee3p l\\u00fd v\\u00e0 cung c\\u1ea5p b\\u00e1o gi\\u00e1 ship \\u01b0\\u1edbc l\\u01b0\\u1ee3ng.</thinking>\"}"
+      },
+      {
+        "stepName": "Tool: convert_currency (VND)",
+        "latencyMs": 38,
+        "status": "ok",
+        "detail": "{\"args\": {\"amount\": 500, \"from_code\": \"USD\", \"to_code\": \"VND\"}, \"succeeded\": true}"
+      },
+      {
+        "stepName": "LLM → trả lời trực tiếp",
+        "latencyMs": 1468,
+        "status": "ok",
+        "detail": "{\"decided_tools\": [], \"stop_reason\": \"end_turn\", \"reasoning\": \"R\\u1ea5t ti\\u1ebfc, k\\u1ebft qu\\u1ea3 \\u0111\\u1ed5i ti\\u1ec1n v\\u1eabn kh\\u00f4ng h\\u1ee3p l\\u00fd. B\\u00e2y gi\\u1edd, t\\u00f4i s\\u1ebd cung c\\u1ea5p cho b\\u1ea1n b\\u00e1o gi\\u00e1 ship \\u01b0\\u1edbc l\\u01b0\\u1ee3ng t\\u1eeb 500 USD sang VND. \\u0110\\u00e2y l\\u00e0 b\\u00e1o gi\\u00e1 \\u01b0\\u1edbc l\\u01b0\\u1ee3ng cho 1 s\\u1ea3n ph\\u1ea9m m\\u1eabu (ch\\u01b0a c\\u00f3 gi\\u1ecf h\\u00e0ng c\\u1ee5 th\\u1ec3). Chi ph\\u00ed v\\u1eadn chuy\\u1ec3n \\u01b0\\u1edbc l\\u01b0\\u1ee3ng l\\u00e0 8 USD.\"}"
+      },
+      {
+        "stepName": "Output Guardrail (Grounding)",
+        "latencyMs": 94,
+        "status": "pass",
+        "detail": "{\"blocked\": false}"
+      }
+    ]
+  },
+  "spans": [
+    {
+      "name": "guardrail_input",
+      "attributes": {
+        "guardrail.blocked": false
+      }
+    },
+    {
+      "name": "bedrock_converse",
+      "attributes": {
+        "gen_ai.request.model": "amazon.nova-lite-v1:0",
+        "gen_ai.response.finish_reason": "tool_use",
+        "gen_ai.usage.input_tokens": 5338,
+        "gen_ai.usage.output_tokens": 144
+      }
+    },
+    {
+      "name": "guardrail_citation_validation",
+      "attributes": {
+        "guardrail.citation_valid": false
+      }
+    },
+    {
+      "name": "tool_call",
+      "attributes": {
+        "tool.arguments": "{\"amount\": 500, \"from_code\": \"USD\", \"to_code\": \"VND\"}",
+        "tool.name": "convert_currency",
+        "tool.result_preview": "{\"status\": \"ok\", \"amount\": 0.0, \"currency\": \"VND\"}",
+        "tool.succeeded": true
+      }
+    },
+    {
+      "name": "guardrail_output_grounding",
+      "attributes": {
+        "guardrail.blocked": false
+      }
+    },
+    {
+      "name": "bedrock_converse",
+      "attributes": {
+        "gen_ai.request.model": "amazon.nova-lite-v1:0",
+        "gen_ai.response.finish_reason": "tool_use",
+        "gen_ai.usage.input_tokens": 5672,
+        "gen_ai.usage.output_tokens": 155
+      }
+    },
+    {
+      "name": "tool_call",
+      "attributes": {
+        "tool.arguments": "{\"address\": {\"country\": \"Vietnam\", \"city\": \"Hanoi\"}}",
+        "tool.name": "get_shipping_quote",
+        "tool.result_preview": "{\"status\": \"ok\", \"quote\": {\"cost_usd\": {\"currency_code\": \"USD\", \"units\": 8, \"nanos\": 990000000}}, \"is_estimate\": true, \"note\": \"\\u0110\\u00e2y l\\u00e0 b\\u00e1o gi\\u00e1 \\u01b0\\u1edbc l\\u01b0\\u1ee3ng cho 1 s\\u1ea3n ph\\u1ea9m m\\u1eabu (ch\\u01b0a c\\u00f3 gi\\u1ecf h\\u00e0ng c\\u1ee5 th\\u1ec3).\"}",
+        "tool.succeeded": true
+      }
+    },
+    {
+      "name": "bedrock_converse",
+      "attributes": {
+        "gen_ai.request.model": "amazon.nova-lite-v1:0",
+        "gen_ai.response.finish_reason": "end_turn",
+        "gen_ai.usage.input_tokens": 5872,
+        "gen_ai.usage.output_tokens": 133
+      }
+    },
+    {
+      "name": "tool_call",
+      "attributes": {
+        "tool.arguments": "{\"amount\": 500, \"from_code\": \"USD\", \"to_code\": \"VND\"}",
+        "tool.name": "convert_currency",
+        "tool.result_preview": "{\"status\": \"ok\", \"amount\": 0.0, \"currency\": \"VND\"}",
+        "tool.succeeded": true
+      }
+    }
+  ]
+}

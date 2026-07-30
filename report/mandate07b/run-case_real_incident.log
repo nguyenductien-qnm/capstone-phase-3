@@ -1,0 +1,15 @@
+  [inject] flagd paymentFailure -> 100%
+  [inject] flagd paymentFailure -> off
+  [inject] settling 120s before scoring...
+
+======================================================================
+SCENARIO: case-real-incident-001 [real]
+MANDATE-07 #7b / MANDATE-15 'real incident' case: inject paymentFailure=100% on checkout via flagd. Detector must fire on grpc-error-rate-high or error-budget-burn-fast-checkout (either counts as 'caught' for this event) within one detection cycle. duration_seconds/settle_seconds are a starting point tuned for a low-to-moderate-traffic demo stack — both queries use a trailing rate(...[5m]) window, so if live traffic volume is much higher/lower than expected, extend duration_seconds until the fault clearly dominates the 5m window before re-scoring.
+----------------------------------------------------------------------
+  [case-real-incident-001] expect_fire=True -> FIRED (lead_time=88.9s) OK
+----------------------------------------------------------------------
+  K incidents = 1 | recall = 1.0 | precision = 0.5 (correct=1/total=2)
+  VERDICT (real): PASS — real incident fired within window
+======================================================================
+
+  result written to aiops/incident_scenarios/case_real_incident.result.json

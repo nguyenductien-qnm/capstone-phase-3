@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: develop-karpenter-nodepool
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/nguyenductien-qnm/capstone-phase-3.git
+    targetRevision: develop
+    path: platform/gitops/environments/develop/karpenter
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+
+  # Manual sync only. Review the EC2NodeClass role and discovery tags first.

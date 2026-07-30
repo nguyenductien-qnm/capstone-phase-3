@@ -1,0 +1,31 @@
+{
+  "category": "review_surface",
+  "input": [
+    "OLJCESPC7Z",
+    "Khách khen chê gì về sản phẩm này?"
+  ],
+  "latency": 1.2535982131958008,
+  "tokens": {
+    "input": 0,
+    "output": 0,
+    "embedding": 0
+  },
+  "usd_cost": 0.0,
+  "embed_cost": 0.0,
+  "passed": true,
+  "reason": "Got review summary",
+  "response": {
+    "text": "Action: GlobalDataSource.fetch(query=\"Khách khen chê gì về sản phẩm này?\");",
+    "traceId": "",
+    "citations": [],
+    "traceSteps": [
+      {
+        "stepName": "Input Guardrail (PII/Prompt Guard)",
+        "latencyMs": 1114,
+        "status": "pass",
+        "detail": "{\"question\": \"Kh\\u00e1ch khen ch\\u00ea g\\u00ec v\\u1ec1 s\\u1ea3n ph\\u1ea9m n\\u00e0y?\", \"blocked\": false}"
+      }
+    ]
+  },
+  "spans": []
+}

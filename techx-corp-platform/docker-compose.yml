@@ -37,6 +37,8 @@ services:
       - OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE
       - OTEL_RESOURCE_ATTRIBUTES
       - OTEL_SERVICE_NAME=accounting
+      - KAFKA_TOPIC=domain.fulfillment.events
+      - KAFKA_GROUP_ID=accounting
       - DB_CONNECTION_STRING=Host=${POSTGRES_HOST};Username=otelu;Password=otelp;Database=${POSTGRES_DB}
       - OTEL_DOTNET_AUTO_TRACES_ENTITYFRAMEWORKCORE_INSTRUMENTATION_ENABLED=false
     depends_on:
@@ -226,6 +228,9 @@ services:
       - OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE
       - OTEL_RESOURCE_ATTRIBUTES
       - OTEL_SERVICE_NAME=email
+      - KAFKA_ADDR
+      - KAFKA_TOPIC=domain.fulfillment.events
+      - KAFKA_GROUP_ID=email
     depends_on:
       otel-collector:
         condition: service_started
@@ -301,6 +306,7 @@ services:
       - OTEL_COLLECTOR_HOST
       - FLAGD_HOST
       - FLAGD_PORT
+      - SHOPPING_COPILOT_ADDR=shopping-copilot:3552
     depends_on:
       ad:
         condition: service_started
@@ -323,6 +329,8 @@ services:
       image-provider:
         condition: service_started
       flagd:
+        condition: service_started
+      shopping-copilot:
         condition: service_started
     logging: *logging
 
@@ -366,6 +374,8 @@ services:
       - FLAGD_PORT
       - FLAGD_UI_HOST
       - FLAGD_UI_PORT
+      - SHOPPING_COPILOT_HOST
+      - SHOPPING_COPILOT_PORT
     depends_on:
       frontend:
         condition: service_started
@@ -470,6 +480,9 @@ services:
       - OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE
       - OTEL_RESOURCE_ATTRIBUTES
       - OTEL_SERVICE_NAME=payment
+      - KAFKA_ADDR
+      - KAFKA_TOPIC=domain.checkout.orders
+      - KAFKA_GROUP_ID=payment
     depends_on:
       otel-collector:
         condition: service_started
@@ -494,6 +507,13 @@ services:
     ports:
       - "${PRODUCT_CATALOG_PORT}"
     environment:
+      - CATALOG_SCHEMA_PHASE=read_new
+      - SEMANTIC_SEARCH_ENABLED=true
+      - AWS_REGION
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - AWS_SESSION_TOKEN
+      - AWS_SHARED_CREDENTIALS_FILE=/app/.aws/credentials
       - PRODUCT_CATALOG_PORT
       - FLAGD_HOST
       - FLAGD_PORT
@@ -503,7 +523,16 @@ services:
       - OTEL_RESOURCE_ATTRIBUTES
       - OTEL_SERVICE_NAME=product-catalog
       - OTEL_SEMCONV_STABILITY_OPT_IN=database
+      # src/postgresql/init.sql is already at the post-contract schema (catalog.products
+      # has image_url, the legacy picture column is gone), so read_new is the matching
+      # phase here. The dual_read default would emit COALESCE(image_url, p.picture) and
+      # fail with "column p.picture does not exist" — see productPictureSQLExpr() in
+      # src/product-catalog/main.go.
+      - CATALOG_SCHEMA_PHASE=read_new
       - DB_CONNECTION_STRING=postgres://otelu:otelp@${POSTGRES_HOST}/${POSTGRES_DB}?sslmode=disable
+    # Local development only: never use host AWS credentials in CI or production.
+    volumes:
+      - ~/.aws:/app/.aws:ro
     depends_on:
       otel-collector:
         condition: service_started
@@ -539,15 +568,32 @@ services:
       - OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true
       - PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
       - DB_CONNECTION_STRING=host=${POSTGRES_HOST} user=otelu password=otelp dbname=${POSTGRES_DB}
+      # Local development only; CI/EKS use workload identity or injected secrets.
       - AWS_REGION
       - AWS_BEDROCK_MODEL
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - AWS_SESSION_TOKEN
+      - BEDROCK_AWS_ROLE_ARN
+      - BEDROCK_AWS_EXTERNAL_ID
+      - LLM_JUDGE_MODEL
       - OPENAI_API_KEY
       - PRODUCT_CATALOG_ADDR
       - FLAGD_HOST
       - FLAGD_PORT
       - LLM_HOST
       - LLM_PORT
+      - ML_GUARD_URL=ml-guard:8090
+      # CheckOutput fail-closed khi quá deadline: 25s cũ giết câu trả lời đúng
+      # lúc Bedrock chậm (đo 28/07: 5 lần/vòng). Grounding vẫn chặn như cũ.
+      - ML_GUARD_TIMEOUT=40
+      - LLM_LOCAL_ML_GUARD=true
+      - AWS_SHARED_CREDENTIALS_FILE=/app/.aws/credentials
+    volumes:
+      - ~/.aws:/app/.aws:ro
     depends_on:
+      ml-guard:
+        condition: service_healthy
       product-catalog:
         condition: service_started
       llm:
@@ -607,6 +653,7 @@ services:
     environment:
       - RECOMMENDATION_PORT
       - PRODUCT_CATALOG_ADDR
+      - DB_CONNECTION_STRING=postgres://otelu:otelp@${POSTGRES_HOST}/${POSTGRES_DB}?sslmode=disable
       - FLAGD_HOST
       - FLAGD_PORT
       - OTEL_PYTHON_LOG_CORRELATION=true
@@ -647,6 +694,9 @@ services:
       - OTEL_EXPORTER_OTLP_ENDPOINT
       - OTEL_RESOURCE_ATTRIBUTES
       - OTEL_SERVICE_NAME=shipping
+      - KAFKA_ADDR
+      - KAFKA_TOPIC=domain.checkout.orders
+      - KAFKA_GROUP_ID=shipping
       - OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE
     depends_on:
       otel-collector:
@@ -700,12 +750,15 @@ services:
     restart: always
     environment:
       - FLAGD_UI_PORT
+      - SHOPPING_COPILOT_HOST
+      - SHOPPING_COPILOT_PORT
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://${OTEL_COLLECTOR_HOST}:${OTEL_COLLECTOR_PORT_HTTP}
       - OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE
       - OTEL_RESOURCE_ATTRIBUTES
       - OTEL_SERVICE_NAME=flagd-ui
       - SECRET_KEY_BASE=yYrECL4qbNwleYInGJYvVnSkwJuSQJ4ijPTx5tirGUXrbznFIBFVJdPl5t6O9ASw
       - PHX_HOST=localhost
+      - PHX_SERVER=true
     ports:
       - "${FLAGD_UI_PORT}"
     depends_on:
@@ -802,7 +855,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 20M
+          # Valkey Search module needs headroom; prod ElastiCache is managed.
+          memory: 256M
     restart: unless-stopped
     ports:
       - "${VALKEY_PORT}"
@@ -862,7 +916,10 @@ services:
     deploy:
       resources:
         limits:
-          memory: 200M
+          # 200M → 512M (local, 26/07): collector chạm 171/200MiB rồi memory_limiter
+          # từ chối dữ liệu ("data refused due to high memory usage") làm rơi span —
+          # trong đó có span product-catalog mà eval MANDATE-14 dùng làm bằng chứng.
+          memory: 512M
     restart: unless-stopped
     command: [ "--config=/etc/otelcol-config.yml", "--config=/etc/otelcol-config-extras.yml" ]
     user: 0:0
@@ -956,4 +1013,107 @@ services:
       interval: 5s
       timeout: 10s
       retries: 10
+    logging: *logging
+
+  # ML Guard service (ADR-013 / ADR-014)
+  ml-guard:
+    image: ${IMAGE_NAME}:${DEMO_VERSION}-ml-guard
+    container_name: ml-guard
+    build:
+      context: ./
+      dockerfile: ./src/ml-guard/Dockerfile
+    ports:
+      - "8091:8090"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD","python","-c","import socket;socket.create_connection(('127.0.0.1',8090),2)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 100s
+    logging: *logging
+    environment:
+      - AWS_REGION
+      # Local dev: passthrough creds SSO ngắn hạn (aws configure export-credentials).
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - AWS_SESSION_TOKEN
+      - BEDROCK_AWS_ROLE_ARN
+      - BEDROCK_AWS_EXTERNAL_ID
+      - BEDROCK_GUARDRAIL_ID
+      - BEDROCK_GUARDRAIL_VERSION
+      - LLM_BEDROCK_GUARDRAIL
+      - LLM_JUDGE_MODEL
+      - LLM_INJECTION_JUDGE_MODEL
+      - LLM_LOCAL_ML_GUARD=true
+      - AWS_SHARED_CREDENTIALS_FILE=/app/.aws/credentials
+      - OTEL_PYTHON_LOG_CORRELATION=true
+      - OTEL_EXPORTER_OTLP_ENDPOINT
+      - OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE
+      - OTEL_RESOURCE_ATTRIBUTES
+      - OTEL_SERVICE_NAME=ml-guard
+    volumes:
+      - ~/.aws:/app/.aws:ro
+
+  # Shopping Copilot service (TF1-59)
+  shopping-copilot:
+    image: ${IMAGE_NAME}:${DEMO_VERSION}-shopping-copilot
+    container_name: shopping-copilot
+    build:
+      context: ./
+      dockerfile: ./src/shopping-copilot/Dockerfile
+    ports:
+      - "3552:3552"
+    environment:
+      - SHOPPING_COPILOT_PORT=3552
+      - ML_GUARD_URL=ml-guard:8090
+      # CheckOutput fail-closed khi quá deadline: 25s cũ giết câu trả lời đúng
+      # lúc Bedrock chậm (đo 28/07: 5 lần/vòng). Grounding vẫn chặn như cũ.
+      - ML_GUARD_TIMEOUT=40
+      - LLM_LOCAL_ML_GUARD=true
+      - PRODUCT_CATALOG_ADDR
+      - PRODUCT_REVIEWS_ADDR
+      - CART_ADDR
+      - RECOMMENDATION_ADDR
+      - CURRENCY_ADDR
+      - SHIPPING_ADDR
+      - LLM_HOST
+      - LLM_PORT
+      # Local development only; CI/EKS use workload identity or injected secrets.
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - AWS_SESSION_TOKEN
+      - BEDROCK_AWS_ROLE_ARN
+      - BEDROCK_AWS_EXTERNAL_ID
+      - AWS_REGION
+      - AWS_SHARED_CREDENTIALS_FILE=/app/.aws/credentials
+      - LLM_FAULT_GARBAGE_OUTPUT
+      - OTEL_EXPORTER_OTLP_ENDPOINT
+      - OTEL_SERVICE_NAME=shopping-copilot
+      - OTEL_RESOURCE_ATTRIBUTES
+      - VALKEY_ADDR
+      - VALKEY_TLS
+      - VALKEY_AUTH_TOKEN
+      # L2 semantic BẬT kèm rule-guard. Đo 27/07 (docs/ai/evals/param_sweep_m23.md):
+      # riêng cosine thì cặp khác nghĩa đạt 0.9191 còn cặp cùng ý chỉ 0.6587 — hai nhóm
+      # chồng lấn, mọi ngưỡng bắt được paraphrase đều kéo theo 20% false-hit. Thêm
+      # pb/semantic_guard.py (phủ định / mốc giá / con số / tên riêng) thì false-hit về
+      # 0 ở mọi ngưỡng; chọn 0.85 theo luật "recall cao nhất, hoà thì lấy ngưỡng cao
+      # nhất" để cosine vẫn còn tác dụng chứ không phó mặc toàn bộ cho guard.
+      - SEMANTIC_CACHE_ENABLED=true
+      - SEMANTIC_CACHE_MIN_SIM=0.85
+      - DB_CONNECTION_STRING=host=${POSTGRES_HOST} user=otelu password=otelp dbname=${POSTGRES_DB}
+    volumes:
+      - ~/.aws:/app/.aws:ro
+    depends_on:
+      ml-guard:
+        condition: service_healthy
+      product-catalog:
+        condition: service_started
+      currency:
+        condition: service_started
+      shipping:
+        condition: service_started
+      valkey-cart:
+        condition: service_started
     logging: *logging

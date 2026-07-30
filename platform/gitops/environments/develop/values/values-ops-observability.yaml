@@ -1,0 +1,220 @@
+# Develop observability overrides. The dedicated node is provisioned by the
+# EKS module as workload-tier=observability with a NoSchedule taint.
+
+observabilityStorage:
+  enabled: true
+  parameters:
+    type: gp3
+    encrypted: "true"
+
+opentelemetry-collector:
+  image:
+    tag: "0.153.0"
+    digest: "sha256:93aad750175cbf1a973ae1c5886c3371f4d800f61be25cdd26870b8441ffe9fa"
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: observability
+      effect: NoSchedule
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  config:
+    connectors:
+      spanmetrics:
+        metrics_flush_interval: 60s
+        # Remove inactive resources before per-series eviction so the
+        # exporter never emits empty OTLP metrics.
+        metrics_expiration: 25m
+        series_expiration: 30m
+        aggregation_cardinality_limit: 50000
+        resource_metrics_key_attributes:
+          - service.name
+          - service.namespace
+    service:
+      pipelines:
+        # Keep all real backends and spanmetrics; remove only the stdout-copy
+        # debug exporter in the Mandate-18 develop runtime scope.
+        traces:
+          exporters: [otlp/jaeger, spanmetrics]
+        metrics:
+          exporters: [otlphttp/prometheus]
+        logs:
+          exporters: [opensearch]
+
+telemetryRetention:
+  # 3d keeps the measured peak three-day footprint below the 10Gi PVC while
+  # retaining recent operational logs. Audit/security telemetry is stored in
+  # separate AWS log groups and is outside this index pattern. Keep this safety
+  # gate off until the log owner approves 3d and a recoverable backup exists;
+  # the Argo application auto-syncs and deletion cannot be undone from Git.
+  enabled: false
+  minIndexAge: 3d
+
+jaeger:
+  jaeger:
+    nodeSelector:
+      workload-tier: observability
+    tolerations:
+      - key: dedicated
+        operator: Equal
+        value: observability
+        effect: NoSchedule
+    resources:
+      requests:
+        cpu: 100m
+        memory: 384Mi  # đo 23/07: soak 25u P95 297Mi, idle 245Mi (was 640 = thừa 2.6x)
+      limits:
+        cpu: 500m
+        memory: 1Gi    # GIỮ — tiền sử OOMKilled khi bắn nặng mandate-19 (span burst)
+
+prometheus:
+  kube-state-metrics:
+    nodeSelector:
+      workload-tier: observability
+    tolerations:
+      - key: dedicated
+        operator: Equal
+        value: observability
+        effect: NoSchedule
+    resources:
+      requests:
+        cpu: 25m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+  server:
+    nodeSelector:
+      workload-tier: observability
+    tolerations:
+      - key: dedicated
+        operator: Equal
+        value: observability
+        effect: NoSchedule
+    persistentVolume:
+      enabled: true
+      storageClass: gp3-observability
+      accessModes:
+        - ReadWriteOnce
+      size: 20Gi
+    # Đo 23/07 (MEMORY-SIZING develop): limit 1536Mi gây OOM-LOOP 87 lần/16h —
+    # WAL replay TSDB 4.9G xong là compact chạm nóc, chết, replay lại từ đầu.
+    # Đỉnh replay+compact đo được 2269Mi, steady-state có tải P95 1847Mi.
+    # Retention giữ 1w (yêu cầu); nếu cần giảm đỉnh sau này: bật feature
+    # memory-snapshot-on-shutdown thay vì cắt retention.
+    resources:
+      requests:
+        cpu: 250m
+        memory: 1024Mi
+      limits:
+        cpu: 1000m
+        memory: 2560Mi
+
+grafana:
+  nodeSelector:
+    workload-tier: observability
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: observability
+      effect: NoSchedule
+  podLabels:
+    egress-internet: "true"
+  plugins:
+    - grafana-opensearch-datasource
+  resources:
+    requests:
+      cpu: 100m
+      memory: 320Mi  # đo 23/07: soak P95 251Mi phẳng (was 512 = thừa 2x)
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  sidecar:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 96Mi
+      limits:
+        cpu: 50m
+        memory: 128Mi
+
+opensearch:
+  enabled: true
+  nodeSelector:
+    workload-tier: observability
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: observability
+      effect: NoSchedule
+  persistence:
+    enabled: true
+    storageClass: gp3-observability
+    size: 10Gi
+    # Tắt initContainer fsgroup-volume (busybox root chown). Dùng podSecurityContext.fsGroup:1000
+    # (chart default) — kubelet tự chown PVC trên EBS gp3. Bỏ container root =>
+    # hết vi phạm priv-esc/caps/non-root/floating-tag của fsgroup-volume.
+    enableInitChown: false
+  # Đo 23/07: working_set 898-950Mi ổn định (idle = soak) trên req 512Mi chart
+  # default — under-request 84%, node đầy là bị evict trước tiên. Heap -Xmx400m
+  # CỐ ĐỊNH, phần vượt là off-heap + page cache Lucene (nhả được khi ép) nên
+  # limit 1536Mi là trần an toàn, không cần đuổi theo max.
+  resources:
+    requests:
+      cpu: 250m
+      memory: 1024Mi
+    limits:
+      cpu: 1000m
+      memory: 1536Mi
+  # Resources cho init còn lại (configfile) => thỏa require-cpu-memory.
+  initResources:
+    requests:
+      cpu: 10m
+      memory: 16Mi
+    limits:
+      cpu: 50m
+      memory: 32Mi
+
+components:
+  load-generator:
+    # Continuous background traffic keeps Develop telemetry active and is the
+    # load the MANDATE-09 migration/upgrade drills run under.
+    # MANDATE-09: mentor đánh giá 10 user là quá nhẹ để chứng minh "0 request rớt".
+    # Nâng nền lên 40 user — đúng mức mandate-19 đã đo được sau khi nới limit
+    # frontend/email/payment, nên nằm trong vùng đã chứng minh giữ SLO.
+    # 40 user HTTP thuần ~400Mi RSS, sát limit 512Mi cũ -> nâng 1Gi. cpu 750m giữ
+    # nguyên: Locust HTTP-only single-process đo ~300m ở mức này.
+    enabled: true
+    schedulingRules:
+      nodeSelector:
+        workload-tier: observability
+      tolerations:
+        - key: dedicated
+          operator: Equal
+          value: observability
+          effect: NoSchedule
+    envOverrides:
+      - name: LOCUST_USERS
+        value: "40"
+      - name: LOCUST_SPAWN_RATE
+        value: "5"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 750m
+        memory: 1Gi

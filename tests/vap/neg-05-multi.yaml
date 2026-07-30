@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: vaptest-neg-05-multi
+  labels: { vaptest: "true" }
+spec:
+  containers:
+  - name: bad
+    image: busybox:latest                      # floating tag
+    securityContext:
+      runAsUser: 0                             # root
+      allowPrivilegeEscalation: true           # priv-esc
+    # thiếu resources + không drop ALL -> dính đủ 5 luật

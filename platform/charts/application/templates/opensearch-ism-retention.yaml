@@ -1,0 +1,117 @@
+{{- if and .Values.opensearch.enabled .Values.telemetryRetention.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "techx-corp.name" . }}-opensearch-ism
+  labels:
+    {{- include "techx-corp.labels" . | nindent 4 }}
+data:
+  policy.json: |
+    {
+      "policy": {
+        "description": "Finite retention for operational OTel logs; excludes AWS audit/security telemetry",
+        "default_state": "hot",
+        "states": [
+          {
+            "name": "hot",
+            "actions": [],
+            "transitions": [
+              {
+                "state_name": "delete",
+                "conditions": { "min_index_age": {{ .Values.telemetryRetention.minIndexAge | quote }} }
+              }
+            ]
+          },
+          {
+            "name": "delete",
+            "actions": [{ "delete": {} }],
+            "transitions": []
+          }
+        ],
+        "ism_template": {
+          "index_patterns": [{{ .Values.telemetryRetention.indexPattern | quote }}],
+          "priority": 100
+        }
+      }
+    }
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "techx-corp.name" . }}-opensearch-ism-apply
+  labels:
+    {{- include "techx-corp.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        {{- include "techx-corp.labels" . | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: apply-ism-policy
+          image: {{ .Values.telemetryRetention.image | quote }}
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+            runAsUser: 10001
+          resources:
+            requests:
+              cpu: 5m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              endpoint="http://opensearch:9200"
+              policy_id={{ .Values.telemetryRetention.policyId | quote }}
+              pattern={{ .Values.telemetryRetention.indexPattern | quote }}
+
+              if curl --fail --silent \
+                --retry 30 --retry-delay 5 --retry-connrefused \
+                "${endpoint}/_plugins/_ism/policies/${policy_id}" >/dev/null; then
+                echo "${policy_id}: policy already exists; preserving it"
+              else
+                curl --fail --silent --show-error \
+                  -X PUT "${endpoint}/_plugins/_ism/policies/${policy_id}" \
+                  -H 'Content-Type: application/json' \
+                  --data-binary @/policy/policy.json
+              fi
+
+              for index in $(curl --fail --silent --show-error \
+                "${endpoint}/_cat/indices/${pattern}?h=index"); do
+                explain=$(curl --fail --silent --show-error \
+                  "${endpoint}/_plugins/_ism/explain/${index}")
+                if echo "${explain}" | grep -q '"enabled":true'; then
+                  echo "${index}: already managed; preserving its current policy"
+                  continue
+                fi
+                curl --fail --silent --show-error \
+                  -X POST "${endpoint}/_plugins/_ism/add/${index}" \
+                  -H 'Content-Type: application/json' \
+                  -d "{\"policy_id\":\"${policy_id}\"}"
+              done
+          volumeMounts:
+            - name: policy
+              mountPath: /policy
+              readOnly: true
+      volumes:
+        - name: policy
+          configMap:
+            name: {{ include "techx-corp.name" . }}-opensearch-ism
+{{- end }}

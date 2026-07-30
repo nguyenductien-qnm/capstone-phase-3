@@ -1,0 +1,22 @@
+  [inject] running: kubectl scale deploy/cart -n techx-tf1 --replicas=0
+deployment.apps/cart scaled
+  [inject] running: kubectl scale deploy/cart -n techx-tf1 --replicas=2
+deployment.apps/cart scaled
+  [inject] running: kubectl scale deploy/cart -n techx-tf1 --replicas=0
+deployment.apps/cart scaled
+  [inject] running: kubectl scale deploy/cart -n techx-tf1 --replicas=2
+deployment.apps/cart scaled
+  [inject] settling 300s before scoring...
+
+======================================================================
+SCENARIO: case-masking-001 [masking]
+MANDATE-15 masking case, ban cho EKS. Hai su co RIENG BIET tren CUNG rule+service (service-error-rate-high / frontend) nen chung dung MOT xo metric_history trong detector.py — dung cho xo bi nhiem doc. Su co 1 la gian doan lon (ti le ~0.28, tang TINH keu). Su co 2, ~9 phut sau, NHO HON nhieu va co y nam trong khoang (0.05, 0.10): TREN cong SLO nhung DUOI nguong tinh, tuc CHI tang 3-sigma bat duoc. Neu su co 1 keo mean/std len thi su co 2 bi che va ca nay FAIL. Xem report/mandate15/calibration.md de biet vi sao chon frontend + 60s.
+----------------------------------------------------------------------
+  [noise-spike] expect_fire=True -> FIRED (lead_time=119.9s) OK
+  [subtle-incident] expect_fire=True -> FIRED (lead_time=93.3s) OK
+----------------------------------------------------------------------
+  K incidents = 2 | recall = 1.0 | precision = 0.3333333333333333 (correct=2/total=6)
+  VERDICT (masking): PASS — both events caught, not masked
+======================================================================
+
+  result written to aiops/incident_scenarios/case_masking.result.json

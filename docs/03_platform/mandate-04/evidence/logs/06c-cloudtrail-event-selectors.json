@@ -1,0 +1,11 @@
+{
+    "TrailARN": "arn:aws:cloudtrail:us-east-1:<ACCOUNT_ID_REDACTED>:trail/ecommerce-dev-audit-trail",
+    "EventSelectors": [
+        {
+            "ReadWriteType": "All",
+            "IncludeManagementEvents": true,
+            "DataResources": [],
+            "ExcludeManagementEventSources": []
+        }
+    ]
+}

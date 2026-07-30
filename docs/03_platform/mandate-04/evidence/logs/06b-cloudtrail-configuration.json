@@ -1,0 +1,14 @@
+{
+    "Trail": {
+        "Name": "ecommerce-dev-audit-trail",
+        "S3BucketName": "ecommerce-dev-cloudtrail-logs",
+        "IncludeGlobalServiceEvents": true,
+        "IsMultiRegionTrail": true,
+        "HomeRegion": "us-east-1",
+        "TrailARN": "arn:aws:cloudtrail:us-east-1:<ACCOUNT_ID_REDACTED>:trail/ecommerce-dev-audit-trail",
+        "LogFileValidationEnabled": true,
+        "HasCustomEventSelectors": false,
+        "HasInsightSelectors": false,
+        "IsOrganizationTrail": false
+    }
+}

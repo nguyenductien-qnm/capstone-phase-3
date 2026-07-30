@@ -1,0 +1,9 @@
+{
+  "group": "shortterm",
+  "case": "three-turns",
+  "passed": true,
+  "reason": "lượt 3 nhắc lại sản phẩm của lượt trước: ['Solar System Color Imager']",
+  "latency": 10.07,
+  "cache_status": "miss",
+  "response": "**Solar System Color Imager** là một sản phẩm phụ kiện, giá là **$175.00**. Nó được thiết kế để giúp bạn bắt đầu chụp ảnh các hành tinh trong Hệ Mặt Trời, đặc biệt là Sao Thổ và Sao Mộc. Nếu bạn đã có kính thiên văn và muốn bắt đầu chụp ảnh, đây có thể là một lựa chọn tốt cho người mới. Bạn có muốn "
+}

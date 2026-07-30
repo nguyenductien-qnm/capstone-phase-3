@@ -1,0 +1,80 @@
+# Architectural Decision Record (ADR): Chọn Admission Policy Engine & Kế hoạch Rollout
+
+**Mã tài liệu**: CDO-SEC-ADR-002  
+**Trạng thái**: Đã phê duyệt & Thực thi (Approved & Enforced)  
+**Tác giả**: Châu Thành Trung (CDO-05 / Security Lead)  
+**Ngày thực hiện**: 18/07/2026  
+**Ngày phê duyệt**: 19/07/2026  
+
+---
+
+## 1. Bối cảnh & Yêu cầu (Context)
+Để thực hiện **Directive #5 (Runtime Hardening)**, hệ thống cần có cơ chế tự động chặn đứng các cấu hình nguy hiểm (chạy quyền root, không giới hạn tài nguyên, tag image latest trôi nổi) ngay khi lập trình viên thực hiện lệnh `kubectl apply`. 
+
+Chúng ta cần lựa chọn công cụ kiểm soát chính sách đầu vào (Admission Policy Engine) và xây dựng kế hoạch triển khai (Rollout Mode) thỏa mãn các ràng buộc:
+* **Tính ổn định & Trưởng thành**: Sử dụng công cụ phổ biến, dễ bảo trì, có thư viện luật mẫu phong phú để hoàn thành trước hạn chót thứ Sáu.
+* **Chi phí tối ưu**: Cấu hình tài nguyên (vCPU/RAM) ở mức tối thiểu để tránh vượt trần ngân sách $300/tuần.
+* **An toàn vận hành**: Không làm gián đoạn (downtime) các dịch vụ đang chạy ổn định của storefront.
+
+---
+
+## 2. Các Phương án Lựa chọn (Candidates)
+
+### Phương án A: OPA Gatekeeper (Open Policy Agent)
+* **Cơ chế**: Sử dụng một Admission Webhook tiêu chuẩn, quản lý các luật thông qua `ConstraintTemplates` và `Constraints` (CRDs). Chính sách được viết bằng ngôn ngữ Rego.
+* **Nhược điểm**: Yêu cầu deploy thêm các webhook controller pod và audit pods. Điều này vi phạm ràng buộc không sinh thêm hạ tầng/service mới và tốn tài nguyên chạy pod phụ trợ.
+
+### Phương án B: Kyverno
+* **Cơ chế**: Sử dụng Admission Webhook bên thứ ba, viết chính sách bằng YAML.
+* **Nhược điểm**: Vẫn là webhook bên ngoài, tiêu tốn thêm tài nguyên hạ tầng và ít phổ biến hơn VAP trong môi trường native thuần Kubernetes modern.
+
+### Phương án C: Kubernetes ValidatingAdmissionPolicy (VAP) - **ĐƯỢC CHỌN**
+* **Cơ chế**: Tính năng kiểm soát chính sách native của Kubernetes API Server sử dụng ngôn ngữ CEL (Common Expression Language).
+* **Ưu điểm**:
+  * **Không dựng thêm service:** VAP chạy trực tiếp trong API Server sử dụng CEL, **tài nguyên tiêu thụ bằng 0** và không tạo thêm bất kỳ pod/service nào trong cluster.
+  * **Tốc độ và độ trễ cực thấp:** Chạy trực tiếp trên kube-apiserver giúp giảm thiểu trễ mạng so với webhook bên ngoài.
+  * **Hỗ trợ đầy đủ các luật:** CEL hoàn toàn đủ mạnh để định nghĩa tất cả 5 luật của Mandate 5.
+
+---
+
+## 3. Quyết định (Decision)
+Nhóm quyết định chọn **Phương án C: Kubernetes ValidatingAdmissionPolicy (VAP)** làm Policy Engine chính cho Mandate 5, thay thế cho đề xuất ban đầu (OPA Gatekeeper).
+
+### Lý do lựa chọn:
+1. **Không dựng thêm service:** Đáp ứng hoàn toàn ràng buộc về mặt tài chính và hạ tầng của Directive #5.
+2. **Áp dụng toàn bộ cluster (Cluster-wide):** Phù hợp với yêu cầu thực thi chính sách trên toàn bộ cluster, chỉ loại trừ các namespace hệ thống (`kube-system`, `argocd`, v.v.) bằng `namespaceSelector` thay vì giới hạn chỉ 1 namespace.
+3. **Tối ưu chi phí:** Tránh hoàn toàn việc sử dụng tài nguyên của node cho việc chạy Admission Controller webhook.
+
+---
+
+## 4. Kế hoạch Triển khai & Cắt chuyển (Rollout Plan)
+
+Để đảm bảo không làm gián đoạn storefront, quy trình cấu hình đi qua 2 giai đoạn:
+
+```
+[Giai đoạn 1: Warn Mode] ──(Sửa các Pod vi phạm)──> [Giai đoạn 2: Deny Mode]
+```
+
+### Giai đoạn 1: Warn Mode (Giám sát cảnh báo / Audit-only)
+* **Cấu hình**: Triển khai các `ValidatingAdmissionPolicyBinding` với thuộc tính `validationActions: [Warn]`.
+* **Mục tiêu**: API Server sẽ cho phép deploy bình thường nhưng sẽ ghi log cảnh báo vi phạm vào kubectl output. Nhóm dùng dữ liệu này để rà soát và sửa đổi Helm Chart của các microservices mà không sợ làm sập app đang chạy.
+* **Phạm vi áp dụng (Namespace Scope)**: Áp dụng trên toàn cluster ngoại trừ các namespace hệ thống (`kube-system`, `kube-public`, `kube-node-lease`, `gatekeeper-system`, `argocd`).
+
+### Giai đoạn 2: Active/Deny Mode (Chặn thật sự)
+* **Cấu hình**: Cập nhật thuộc tính của `ValidatingAdmissionPolicyBinding` thành `validationActions: [Deny]`.
+* **Mục tiêu**: Bất kỳ hành vi apply manifest vi phạm nào (như chạy root, thiếu resource limits, tag image floating) sẽ bị API Server từ chối ngay lập tức lúc `kubectl apply`.
+
+---
+
+## 5. Quy trình xử lý Ngoại lệ (Exception Process)
+* Đối với các container đặc thù (như `otel-collector-agent` cần quyền đặc biệt để lấy log/metrics hệ thống):
+  * **Giải pháp**: Đăng ký exception trực tiếp trong CEL expression của `ValidatingAdmissionPolicy` (loại trừ theo image name hoặc namespace).
+
+---
+
+## 6. Kế hoạch Khôi phục (Rollback Plan)
+* Nếu VAP gặp sự cố chặn nhầm làm tắc nghẽn luồng CI/CD:
+  * **Cách thực hiện**: Chuyển nhanh `validationActions` của `ValidatingAdmissionPolicyBinding` tương ứng về `[Warn]` hoặc xóa Binding đó đi bằng cách chạy:
+    `kubectl delete validatingadmissionpolicybinding <binding-name>`
+    Thao tác này khôi phục khả năng deploy tức thì.
+  * **Quy trình phê duyệt**: Việc khôi phục (Rollback) chỉ được thực hiện khi có sự đồng ý của Owner (Security Lead / Châu Thành Trung).

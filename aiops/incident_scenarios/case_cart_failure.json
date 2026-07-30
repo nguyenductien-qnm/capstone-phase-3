@@ -1,0 +1,16 @@
+{
+  "id": "case-cart-failure-001",
+  "type": "real",
+  "description": "MANDATE-07 #7b NEGATIVE/BLIND-SPOT case: inject cartFailure=on via flagd. Originally expected to FAIL, and the reason was recorded here: the .NET cart service exports no rpc_server_duration_milliseconds series at all, so grpc-error-rate-high — a ratio over rpc_server_duration_milliseconds_count — had nothing to read for cart no matter how badly cart was failing. That note ended with 'Expected verdict is FAIL until either cart emits server-side RPC metrics or a rule is added over traces_span_metrics_*.' UPDATE 2026-07-27: the second condition is now met. grpc-error-rate-high was replaced by service-error-rate-high, a ratio over traces_span_metrics_calls_total, which the collector generates from traces and therefore covers 17 services including cart (measured: cart has 91 series, span_kind=SPAN_KIND_SERVER — see report/mandate22-detection-gaps/verify.md). expect_fire stays true and the case stays in the set, but it is no longer a documented blind spot: it is now a real detection case, and the next run of this scenario is what proves it. If it still fails, the gap is elsewhere and this description must be rewritten rather than the threshold loosened.",
+  "service": "cart",
+  "expected_rule_ids": ["service-error-rate-high", "error-budget-burn-fast-standard"],
+  "expect_fire": true,
+  "inject": {
+    "type": "flagd",
+    "flag": "cartFailure",
+    "on_variant": "on",
+    "off_variant": "off"
+  },
+  "duration_seconds": 300,
+  "settle_seconds": 120
+}

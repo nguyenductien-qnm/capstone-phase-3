@@ -1,0 +1,1490 @@
+name: "2 · Build — Ảnh app → ECR (Trivy + Cosign + bump GitOps)"
+
+# CDO-140 (build+push ECR, tag convention, immutable) + CDO-146 (Trivy + Cosign ký
+# digest) + CDO-142 (bump tag vào Git -> ArgoCD selfHeal sync).
+#
+# Deploy model (build once, promote): CI chỉ chạy trên nhánh develop -> build ->
+# push ECR (by digest) -> Trivy gate -> Cosign keyless ký DIGEST -> yq bump
+# components.<svc>.imageOverride.tag vào tags file của môi trường DEVELOP -> commit
+# [skip ci] -> ArgoCD develop sync. KHÔNG kubectl tay.
+# Prod (env sandbox cũ) KHÔNG có CI bump: chỉ nhận tag qua PR promote (chép tag đã
+# chạy ổn ở develop sang environments/sandbox/values-image-tags.yaml, có review).
+# Không build lại image cho prod -> giữ nguyên digest đã scan + ký + test ở develop.
+#
+# >>> TẠM NGƯNG (29/07/2026) — đoạn mô tả 6 dòng NGAY TRÊN mô tả trạng thái CŨ <<<
+# Sau sự cố AWS credits (report/credit-incident/aws-personal-incident-2026-07-28.md)
+# cụm DEVELOP đã bị destroy, chỉ còn MỘT môi trường và nó dùng thư mục
+# environments/sandbox. Hai bước app-attest.yaml + app-promote.yaml TẠM NGƯNG (file
+# giữ nguyên, chỉ có workflow_dispatch nên không tự chạy).
+# Hệ quả: TAGS_FILE bên dưới đã trỏ THẲNG vào environments/sandbox — merge vào
+# develop là ảnh lên thẳng môi trường còn lại, KHÔNG còn chặng chạy thử và KHÔNG
+# còn PR promote. Cửa người-duyệt duy nhất còn lại là PR vào nhánh develop.
+# Dựng lại môi trường thứ hai thì khôi phục cả TAGS_FILE lẫn 2 workflow trên.
+#
+# Tag convention: <version>-<service>-<sha>  (version = chart appVersion default.image.tag).
+# ECR: 1 repo chung ecommerce-dev-techx-corp, IMMUTABLE. Ký theo digest, không ký tag.
+#
+# Service build được suy ra ĐỘNG, không hardcode: giao của
+#   (a) component `enabled: true` trong chart values.yaml, KHÔNG có imageOverride.repository
+#       (có repository = image upstream: flagd/postgresql/valkey-cart -> bỏ), và
+#   (b) có Dockerfile trong techx-corp-platform/src/<svc>/ (hoặc <svc>/src/ như cart).
+# Thêm service mới vào chart + có Dockerfile là tự động được build, không sửa file này.
+#
+# NGOẠI LỆ aiops (MANDATE-10 P2): 2 image aiops (detector, remediation) KHÔNG nằm trong
+# chart application (deploy bằng manifest trần ở aiops/*/deploy, ArgoCD app `aiops`) và
+# build context lệch nhau (remediation dùng chung code của detector -> context là aiops/).
+# Nên chúng có job build-aiops riêng với matrix TĨNH ở cuối file, thay vì nhét vào detect.
+# Cùng file = cùng subject identity Cosign, đó là lý do không tách workflow.
+
+on:
+  push:
+    # Chỉ develop: main không rebuild image (build once). Lên prod đi đường promote PR.
+    branches: ["develop"]
+    paths:
+      - "techx-corp-platform/src/**"
+      - "platform/charts/application/values.yaml"
+      # MANDATE-10 P2: aiops/** vào ĐÚNG file này (không tách workflow riêng) để 2 image
+      # aiops mang CÙNG subject identity (app-build.yaml@refs/heads/develop) mà policy
+      # Kyverno verifyImages đang khai — thêm workflow khác = phải nới attestor.
+      - "aiops/**"
+      - ".trivyignore"
+      - ".github/workflows/app-build.yaml"
+  pull_request:
+    branches: ["develop"]
+    paths:
+      - "techx-corp-platform/src/**"
+      - "platform/charts/application/values.yaml"
+      - "aiops/**"
+      - ".trivyignore"
+      - ".github/workflows/app-build.yaml"
+  workflow_dispatch:
+    inputs:
+      # MANDATE-10 yêu cầu #6 ("chỉ đụng cái gì đổi"): đường full rebuild phải HẸP và
+      # CÓ LÝ DO, không phải mặc định. Trước đây bỏ trống ô này = build im lặng cả 20+
+      # image; đó chính là cách run 30159978689 (04/07) đóng dấu commit 6beefa4 lên MỌI
+      # image, khiến trace currency trỏ về PR #401 vốn chỉ sửa shipping. Nay bỏ trống
+      # là FAIL: phải hoặc liệt kê service, hoặc chủ động xác nhận full + nêu lý do.
+      services:
+        description: "Service cần build (space-separated). Bỏ trống = full rebuild, khi đó PHẢI bật confirm_full + ghi reason"
+        required: false
+        type: string
+      confirm_full:
+        description: "Xác nhận CHỦ ĐÍCH rebuild TOÀN BỘ image (chỉ dùng khi services để trống)"
+        required: false
+        type: boolean
+        default: false
+      reason:
+        description: "Lý do full rebuild (bắt buộc khi confirm_full=true) — ghi vào job summary để truy vết"
+        required: false
+        type: string
+      attest_sbom:
+        description: "Chế độ SBOM-only: KHÔNG build, chỉ attest SBOM cho digest prod đang chạy (đọc tags sandbox)"
+        required: false
+        type: boolean
+        default: false
+      sbom_dry_run:
+        description: "(chỉ khi attest_sbom) chỉ resolve digest, KHÔNG syft/attest"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  # KHÔNG cancel-in-progress: build đã push + bump commit không nên bị hủy giữa chừng.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+  ECR_REGISTRY: ${{ vars.ECR_REGISTRY || '384511757667.dkr.ecr.us-east-1.amazonaws.com' }}
+  # 1 repo chung, service phân biệt bằng tag suffix (khớp chart _objects.tpl:73).
+  ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY || 'ecommerce-dev-techx-corp' }}
+  # Phần <version> trong tag <version>-<svc>-<sha>. Nguồn THẬT: GitHub Actions
+  # variable IMAGE_VERSION, fallback '1.0' — KHÔNG lấy từ default.image.tag của chart
+  # (sửa default.image.tag trong values.yaml KHÔNG làm tag build đổi). Muốn lên version:
+  # đổi vars.IMAGE_VERSION.
+  IMAGE_VERSION: ${{ vars.IMAGE_VERSION || '1.0' }}
+  BUILD_CONTEXT: techx-corp-platform
+  # CI CHỈ ghi file tags tách riêng (không comment) -> yq bump không phá format
+  # values.yaml gốc. Helm/ArgoCD load file này SAU values.yaml để override tag.
+  #
+  # TẠM NGƯNG (29/07/2026): trước đây dòng này trỏ vào
+  #   platform/gitops/environments/develop/values/values-image-tags.yaml
+  # với ghi chú "tags file sandbox (prod) chỉ đổi qua promote PR". Ghi chú đó đúng
+  # với mô hình 2 môi trường; nay cụm develop đã destroy nên nó KHÔNG còn đúng.
+  # Phải trỏ vào file sandbox vì đó là file DUY NHẤT mà ArgoCD còn đọc:
+  # platform/gitops/bootstrap/root-app.yaml -> platform/gitops/applications ->
+  # application.yaml nạp 6 values file trong environments/sandbox, file tags nạp
+  # CUỐI để override. Giữ nguyên đường dẫn develop = build xanh, ảnh lên ECR đủ,
+  # mà không cụm nào đọc tới -> cụm chạy tag cũ mãi.
+  # Khôi phục promote thì đổi lại dòng này về develop TRƯỚC, rồi mới bật 2 workflow.
+  TAGS_FILE: platform/gitops/environments/sandbox/values-image-tags.yaml
+
+jobs:
+  # ------------------------------------------------------------------ #
+  # Suy ra danh sách service team-owned từ chart + filesystem (không     #
+  # hardcode), rồi lọc theo thay đổi thực tế:                            #
+  #   push/PR   -> service có file đổi trong src/<svc>/ (git diff)       #
+  #   dispatch  -> theo input (rỗng = build tất cả service team-owned)   #
+  # Chart values.yaml đổi -> build tất cả (tag/enabled có thể đã đổi).   #
+  # ------------------------------------------------------------------ #
+  detect:
+    name: Detect changed services
+    # Chế độ attest_sbom (workflow_dispatch) KHÔNG build gì -> bỏ qua toàn bộ nhánh
+    # detect/build/bump (chúng needs detect nên cũng skip theo).
+    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.attest_sbom) }}
+    runs-on: ubuntu-latest
+    outputs:
+      # matrix: service × arch (job build). matrix_merge: chỉ service (job merge) —
+      # xem chú thích ở bước "Build matrix" về lý do phải tách làm hai.
+      matrix: ${{ steps.set.outputs.matrix }}
+      matrix_merge: ${{ steps.set.outputs.matrix_merge }}
+      any: ${{ steps.set.outputs.any }}
+      # Danh sách service thật sự được dựng trong run này (cách nhau bằng khoảng
+      # trắng). Job bump đọc lại để tự kiểm: không được ghi tag cho service nằm
+      # ngoài danh sách này.
+      services: ${{ steps.set.outputs.services }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # Cần commit trước đó để git diff ra file đã đổi.
+          fetch-depth: 0
+
+      - name: Install yq
+        uses: mikefarah/yq@1b9b4ac5187171d2e5e3129be0cfa827c7f9d53d # v4
+
+      - name: Build matrix
+        id: set
+        env:
+          EVENT: ${{ github.event_name }}
+          DISPATCH_SERVICES: ${{ github.event.inputs.services }}
+          DISPATCH_CONFIRM_FULL: ${{ github.event.inputs.confirm_full }}
+          DISPATCH_REASON: ${{ github.event.inputs.reason }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          VALUES: platform/charts/application/values.yaml
+        run: |
+          set -euo pipefail
+
+          # (a) Component team-owned trong chart: enabled=true và KHÔNG có
+          # imageOverride.repository (có repository = kéo từ registry ngoài).
+          mapfile -t owned < <(
+            yq -r '.components | to_entries[]
+                   | select(.value.enabled == true)
+                   | select(.value.imageOverride.repository == null)
+                   | .key' "$VALUES"
+          )
+
+          # (b) Giao với Dockerfile có thật. cart (.NET) để Dockerfile ở
+          # src/cart/src/ nên thử cả 2 vị trí thay vì đặc case theo tên.
+          declare -A DOCKERFILE=()
+          for svc in "${owned[@]}"; do
+            for cand in "src/$svc/Dockerfile" "src/$svc/src/Dockerfile"; do
+              if [ -f "$BUILD_CONTEXT/$cand" ]; then
+                DOCKERFILE[$svc]="$cand"
+                break
+              fi
+            done
+          done
+          if [ "${#DOCKERFILE[@]}" -eq 0 ]; then
+            echo "::error::Không tìm thấy service team-owned nào có Dockerfile."
+            exit 1
+          fi
+          echo "Service team-owned: ${!DOCKERFILE[*]}"
+
+          # KHÔNG còn danh sách hoãn build: mọi service team-owned đều build được với
+          # Trivy gate bật. CVE không vá được xử bằng .trivyignore (từng CVE ID, có lý
+          # do + hạn review) thay vì hoãn cả service — service vẫn deploy được code mới.
+
+          # --- Chọn service cần build ---------------------------------------
+          # WHY = câu giải thích VÌ SAO tập service dưới đây được chọn, viết thẳng ra
+          # job summary. Không phân loại thành nhãn: "rộng hay hẹp" cứ đếm số service
+          # là biết, còn thứ người trực cần khi mở run lên là LÝ DO. Mỗi nhánh chọn
+          # service bên dưới tự đặt lại WHY của mình.
+          selected=()
+          WHY="thay đổi khu trú trong techx-corp-platform/src/<service>/"
+          case "$EVENT" in
+            workflow_dispatch)
+              if [ -n "${DISPATCH_SERVICES:-}" ]; then
+                # Dispatch có liệt kê service: build đúng những cái được nêu tên.
+                if [ "${DISPATCH_CONFIRM_FULL:-false}" = "true" ]; then
+                  echo "::error::Hai ô mâu thuẫn: đã liệt kê services='$DISPATCH_SERVICES' thì đừng bật confirm_full. Muốn build hết thì để trống ô services."
+                  exit 1
+                fi
+                read -ra requested <<< "$DISPATCH_SERVICES"
+                for svc in "${requested[@]}"; do
+                  if [ -z "${DOCKERFILE[$svc]:-}" ]; then
+                    echo "::error::Service '$svc' không phải team-owned hoặc không có Dockerfile."
+                    exit 1
+                  fi
+                  selected+=("$svc")
+                done
+                WHY="người chạy chỉ định qua ô 'services' của workflow_dispatch"
+              else
+                # MANDATE-10 #6: full rebuild KHÔNG còn là mặc định im lặng. Bỏ trống
+                # services mà không xác nhận = FAIL, kèm hướng dẫn. Đây là chốt chặn
+                # cho đúng thao tác đã gây ra sự cố trace ngày 04/07 (run 30159978689).
+                if [ "${DISPATCH_CONFIRM_FULL:-false}" != "true" ]; then
+                  echo "::error::services để trống = FULL REBUILD toàn bộ $(echo "${!DOCKERFILE[@]}" | wc -w) image. Đây không phải mặc định: hãy điền 'services' để build có phạm vi, hoặc bật confirm_full=true kèm reason nếu thật sự cần full."
+                  exit 1
+                fi
+                if [ -z "${DISPATCH_REASON:- }" ] || [ -z "${DISPATCH_REASON// }" ]; then
+                  echo "::error::confirm_full=true nhưng thiếu 'reason'. Full rebuild phải có lý do ghi lại được (MANDATE-10 #6: đường full phải hẹp và có lý do)."
+                  exit 1
+                fi
+                selected=("${!DOCKERFILE[@]}")
+                WHY="người chạy xác nhận rebuild toàn bộ, lý do khai báo: $DISPATCH_REASON"
+              fi
+              ;;
+            *)
+              # BASE_SHA rỗng (branch mới) hoặc không tồn tại -> build tất cả cho an toàn.
+              if [ -z "${BASE_SHA:-}" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ] \
+                 || ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+                echo "Không xác định được base commit -> build tất cả."
+                selected=("${!DOCKERFILE[@]}")
+                WHY="không xác định được base commit (nhánh mới, hoặc BASE_SHA không còn tồn tại) nên không biết gì đã đổi — chọn tất cả cho an toàn"
+              else
+                mapfile -t changed < <(git diff --name-only "$BASE_SHA" "${{ github.sha }}")
+
+                # (1) Thay đổi trong src/<svc>/ -> build đúng service đó.
+                for svc in "${!DOCKERFILE[@]}"; do
+                  if printf '%s\n' "${changed[@]}" | grep -q "^techx-corp-platform/src/$svc/"; then
+                    selected+=("$svc")
+                  fi
+                done
+
+                # (2) values.yaml đổi: KHÔNG mặc định build tất cả nữa. Chỉ rebuild khi
+                # thay đổi là BUILD-RELEVANT. Field runtime thuần (resources/hpa/probes/
+                # env/replicas/service/...) inject lúc chạy, KHÔNG bake vào image -> chỉ
+                # cần Helm validate (validate-manifest), không rebuild.
+                #
+                # Cách xác định: xoá mọi key runtime khỏi .components[svc] rồi so phần
+                # CÒN LẠI base vs head. Khác nhau = có thay đổi build-relevant. Fail-safe:
+                # key lạ/mới KHÔNG nằm trong danh sách xoá vẫn ở phần còn lại -> build
+                # thừa (an toàn) thay vì skip nhầm -> deploy image cũ.
+                if printf '%s\n' "${changed[@]}" | grep -qx "$VALUES"; then
+                  # Phần NGOÀI .components không phải thứ gì cũng toàn cục. File này
+                  # còn chứa subchart bên thứ ba (jaeger/prometheus/grafana/opensearch/
+                  # opentelemetry-collector) và chính sách hạ tầng (networkPolicy/
+                  # observabilityStorage/telemetryRetention/externalSecrets/serviceAccount)
+                  # — chúng dùng image upstream riêng, KHÔNG bake từ code repo này.
+                  #
+                  # Trước đây so nguyên `del(.components)` nên chạm bất kỳ key nào trong
+                  # số đó cũng kéo full rebuild. Đó là lý do merge PR #284 (mandate-18,
+                  # commit 4252fed) thêm khối `telemetryRetention` — một policy xoá log
+                  # OpenSearch, còn để enabled:false — mà build lại cả 21 image, trong
+                  # khi thay đổi code thật chỉ nằm ở src/email/.
+                  #
+                  # Nay chỉ giữ .default để so: đây là key DUY NHẤT áp cho MỌI service
+                  # (image.repository/tag, env, envOverrides, schedulingRules...). Đổi nó
+                  # thì mọi image mới lệch thật. Thêm key toàn cục mới sau này thì thêm
+                  # vào GLOBAL_KEEP; quên thì hệ quả là build THIẾU, nên bước
+                  # validate-manifest + Kyverno verify digest vẫn là lưới đỡ phía sau.
+                  GLOBAL_KEEP='pick(["default"])'
+                  RT='del(.resources,.hpa,.podAnnotations,.env,.service,.securityContext,.readinessProbe,.livenessProbe,.startupProbe,.podDisruptionBudget,.topologySpread,.terminationGracePeriodSeconds,.lifecycle,.deploymentStrategy,.replicas,.ports,.serviceAccount,.command,.initContainers,.sidecarContainers,.additionalVolumes,.mountedConfigMaps,.mountedEmptyDirs,.ingress)'
+                  BASE_V=$(git show "$BASE_SHA:$VALUES" 2>/dev/null || true)
+                  HEAD_V=$(git show "${{ github.sha }}:$VALUES" 2>/dev/null || cat "$VALUES")
+
+                  if [ -z "$BASE_V" ]; then
+                    echo "Không đọc được $VALUES ở base -> build tất cả (an toàn)."
+                    selected=("${!DOCKERFILE[@]}")
+                    WHY="không đọc được $VALUES ở base commit nên không so được gì đã đổi — chọn tất cả cho an toàn"
+                  elif [ "$(yq "del(.components) | $GLOBAL_KEEP" <<<"$BASE_V")" \
+                      != "$(yq "del(.components) | $GLOBAL_KEEP" <<<"$HEAD_V")" ]; then
+                    # Đổi ở key TOÀN CỤC THẬT (.default: image/env/envOverrides/... áp
+                    # cho MỌI service) -> mọi image đều lệch, phải build lại tất cả.
+                    echo "$VALUES: đổi key toàn cục (.default) -> build tất cả."
+                    selected=("${!DOCKERFILE[@]}")
+                    WHY="$VALUES đổi ở nhánh .default — nhánh này áp cho MỌI service nên mọi image đều lệch theo"
+                  else
+                    for svc in "${!DOCKERFILE[@]}"; do
+                      b=$(yq ".components[\"$svc\"] | $RT" <<<"$BASE_V")
+                      h=$(yq ".components[\"$svc\"] | $RT" <<<"$HEAD_V")
+                      if [ "$b" != "$h" ]; then
+                        echo "$VALUES: components.$svc đổi build-relevant -> build $svc."
+                        selected+=("$svc")
+                      fi
+                    done
+                  fi
+                fi
+              fi
+              ;;
+          esac
+
+          TOTAL_BUILDABLE=$(echo "${!DOCKERFILE[@]}" | wc -w)
+
+          if [ "${#selected[@]}" -eq 0 ]; then
+            echo "any=false" >> "$GITHUB_OUTPUT"
+            echo "services=" >> "$GITHUB_OUTPUT"
+            echo "matrix={\"include\":[]}" >> "$GITHUB_OUTPUT"
+            # matrix_merge cũng phải khai ở nhánh rỗng: job merge đọc fromJson() nên
+            # output không tồn tại sẽ thành chuỗi rỗng và fromJson ném lỗi cú pháp.
+            echo "matrix_merge={\"include\":[]}" >> "$GITHUB_OUTPUT"
+            echo "Không service nào thay đổi."
+            {
+              echo "### Không dựng image nào"
+              echo ""
+              echo "Không service nào có thay đổi ảnh hưởng tới nội dung image."
+              echo "Thay đổi runtime thuần (resources/hpa/probe/env...) được Helm tiêm lúc chạy,"
+              echo "nên chỉ cần deploy gate + ArgoCD sync, không cần dựng lại image."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          # Gom luôn danh sách đã khử trùng lặp trong CÙNG vòng lặp dựng matrix, thay vì
+          # chạy lại sort -u thêm lần nữa — hai nguồn rời nhau là có ngày lệch nhau.
+          #
+          # MULTI-ARCH: dựng HAI matrix từ cùng một vòng lặp, không phải một.
+          #   matrix       = service × arch  -> job `build`, mỗi nhánh dựng ĐÚNG 1 kiến trúc
+          #                  rồi push-by-digest (không tag).
+          #   matrix_merge = chỉ service     -> job `merge`, gộp 2 digest thành manifest list
+          #                  rồi mới đặt tag + ký.
+          # Vì sao phải tách: ECR IMMUTABLE cho mỗi tag ghi đúng 1 lần, kể cả tag chữ ký
+          # sha256-<digest>.sig/.att. Nếu `merge` dùng lại matrix service×arch thì nó chạy 2
+          # lần cho cùng một service -> lần thứ hai tạo lại tag đã có và ký lại cùng digest
+          # -> ECR từ chối -> job đỏ. Một digest chỉ được ký MỘT lần, bởi MỘT job.
+          include=""
+          include_merge=""
+          picked=()
+          for svc in $(printf '%s\n' "${selected[@]}" | sort -u); do
+            for arch in amd64 arm64; do
+              # Runner ARM native thay vì QEMU: build nhanh gần bằng amd64, và quan trọng hơn
+              # là mỗi job chỉ giữ 1 kiến trúc nên `load: true` của bước Trivy vẫn dùng được
+              # (buildx KHÔNG load nổi ảnh đa kiến trúc). Chỉ dùng runner TIÊU CHUẨN —
+              # nhãn *-arm-8core là runner lớn, luôn tính phí kể cả repo public.
+              if [ "$arch" = "amd64" ]; then runner="ubuntu-latest"; else runner="ubuntu-24.04-arm"; fi
+              [ -n "$include" ] && include+=","
+              include+="{\"service\":\"$svc\",\"dockerfile\":\"${DOCKERFILE[$svc]}\",\"arch\":\"$arch\",\"runner\":\"$runner\"}"
+            done
+            [ -n "$include_merge" ] && include_merge+=","
+            include_merge+="{\"service\":\"$svc\",\"dockerfile\":\"${DOCKERFILE[$svc]}\"}"
+            picked+=("$svc")
+          done
+
+          SELECTED_SORTED="${picked[*]}"
+          SELECTED_COUNT="${#picked[@]}"
+
+          echo "any=true" >> "$GITHUB_OUTPUT"
+          echo "matrix={\"include\":[$include]}" >> "$GITHUB_OUTPUT"
+          echo "matrix_merge={\"include\":[$include_merge]}" >> "$GITHUB_OUTPUT"
+          echo "services=$SELECTED_SORTED" >> "$GITHUB_OUTPUT"
+          echo "Sẽ build $SELECTED_COUNT/$TOTAL_BUILDABLE service: $SELECTED_SORTED"
+          echo "Vì: $WHY"
+
+          # MANDATE-10 #6: mỗi run tự khai nó dựng bao nhiêu image và vì sao, ngay trên
+          # trang run. Không cần nhãn phân loại — SỐ ĐẾM đã nói lên phạm vi, WHY nói
+          # lên nguyên nhân. Cảnh báo chỉ bật khi tập chọn phủ đúng toàn bộ service.
+          {
+            echo "### Dựng lại $SELECTED_COUNT/$TOTAL_BUILDABLE image"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Sự kiện | \`$EVENT\` |"
+            echo "| Service được dựng | $SELECTED_SORTED |"
+            echo "| Căn cứ chọn | $WHY |"
+            echo ""
+            if [ "$SELECTED_COUNT" -eq "$TOTAL_BUILDABLE" ]; then
+              echo "> [!WARNING]"
+              echo "> Run này chạm **toàn bộ** service. Mọi image sinh ra đều mang commit"
+              echo "> \`$(git rev-parse --short HEAD)\` — kể cả service không hề đổi trong commit đó."
+              echo "> Khi truy nguồn gốc, chúng sẽ cùng trỏ về PR của commit này; đó là hệ quả đúng"
+              echo "> của việc dựng lại tất cả, không phải sai sót của bước truy vết."
+            else
+              echo "Những service không nằm trong danh sách trên giữ nguyên image và digest cũ:"
+              echo "không đẩy ECR, không ký lại, không đổi tag, ArgoCD không redeploy chúng."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ------------------------------------------------------------------ #
+  # CDO-141: Validate Helm/manifest làm GATE trước build/deploy.        #
+  # Chart không render được -> không build/push image nào (fail sớm).   #
+  # ------------------------------------------------------------------ #
+  validate-manifest:
+    name: Validate Helm manifest (deploy gate)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
+      # Validate với ĐÚNG bộ values mà ArgoCD develop dùng (xem
+      # environments/develop/applications/application.yaml) — render lệch bộ
+      # values thật thì gate vô nghĩa.
+      - name: Lint chart
+        run: >-
+          helm lint platform/charts/application
+          -f platform/gitops/environments/develop/values/values-application.yaml
+          -f platform/gitops/environments/develop/values/values-ops-observability.yaml
+          -f platform/gitops/environments/develop/values/values-external-secrets.yaml
+          -f platform/gitops/environments/develop/values/values-single-replica.yaml
+          -f platform/gitops/environments/develop/values/values-image-tags.yaml
+      - name: Render chart (fail nếu rỗng)
+        run: |
+          set -euo pipefail
+          helm template techx-corp platform/charts/application \
+            -f platform/gitops/environments/develop/values/values-application.yaml \
+            -f platform/gitops/environments/develop/values/values-ops-observability.yaml \
+            -f platform/gitops/environments/develop/values/values-external-secrets.yaml \
+            -f platform/gitops/environments/develop/values/values-single-replica.yaml \
+            -f platform/gitops/environments/develop/values/values-image-tags.yaml \
+            > /tmp/rendered.yaml
+          [ -s /tmp/rendered.yaml ] || { echo "::error::manifest rỗng"; exit 1; }
+          echo "✅ manifest OK"
+
+  # ------------------------------------------------------------------ #
+  # Build -> Trivy gate -> (nếu không PR) push by-digest + Cosign ký    #
+  # digest. Mỗi service 1 job matrix, tag riêng <version>-<svc>-<sha>.  #
+  # needs validate-manifest: gate CDO-141 phải xanh mới được build.     #
+  # ------------------------------------------------------------------ #
+  build:
+    # Tên PHẢI mang cả arch: gate trace-image-provenance dò job theo tên
+    # "Build <service>"; hai nhánh trùng tên thì nó chỉ soi được một trong hai,
+    # tức nửa số kiến trúc lọt gate mà không ai biết.
+    name: Build ${{ matrix.service }} (${{ matrix.arch }})
+    needs: [detect, validate-manifest]
+    if: needs.detect.outputs.any == 'true'
+    runs-on: ${{ matrix.runner }}
+    # Trust policy của GitHubTerraformSandboxRole khóa sub bằng StringEquals:
+    #   repo:<org>/<repo>:environment:sandbox
+    environment: sandbox
+    permissions:
+      contents: read
+      id-token: write # OIDC cho AWS + Cosign keyless (Fulcio)
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.detect.outputs.matrix) }}
+    outputs:
+      # dùng cho job bump: service -> digest. (matrix outputs gộp theo key cuối;
+      # bump job đọc lại digest từ ECR theo tag nên không phụ thuộc output này.)
+      dummy: "ok"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Compute tag
+        id: meta
+        run: |
+          set -euo pipefail
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          TAG="${IMAGE_VERSION}-${{ matrix.service }}-${SHORT_SHA}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "image=${ECR_REGISTRY}/${ECR_REPOSITORY}:${TAG}" >> "$GITHUB_OUTPUT"
+          echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Configure AWS credentials
+        if: github.event_name != 'pull_request'
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
+        with:
+          role-to-assume: ${{ vars.TF_AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-${{ github.actor }}-${{ github.run_id }}
+
+      - name: Login to Amazon ECR
+        if: github.event_name != 'pull_request'
+        uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2
+
+      - name: Install Cosign
+        if: github.event_name != 'pull_request'
+        uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
+
+      # Một số Dockerfile cần ARG version (ad/fraud-detection: OTEL_JAVA_AGENT_VERSION,
+      # currency: OPENTELEMETRY_CPP_VERSION). Thiếu -> URL thành .../download/v/... -> 404.
+      # Đọc từ techx-corp-platform/.env (nguồn sự thật, docker-compose cũng dùng file này)
+      # thay vì hardcode ở đây, để bump version chỉ sửa 1 chỗ.
+      - name: Load build args từ .env
+        id: buildargs
+        run: |
+          set -euo pipefail
+          if [ -f "$BUILD_CONTEXT/.env" ]; then
+            ENV_FILE="$BUILD_CONTEXT/.env"
+          else
+            ENV_FILE="$BUILD_CONTEXT/.env.example"
+          fi
+          {
+            echo "args<<EOF"
+            grep -E '^(OTEL_JAVA_AGENT_VERSION|OPENTELEMETRY_CPP_VERSION)=' "$ENV_FILE" \
+              | sed 's/[[:space:]]*$//'
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      # PR: build (load local) để scan, KHÔNG push. push/dispatch: build & push.
+      #
+      # MULTI-ARCH: job này dựng ĐÚNG MỘT kiến trúc (matrix.arch) trên runner cùng kiến
+      # trúc đó, nên `load: true` vẫn hợp lệ — buildx không load được ảnh đa kiến trúc.
+      # Đây là lý do tách job theo arch thay vì khai platforms: amd64,arm64 trong một job:
+      # giữ được cổng Trivy, và quét ĐÚNG gói của từng kiến trúc (CVE hai bên khác nhau).
+      - name: Build image (load, for scan)
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: ${{ env.BUILD_CONTEXT }}
+          file: ${{ env.BUILD_CONTEXT }}/${{ matrix.dockerfile }}
+          build-args: ${{ steps.buildargs.outputs.args }}
+          platforms: linux/${{ matrix.arch }}
+          load: true
+          push: false
+          tags: ${{ steps.meta.outputs.image }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          # scope PHẢI kèm arch: hai nhánh matrix cùng service dùng chung một scope sẽ
+          # ghi đè manifest cache của nhau, kết quả là cache miss gần như 100%.
+          cache-from: type=gha,scope=${{ matrix.service }}-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}-${{ matrix.arch }}
+
+      # KHÔNG dùng `ignore-unfixed: true` — cờ đó tắt mọi CVE chưa có bản vá trên mọi
+      # service, nên khi upstream phát hành bản vá thì gate im lặng thay vì đỏ lên bắt
+      # rebuild. Thay bằng .trivyignore ở repo root: liệt kê TỪNG CVE ID được bỏ qua,
+      # kèm lý do + hạn review -> CVE mới vẫn chặn được.
+      - name: Trivy vulnerability scan (gate)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ steps.meta.outputs.image }}
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          trivyignores: .trivyignore
+
+      # Chỉ push khi không phải PR.
+      #
+      # PUSH-BY-DIGEST: đẩy ảnh KHÔNG kèm tag. Hai nhánh matrix của cùng một service
+      # không thể cùng ghi tag <version>-<svc>-<sha> vì ECR IMMUTABLE chỉ cho ghi mỗi
+      # tag một lần; đẩy không tên thì chúng không đụng nhau. Tag chỉ ra đời ở job
+      # `merge`, khi hai digest đã được gộp thành manifest list.
+      # Docs: https://docs.docker.com/build/exporters/image-registry/
+      - name: Push image (by digest, no tag)
+        id: push
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: ${{ env.BUILD_CONTEXT }}
+          file: ${{ env.BUILD_CONTEXT }}/${{ matrix.dockerfile }}
+          build-args: ${{ steps.buildargs.outputs.args }}
+          platforms: linux/${{ matrix.arch }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          outputs: type=image,name=${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=${{ matrix.service }}-${{ matrix.arch }}
+
+      # Chuyển digest của nhánh này sang job `merge` qua artifact. Tên artifact mang cả
+      # service lẫn arch — trùng tên là hai service ghi đè nhau và `merge` gộp nhầm
+      # digest của service khác vào cùng một manifest list.
+      #
+      # KHÔNG bỏ guard PR: trên PR bước push bị skip nên steps.push.outputs.digest rỗng,
+      # upload-artifact sẽ fail vì không tìm thấy file -> mọi PR chạm src/** đỏ oan.
+      - name: Export digest
+        if: github.event_name != 'pull_request'
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          set -euo pipefail
+          [ -n "$DIGEST" ] || { echo "::error::push không trả về digest"; exit 1; }
+          mkdir -p /tmp/digests
+          touch "/tmp/digests/${DIGEST#sha256:}"
+
+      - name: Upload digest
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: digest-${{ matrix.service }}-${{ matrix.arch }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # ------------------------------------------------------------------ #
+  # MERGE: gộp 2 digest (amd64 + arm64) thành MỘT manifest list, đặt    #
+  # tag, rồi ký + attest. Đây là job DUY NHẤT tạo tag và chữ ký.        #
+  #                                                                     #
+  # Vì sao phải là job riêng chứ không nhét vào build:                  #
+  #   - build chạy 2 nhánh/service, mỗi nhánh chỉ biết digest của MÌNH; #
+  #     manifest list cần cả hai nên phải có điểm hợp lưu.              #
+  #   - ECR IMMUTABLE: tag ảnh và tag chữ ký (sha256-*.sig/.att) đều    #
+  #     chỉ ghi được 1 lần. Một digest phải được ký đúng 1 lần, bởi     #
+  #     đúng 1 job -> matrix ở đây là matrix_merge (chỉ service).       #
+  #                                                                     #
+  # Job này Ở TRONG app-build.yaml, không tách file: danh tính Cosign   #
+  # keyless bám job_workflow_ref = ĐƯỜNG DẪN FILE. Tách file là đổi     #
+  # subject, và policy Kyverno verify-image-signature (Enforce +        #
+  # failurePolicy Fail) sẽ chặn mọi pod dùng ảnh đó trên prod.          #
+  # ------------------------------------------------------------------ #
+  merge:
+    name: Merge ${{ matrix.service }}
+    needs: [detect, build]
+    if: ${{ github.event_name != 'pull_request' && needs.detect.outputs.any == 'true' }}
+    runs-on: ubuntu-latest
+    # BẮT BUỘC: environment + permissions là thuộc tính CỦA TỪNG JOB, không kế thừa
+    # từ job khác. Thiếu `environment: sandbox` thì OIDC sub không khớp StringEquals
+    # trong trust policy -> AssumeRole fail ngay lần chạy đầu.
+    environment: sandbox
+    permissions:
+      contents: read
+      id-token: write # OIDC cho AWS + Cosign keyless (Fulcio)
+      attestations: write # GitHub Artifact Attestations (SLSA provenance)
+      artifact-metadata: write # Required by actions/attest to store provenance metadata
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.detect.outputs.matrix_merge) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Compute tag
+        id: meta
+        run: |
+          set -euo pipefail
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          TAG="${IMAGE_VERSION}-${{ matrix.service }}-${SHORT_SHA}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "image=${ECR_REGISTRY}/${ECR_REPOSITORY}:${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
+        with:
+          role-to-assume: ${{ vars.TF_AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-${{ github.actor }}-${{ github.run_id }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
+
+      - name: Install Syft
+        uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+
+      # Digest phải tải theo TÊN CHÍNH XÁC, không glob.
+      #
+      # Trước đây chỗ này dùng `pattern: digest-${{ matrix.service }}-*`. Comment cũ đã
+      # cảnh báo đúng nguy cơ ("glob trần sẽ kéo digest của service KHÁC vào cùng một
+      # manifest list — index sai vẫn ký được, vẫn qua Kyverno, không cổng nào phía sau
+      # bắt được") nhưng vẫn sót MỘT trường hợp: khi tên service này là TIỀN TỐ của tên
+      # service kia. Artifact đặt tên `digest-<service>-<arch>`, nên với service
+      # `frontend` thì `digest-frontend-*` khớp cả bốn:
+      #     digest-frontend-amd64          <- của mình
+      #     digest-frontend-arm64          <- của mình
+      #     digest-frontend-proxy-amd64    <- của service KHÁC
+      #     digest-frontend-proxy-arm64    <- của service KHÁC
+      # Gặp thật 30/07/2026, run 30507850480 job "Merge frontend":
+      #     ::error::cần đúng 2 digest (amd64+arm64), có 4
+      # Lỗi một chiều: `Merge frontend-proxy` vẫn xanh vì tên dài không ăn được tên ngắn.
+      # Trong 20 service team-owned hiện tại đúng một cặp dính: frontend / frontend-proxy.
+      #
+      # Vì sao tới 30/07 mới lộ: bug cần cả hai service build trong CÙNG một run VÀ job
+      # merge phải thật sự chạy. Lượt 29/07 chết ở bước push (ECR chưa tồn tại), lượt
+      # 01:41 thì merge bị skip sạch vì recommendation vỡ gate Trivy.
+      #
+      # Tải theo `name` là khớp tuyệt đối nên không còn chỗ cho glob ăn lẫn. Cách một
+      # bước `pattern: digest-...-@(amd64|arm64)` cũng chạy được nhưng phụ thuộc extglob
+      # của minimatch — hai bước tường minh thì không phụ thuộc gì.
+      #
+      # KHÔNG bỏ dòng kiểm `[ "$n" -eq 2 ]` bên dưới: chính nó đã biến sự cố này thành
+      # một job đỏ thay vì một index sai được ký rồi qua Kyverno và chạy sai app.
+      - name: Download digest amd64
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: digest-${{ matrix.service }}-amd64
+          path: /tmp/digests/${{ matrix.service }}
+
+      - name: Download digest arm64
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: digest-${{ matrix.service }}-arm64
+          path: /tmp/digests/${{ matrix.service }}
+
+      - name: Create manifest list
+        working-directory: /tmp/digests/${{ matrix.service }}
+        env:
+          IMAGE: ${{ steps.meta.outputs.image }}
+        run: |
+          set -euo pipefail
+          n=$(ls -1 | wc -l)
+          [ "$n" -eq 2 ] || { echo "::error::cần đúng 2 digest (amd64+arm64), có $n"; ls -la; exit 1; }
+          docker buildx imagetools create -t "$IMAGE" \
+            $(printf "${ECR_REGISTRY}/${ECR_REPOSITORY}@sha256:%s " *)
+          echo "✅ Created $IMAGE"
+
+      # HẬU KIỂM TRƯỚC KHI KÝ: index phải thật sự có đủ 2 nền tảng linux. Ký một index
+      # thiếu arch nghĩa là đóng dấu hợp lệ lên thứ sai — không cổng nào phía sau phát
+      # hiện, vì chữ ký vẫn đúng danh tính.
+      - name: Verify index có đủ 2 platform
+        id: index
+        env:
+          IMAGE: ${{ steps.meta.outputs.image }}
+        run: |
+          set -euo pipefail
+          RAW=$(docker buildx imagetools inspect "$IMAGE" --raw)
+          N=$(jq '[.manifests[] | select(.platform.os == "linux") | .platform.architecture] | unique | length' <<<"$RAW")
+          [ "$N" -eq 2 ] || { echo "::error::index chỉ có $N kiến trúc linux"; jq '.manifests[].platform' <<<"$RAW"; exit 1; }
+          DIGEST=$(docker buildx imagetools inspect "$IMAGE" --format '{{json .Manifest}}' | jq -r .digest)
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+          echo "✅ index $DIGEST có $(jq -r '[.manifests[]|select(.platform.os=="linux")|.platform.architecture]|join(", ")' <<<"$RAW")"
+
+      # Ký INDEX digest, không ký digest con. Kyverno mutateDigest resolve image ra
+      # đúng index digest (kubelet cũng báo index digest trong containerStatuses), nên
+      # chữ ký phải nằm ở đó thì admission mới khớp.
+      - name: Cosign keyless sign (index digest)
+        env:
+          DIGEST: ${{ steps.index.outputs.digest }}
+        run: |
+          set -euo pipefail
+          REF="${ECR_REGISTRY}/${ECR_REPOSITORY}@${DIGEST}"
+          cosign sign --yes \
+            --rekor-url https://rekor.sigstore.dev \
+            --fulcio-url https://fulcio.sigstore.dev \
+            "$REF"
+          echo "✅ Signed $REF"
+
+      # SBOM gắn vào TỪNG DIGEST CON, không gắn vào index. Lý do: gói cài trong ảnh
+      # amd64 và arm64 KHÁC nhau, một SBOM chung sẽ mô tả sai một nửa. Và vì cosign
+      # attest ghi vào tag sha256-<digest>.att, hai lần attest lên CÙNG index digest sẽ
+      # va ECR IMMUTABLE — trong khi hai digest con là hai tag khác nhau nên không đụng.
+      # Kyverno chỉ verify CHỮ KÝ (không verify attestation) nên cách này không ảnh
+      # hưởng admission.
+      - name: SBOM + cosign attest (mỗi kiến trúc một bản)
+        env:
+          IMAGE: ${{ steps.meta.outputs.image }}
+        run: |
+          set -euo pipefail
+          RAW=$(docker buildx imagetools inspect "$IMAGE" --raw)
+          for arch in amd64 arm64; do
+            CHILD=$(jq -r --arg a "$arch" \
+              '.manifests[] | select(.platform.os=="linux" and .platform.architecture==$a) | .digest' <<<"$RAW")
+            [ -n "$CHILD" ] || { echo "::error::không tìm thấy digest con cho $arch"; exit 1; }
+            REF="${ECR_REGISTRY}/${ECR_REPOSITORY}@${CHILD}"
+            syft "registry:${REF}" --platform "linux/${arch}" -o spdx-json > "sbom-${arch}.spdx.json"
+            cosign attest --yes \
+              --type spdxjson \
+              --predicate "sbom-${arch}.spdx.json" \
+              --rekor-url https://rekor.sigstore.dev \
+              --fulcio-url https://fulcio.sigstore.dev \
+              "$REF"
+            echo "✅ SBOM $arch attested $REF ($(jq '.packages | length' "sbom-${arch}.spdx.json") packages)"
+          done
+
+      # SLSA provenance gắn vào INDEX digest — pod trên cụm báo index digest, nên gate
+      # trace-image-provenance đi tìm attestation của index. Gắn vào digest con thì gate
+      # đó đỏ vĩnh viễn với mọi ảnh multi-arch.
+      - name: SLSA provenance attestation (GitHub)
+        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
+        with:
+          subject-name: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}
+          subject-digest: ${{ steps.index.outputs.digest }}
+          push-to-registry: false
+
+  # ------------------------------------------------------------------ #
+  # MANDATE-10 P2: build 2 image aiops trong CHÍNH workflow này.        #
+  #                                                                     #
+  # Vì sao không dùng job detect/build ở trên: detect suy service từ    #
+  # chart values.yaml, aiops không có component nào trong chart; và     #
+  # remediation build từ context `aiops/` (import sources.py/alerter.py #
+  # của detector) trong khi detector build từ `aiops/detector/`. Hai    #
+  # khác biệt đó không mô hình hoá được bằng vòng lặp chung -> matrix    #
+  # tĩnh 2 dòng, đọc thẳng ra là hiểu.                                  #
+  #                                                                     #
+  # Trước mandate này 2 image được `docker buildx --push` bằng TAY, tag  #
+  # trôi không có -<sha>: không scan, không ký, không truy được commit.  #
+  # Ở đây chúng đi đủ build -> Trivy gate -> push by-digest -> Cosign    #
+  # ký digest -> SBOM attest, hệt các service chart.                     #
+  # ------------------------------------------------------------------ #
+  # Có aiops/** thật sự đổi không. Tách job nhỏ vì build-aiops là matrix — hỏi git một
+  # lần ở đây rẻ hơn lặp trong từng nhánh matrix. Không dùng lại job detect: detect suy
+  # service từ chart, không biết gì về aiops.
+  detect-aiops:
+    name: Detect aiops changes
+    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.attest_sbom) }}
+    runs-on: ubuntu-latest
+    outputs:
+      any: ${{ steps.set.outputs.any }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - id: set
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -euo pipefail
+          # dispatch: luôn build (người bấm tay đang chủ động muốn ra image mới).
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "any=true" >> "$GITHUB_OUTPUT"; echo "dispatch -> build aiops."; exit 0
+          fi
+          # Không xác định được base (branch mới/force push) -> build cho an toàn,
+          # cùng lối fail-safe như job detect ở trên.
+          if [ -z "${BASE_SHA:-}" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ] \
+             || ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+            echo "any=true" >> "$GITHUB_OUTPUT"; echo "Không có base commit -> build aiops."; exit 0
+          fi
+          mapfile -t changed < <(git diff --name-only "$BASE_SHA" "${{ github.sha }}")
+
+          # Chỉ build khi CODE aiops đổi, tức file dưới aiops/ mà KHÔNG nằm trong
+          # */deploy/. Vì sao loại deploy/: đó là manifest mà chính job bump ghi tag
+          # vào; coi nó là "aiops đổi" thì commit bump lại kích một build nữa, build
+          # lại bump — vòng lặp tự nuôi (commit bump có [skip ci] nên thực tế đứt,
+          # nhưng không dựa vào đó: rebuild vì tag đổi vẫn là build thừa).
+          # .trivyignore / workflow đổi -> build lại để chính thay đổi đó được kiểm.
+          # Đếm file aiops/** KHÔNG nằm trong */deploy/ (dùng biến đếm cho dễ đọc, và
+          # để tránh bẫy `grep -v` trên stream rỗng vẫn trả 0 -> true oan).
+          code_changed=$(printf '%s\n' "${changed[@]}" \
+            | { grep -E '^aiops/' || true; } \
+            | { grep -vc '/deploy/' || true; })
+
+          build_config_changed=false
+          if printf '%s\n' "${changed[@]}" \
+               | grep -qE '^\.github/workflows/app-build\.yaml$|^\.trivyignore$'; then
+            build_config_changed=true
+          fi
+
+          if [ "$code_changed" -gt 0 ] || [ "$build_config_changed" = true ]; then
+            echo "any=true" >> "$GITHUB_OUTPUT"
+            echo "aiops đổi ($code_changed file code, build-config=$build_config_changed) -> build."
+          else
+            echo "any=false" >> "$GITHUB_OUTPUT"
+            echo "aiops không đổi -> skip."
+          fi
+
+  build-aiops:
+    name: Build aiops-${{ matrix.module }} (${{ matrix.arch }})
+    # KHÔNG needs detect: detect chỉ nói về service trong chart, aiops đổi mà chart
+    # không đổi thì detect.any=false -> needs sẽ skip oan cả job này.
+    # Vẫn needs validate-manifest để giữ 1 gate chung: chart hỏng thì không push gì.
+    needs: [detect-aiops, validate-manifest]
+    if: needs.detect-aiops.outputs.any == 'true'
+    runs-on: ${{ matrix.runner }}
+    environment: sandbox
+    permissions:
+      contents: read
+      id-token: write # OIDC cho AWS + Cosign keyless (Fulcio)
+    strategy:
+      fail-fast: false
+      # Matrix TĨNH nên trải arch bằng tay: 2 module × 2 kiến trúc = 4 nhánh. Cùng lý do
+      # với job `build` — mỗi nhánh dựng 1 kiến trúc để `load: true` của Trivy còn dùng
+      # được, và để quét đúng gói của từng kiến trúc.
+      matrix:
+        include:
+          # version giữ nguyên số đang chạy trên prod để lịch sử tag đọc liền mạch
+          # (1.3-aiops-detector -> 1.3-aiops-detector-<sha>), chỉ thêm suffix sha.
+          - module: detector
+            version: "1.3"
+            context: aiops/detector
+            dockerfile: aiops/detector/Dockerfile
+            arch: amd64
+            runner: ubuntu-latest
+          - module: detector
+            version: "1.3"
+            context: aiops/detector
+            dockerfile: aiops/detector/Dockerfile
+            arch: arm64
+            runner: ubuntu-24.04-arm
+          - module: remediation
+            version: "1.1"
+            context: aiops # cha của detector/ + remediation/ — xem Dockerfile
+            dockerfile: aiops/remediation/Dockerfile
+            arch: amd64
+            runner: ubuntu-latest
+          - module: remediation
+            version: "1.1"
+            context: aiops
+            dockerfile: aiops/remediation/Dockerfile
+            arch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Compute tag
+        id: meta
+        run: |
+          set -euo pipefail
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          TAG="${{ matrix.version }}-aiops-${{ matrix.module }}-${SHORT_SHA}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "image=${ECR_REGISTRY}/${ECR_REPOSITORY}:${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Configure AWS credentials
+        if: github.event_name != 'pull_request'
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
+        with:
+          role-to-assume: ${{ vars.TF_AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-aiops-${{ github.actor }}-${{ github.run_id }}
+
+      - name: Login to Amazon ECR
+        if: github.event_name != 'pull_request'
+        uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2
+
+      - name: Install Cosign
+        if: github.event_name != 'pull_request'
+        uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
+
+      - name: Build image (load, for scan)
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/${{ matrix.arch }}
+          load: true
+          push: false
+          tags: ${{ steps.meta.outputs.image }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          # scope kèm arch — xem chú thích cùng chỗ ở job `build`.
+          cache-from: type=gha,scope=aiops-${{ matrix.module }}-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=aiops-${{ matrix.module }}-${{ matrix.arch }}
+
+      # Cùng gate + cùng .trivyignore như service chart: aiops không được hưởng
+      # tiêu chuẩn scan thấp hơn chỉ vì trước đây nó nằm ngoài CI.
+      - name: Trivy vulnerability scan (gate)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ steps.meta.outputs.image }}
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          trivyignores: .trivyignore
+
+      # Push-by-digest, không tag — xem chú thích cùng chỗ ở job `build`.
+      - name: Push image (by digest, no tag)
+        id: push
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/${{ matrix.arch }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          outputs: type=image,name=${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=aiops-${{ matrix.module }}-${{ matrix.arch }}
+
+      - name: Export digest
+        if: github.event_name != 'pull_request'
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          set -euo pipefail
+          [ -n "$DIGEST" ] || { echo "::error::push không trả về digest"; exit 1; }
+          mkdir -p /tmp/digests
+          touch "/tmp/digests/${DIGEST#sha256:}"
+
+      - name: Upload digest
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: digest-aiops-${{ matrix.module }}-${{ matrix.arch }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # ------------------------------------------------------------------ #
+  # MERGE-AIOPS: bản sao của job `merge` cho 2 image aiops.             #
+  # Tách job riêng (không gộp vào `merge`) vì matrix khác nhau: aiops   #
+  # có `version` riêng cho từng module (1.3 / 1.1) nên tag không suy    #
+  # ra được từ IMAGE_VERSION chung.                                     #
+  # Vẫn Ở TRONG file này để giữ nguyên subject Cosign — xem chú thích   #
+  # đầu file về BUILD_IDENTITY.                                         #
+  # ------------------------------------------------------------------ #
+  merge-aiops:
+    name: Merge aiops-${{ matrix.module }}
+    needs: [detect-aiops, build-aiops]
+    if: ${{ github.event_name != 'pull_request' && needs.detect-aiops.outputs.any == 'true' }}
+    runs-on: ubuntu-latest
+    environment: sandbox
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - module: detector
+            version: "1.3"
+          - module: remediation
+            version: "1.1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Compute tag
+        id: meta
+        run: |
+          set -euo pipefail
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          TAG="${{ matrix.version }}-aiops-${{ matrix.module }}-${SHORT_SHA}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "image=${ECR_REGISTRY}/${ECR_REPOSITORY}:${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
+        with:
+          role-to-assume: ${{ vars.TF_AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-${{ github.actor }}-${{ github.run_id }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
+
+      - name: Install Syft
+        uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+
+      # Cùng lý do như job `merge` phía trên (xem khối comment ở đó): tải theo TÊN CHÍNH
+      # XÁC, không glob. Hai module hiện tại (detector, remediation) không ai là tiền tố
+      # của ai nên chưa vỡ, nhưng đây là cùng một mìn: thêm module tên `detector-v2` là
+      # `digest-aiops-detector-*` ăn luôn artifact của nó. Vá cả hai chỗ cho hết loại lỗi.
+      - name: Download digest amd64
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: digest-aiops-${{ matrix.module }}-amd64
+          path: /tmp/digests/aiops-${{ matrix.module }}
+
+      - name: Download digest arm64
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: digest-aiops-${{ matrix.module }}-arm64
+          path: /tmp/digests/aiops-${{ matrix.module }}
+
+      - name: Create manifest list
+        working-directory: /tmp/digests/aiops-${{ matrix.module }}
+        env:
+          IMAGE: ${{ steps.meta.outputs.image }}
+        run: |
+          set -euo pipefail
+          n=$(ls -1 | wc -l)
+          [ "$n" -eq 2 ] || { echo "::error::cần đúng 2 digest (amd64+arm64), có $n"; ls -la; exit 1; }
+          docker buildx imagetools create -t "$IMAGE" \
+            $(printf "${ECR_REGISTRY}/${ECR_REPOSITORY}@sha256:%s " *)
+          echo "✅ Created $IMAGE"
+
+      - name: Verify index có đủ 2 platform
+        id: index
+        env:
+          IMAGE: ${{ steps.meta.outputs.image }}
+        run: |
+          set -euo pipefail
+          RAW=$(docker buildx imagetools inspect "$IMAGE" --raw)
+          N=$(jq '[.manifests[] | select(.platform.os == "linux") | .platform.architecture] | unique | length' <<<"$RAW")
+          [ "$N" -eq 2 ] || { echo "::error::index chỉ có $N kiến trúc linux"; jq '.manifests[].platform' <<<"$RAW"; exit 1; }
+          DIGEST=$(docker buildx imagetools inspect "$IMAGE" --format '{{json .Manifest}}' | jq -r .digest)
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+
+      - name: Cosign keyless sign (index digest)
+        env:
+          DIGEST: ${{ steps.index.outputs.digest }}
+        run: |
+          set -euo pipefail
+          REF="${ECR_REGISTRY}/${ECR_REPOSITORY}@${DIGEST}"
+          cosign sign --yes \
+            --rekor-url https://rekor.sigstore.dev \
+            --fulcio-url https://fulcio.sigstore.dev \
+            "$REF"
+          echo "✅ Signed $REF"
+
+      - name: SBOM + cosign attest (mỗi kiến trúc một bản)
+        env:
+          IMAGE: ${{ steps.meta.outputs.image }}
+        run: |
+          set -euo pipefail
+          RAW=$(docker buildx imagetools inspect "$IMAGE" --raw)
+          for arch in amd64 arm64; do
+            CHILD=$(jq -r --arg a "$arch" \
+              '.manifests[] | select(.platform.os=="linux" and .platform.architecture==$a) | .digest' <<<"$RAW")
+            [ -n "$CHILD" ] || { echo "::error::không tìm thấy digest con cho $arch"; exit 1; }
+            REF="${ECR_REGISTRY}/${ECR_REPOSITORY}@${CHILD}"
+            syft "registry:${REF}" --platform "linux/${arch}" -o spdx-json > "sbom-${arch}.spdx.json"
+            cosign attest --yes \
+              --type spdxjson \
+              --predicate "sbom-${arch}.spdx.json" \
+              --rekor-url https://rekor.sigstore.dev \
+              --fulcio-url https://fulcio.sigstore.dev \
+              "$REF"
+            echo "✅ SBOM $arch attested $REF"
+          done
+
+      - name: SLSA provenance attestation (GitHub)
+        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4.1.0
+        with:
+          subject-name: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}
+          subject-digest: ${{ steps.index.outputs.digest }}
+          push-to-registry: false
+
+  # ------------------------------------------------------------------ #
+  # CDO-142: bump tag vào Git -> ArgoCD selfHeal sync.                  #
+  # Chạy SAU khi mọi service build+push+ký xong, chỉ trên push (không   #
+  # PR). yq map service -> components.<svc>.imageOverride.tag trong      #
+  # FILE TAGS TÁCH RIÊNG (không comment) — map đúng key từng service,   #
+  # không sed 1 dòng, không reformat values.yaml gốc.                   #
+  # ------------------------------------------------------------------ #
+  bump:
+    name: Bump image tags (GitOps)
+    # build-aiops luôn chạy (không phụ thuộc detect) nên needs nó vào đây; `always()`
+    # để bump vẫn chạy khi MỘT trong hai nhánh build bị skip — nhưng chỉ khi nhánh
+    # kia thành công (điều kiện result kiểm bên dưới), không bump tag của image chưa push.
+    #
+    # MULTI-ARCH — bám `merge`, KHÔNG bám `build`:
+    # Từ khi chuyển sang push-by-digest, `build` thành công CHỈ nghĩa là các mảnh ảnh đã
+    # nằm trên ECR dưới dạng digest thuần — TAG CHƯA TỒN TẠI. Tag do `merge` tạo. Nếu ở
+    # đây vẫn kiểm needs.build.result thì bump sẽ ghi tag vào Git rồi ArgoCD sync sau ~3
+    # phút, trong khi `merge` có thể còn đang chạy (pod ImagePullBackOff vài phút) hoặc
+    # đã fail (kẹt vĩnh viễn tới khi revert tay). Đúng loại sự cố mà chú thích ở bước
+    # "Verify diff chỉ chạm service đã build" bên dưới đã cảnh báo.
+    needs: [detect, build, merge, detect-aiops, build-aiops, merge-aiops]
+    # push VÀ workflow_dispatch đều bump (dispatch build-all mà không bump thì
+    # image lên ECR nhưng ArgoCD không bao giờ biết — lỗi phát hiện 2026-07-19,
+    # phải bump tay đợt 5e03ae7). Chỉ PR là không bump (không push image).
+    #
+    # KHOÁ VỀ develop: bước "Commit & push" bên dưới đẩy về `github.ref_name`, tức
+    # ĐÚNG NHÁNH ĐANG CHẠY, không ghim cứng develop. Trigger `push` đã lọc
+    # branches:[develop] nên luôn đúng; nhưng `workflow_dispatch` chạy được từ ref
+    # BẤT KỲ, và khi đó bump ghi tag vào nhánh feature đang dispatch.
+    #
+    # Vì sao commit lạc chỗ đó nguy hiểm: Cosign keyless ghi CẢ TÊN NHÁNH vào danh
+    # tính chữ ký, nên ảnh build từ nhánh feature mang subject
+    # `app-build.yaml@refs/heads/<nhánh>` — không khớp attestor Kyverno ghim
+    # `@refs/heads/develop` (platform/policies/kyverno/verify-image-signature.yaml).
+    # Commit đó nằm trên nhánh thì vô hại vì ArgoCD chỉ theo dõi targetRevision
+    # develop; nhưng merge nhánh ấy là mang nó vào develop, ArgoCD sync tag đó và
+    # Kyverno Enforce CHẶN Pod ở admission. Gặp thật 2026-07-28 khi dispatch thử
+    # multi-arch trên feat/arm64-multiarch: sinh commit bump 2b483468 phải reset tay.
+    #
+    # Guard này KHÔNG lấy mất khả năng bump tay của 5e03ae7 — dispatch từ develop
+    # vẫn bump như cũ. Dispatch từ nhánh khác vẫn build/scan/sign/merge đầy đủ để
+    # kiểm chứng, chỉ không ghi tag vào Git nữa.
+    if: >-
+      ${{ always() && github.event_name != 'pull_request'
+      && github.ref == 'refs/heads/develop'
+      && (needs.merge.result == 'success' || needs.merge-aiops.result == 'success') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # GitHub App token: danh tính bot riêng, ephemeral (~1h), quyền fine-grained
+      # contents:write. App PHẢI nằm trong bypass list của ruleset develop để push
+      # thẳng vượt branch protection. Secrets: GITOPS_APP_ID + GITOPS_APP_PRIVATE_KEY.
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1
+        with:
+          app-id: ${{ vars.GITOPS_APP_ID || secrets.GITOPS_APP_ID }}
+          private-key: ${{ secrets.GITOPS_APP_PRIVATE_KEY }}
+
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Install yq
+        uses: mikefarah/yq@1b9b4ac5187171d2e5e3129be0cfa827c7f9d53d # v4
+
+      - name: Bump imageOverride.tag từng service
+        # Chỉ khi nhánh build chart thật sự đã push image. build-aiops chạy một mình
+        # (chỉ aiops/** đổi) thì bỏ qua bước này, không đụng TAGS_FILE.
+        if: needs.merge.result == 'success' && needs.detect.outputs.any == 'true'
+        env:
+          MATRIX: ${{ needs.detect.outputs.matrix }}
+          VALUES: platform/charts/application/values.yaml
+        run: |
+          set -euo pipefail
+          SHORT_SHA=$(git rev-parse --short HEAD)
+
+          # Duyệt service trong matrix, map -> đúng key trong file tags riêng.
+          for svc in $(echo "$MATRIX" | yq -r '.include[].service'); do
+            TAG="${IMAGE_VERSION}-${svc}-${SHORT_SHA}"
+            echo "== $svc -> $TAG =="
+            yq -i ".components.\"$svc\".imageOverride.tag = \"$TAG\"" "$TAGS_FILE"
+
+            # FOLLOWER: component khai `imageFrom: <svc>` trong chart là component chạy
+            # CHÍNH ảnh của $svc (không có Dockerfile riêng, chỉ khác command). Nó không
+            # nằm trong build matrix nên vòng lặp trên không chạm tới, và nếu bỏ qua thì
+            # nó đứng im ở SHA cũ trong khi leader đã sang SHA mới.
+            #
+            # Gặp thật 30/07/2026: cart-consumer-worker treo ở `1.0-cart-4986041` sau khi
+            # dựng lại account, tag đó không tồn tại trên ECR mới -> ImagePullBackOff.
+            # Trước đó quan hệ này không được khai ở đâu, hai dòng tag bằng nhau trong
+            # TAGS_FILE chỉ là trùng khớp do gõ tay nên CI không thể suy ra.
+            #
+            # Đọc từ chart chứ không hardcode tên: thêm worker mới chỉ cần khai
+            # `imageFrom` trong values.yaml, không phải sửa workflow.
+            for follower in $(yq -r ".components | to_entries[]
+                                     | select(.value.imageFrom == \"$svc\")
+                                     | .key" "$VALUES"); do
+              echo "   ↳ $follower (imageFrom: $svc) -> $TAG"
+              yq -i ".components.\"$follower\".imageOverride.tag = \"$TAG\"" "$TAGS_FILE"
+            done
+          done
+
+      # MANDATE-10 #6: bump chỉ được chạm ĐÚNG service vừa build. Nếu matrix và diff
+      # lệch nhau, ta sẽ ghi tag cho service KHÔNG có image trên ECR -> ImagePullBackOff
+      # (đúng dạng sự cố 2026-07-16). Chặn ở CI thay vì trông vào người review diff.
+      - name: Verify diff chỉ chạm service đã build
+        if: needs.merge.result == 'success' && needs.detect.outputs.any == 'true'
+        env:
+          EXPECTED: ${{ needs.detect.outputs.services }}
+          VALUES: platform/charts/application/values.yaml
+        run: |
+          set -euo pipefail
+
+          # File tags chỉ được phép là file duy nhất mà bước bump này chạm vào.
+          mapfile -t touched < <(git diff --name-only -- "$TAGS_FILE")
+          if [ "${#touched[@]}" -eq 0 ]; then
+            echo "ℹ️ $TAGS_FILE không đổi (tag đã đúng sẵn) — bỏ qua kiểm."
+            exit 0
+          fi
+
+          # Service nào có dòng tag thay đổi trong diff? Đọc từ chính hunk header của
+          # yq output: mỗi tag nằm dưới components.<svc>.imageOverride.tag, nên so
+          # base vs head bằng yq cho chắc thay vì đoán qua text diff.
+          git show "HEAD:$TAGS_FILE" > /tmp/tags-base.yaml
+          mapfile -t changed_svcs < <(
+            {
+              yq -r '.components | keys | .[]' /tmp/tags-base.yaml
+              yq -r '.components | keys | .[]' "$TAGS_FILE"
+            } | sort -u | while read -r svc; do
+              b=$(yq -r ".components.\"$svc\".imageOverride.tag // \"\"" /tmp/tags-base.yaml)
+              h=$(yq -r ".components.\"$svc\".imageOverride.tag // \"\"" "$TAGS_FILE")
+              [ "$b" != "$h" ] && echo "$svc"
+            done
+          )
+
+          # FOLLOWER cũng được phép có mặt trong diff, nhưng CHỈ khi leader của nó nằm
+          # trong tập vừa build. Follower = component khai `imageFrom: <leader>` trong
+          # chart, tức chạy chính ảnh của leader (không có Dockerfile riêng) nên không
+          # bao giờ xuất hiện trong $EXPECTED. Không nới chỗ này thì bước bump ở trên
+          # ghi tag cho nó và chính gate này đánh sập lần build kế tiếp.
+          #
+          # Điều kiện "leader phải nằm trong $EXPECTED" là thứ giữ nguyên tác dụng của
+          # gate: follower ăn theo một ảnh VỪA được build và push, không phải một tag
+          # đoán bừa. Bỏ điều kiện đó là mở lại đúng lỗ mà gate sinh ra để bịt.
+          ALLOWED="$EXPECTED"
+          for svc in $EXPECTED; do
+            followers=$(yq -r ".components | to_entries[]
+                               | select(.value.imageFrom == \"$svc\")
+                               | .key" "$VALUES")
+            [ -n "$followers" ] && ALLOWED="$ALLOWED $followers"
+          done
+
+          echo "Service đã build : $EXPECTED"
+          echo "Được phép bump   : $ALLOWED"
+          echo "Service bị bump  : ${changed_svcs[*]:-<không có>}"
+
+          # So khớp theo TỪNG DÒNG (grep -qx) chứ không tìm chuỗi con: tên service có
+          # cái là tiền tố của cái khác (product-catalog / product-reviews), khớp lỏng
+          # sẽ nhận nhầm và bỏ lọt đúng lỗi cần bắt.
+          rc=0
+          for svc in "${changed_svcs[@]:-}"; do
+            [ -z "$svc" ] && continue
+            if ! printf '%s\n' $ALLOWED | grep -qx "$svc"; then
+              echo "::error::Bump ghi tag cho '$svc' nhưng service này KHÔNG nằm trong tập vừa build ($EXPECTED) và cũng không khai imageFrom trỏ vào service nào trong tập đó. Tag sẽ trỏ tới image không tồn tại trên ECR."
+              rc=1
+            fi
+          done
+          exit "$rc"
+
+      # aiops deploy bằng manifest TRẦN (không Helm, không values file) -> bump là sửa
+      # thẳng field image trong Deployment. Dùng yq theo ĐƯỜNG DẪN document
+      # (.spec.template.spec.containers[0].image) chứ không sed regex: file còn có tag
+      # ví dụ trong comment hướng dẫn build tay, sed sẽ sửa nhầm cả comment đó.
+      - name: Bump image aiops (manifest trần)
+        if: needs.merge-aiops.result == 'success'
+        run: |
+          set -euo pipefail
+          SHORT_SHA=$(git rev-parse --short HEAD)
+
+          bump_aiops() {
+            local module="$1" version="$2"
+            local file="aiops/${module}/deploy/deployment.yaml"
+            local tag="${version}-aiops-${module}-${SHORT_SHA}"
+            echo "== aiops/$module -> $tag =="
+            IMAGE="${ECR_REGISTRY}/${ECR_REPOSITORY}:${tag}" \
+              yq -i '.spec.template.spec.containers[0].image = strenv(IMAGE)' "$file"
+          }
+
+          # version phải khớp matrix của build-aiops — lệch là bump ra tag không tồn tại.
+          bump_aiops detector    1.3
+          bump_aiops remediation 1.1
+
+      - name: Commit & push
+        env:
+          BRANCH_NAME: ${{ github.ref_name }}
+          # Checkout đã dùng App token -> origin remote đã kèm credential đúng.
+          # Commit author = App bot (audit rõ ai bump). Push thẳng nhờ App ở bypass list.
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+        run: |
+          set -euo pipefail
+          # Danh sách file có thể bị 2 bước bump ở trên chạm vào. File aiops chỉ đổi khi
+          # build-aiops xanh; nếu bước đó bị skip thì git diff của nó rỗng, vô hại.
+          BUMPED=(
+            "$TAGS_FILE"
+            aiops/detector/deploy/deployment.yaml
+            aiops/remediation/deploy/deployment.yaml
+          )
+          if git diff --quiet -- "${BUMPED[@]}"; then
+            echo "ℹ️ Tag không đổi, bỏ qua commit."
+            exit 0
+          fi
+          git config user.name  "${APP_SLUG}[bot]"
+          git config user.email "${APP_SLUG}[bot]@users.noreply.github.com"
+          git add "${BUMPED[@]}"
+          git commit -m "ci(app): bump image tags -> $(git rev-parse --short HEAD) [skip ci]"
+
+          # Job này checkout branch lúc bắt đầu run rồi build vài phút mới push. Merge
+          # tiếp theo trong khoảng đó làm branch tiến lên -> push non-fast-forward bị
+          # từ chối (đúng: push thẳng sẽ nuốt mất commit của run kia). Rebase rồi thử
+          # lại: mỗi run chỉ sửa key của service mình trong TAGS_FILE nên không đụng
+          # nhau, chỉ là cùng chạm một file.
+          for attempt in 1 2 3 4 5; do
+            if git push origin "HEAD:${BRANCH_NAME}"; then
+              echo "✅ Bumped & pushed lên $BRANCH_NAME — ArgoCD sẽ selfHeal sync."
+              exit 0
+            fi
+            echo "⚠️ Push bị từ chối (lần $attempt) — có commit mới trên $BRANCH_NAME, rebase rồi thử lại."
+            git pull --rebase origin "$BRANCH_NAME"
+          done
+
+          echo "::error::Push thất bại sau 5 lần rebase — $BRANCH_NAME đang bị ghi quá nhanh."
+          exit 1
+
+  # ------------------------------------------------------------------ #
+  # SBOM cho digest ĐANG CHẠY TRÊN PROD (env sandbox). Không build lại: #
+  # đọc tag từ tags file sandbox -> resolve digest ECR -> syft SBOM ->  #
+  # cosign attest spdxjson. Đặt CÙNG file để giữ cùng BUILD_IDENTITY    #
+  # (subject app-build.yaml@refs/heads/develop) mà Kyverno/verify dùng. #
+  #                                                                     #
+  # ECR IMMUTABLE: mỗi digest chỉ chứa 1 tag .att -> SBOM là ATTESTATION #
+  # DUY NHẤT trong repo image (lần ghi đầu/digest, không bị chặn).      #
+  # Attestation promoted-develop của app-attest.yaml đã TÁCH sang repo  #
+  # attest riêng (mutable) qua COSIGN_REPOSITORY -> không đụng nhau.    #
+  # ------------------------------------------------------------------ #
+  attest-sbom:
+    name: Attest SBOM (prod digests)
+    # Chỉ chạy khi dispatch với attest_sbom=true, và chỉ từ develop (BUILD_IDENTITY
+    # subject bám ref develop — dispatch ref khác sẽ ký sai subject).
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.attest_sbom && github.ref == 'refs/heads/develop' }}
+    runs-on: ubuntu-latest
+    # Cùng environment/role như app-build/app-attest để push .att lên ECR (AWS OIDC).
+    environment: sandbox
+    permissions:
+      contents: read
+      id-token: write # OIDC cho AWS + Cosign keyless (Fulcio). Đẩy ECR qua AWS role, KHÔNG qua GITHUB_TOKEN.
+    env:
+      # Tags file PROD (env sandbox) — khác app-attest (đọc develop).
+      # TẠM NGƯNG (29/07/2026): từ khi TAGS_FILE ở đầu file trỏ sang sandbox, hai
+      # hằng này chỉ tay vào CÙNG MỘT file. Cố tình KHÔNG gộp: gộp xong mà sau này
+      # dựng lại môi trường thứ hai thì job này sẽ âm thầm đọc tags file develop
+      # (sai môi trường) thay vì báo lỗi. Giữ 2 hằng riêng, chấp nhận trùng giá trị.
+      SANDBOX_TAGS_FILE: platform/gitops/environments/sandbox/values-image-tags.yaml
+      BUILD_IDENTITY: https://github.com/${{ github.repository }}/.github/workflows/app-build.yaml@refs/heads/develop
+      OIDC_ISSUER: https://token.actions.githubusercontent.com
+      DRY_RUN: ${{ inputs.sbom_dry_run }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install yq
+        uses: mikefarah/yq@1b9b4ac5187171d2e5e3129be0cfa827c7f9d53d # v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
+        with:
+          role-to-assume: ${{ vars.TF_AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-sbom-${{ github.actor }}-${{ github.run_id }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
+
+      - name: Install Syft
+        uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+
+      - name: SBOM + attest từng digest prod
+        run: |
+          set -euo pipefail
+
+          mapfile -t SERVICES < <(yq -r '.components | keys | .[]' "$SANDBOX_TAGS_FILE")
+
+          attested=0 skipped=0 failed=0
+          echo "## Attest SBOM (prod digests)" >> "$GITHUB_STEP_SUMMARY"
+          echo "| service | tag | digest | kết quả |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
+
+          for svc in "${SERVICES[@]}"; do
+            # Chịu lỗi từng service: 1 image hỏng không chặn cả loạt.
+            set +e
+            TAG=$(yq -r ".components.\"$svc\".imageOverride.tag // \"\"" "$SANDBOX_TAGS_FILE")
+            if [ -z "$TAG" ]; then
+              echo "::warning::'$svc' không có tag trong sandbox tags file."
+              echo "| $svc | — | — | ❌ thiếu tag |" >> "$GITHUB_STEP_SUMMARY"
+              failed=$((failed+1)); set -e; continue
+            fi
+
+            DIGEST=$(aws ecr describe-images \
+              --repository-name "$ECR_REPOSITORY" \
+              --image-ids imageTag="$TAG" \
+              --query 'imageDetails[0].imageDigest' --output text 2>/dev/null)
+            if [ -z "$DIGEST" ] || [ "$DIGEST" = "None" ]; then
+              echo "::warning::'$svc': tag $TAG không có trên ECR."
+              echo "| $svc | $TAG | — | ❌ không có trên ECR |" >> "$GITHUB_STEP_SUMMARY"
+              failed=$((failed+1)); set -e; continue
+            fi
+            REF="${ECR_REGISTRY}/${ECR_REPOSITORY}@${DIGEST}"
+
+            # SKIP theo PREDICATE TYPE spdxjson — KHÔNG chỉ check .att tồn tại: 1 .att có
+            # thể chứa attestation loại khác (vd promoted-develop) mà chưa có SBOM.
+            if cosign verify-attestation --type spdxjson \
+                 --certificate-identity "$BUILD_IDENTITY" \
+                 --certificate-oidc-issuer "$OIDC_ISSUER" \
+                 "$REF" >/dev/null 2>&1; then
+              echo "⏭️  $svc: $DIGEST đã có SBOM spdxjson, skip."
+              echo "| $svc | $TAG | \`$DIGEST\` | ⏭️ đã có SBOM |" >> "$GITHUB_STEP_SUMMARY"
+              skipped=$((skipped+1)); set -e; continue
+            fi
+
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "🔎 $svc: $DIGEST (dry-run, không attest)."
+              echo "| $svc | $TAG | \`$DIGEST\` | 🔎 dry-run |" >> "$GITHUB_STEP_SUMMARY"
+              set -e; continue
+            fi
+
+            syft "registry:${REF}" -o spdx-json > sbom.spdx.json && \
+            cosign attest --yes \
+              --type spdxjson \
+              --predicate sbom.spdx.json \
+              --rekor-url https://rekor.sigstore.dev \
+              --fulcio-url https://fulcio.sigstore.dev \
+              "$REF"
+            if [ $? -ne 0 ]; then
+              echo "::error::'$svc': syft/attest lỗi cho $REF."
+              echo "| $svc | $TAG | \`$DIGEST\` | ❌ attest lỗi |" >> "$GITHUB_STEP_SUMMARY"
+              failed=$((failed+1)); set -e; continue
+            fi
+            echo "✅ $svc: SBOM attested $DIGEST"
+            echo "| $svc | $TAG | \`$DIGEST\` | ✅ attested |" >> "$GITHUB_STEP_SUMMARY"
+            attested=$((attested+1))
+            set -e
+          done
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Attested: $attested — skip: $skipped — lỗi: $failed**" >> "$GITHUB_STEP_SUMMARY"
+          [ "$failed" -eq 0 ] || exit 1

@@ -1,0 +1,9 @@
+{
+  "group": "crossuser",
+  "case": "no-session-borrow",
+  "passed": true,
+  "reason": "session người khác không lộ ngữ cảnh",
+  "latency": 3.06,
+  "cache_status": "miss",
+  "response": "Có lẽ bạn muốn tìm hiểu về ống nhòm. Bạn muốn tìm kiếm sản phẩm này không?"
+}

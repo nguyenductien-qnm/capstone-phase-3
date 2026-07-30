@@ -1,0 +1,58 @@
+MANDATE-18 Prompt 8 - pre-PR readiness audit
+Captured: 2026-07-22
+Scope: local branch feat/mandate-18; no commit, push, PR, apply, or sync
+
+EVIDENCE INVENTORY
+- Raw evidence files present before this audit: 14 (excluding logs/README.md).
+- Screenshot image files present: 0.
+- Screenshot guide present: screenshots/README.md.
+- Required after files not present:
+  - logs/04-orphans-after.json
+  - logs/10-telemetry-after.txt
+  - logs/13-noncompute-usage-after.json
+  - logs/14-pr-ci.txt
+
+TERRAFORM CHECKS
+- terraform/environments/sandbox fmt -check -recursive: PASS.
+- terraform/environments/sandbox validate -no-color: PASS.
+- terraform/modules/vpc-endpoints test -no-color: PASS after provider init,
+  1 passed / 0 failed.
+- Full sandbox plan with input=false, lock=false, refresh=false: BLOCKED.
+- Blocker: current SSO role received S3 HeadObject 403 for remote backend object
+  dev/terraform.tfstate in terraform-state-phase-3.
+- No complete resource plan was produced. Add/change/destroy/replace counts are
+  unknown and must not be claimed.
+- No plan file and no apply were produced.
+
+HELM CHECKS FROM PROMPT 6
+- Exact Argo sandbox value set: helm lint PASS, 0 failures.
+- OTel rendered pipelines contain Jaeger/spanmetrics, Prometheus and
+  OpenSearch exporters and no pipeline reference to debug.
+- Safety-gated ISM ConfigMap/Job render and kubectl client dry-run: PASS.
+- Retention gate remains disabled; no OpenSearch policy was written.
+
+REDACTION/SECRET CHECK
+- Recursive evidence scan for the known account ID: no match.
+- Scan for AKIA-style access key, aws_secret_access_key, aws_session_token and
+  PEM private-key headers: no match.
+- Evidence uses [REDACTED] for account/caller and omits customer/network payload
+  from the investigation summary.
+
+GIT/PR STATUS
+- git diff --check: PASS.
+- Branch contains Mandate 18 work plus previously created Prompt 5/6 changes.
+- Evidence pack, ISM template and VPC endpoint module are currently untracked;
+  ordinary `git diff`/`git diff --stat` does not include their contents. A
+  staged or committed PR diff is required for final scope review.
+- Commit: not created by this workflow.
+- Push: not performed.
+- Pull request: absent/not verified.
+- CI run: absent/not verified.
+- Reviewer approval: absent/not verified.
+
+READINESS DECISION
+- Documentation audit: completed.
+- Runtime mandate compliance: not complete.
+- PR opening is not recommended until the protected Terraform plan is readable,
+  exact change scope is reviewed, mandatory screenshots are captured, and the
+  mentor-facing FAIL/BLOCKED items are accepted or remediated.

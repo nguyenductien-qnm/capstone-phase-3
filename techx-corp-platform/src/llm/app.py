@@ -13,6 +13,7 @@ import logging
 
 from openfeature import api
 from openfeature.contrib.provider.flagd import FlagdProvider
+from model_router import ModelRouter
 
 app = Flask(__name__)
 app.logger.setLevel(logging.INFO)
@@ -89,6 +90,10 @@ def chat_completions():
     messages = data.get('messages', [])
     stream = data.get('stream', False)
     model = data.get('model', 'techx-llm')
+    
+    router = ModelRouter()
+    model = router.get_main_model(model)
+    
     tools = data.get('tools', None)
 
     app.logger.info(f"Received a chat completion request: '{messages}'")

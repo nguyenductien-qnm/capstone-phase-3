@@ -1,0 +1,46 @@
+{
+  "capture": "2026-07-22T07:31:19Z",
+  "query": {
+    "api": "ce:GetCostAndUsage",
+    "timePeriod": {"start": "2026-07-15", "endExclusive": "2026-07-23"},
+    "granularity": "MONTHLY",
+    "metric": "UsageQuantity",
+    "groupBy": ["SERVICE", "USAGE_TYPE"],
+    "excludedService": "Amazon Elastic Compute Cloud - Compute",
+    "estimated": true
+  },
+  "scopeWarning": "AWS account-wide. ce:GetTags returned zero values for Project=ecommerce, so these rows MUST NOT be claimed as techx-tf1-only usage.",
+  "rankingRule": "Rows are ranked only within the same Unit. GB, GB-Month and Hrs are never added or compared as one total.",
+  "topGB": [
+    {"service":"EC2 - Other","usageType":"DataTransfer-Regional-Bytes","amount":"357.6794858022","unit":"GB"},
+    {"service":"EC2 - Other","usageType":"NatGateway-Bytes","amount":"61.9773010455","unit":"GB"},
+    {"service":"AmazonCloudWatch","usageType":"USE1-VendedLog-Bytes","amount":"18.5107907622","unit":"GB"},
+    {"service":"AmazonCloudWatch","usageType":"USE1-DataScanned-Bytes","amount":"8.1338242069","unit":"GB"},
+    {"service":"EC2 - Other","usageType":"USE1-DataTransfer-xAZ-Out-Bytes","amount":"1.603371047","unit":"GB"},
+    {"service":"Amazon Managed Streaming for Apache Kafka","usageType":"DataTransfer-Regional-Bytes","amount":"1.537235668","unit":"GB"},
+    {"service":"EC2 - Other","usageType":"USE1-DataTransfer-xAZ-In-Bytes","amount":"1.2116824725","unit":"GB"},
+    {"service":"AmazonCloudWatch","usageType":"USE1-DataProcessing-Bytes","amount":"0.9689248677","unit":"GB"}
+  ],
+  "topGBMonth": [
+    {"service":"EC2 - Other","usageType":"EBS:VolumeUsage.gp3","amount":"47.1043354036","unit":"GB-Month"},
+    {"service":"Amazon Relational Database Service","usageType":"RDS:Multi-AZ-GP2-Storage","amount":"4.3940262795","unit":"GB-Month"},
+    {"service":"Amazon Relational Database Service","usageType":"RDS:GP2-Storage","amount":"4.3621042365","unit":"GB-Month"},
+    {"service":"Amazon Managed Streaming for Apache Kafka","usageType":"USE1-Kafka.Storage.GP2","amount":"4.1651390037","unit":"GB-Month"},
+    {"service":"Amazon EC2 Container Registry (ECR)","usageType":"TimedStorage-ByteHrs","amount":"1.3019672911","unit":"GB-Month"},
+    {"service":"AmazonCloudWatch","usageType":"USE1-TimedStorage-ByteHrs","amount":"0.2404971367","unit":"GB-Month"}
+  ],
+  "topHours": [
+    {"service":"Amazon Virtual Private Cloud","usageType":"USE1-PublicIPv4:InUseAddress","amount":"600.888611","unit":"Hrs"},
+    {"service":"Amazon Relational Database Service","usageType":"USE1-RDS:ProxyUsage","amount":"314.432777665","unit":"Hrs"},
+    {"service":"Amazon ElastiCache","usageType":"NodeUsage:cache.t4g.micro","amount":"314","unit":"Hrs"},
+    {"service":"Amazon Managed Streaming for Apache Kafka","usageType":"USE1-Kafka.t3.small","amount":"309.88634223","unit":"Hrs"},
+    {"service":"EC2 - Other","usageType":"NatGateway-Hours","amount":"158","unit":"Hrs"},
+    {"service":"Amazon Elastic Load Balancing","usageType":"LoadBalancerUsage","amount":"152","unit":"Hrs"}
+  ],
+  "proposedDriver": {
+    "usageType": "DataTransfer-Regional-Bytes",
+    "amount": "357.6794858022 GB",
+    "reason": "Largest account-wide non-compute row within the directly comparable GB family; NAT bytes and cross-AZ bytes are measurable sub-drivers relevant to this mandate.",
+    "qualification": "PARTIAL until a TF-specific cost-allocation tag/filter or equivalent attribution proves ownership."
+  }
+}

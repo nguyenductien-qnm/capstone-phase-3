@@ -1,0 +1,195 @@
+{
+  "category": "citation",
+  "input": [
+    "Khách đánh giá kính National Park Foundation Explorascope thế nào?",
+    true,
+    "citation"
+  ],
+  "latency": 33.84194898605347,
+  "tokens": {
+    "input": 19683,
+    "output": 425,
+    "embedding": 7
+  },
+  "usd_cost": 0.01710094,
+  "embed_cost": 1.4e-07,
+  "passed": true,
+  "reason": "Found citations",
+  "response": {
+    "response": "Khách hàng đánh giá kính National Park Foundation Explorascope khá tích cực, với điểm trung bình là 3.8. Theo đánh giá của khách hàng, kính này là một lựa chọn tuyệt vời cho người mới bắt đầu quan sát thiên văn, dễ thiết lập và cung cấp hình ảnh rõ ràng của mặt trăng và các hành tinh sáng hơn. Một số khách hàng cũng đánh giá cao tính di động và giá cả phải chăng của sản phẩm này.",
+    "actionsTaken": [
+      {
+        "toolName": "search_products",
+        "argumentsJson": "{\"query\": \"National Park Foundation Explorascope\"}",
+        "succeeded": true,
+        "startedAtUnix": 1785077178,
+        "durationMs": 1278
+      },
+      {
+        "toolName": "get_product_reviews",
+        "argumentsJson": "{\"product_id\": \"OLJCESPC7Z\"}",
+        "succeeded": true,
+        "startedAtUnix": 1785077181,
+        "durationMs": 539
+      }
+    ],
+    "degraded": false,
+    "traceId": "d68fe2c4f4da9148681a2bd34ac90921",
+    "citations": [
+      {
+        "reviewId": "stargazer_mike",
+        "snippet": "Great entry-level telescope! Easy to set up and provides clear views of the moon and brighter planets. Highly recommend for new astronomers.",
+        "score": "4.5"
+      },
+      {
+        "reviewId": "nightskylover",
+        "snippet": "For the price, this Explorascope delivers excellent performance. I was able to see Jupiter's moons clearly. A fantastic purchase for casual viewing.",
+        "score": "4.0"
+      },
+      {
+        "reviewId": "beginner_astro",
+        "snippet": "A bit tricky to get used to the manual controls, but once you do, it's very rewarding. Saw the Orion Nebula for the first time! Good value.",
+        "score": "3.5"
+      },
+      {
+        "reviewId": "celestial_explorer",
+        "snippet": "Perfect for camping trips. It's lightweight and portable, making it easy to take anywhere. The views are surprisingly good for its size.",
+        "score": "4.0"
+      },
+      {
+        "reviewId": "telescope_fan",
+        "snippet": "Not the most powerful scope, but it's great for kids and beginners. My children love looking at the moon with it. A solid choice for family fun.",
+        "score": "3.0"
+      }
+    ],
+    "traceSteps": [
+      {
+        "stepName": "Input Guardrail (PII/Prompt Guard)",
+        "latencyMs": 1065,
+        "status": "pass",
+        "detail": "{\"question\": \"Kh\\u00e1ch \\u0111\\u00e1nh gi\\u00e1 k\\u00ednh National Park Foundation Explorascope th\\u1ebf n\\u00e0o?\", \"blocked\": false}"
+      },
+      {
+        "stepName": "Model Gateway & Bedrock Nova",
+        "latencyMs": 32719,
+        "status": "ok",
+        "detail": "{\"routed_model\": \"amazon.nova-pro-v1:0\"}"
+      },
+      {
+        "stepName": "LLM → gọi tool: search_products",
+        "latencyMs": 2029,
+        "status": "ok",
+        "detail": "{\"decided_tools\": [\"search_products\"], \"stop_reason\": \"tool_use\", \"reasoning\": \"<thinking> T\\u00f4i c\\u1ea7n l\\u1ea5y th\\u00f4ng tin v\\u1ec1 \\u0111\\u00e1nh gi\\u00e1 c\\u1ee7a kh\\u00e1ch h\\u00e0ng v\\u1ec1 k\\u00ednh National Park Foundation Explorascope. \\u0110\\u1ea7u ti\\u00ean, t\\u00f4i ph\\u1ea3i t\\u00ecm product_id c\\u1ee7a s\\u1ea3n ph\\u1ea9m n\\u00e0y b\\u1eb1ng c\\u00e1ch g\\u1ecdi search_products. Sau \\u0111\\u00f3, t\\u00f4i s\\u1ebd s\\u1eed d\\u1ee5ng product_id \\u0111\\u00f3 \\u0111\\u1ec3 g\\u1ecdi get_product_reviews v\\u00e0 l\\u1ea5y th\\u00f4ng tin \\u0111\\u00e1nh gi\\u00e1. </thinking>\"}"
+      },
+      {
+        "stepName": "Tool: search_products (National Park Foundation Explorascope)",
+        "latencyMs": 1278,
+        "status": "ok",
+        "detail": "{\"args\": {\"query\": \"National Park Foundation Explorascope\"}, \"succeeded\": true}"
+      },
+      {
+        "stepName": "LLM → gọi tool: get_product_reviews",
+        "latencyMs": 1635,
+        "status": "ok",
+        "detail": "{\"decided_tools\": [\"get_product_reviews\"], \"stop_reason\": \"tool_use\", \"reasoning\": \"<thinking> T\\u00f4i \\u0111\\u00e3 l\\u1ea5y \\u0111\\u01b0\\u1ee3c product_id c\\u1ee7a k\\u00ednh National Park Foundation Explorascope l\\u00e0 \\\"OLJCESPC7Z\\\". B\\u00e2y gi\\u1edd t\\u00f4i s\\u1ebd g\\u1ecdi get_product_reviews \\u0111\\u1ec3 l\\u1ea5y th\\u00f4ng tin \\u0111\\u00e1nh gi\\u00e1 c\\u1ee7a s\\u1ea3n ph\\u1ea9m n\\u00e0y. </thinking>\"}"
+      },
+      {
+        "stepName": "Tool: get_product_reviews (OLJCESPC7Z)",
+        "latencyMs": 539,
+        "status": "ok",
+        "detail": "{\"args\": {\"product_id\": \"OLJCESPC7Z\"}, \"succeeded\": true}"
+      },
+      {
+        "stepName": "LLM → trả lời trực tiếp",
+        "latencyMs": 2200,
+        "status": "ok",
+        "detail": "{\"decided_tools\": [], \"stop_reason\": \"end_turn\", \"reasoning\": \"Kh\\u00e1ch h\\u00e0ng \\u0111\\u00e1nh gi\\u00e1 k\\u00ednh National Park Foundation Explorascope kh\\u00e1 t\\u00edch c\\u1ef1c, v\\u1edbi \\u0111i\\u1ec3m trung b\\u00ecnh l\\u00e0 3.8. Theo \\u0111\\u00e1nh gi\\u00e1 c\\u1ee7a kh\\u00e1ch h\\u00e0ng, k\\u00ednh n\\u00e0y l\\u00e0 m\\u1ed9t l\\u1ef1a ch\\u1ecdn tuy\\u1ec7t v\\u1eddi cho ng\\u01b0\\u1eddi m\\u1edbi b\\u1eaft \\u0111\\u1ea7u quan s\\u00e1t thi\\u00ean v\\u0103n, d\\u1ec5 thi\\u1ebft l\\u1eadp v\\u00e0 cung c\\u1ea5p h\\u00ecnh \\u1ea3nh r\\u00f5 r\\u00e0ng c\\u1ee7a m\\u1eb7t tr\\u0103ng v\\u00e0 c\\u00e1c h\\u00e0nh tinh s\\u00e1ng h\\u01a1n. M\\u1ed9t s\\u1ed1 kh\\u00e1ch h\\u00e0ng c\\u0169ng \\u0111\\u00e1nh gi\\u00e1 cao t\\u00ednh di \\u0111\\u1ed9ng v\\u00e0 gi\\u00e1 c\\u1ea3 ph\\u1ea3i ch\\u0103ng c\\u1ee7a s\\u1ea3n ph\\u1ea9m n\\u00e0y.\"}"
+      },
+      {
+        "stepName": "Output Guardrail (Grounding)",
+        "latencyMs": 25020,
+        "status": "pass",
+        "detail": "{\"blocked\": false}"
+      }
+    ]
+  },
+  "spans": [
+    {
+      "name": "bedrock_converse",
+      "attributes": {
+        "gen_ai.request.model": "amazon.nova-pro-v1:0",
+        "gen_ai.response.finish_reason": "end_turn",
+        "gen_ai.usage.input_tokens": 7470,
+        "gen_ai.usage.output_tokens": 176
+      }
+    },
+    {
+      "name": "tool_call",
+      "attributes": {
+        "tool.arguments": "{\"product_id\": \"OLJCESPC7Z\"}",
+        "tool.name": "get_product_reviews",
+        "tool.result_preview": "{\"status\": \"ok\", \"product_id\": \"OLJCESPC7Z\", \"average_score\": 3.8, \"review_count\": 5, \"summary\": \"Great entry-level telescope! Easy to set up and provides clear views of the moon and brighter planets. Highly recommend for new astronomers. | For the price, this Explorascope delivers excellent perform",
+        "tool.succeeded": true
+      }
+    },
+    {
+      "name": "guardrail_output_grounding",
+      "attributes": {
+        "guardrail.blocked": false
+      }
+    },
+    {
+      "name": "tool_call",
+      "attributes": {
+        "tool.arguments": "{\"query\": \"National Park Foundation Explorascope\"}",
+        "tool.name": "search_products",
+        "tool.result_preview": "{\"status\": \"ok\", \"count\": 10, \"products\": [{\"product_id\": \"OLJCESPC7Z\", \"name\": \"National Park Foundation Explorascope\", \"price\": \"$101.96\", \"category\": \"telescopes\", \"description\": \"The National Park Foundation's (NPF) Explorascope 60AZ is a manual alt-azimuth, refractor telescope perfect for celes",
+        "tool.succeeded": true
+      }
+    },
+    {
+      "name": "bedrock_converse",
+      "attributes": {
+        "gen_ai.request.model": "amazon.nova-pro-v1:0",
+        "gen_ai.response.finish_reason": "tool_use",
+        "gen_ai.usage.input_tokens": 5334,
+        "gen_ai.usage.output_tokens": 147
+      }
+    },
+    {
+      "name": "bedrock_converse",
+      "attributes": {
+        "gen_ai.request.model": "amazon.nova-pro-v1:0",
+        "gen_ai.response.finish_reason": "tool_use",
+        "gen_ai.usage.input_tokens": 6872,
+        "gen_ai.usage.output_tokens": 102
+      }
+    },
+    {
+      "name": "bedrock_embed",
+      "attributes": {
+        "gen_ai.request.model": "amazon.titan-embed-text-v2:0",
+        "gen_ai.usage.input_tokens": 7
+      }
+    },
+    {
+      "name": "guardrail_citation_validation",
+      "attributes": {
+        "guardrail.citation_valid": true
+      }
+    },
+    {
+      "name": "guardrail_input",
+      "attributes": {
+        "guardrail.blocked": false
+      }
+    },
+    {
+      "name": "oteldemo.ProductCatalogService/SearchProducts",
+      "attributes": {
+        "app.products_search.count": 10,
+        "app.search.mode": "semantic"
+      }
+    }
+  ]
+}

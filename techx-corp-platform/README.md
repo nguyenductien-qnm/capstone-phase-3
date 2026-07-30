@@ -11,7 +11,8 @@ full observability stack (metrics, logs, traces, dashboards).
 - `docker-compose.yml` - local run
 - `Makefile` - build / run helpers
 
-Kubernetes deploy: use the Helm chart in `../techx-corp-chart`.
+Kubernetes deploy: use the Helm chart in `../platform/charts/application` and
+the environment values in `../platform/gitops/environments/`.
 
 ## Run locally
 ```sh

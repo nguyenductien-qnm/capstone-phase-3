@@ -1,0 +1,10 @@
+﻿{
+    "Bucket":  "ecommerce-dev-cloudtrail-logs",
+    "VersioningStatus":  "NOT_CONFIGURED",
+    "VersioningCheckExit":  0,
+    "ObjectLockStatus":  "NOT_CONFIGURED",
+    "ObjectLockCheckExit":  254,
+    "PublicAccessBlock":  "PASS - all four controls true (see 08b)",
+    "Encryption":  "PASS - AES256 (see 08c)",
+    "Overall":  "FAIL - S3 Versioning is mandatory"
+}

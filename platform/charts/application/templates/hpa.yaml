@@ -1,0 +1,42 @@
+{{/*
+CDO-42 — HorizontalPodAutoscaler cho các hot-path service.
+- Chỉ tạo khi component có hpa.enabled = true.
+- Metric: CPU-only (autoscaling/v2). Cần CPU request trên pod (đã set ở values / LimitRange).
+- targetCPU + behavior lấy từ .Values.default.hpa; min/max lấy per-component.
+  behavior: scale-UP nhanh, scale-DOWN chậm (MANDATE-02: chịu flash-sale rồi co xuống).
+*/}}
+{{- $defaultHpa := .Values.default.hpa | default dict }}
+{{- range $name, $config := .Values.components }}
+{{- $svc := $name | lower }}
+{{- $hpa := $config.hpa | default dict }}
+{{- if and $config.enabled $hpa.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ $svc }}
+  labels:
+    app.kubernetes.io/part-of: techx-corp
+    app.kubernetes.io/component: {{ $svc }}
+    app.kubernetes.io/managed-by: {{ $.Release.Service }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ $svc }}
+  minReplicas: {{ $hpa.minReplicas | default 1 }}
+  maxReplicas: {{ $hpa.maxReplicas | default 4 }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ $hpa.targetCPUUtilizationPercentage | default $defaultHpa.targetCPUUtilizationPercentage | default 70 }}
+  {{- $behavior := $hpa.behavior | default $defaultHpa.behavior }}
+  {{- with $behavior }}
+  behavior:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
+{{- end }}

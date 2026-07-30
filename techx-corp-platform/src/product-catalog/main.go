@@ -7,13 +7,24 @@ package main
 //go:generate protoc --go_out=./ --go-grpc_out=./ --proto_path=../../pb ../../pb/demo.proto
 
 import (
+	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
+	"encoding/json"
+	"encoding/xml"
+	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
+	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
+	"sort"
 	"strings"
 	"sync"
 	"syscall"
@@ -152,13 +163,25 @@ func initDatabase() error {
 		return fmt.Errorf("failed to open database connection: %w", err)
 	}
 
+	// CDO-TBD1: pool sized for small pod + RDS Proxy/replica blips.
+	// MaxOpen keeps fan-out bounded under HPA; MaxIdle reuses conns after failover.
+	// ConnMaxLifetime recycles sockets so stale post-failover conns die quickly.
+	db.SetMaxOpenConns(10)
+	db.SetMaxIdleConns(5)
+	db.SetConnMaxLifetime(5 * time.Minute)
+	db.SetConnMaxIdleTime(2 * time.Minute)
+
 	reg, err = otelsql.RegisterDBStatsMetrics(db, otelsql.WithAttributes(semconv.DBSystemNamePostgreSQL))
 	if err != nil {
 		return fmt.Errorf("failed to register database metrics: %w", err)
 	}
 
-	// Test the connection
-	if err := db.Ping(); err != nil {
+	// Ping with retry so a brief blip at pod start does not crash-loop the process.
+	pingCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if err := withDBRetry(pingCtx, "ping", func() error {
+		return db.PingContext(pingCtx)
+	}); err != nil {
 		return fmt.Errorf("failed to ping database: %w", err)
 	}
 
@@ -250,8 +273,36 @@ func main() {
 	healthcheck := health.NewServer()
 	healthpb.RegisterHealthServer(srv, healthcheck)
 
+	// CDO-80 (Option C): tách liveness khỏi readiness. Liveness luôn SERVING khi
+	// process sống (không phụ thuộc Postgres) → Postgres giật không restart pod.
+	healthcheck.SetServingStatus("liveness", healthpb.HealthCheckResponse_SERVING)
+	healthcheck.SetServingStatus("", healthpb.HealthCheckResponse_SERVING) // tương thích ngược
+
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGKILL)
 	defer cancel()
+
+	// Readiness phản ánh dependency Postgres, cập nhật định kỳ: DB mất → NOT_SERVING
+	// (pod bị kéo khỏi Endpoints) nhưng KHÔNG restart; DB hồi → SERVING trở lại.
+	go func() {
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+		updateReadiness := func() {
+			if db != nil && db.PingContext(ctx) == nil {
+				healthcheck.SetServingStatus("readiness", healthpb.HealthCheckResponse_SERVING)
+			} else {
+				healthcheck.SetServingStatus("readiness", healthpb.HealthCheckResponse_NOT_SERVING)
+			}
+		}
+		updateReadiness()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				updateReadiness()
+			}
+		}
+	}()
 
 	go func() {
 		if err := srv.Serve(ln); err != nil {
@@ -265,29 +316,59 @@ func main() {
 	logger.Info("Product Catalog gRPC server stopped")
 }
 
+// productPictureSQLExpr maps DB columns into the protobuf Product.picture field.
+//
+// CDO-TBD2 expand-contract (picture → image_url):
+//
+//   - dual_read (default): COALESCE(image_url, picture) — safe after ADD COLUMN +
+//     during backfill while both columns exist.
+//   - read_new / image_url: only image_url — use after backfill and after DROP picture
+//     (set env CATALOG_SCHEMA_PHASE=read_new before contract DROP).
+//
+// gRPC/API field name stays "picture" so frontend/proto do not need a rename.
+func productPictureSQLExpr() string {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("CATALOG_SCHEMA_PHASE"))) {
+	case "read_new", "image_url":
+		return "p.image_url"
+	default:
+		// dual_read: prefer new column when set, else legacy picture
+		return "COALESCE(NULLIF(BTRIM(p.image_url), ''), p.picture)"
+	}
+}
+
+func productSelectSQL(where, order string) string {
+	// where/order must be static trusted fragments (no user input interpolation).
+	return fmt.Sprintf(`
+			SELECT p.id, p.name, p.description, %s AS picture,
+			       p.price_currency_code, p.price_units, p.price_nanos, p.categories
+			FROM catalog.products p
+			%s
+			%s
+		`, productPictureSQLExpr(), where, order)
+}
+
 func loadProductsFromDB(ctx context.Context) ([]*pb.Product, error) {
 	if db == nil {
 		return nil, fmt.Errorf("database connection not initialized")
 	}
 
-	// Query all products with categories
-	rows, err := db.QueryContext(ctx, `
-		SELECT p.id, p.name, p.description, p.picture, 
-		       p.price_currency_code, p.price_units, p.price_nanos, p.categories
-		FROM catalog.products p
-		ORDER BY p.id
-	`)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query products: %w", err)
-	}
-	defer rows.Close()
+	q := productSelectSQL("", "ORDER BY p.id")
+	var products []*pb.Product
+	err := withDBRetry(ctx, "loadProducts", func() error {
+		rows, qerr := db.QueryContext(ctx, q)
+		if qerr != nil {
+			return fmt.Errorf("failed to query products: %w", qerr)
+		}
+		defer rows.Close()
 
-	products, err := getProductsFromRows(ctx, rows)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get products from rows: %w", err)
-	}
-
-	return products, nil
+		parsed, perr := getProductsFromRows(ctx, rows)
+		if perr != nil {
+			return fmt.Errorf("failed to get products from rows: %w", perr)
+		}
+		products = parsed
+		return nil
+	})
+	return products, err
 }
 
 func searchProductsFromDB(ctx context.Context, query string) ([]*pb.Product, error) {
@@ -295,26 +376,412 @@ func searchProductsFromDB(ctx context.Context, query string) ([]*pb.Product, err
 		return nil, fmt.Errorf("database connection not initialized")
 	}
 
-	// Query products matching search query in name or description
 	searchPattern := "%" + strings.ToLower(query) + "%"
-	rows, err := db.QueryContext(ctx, `
-		SELECT p.id, p.name, p.description, p.picture, 
-		       p.price_currency_code, p.price_units, p.price_nanos, p.categories
-		FROM catalog.products p
-		WHERE LOWER(p.name) LIKE $1 OR LOWER(p.description) LIKE $1
-		ORDER BY p.id
-	`, searchPattern)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query products: %w", err)
-	}
-	defer rows.Close()
+	q := productSelectSQL(
+		"WHERE LOWER(p.name) LIKE $1 OR LOWER(p.description) LIKE $1",
+		"ORDER BY p.id",
+	)
+	var products []*pb.Product
+	err := withDBRetry(ctx, "searchProducts", func() error {
+		rows, qerr := db.QueryContext(ctx, q, searchPattern)
+		if qerr != nil {
+			return fmt.Errorf("failed to query products: %w", qerr)
+		}
+		defer rows.Close()
 
-	products, err := getProductsFromRows(ctx, rows)
+		parsed, perr := getProductsFromRows(ctx, rows)
+		if perr != nil {
+			return fmt.Errorf("failed to get products from rows: %w", perr)
+		}
+		products = parsed
+		return nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get products from rows: %w", err)
+		return nil, err
 	}
+
+	logger.LogAttrs(
+		ctx,
+		slog.LevelInfo,
+		fmt.Sprintf("Found %d products from database", len(products)),
+		slog.Int("products", len(products)),
+	)
 
 	return products, nil
+}
+
+type awsCredentials struct {
+	AccessKeyId     string
+	SecretAccessKey string
+	SessionToken    string
+	Expiration      time.Time
+}
+
+var (
+	cachedBedrockCreds awsCredentials
+	cachedCredsMutex   sync.Mutex
+)
+
+type containerCredentialResponse struct {
+	AccessKeyId     string `json:"AccessKeyId"`
+	SecretAccessKey string `json:"SecretAccessKey"`
+	Token           string `json:"Token"`
+}
+
+type assumeRoleResponse struct {
+	XMLName          xml.Name `xml:"AssumeRoleResponse"`
+	AssumeRoleResult struct {
+		Credentials struct {
+			AccessKeyId     string `xml:"AccessKeyId"`
+			SecretAccessKey string `xml:"SecretAccessKey"`
+			SessionToken    string `xml:"SessionToken"`
+			Expiration      string `xml:"Expiration"`
+		} `xml:"Credentials"`
+	} `xml:"AssumeRoleResult"`
+}
+
+func signAWSV4WithCreds(req *http.Request, body []byte, region, service, accessKey, secretKey, sessionToken string) {
+	now := time.Now().UTC()
+	amzDate := now.Format("20060102T150405Z")
+	req.Header.Set("X-Amz-Date", amzDate)
+	if sessionToken != "" {
+		req.Header.Set("X-Amz-Security-Token", sessionToken)
+	}
+	req.Header.Set("Host", req.URL.Host)
+
+	hash := sha256.New()
+	hash.Write(body)
+	payloadHash := hex.EncodeToString(hash.Sum(nil))
+
+	var headerKeys []string
+	for k := range req.Header {
+		headerKeys = append(headerKeys, strings.ToLower(k))
+	}
+	sort.Strings(headerKeys)
+
+	var signedHeaders []string
+	var canonicalHeaders string
+	for _, k := range headerKeys {
+		signedHeaders = append(signedHeaders, k)
+		val := req.Header.Get(k)
+		canonicalHeaders += k + ":" + strings.TrimSpace(val) + "\n"
+	}
+
+	canonicalURI := strings.ReplaceAll(req.URL.Path, ":", "%3A")
+
+	canonicalRequest := req.Method + "\n" + canonicalURI + "\n" + req.URL.RawQuery + "\n" + canonicalHeaders + "\n" + strings.Join(signedHeaders, ";") + "\n" + payloadHash
+
+	date := now.Format("20060102")
+	credentialScope := date + "/" + region + "/" + service + "/aws4_request"
+
+	hash = sha256.New()
+	hash.Write([]byte(canonicalRequest))
+	canonicalRequestHash := hex.EncodeToString(hash.Sum(nil))
+
+	stringToSign := "AWS4-HMAC-SHA256\n" + amzDate + "\n" + credentialScope + "\n" + canonicalRequestHash
+
+	mac := hmac.New(sha256.New, []byte("AWS4"+secretKey))
+	mac.Write([]byte(date))
+	kDate := mac.Sum(nil)
+
+	mac = hmac.New(sha256.New, kDate)
+	mac.Write([]byte(region))
+	kRegion := mac.Sum(nil)
+
+	mac = hmac.New(sha256.New, kRegion)
+	mac.Write([]byte(service))
+	kService := mac.Sum(nil)
+
+	mac = hmac.New(sha256.New, kService)
+	mac.Write([]byte("aws4_request"))
+	kSigning := mac.Sum(nil)
+
+	mac = hmac.New(sha256.New, kSigning)
+	mac.Write([]byte(stringToSign))
+	signature := hex.EncodeToString(mac.Sum(nil))
+
+	authHeader := "AWS4-HMAC-SHA256 Credential=" + accessKey + "/" + credentialScope + ", SignedHeaders=" + strings.Join(signedHeaders, ";") + ", Signature=" + signature
+	req.Header.Set("Authorization", authHeader)
+}
+
+func fetchContainerAWSCredentials(ctx context.Context, client *http.Client, endpoint, token string) (string, string, string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return "", "", "", err
+	}
+	req.Header.Set("Authorization", token)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", "", "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", "", "", fmt.Errorf("container credential endpoint returned %d", resp.StatusCode)
+	}
+
+	var creds containerCredentialResponse
+	if err := json.NewDecoder(resp.Body).Decode(&creds); err != nil {
+		return "", "", "", err
+	}
+	if creds.AccessKeyId == "" || creds.SecretAccessKey == "" {
+		return "", "", "", fmt.Errorf("container credential endpoint returned empty credentials")
+	}
+	return creds.AccessKeyId, creds.SecretAccessKey, creds.Token, nil
+}
+
+func getContainerAWSCredentials() (string, string, string) {
+	endpoint := os.Getenv("AWS_CONTAINER_CREDENTIALS_FULL_URI")
+	tokenFile := os.Getenv("AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE")
+	parsed, err := url.Parse(endpoint)
+	if endpoint == "" || tokenFile == "" || err != nil || parsed.Scheme != "http" || parsed.Hostname() != "169.254.170.23" {
+		return "", "", ""
+	}
+	token, err := os.ReadFile(tokenFile)
+	if err != nil {
+		return "", "", ""
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	ak, sk, st, err := fetchContainerAWSCredentials(ctx, http.DefaultClient, endpoint, strings.TrimSpace(string(token)))
+	if err != nil {
+		return "", "", ""
+	}
+	return ak, sk, st
+}
+
+func getLocalAWSCredentials() (string, string, string) {
+	ak := os.Getenv("AWS_ACCESS_KEY_ID")
+	sk := os.Getenv("AWS_SECRET_ACCESS_KEY")
+	st := os.Getenv("AWS_SESSION_TOKEN")
+	if ak != "" && sk != "" {
+		return ak, sk, st
+	}
+	if ak, sk, st = getContainerAWSCredentials(); ak != "" && sk != "" {
+		return ak, sk, st
+	}
+	credFile := os.Getenv("AWS_SHARED_CREDENTIALS_FILE")
+	if credFile == "" {
+		credFile = "/app/.aws/credentials"
+	}
+	content, err := os.ReadFile(credFile)
+	if err == nil {
+		lines := strings.Split(string(content), "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, "aws_access_key_id") {
+				parts := strings.SplitN(line, "=", 2)
+				if len(parts) == 2 {
+					ak = strings.TrimSpace(parts[1])
+				}
+			}
+			if strings.HasPrefix(line, "aws_secret_access_key") {
+				parts := strings.SplitN(line, "=", 2)
+				if len(parts) == 2 {
+					sk = strings.TrimSpace(parts[1])
+				}
+			}
+			if strings.HasPrefix(line, "aws_session_token") {
+				parts := strings.SplitN(line, "=", 2)
+				if len(parts) == 2 {
+					st = strings.TrimSpace(parts[1])
+				}
+			}
+		}
+	}
+	return ak, sk, st
+}
+
+func signAWSV4(req *http.Request, body []byte, region, service string) {
+	accessKey, secretKey, sessionToken := getLocalAWSCredentials()
+	signAWSV4WithCreds(req, body, region, service, accessKey, secretKey, sessionToken)
+}
+
+func getBedrockCredentials(ctx context.Context, region string) (string, string, string, error) {
+	roleArn := os.Getenv("BEDROCK_AWS_ROLE_ARN")
+	if roleArn == "" || roleArn == "<your-role-arn>" {
+		ak, sk, st := getLocalAWSCredentials()
+		return ak, sk, st, nil
+	}
+
+	cachedCredsMutex.Lock()
+	if cachedBedrockCreds.AccessKeyId != "" && time.Now().Before(cachedBedrockCreds.Expiration.Add(-5*time.Minute)) {
+		ak, sk, st := cachedBedrockCreds.AccessKeyId, cachedBedrockCreds.SecretAccessKey, cachedBedrockCreds.SessionToken
+		cachedCredsMutex.Unlock()
+		return ak, sk, st, nil
+	}
+	cachedCredsMutex.Unlock()
+
+	externalId := os.Getenv("BEDROCK_AWS_EXTERNAL_ID")
+	sessionName := os.Getenv("BEDROCK_AWS_ROLE_SESSION_NAME")
+	if sessionName == "" {
+		sessionName = "product-catalog-bedrock"
+	}
+
+	formData := url.Values{}
+	formData.Set("Action", "AssumeRole")
+	formData.Set("Version", "2011-06-15")
+	formData.Set("RoleArn", roleArn)
+	formData.Set("RoleSessionName", sessionName)
+	if externalId != "" {
+		formData.Set("ExternalId", externalId)
+	}
+
+	bodyStr := formData.Encode()
+	bodyBytes := []byte(bodyStr)
+
+	stsUrl := fmt.Sprintf("https://sts.%s.amazonaws.com/", region)
+	req, err := http.NewRequestWithContext(ctx, "POST", stsUrl, bytes.NewReader(bodyBytes))
+	if err != nil {
+		return "", "", "", fmt.Errorf("failed to create sts request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	signAWSV4(req, bodyBytes, region, "sts")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", "", "", fmt.Errorf("sts assume-role request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", "", "", fmt.Errorf("failed to read sts response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return "", "", "", fmt.Errorf("sts assume-role error %d: %s", resp.StatusCode, string(respBytes))
+	}
+
+	var parsedXML assumeRoleResponse
+	if err := xml.Unmarshal(respBytes, &parsedXML); err != nil {
+		return "", "", "", fmt.Errorf("failed to parse sts xml response: %w", err)
+	}
+
+	creds := parsedXML.AssumeRoleResult.Credentials
+	if creds.AccessKeyId == "" {
+		return "", "", "", fmt.Errorf("sts assume-role returned empty credentials")
+	}
+
+	expTime, _ := time.Parse(time.RFC3339, creds.Expiration)
+
+	cachedCredsMutex.Lock()
+	cachedBedrockCreds = awsCredentials{
+		AccessKeyId:     creds.AccessKeyId,
+		SecretAccessKey: creds.SecretAccessKey,
+		SessionToken:    creds.SessionToken,
+		Expiration:      expTime,
+	}
+	cachedCredsMutex.Unlock()
+
+	return creds.AccessKeyId, creds.SecretAccessKey, creds.SessionToken, nil
+}
+
+const titanEmbedModel = "amazon.titan-embed-text-v2:0"
+
+func embedQuery(ctx context.Context, text string) ([]float64, error) {
+	// Span riêng cho lệnh gọi Titan: trước đây hàm này không phát span nào nên mọi
+	// chi phí embedding của semantic search đều vô hình với eval MANDATE-14 —
+	// không latency, không token, không tiền. Tên bedrock_embed để harness gộp
+	// cùng bedrock_converse khi tính cost.
+	ctx, span := otel.Tracer("product-catalog").Start(ctx, "bedrock_embed")
+	defer span.End()
+	span.SetAttributes(attribute.String("gen_ai.request.model", titanEmbedModel))
+
+	reqBody := map[string]interface{}{
+		"inputText":  text,
+		"dimensions": 1024,
+		"normalize":  true,
+	}
+	bodyBytes, _ := json.Marshal(reqBody)
+
+	region := os.Getenv("AWS_REGION")
+	if region == "" {
+		region = "us-east-1"
+	}
+	url := fmt.Sprintf("https://bedrock-runtime.%s.amazonaws.com/model/amazon.titan-embed-text-v2:0/invoke", region)
+
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(bodyBytes))
+	if err != nil {
+		return nil, fmt.Errorf("create req failed: %w", err)
+	}
+
+	accessKey, secretKey, sessionToken, err := getBedrockCredentials(ctx, region)
+	if err != nil {
+		return nil, fmt.Errorf("get bedrock creds failed: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	signAWSV4WithCreds(req, bodyBytes, region, "bedrock", accessKey, secretKey, sessionToken)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("http req failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		err := fmt.Errorf("aws error %d: %s", resp.StatusCode, string(respBody))
+		// Ghi lỗi vào span: container distroless không xuất log ra docker logs, nên
+		// không đánh dấu ở đây thì semantic search âm thầm rơi về keyword mà không
+		// ai biết vì sao — đúng kiểu false-green mà mandate muốn tránh.
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, err
+	}
+
+	var parsedResp struct {
+		Embedding           []float64 `json:"embedding"`
+		InputTextTokenCount int       `json:"inputTextTokenCount"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&parsedResp); err != nil {
+		return nil, fmt.Errorf("parse resp failed: %w", err)
+	}
+	// Titan trả sẵn số token đã tính tiền — dùng số thật, không ước lượng.
+	span.SetAttributes(attribute.Int("gen_ai.usage.input_tokens", parsedResp.InputTextTokenCount))
+	return parsedResp.Embedding, nil
+}
+
+func formatVector(v []float64) string {
+	parts := make([]string, len(v))
+	for i, f := range v {
+		parts[i] = fmt.Sprintf("%g", f)
+	}
+	return "[" + strings.Join(parts, ",") + "]"
+}
+
+func searchProductsFromDBSemantic(ctx context.Context, query string) ([]*pb.Product, error) {
+	if db == nil {
+		return nil, fmt.Errorf("database connection not initialized")
+	}
+	// Embed the query using Bedrock Titan
+	embedding, err := embedQuery(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("embedding query failed: %w", err)
+	}
+	// Format embedding as pgvector literal
+	vecLiteral := formatVector(embedding)
+	q := productSelectSQL(
+		"JOIN catalog.product_embeddings_v2 v2 ON p.id = v2.product_id WHERE v2.embedding IS NOT NULL",
+		"ORDER BY v2.embedding <=> $1::vector LIMIT 10",
+	)
+	var products []*pb.Product
+	err = withDBRetry(ctx, "searchProductsSemantic", func() error {
+		rows, qerr := db.QueryContext(ctx, q, vecLiteral)
+		if qerr != nil {
+			return fmt.Errorf("semantic search query failed: %w", qerr)
+		}
+		defer rows.Close()
+		parsed, perr := getProductsFromRows(ctx, rows)
+		if perr != nil {
+			return fmt.Errorf("failed to parse semantic results: %w", perr)
+		}
+		products = parsed
+		return nil
+	})
+	return products, err
 }
 
 func getProductFromDB(ctx context.Context, productID string) (*pb.Product, error) {
@@ -322,26 +789,30 @@ func getProductFromDB(ctx context.Context, productID string) (*pb.Product, error
 		return nil, fmt.Errorf("database connection not initialized")
 	}
 
-	// Query single product by ID
-	row := db.QueryRowContext(ctx, `
-		SELECT p.id, p.name, p.description, p.picture, 
-		       p.price_currency_code, p.price_units, p.price_nanos, p.categories
-		FROM catalog.products p
-		WHERE p.id = $1
-	`, productID)
+	q := productSelectSQL("WHERE p.id = $1", "")
+	var product *pb.Product
+	err := withDBRetry(ctx, "getProduct", func() error {
+		row := db.QueryRowContext(ctx, q, productID)
 
-	var id, name, description, picture, currencyCode, categoriesStr string
-	var units int64
-	var nanos int32
+		var id, name, description, picture, currencyCode, categoriesStr string
+		var units int64
+		var nanos int32
 
-	if err := row.Scan(&id, &name, &description, &picture, &currencyCode, &units, &nanos, &categoriesStr); err != nil {
-		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("product not found")
+		if scanErr := row.Scan(&id, &name, &description, &picture, &currencyCode, &units, &nanos, &categoriesStr); scanErr != nil {
+			if scanErr == sql.ErrNoRows {
+				// Business miss — not a connection blip; do not retry.
+				return errProductNotFound
+			}
+			return fmt.Errorf("failed to scan product row: %w", scanErr)
 		}
-		return nil, fmt.Errorf("failed to scan product row: %w", err)
-	}
 
-	return parseProductRow(id, name, description, picture, currencyCode, categoriesStr, units, nanos), nil
+		product = parseProductRow(id, name, description, picture, currencyCode, categoriesStr, units, nanos)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return product, nil
 }
 
 func getProductsFromRows(ctx context.Context, rows *sql.Rows) ([]*pb.Product, error) {
@@ -440,15 +911,22 @@ func (p *productCatalog) GetProduct(ctx context.Context, req *pb.GetProductReque
 		msg := "Error: Product Catalog Fail Feature Flag Enabled"
 		span.SetStatus(otelcodes.Error, msg)
 		span.AddEvent(msg)
-		return nil, status.Errorf(codes.Internal, msg)
+		return nil, status.Error(codes.Internal, msg)
 	}
 
 	found, err := getProductFromDB(ctx, req.Id)
 	if err != nil {
-		msg := fmt.Sprintf("Product Not Found: %s", req.Id)
+		if errors.Is(err, errProductNotFound) {
+			msg := fmt.Sprintf("Product Not Found: %s", req.Id)
+			span.SetStatus(otelcodes.Error, msg)
+			span.AddEvent(msg)
+			return nil, status.Error(codes.NotFound, msg)
+		}
+		// After retries exhausted: real DB failure → Internal (not fake NotFound).
+		msg := fmt.Sprintf("Product Catalog DB error for %s: %v", req.Id, err)
 		span.SetStatus(otelcodes.Error, msg)
 		span.AddEvent(msg)
-		return nil, status.Errorf(codes.NotFound, msg)
+		return nil, status.Error(codes.Internal, msg)
 	}
 
 	span.AddEvent("Product Found")
@@ -470,7 +948,30 @@ func (p *productCatalog) GetProduct(ctx context.Context, req *pb.GetProductReque
 func (p *productCatalog) SearchProducts(ctx context.Context, req *pb.SearchProductsRequest) (*pb.SearchProductsResponse, error) {
 	span := trace.SpanFromContext(ctx)
 
-	result, err := searchProductsFromDB(ctx, req.Query)
+	var result []*pb.Product
+	var err error
+	searchMode := "keyword"
+
+	// Copilot đôi khi gọi search_products với query rỗng (chỉ lọc category phía client).
+	// Titan từ chối inputText rỗng ("expected minLength: 1") nên semantic hỏng rồi âm
+	// thầm rơi về keyword — bỏ hẳn lần gọi Bedrock chắc chắn lỗi đó.
+	embedText := strings.TrimSpace(req.Query)
+
+	// Try semantic search first if enabled
+	if os.Getenv("SEMANTIC_SEARCH_ENABLED") == "true" && embedText != "" {
+		result, err = searchProductsFromDBSemantic(ctx, embedText)
+		if err == nil && len(result) > 0 {
+			searchMode = "semantic"
+		} else {
+			if err != nil {
+				logger.Warn(fmt.Sprintf("Semantic search failed, falling back to keyword: %v", err))
+			}
+			result, err = searchProductsFromDB(ctx, req.Query)
+		}
+	} else {
+		result, err = searchProductsFromDB(ctx, req.Query)
+	}
+
 	if err != nil {
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.Internal, "failed to search products: %v", err)
@@ -478,6 +979,7 @@ func (p *productCatalog) SearchProducts(ctx context.Context, req *pb.SearchProdu
 
 	span.SetAttributes(
 		attribute.Int("app.products_search.count", len(result)),
+		attribute.String("app.search.mode", searchMode),
 	)
 	return &pb.SearchProductsResponse{Results: result}, nil
 }

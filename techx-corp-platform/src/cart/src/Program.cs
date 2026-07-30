@@ -41,7 +41,9 @@ builder.Logging
 
 builder.Services.AddSingleton<ICartStore>(x =>
 {
-    var store = new ValkeyCartStore(x.GetRequiredService<ILogger<ValkeyCartStore>>(), valkeyAddress);
+    string valkeyToken = builder.Configuration["VALKEY_AUTH_TOKEN"];
+    bool valkeyTls = builder.Configuration["VALKEY_TLS"]?.ToLower() == "true";
+    var store = new ValkeyCartStore(x.GetRequiredService<ILogger<ValkeyCartStore>>(), valkeyAddress, valkeyToken, valkeyTls);
     store.Initialize();
     return store;
 });
@@ -54,12 +56,35 @@ builder.Services.AddOpenFeature(openFeatureBuilder =>
         .AddHook<TraceEnricherHook>();
 });
 
-builder.Services.AddSingleton(x =>
-    new CartService(
-        x.GetRequiredService<ICartStore>(),
-        new ValkeyCartStore(x.GetRequiredService<ILogger<ValkeyCartStore>>(), "badhost:1234"),
-        x.GetRequiredService<IFeatureClient>()
-));
+// Check if running in dedicated Kafka Consumer Worker mode
+// If ENABLE_KAFKA_CONSUMER is set to "true", this pod operates purely as a worker
+var enableConsumer = builder.Configuration["ENABLE_KAFKA_CONSUMER"];
+bool isWorker = string.Equals(enableConsumer, "true", StringComparison.OrdinalIgnoreCase);
+
+// Register CartService and admission control only when NOT running as a pure worker pod
+// Worker pods only consume Kafka messages via ConsumerService (using ICartStore) and do not need CartService
+if (!isWorker)
+{
+    var maxConcurrentCartRequests = ParsePositiveInt(
+        builder.Configuration["CART_MAX_CONCURRENT_REQUESTS"],
+        CartRequestAdmission.DefaultMaxConcurrentRequests);
+    var maxQueuedCartRequests = ParsePositiveInt(
+        builder.Configuration["CART_MAX_QUEUED_REQUESTS"],
+        CartRequestAdmission.DefaultMaxQueuedRequests);
+    builder.Services.AddSingleton(
+        new CartRequestAdmission(maxConcurrentCartRequests, maxQueuedCartRequests));
+
+    builder.Services.AddSingleton(x =>
+        new CartService(
+            x.GetRequiredService<ICartStore>(),
+            new ValkeyCartStore(x.GetRequiredService<ILogger<ValkeyCartStore>>(), "badhost:1234"),
+            x.GetRequiredService<IFeatureClient>(),
+            x.GetRequiredService<CartRequestAdmission>()
+    ));
+}
+
+static int ParsePositiveInt(string value, int fallback) =>
+    int.TryParse(value, out var parsed) && parsed > 0 ? parsed : fallback;
 
 
 Action<ResourceBuilder> appResourceBuilder =
@@ -88,17 +113,43 @@ builder.Services.AddOpenTelemetry()
         .AddOtlpExporter());
 builder.Services.AddGrpc();
 builder.Services.AddSingleton<readinessCheck>();
+// CDO-80 (Option C): tách liveness khỏi readiness.
+// - "liveness"  : luôn Healthy khi process sống → Valkey giật KHÔNG restart pod.
+// - "readiness" : phản ánh dependency (dùng lại readinessCheck) → giật thì kéo khỏi LB, không restart.
+// Giữ "oteldemo.CartService" cho tương thích ngược.
 builder.Services.AddGrpcHealthChecks()
-    .AddCheck<readinessCheck>("oteldemo.CartService");
+    .AddCheck<readinessCheck>("oteldemo.CartService")
+    .AddCheck("liveness", () => HealthCheckResult.Healthy())
+    .AddCheck<readinessCheck>("readiness");
 
 builder.Services.AddSingleton<HealthServiceImpl>();
 
+// If ENABLE_KAFKA_CONSUMER is set to "false", the background service is not registered, meaning the Kafka consumer worker won't run
+// If it is missing or set to anything other than "false", the Kafka consumer starts automatically when the app launches
+if (!string.Equals(enableConsumer, "false", StringComparison.OrdinalIgnoreCase)) {
+
+    // builder.Services.AddHostedService<T>()
+    // is an extension method in .NET Core
+    // used to register long-running background tasks in the Dependency Injection container
+    builder.Services.AddHostedService<ConsumerService>();
+}
+
 var app = builder.Build();
 
+// Register OTel Redis instrumentation for all connections in the pool.
+// This gives distributed tracing visibility into every socket in the pool.
 var ValkeyCartStore = (ValkeyCartStore)app.Services.GetRequiredService<ICartStore>();
-app.Services.GetRequiredService<StackExchangeRedisInstrumentation>().AddConnection(ValkeyCartStore.GetConnection());
+var redisInstrumentation = app.Services.GetRequiredService<StackExchangeRedisInstrumentation>();
+foreach (var conn in ValkeyCartStore.GetAllConnections())
+{
+    redisInstrumentation.AddConnection(conn);
+}
 
-app.MapGrpcService<CartService>();
+// Map CartService gRPC endpoints only for API pods, not for dedicated worker pods.
+if (!isWorker)
+{
+    app.MapGrpcService<CartService>();
+}
 app.MapGrpcService<HealthServiceImpl>();
 
 app.MapGet("/", async context =>
@@ -107,5 +158,3 @@ app.MapGet("/", async context =>
 });
 
 app.Run();
-
-

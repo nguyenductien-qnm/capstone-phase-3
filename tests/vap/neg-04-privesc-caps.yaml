@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: vaptest-neg-04-priv-esc
+  labels: { vaptest: "true" }
+spec:
+  containers:
+  - name: app
+    image: ecommerce-dev-techx-corp:1.0-cart-aadff38
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      allowPrivilegeEscalation: true          # vi phạm deny-privilege-escalation
+      capabilities: { add: ["SYS_ADMIN"] }     # vi phạm psp-capabilities (không drop ALL, add cap nguy hiểm)
+    resources:
+      requests: { cpu: "10m", memory: "16Mi" }
+      limits: { cpu: "50m", memory: "32Mi" }

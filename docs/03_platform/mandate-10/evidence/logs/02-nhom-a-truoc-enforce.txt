@@ -1,0 +1,75 @@
+########## NHÓM A — bằng chứng TRƯỚC khi flip Enforce ##########
+Thu thập: 2026-07-23T06:54:05Z UTC (13:54 +07)
+Điều kiện: ClusterPolicy verify-image-signature = Audit / Ignore
+
+===== A1. Kyverno đang chạy =====
+$ kubectl get pods -n kyverno
+NAME                                             READY   STATUS      RESTARTS   AGE
+kyverno-admission-controller-85b9667f7c-5vd5k    1/1     Running     0          152m
+kyverno-admission-controller-85b9667f7c-8284v    1/1     Running     0          13m
+kyverno-background-controller-6998b87bf8-5hkwh   1/1     Running     0          152m
+kyverno-migrate-resources-7w5tb                  0/1     Completed   0          87m
+kyverno-reports-controller-78664c7b5f-58xqt      1/1     Running     0          152m
+
+$ kubectl get pdb -n kyverno
+NAME                           MIN AVAILABLE   MAX UNAVAILABLE   ALLOWED DISRUPTIONS   AGE
+kyverno-admission-controller   1               N/A               1                     171m
+
+-> PDB ALLOWED DISRUPTIONS=1: điều kiện an toàn để bật failurePolicy Fail.
+
+===== A2. PolicyReport — soak Audit sạch =====
+$ kubectl get policyreport -n techx-tf1
+NAME                                   KIND   NAME                                PASS  FAIL  WARN  ERROR  SKIP  AGE
+06c50758-21ac-455a-81fb-223b688fa235   Pod    email-7645f77465-qvfls              1     0     0     0      0     152m
+14298864-2047-4bd5-b8e3-53a8180e8047   Pod    payment-558544fd9c-4hfp5            1     0     0     0      0     152m
+24be1b78-fffd-4d43-82cc-24136f551037   Pod    quote-786476f75b-ghtlh              1     0     0     0      0     152m
+31c9f22d-c409-4d91-bd40-f682325fb095   Pod    image-provider-85fccb44f7-k8zgp     1     0     0     0      0     152m
+373c79af-35d5-4e15-9343-04f490278fc2   Pod    recommendation-7c948dbdd8-697sp     1     0     0     0      0     152m
+37a213b1-29a1-410e-bc43-0b7ba7e3ec23   Pod    accounting-56df9b99bd-sfnj7         1     0     0     0      0     152m
+3ad9dc72-7381-4122-b864-c2689535e537   Pod    aiops-detector-68875b9475-hsklt     1     0     0     0      0     152m
+3faf2828-01cf-4818-8887-f2d31d11917e   Pod    load-generator-5b94b496c5-qm64c     1     0     0     0      0     152m
+4eab41e4-897a-451f-a110-a7c567e8548d   Pod    frontend-proxy-84db5445c-xq5db      1     0     0     0      0     152m
+6bf3aee0-590d-4efd-80f4-12e0ef3685c8   Pod    email-7645f77465-whrpp              1     0     0     0      0     152m
+6ef5faff-a663-4bdd-8df0-e9414254b17c   Pod    frontend-proxy-84db5445c-9qthg      1     0     0     0      0     152m
+...
+tổng số report: 23
+tổng hợp: PASS=23  FAIL=0  ERROR=0
+
+Ghi chú: lúc 13:35 đếm được 29 report, tới 13:54 còn 23 — do rollout thật xảy ra
+trong lúc soak (pod cũ bị xoá thì PolicyReport của nó mất theo). Pod MỚI sinh ra
+đều PASS, tức policy đã đi qua đúng thứ plan khuyên: "soak qua 1 lần rollout thật".
+
+===== A3. 2 pod aiops PASS — chuỗi build→ký→verify khép kín =====
+$ kubectl get policyreport -n techx-tf1 | grep -E "NAME|aiops"
+NAME                                   KIND   NAME                                PASS  FAIL  WARN  ERROR  SKIP  AGE
+3ad9dc72-7381-4122-b864-c2689535e537   Pod    aiops-detector-68875b9475-hsklt     1     0     0     0      0     152m
+d86a1557-54db-4d5e-ad38-73c039bad5e6   Pod    aiops-remediation-8c9f6465d-2flk7   1     0     0     0      0     152m
+
+-> Đây là 2 workload TRƯỚC ĐÂY push tay, không scan/không ký/không truy được commit.
+   Sau PR #307 (kéo aiops vào app-build) chúng đi đủ build→Trivy→ký→SBOM, và giờ
+   Kyverno xác nhận chữ ký hợp lệ.
+
+===== A4. BEFORE — pod KHÔNG chữ ký VẪN ĐƯỢC NHẬN =====
+$ kubectl apply --dry-run=server -f pod-unsigned.yaml
+pod/kyverno-test-unsigned created (server dry run)
+
+image dùng trong pod trên (digest CÓ THẬT trên ECR, KHÔNG có .sig):
+  804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp@sha256:0311458d9347de8d79727bc1ed7f97866e3c54625099a5808157c26e796bdc9e
+  (= 1.2-aiops-detector-ae89fa2, push tay 17/07/2026)
+
+>>> ĐÂY LÀ LỖ HỔNG MÀ ENFORCE SẼ ĐÓNG LẠI.
+>>> Sau khi flip, ĐÚNG lệnh này phải bị TỪ CHỐI (test B1).
+
+===== A5. Chế độ policy hiện tại =====
+$ kubectl get clusterpolicy verify-image-signature \
+    -o jsonpath='{.spec.validationFailureAction} / {.spec.failurePolicy}'
+Audit / Ignore
+
+===== Bằng chứng IRSA hoạt động (log reports-controller) =====
+  "image attestors verification succeeded"  requiredCount=1  verifiedCount=1
+  đếm trong 1000 dòng log gần nhất:
+    verification succeeded : 80
+    verification failed    : 0
+
+-> Không có IRSA thì mọi verify đã fail với lỗi ECR auth. 80/0 chứng minh IAM role
+   ecommerce-dev-kyverno + trust policy OIDC hoạt động đúng.

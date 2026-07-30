@@ -1,0 +1,230 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "gridPos": {
+        "h": 3,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "content": "# Cost Breakdown\n\nThis dashboard visualizes AWS Billing costs using CloudWatch metrics. Configure the CloudWatch datasource variable below to point to your Grafana CloudWatch datasource.",
+        "mode": "markdown"
+      },
+      "pluginVersion": "11.5.2",
+      "title": "Overview",
+      "type": "text"
+    },
+    {
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "${cloudwatch_datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 3
+      },
+      "id": 2,
+      "interval": "",
+      "options": {
+        "legend": {
+          "showLegend": true
+        }
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "region": "${region}",
+          "namespace": "AWS/Billing",
+          "metricName": "EstimatedCharges",
+          "statistics": [
+            "Maximum"
+          ],
+          "dimensions": {
+            "Currency": "${currency}"
+          },
+          "refId": "A"
+        }
+      ],
+      "title": "Estimated Charges (Total) - CloudWatch",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "cloudwatch",
+        "uid": "${cloudwatch_datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 11
+      },
+      "id": 3,
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "placement": "bottom"
+        }
+      },
+      "pluginVersion": "11.5.2",
+      "targets": [
+        {
+          "region": "${region}",
+          "namespace": "AWS/Billing",
+          "metricName": "EstimatedCharges",
+          "statistics": [
+            "Maximum"
+          ],
+          "dimensions": {
+            "Currency": "${currency}",
+            "ServiceName": "${service_name:pipe}"
+          },
+          "refId": "A"
+        }
+      ],
+      "title": "Estimated Charges by Service",
+      "type": "timeseries"
+    },
+    {
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 11
+      },
+      "id": 4,
+      "options": {},
+      "pluginVersion": "11.5.2",
+      "targets": [],
+      "title": "Breakdown Recommendations",
+      "type": "text"
+    },
+    {
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 19
+      },
+      "id": 5,
+      "options": {
+        "content": "### Athena example queries (billing export)\n\nReplace `${billing_database}` and `${billing_table}` with your Athena database/table.\n\nTop services by cost (last 30 days):\n\n```\nSELECT product_product_name AS service, SUM(line_item_unblended_cost) AS cost\nFROM ${billing_database}.${billing_table}\nWHERE from_iso8601_timestamp(line_item_usage_start_date) >= date_add('day', -30, current_date)\nGROUP BY product_product_name\nORDER BY cost DESC\nLIMIT 20;\n```\n\nCost by linked account and tag (example):\n```\nSELECT line_item_account_id AS account, COALESCE(tags['${tag_key}'], '<<none>>') AS tag_value, SUM(line_item_unblended_cost) AS cost\nFROM ${billing_database}.${billing_table}\nWHERE from_iso8601_timestamp(line_item_usage_start_date) >= date_add('day', -30, current_date)\nGROUP BY line_item_account_id, COALESCE(tags['${tag_key}'], '<<none>>')\nORDER BY cost DESC\nLIMIT 100;\n```\n\nNotes: Athena table schema depends on how the Cost & Usage Report is configured; `tags` may be a map column or separate columns (adjust query accordingly).",
+        "mode": "markdown"
+      },
+      "pluginVersion": "11.5.2",
+      "title": "Athena Query Examples",
+      "type": "text"
+    },
+    {
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 19
+      },
+      "id": 6,
+      "options": {
+        "content": "### AWS Cost Explorer CLI examples\n\nGet monthly cost by service for a date range:\n\n```\naws ce get-cost-and-usage --time-period Start=2026-06-01,End=2026-07-01 \\\n  --granularity MONTHLY --metrics UnblendedCost \\\n  --group-by Type=DIMENSION,Key=SERVICE\n```\n\nGet cost by tag (Key=Project):\n```\naws ce get-cost-and-usage --time-period Start=2026-06-01,End=2026-07-01 \\\n  --granularity MONTHLY --metrics UnblendedCost \\\n  --group-by Type=TAG,Key=Project\n```\n\nFor detailed historical exports, enable Cost & Usage Report to S3 and query with Athena as shown in the Athena examples.",
+        "mode": "markdown"
+      },
+      "pluginVersion": "11.5.2",
+      "title": "Cost Explorer Examples",
+      "type": "text"
+    }
+  ],
+  "refresh": "1h",
+  "schemaVersion": 42,
+  "style": "dark",
+  "tags": [
+    "cost",
+    "billing",
+    "cloudwatch"
+  ],
+  "templating": {
+    "list": [
+      {
+        "allowCustomValue": false,
+        "current": {
+          "text": "CloudWatch",
+          "value": "aws-cloudwatch"
+        },
+        "description": "Choose your Grafana CloudWatch datasource UID",
+        "label": "CloudWatch Datasource",
+        "name": "cloudwatch_datasource",
+        "options": [],
+        "query": "cloudwatch",
+        "refresh": 1,
+        "type": "datasource"
+      },
+      {
+        "current": {
+          "text": "USD",
+          "value": "USD"
+        },
+        "description": "Billing currency to query",
+        "label": "Currency",
+        "name": "currency",
+        "options": [
+          {
+            "text": "USD",
+            "value": "USD"
+          }
+        ],
+        "type": "constant"
+      },
+      {
+        "current": {
+          "text": "us-east-1",
+          "value": "us-east-1"
+        },
+        "description": "AWS region for Billing metrics",
+        "label": "Region",
+        "name": "region",
+        "options": [
+          {
+            "text": "us-east-1",
+            "value": "us-east-1"
+          }
+        ],
+        "type": "constant"
+      },
+      {
+        "type": "query",
+        "name": "service_name",
+        "label": "Service Name",
+        "datasource": "${cloudwatch_datasource}",
+        "query": "dimension_values(region=\"${region}\", namespace=\"AWS/Billing\", dimension_key=\"ServiceName\", dimension_values=\"Currency=${currency}\")",
+        "refresh": 1,
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": [
+            "$__all"
+          ]
+        }
+      }
+    ]
+  },
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "timepicker": {},
+  "title": "Cost Breakdown",
+  "uid": "cost-breakdown",
+  "version": 2
+}

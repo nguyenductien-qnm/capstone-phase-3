@@ -1,0 +1,9 @@
+{
+  "group": "semantic",
+  "case": "opposite-must-miss",
+  "passed": true,
+  "reason": "đổi mốc giá dưới→trên: miss (không được hit_semantic)",
+  "latency": 17.48,
+  "cache_status": "miss",
+  "response": "Các kính thiên văn có giá trên [unverified] USD bao gồm:\n1. **Eclipsmart Travel Refractor Telescope** - Giá: $129.95\n2. **Starsense Explorer Refractor Telescope** - Giá: $349.95\n3. **Optical Tube Assembly** - Giá: $[REDACTED_PHONE]. **Solar System Color Imager** - Giá: $175.00\n\nBạn có muốn biết thêm"
+}

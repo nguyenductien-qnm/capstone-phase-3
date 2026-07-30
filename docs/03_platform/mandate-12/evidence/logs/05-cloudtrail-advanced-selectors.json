@@ -1,0 +1,39 @@
+{
+  "capturedAtUtc": "2026-07-21T14:54:49Z",
+  "trailName": "ecommerce-dev-audit-trail",
+  "advancedEventSelectors": [
+    {
+      "name": "ManagementEvents",
+      "fieldSelectors": [
+        {
+          "field": "eventCategory",
+          "equals": ["Management"]
+        }
+      ]
+    },
+    {
+      "name": "S3ReadDataEvents",
+      "fieldSelectors": [
+        {
+          "field": "eventCategory",
+          "equals": ["Data"]
+        },
+        {
+          "field": "resources.ARN",
+          "startsWith": [
+            "arn:aws:s3:::ecommerce-dev-cloudtrail-logs/",
+            "arn:aws:s3:::terraform-state-phase-3/"
+          ]
+        },
+        {
+          "field": "readOnly",
+          "equals": ["true"]
+        },
+        {
+          "field": "resources.type",
+          "equals": ["AWS::S3::Object"]
+        }
+      ]
+    }
+  ]
+}

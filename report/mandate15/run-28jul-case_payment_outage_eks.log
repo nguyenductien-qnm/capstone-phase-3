@@ -1,0 +1,17 @@
+  [inject] running: kubectl scale deploy/payment -n techx-tf1 --replicas=0
+deployment.apps/payment scaled
+  [inject] running: kubectl scale deploy/payment -n techx-tf1 --replicas=2
+deployment.apps/payment scaled
+  [inject] settling 120s before scoring...
+
+======================================================================
+SCENARIO: case-payment-outage-eks-001 [real]
+MANDATE-15 / TF1-98: do lai tren EKS that (cluster ecommerce-dev-eks, namespace techx-tf1) thay vi docker-compose. flagd tren EKS dong bo tu server trung tam cua BTC (xem platform/gitops/applications/application.yaml -> sandbox/values-flagd-sync.yaml) nen KHONG bom duoc su co bang flag o day; dung inject type=command voi kubectl thay the. Dua payment ve 0 replica -> checkout goi sang that bai that -> checkout ghi rpc_grpc_status_code=13 tren chinh metric server-side cua no -> grpc-error-rate-high phai keu.
+----------------------------------------------------------------------
+  [case-payment-outage-eks-001] expect_fire=True -> silent (lead_time=n/a) MISMATCH
+----------------------------------------------------------------------
+  K incidents = 1 | recall = 0.0 | precision = 0.0 (correct=0/total=1)
+  VERDICT (real): FAIL — real incident NOT caught
+======================================================================
+
+  result written to aiops/incident_scenarios/case_payment_outage_eks.result.json

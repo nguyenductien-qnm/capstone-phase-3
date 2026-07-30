@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
-FROM --platform=${BUILDPLATFORM} eclipse-temurin:21-jdk AS builder
+FROM --platform=${BUILDPLATFORM} eclipse-temurin:21-jdk@sha256:da9d3a4f7650db39b918fc5a2c3da76556fb8cc8e5f3767cdea0bb409286951a AS builder
 ARG _JAVA_OPTIONS
 WORKDIR /usr/src/app/
 
@@ -20,7 +20,11 @@ RUN ./gradlew installDist -PprotoSourceDir=./proto
 
 # -----------------------------------------------------------------------------
 
-FROM eclipse-temurin:21-jre
+# :21-jre (ubuntu 26.04) nhét sẵn /usr/bin/pebble v1.32.0 — binary Go không thuộc
+# app, không config nào ref tới, nhưng mang 5 CVE HIGH (x/net, stdlib) làm Trivy
+# gate đỏ. Tag noble không có pebble và scan sạch 0 CVE; vẫn JRE 21, chỉ khác
+# ubuntu 24.04 vs 26.04.
+FROM eclipse-temurin:21-jre-noble@sha256:373787d1d45a87f084fda43e7de0e9acf5eedee049446efac738f13587ec4c64
 
 ARG OTEL_JAVA_AGENT_VERSION
 ARG _JAVA_OPTIONS

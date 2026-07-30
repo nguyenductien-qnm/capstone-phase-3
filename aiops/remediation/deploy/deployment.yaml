@@ -1,0 +1,111 @@
+# TF1-72 [AIOps-W2] - deploy remediation engine chay lien tuc tren EKS (namespace techx-tf1).
+#
+# MANDATE-10 P2: khong con deploy/build tay. ArgoCD app `aiops` quan file nay (selfHeal),
+# va job `build-aiops` trong app-build.yaml build-scan-ky-attest roi bump tag vao dong
+# `image:` ben duoi. Xem giai thich day du o aiops/detector/deploy/deployment.yaml.
+#
+# LUU Y build context: Dockerfile cua remediation COPY ca detector/sources.py va
+# detector/alerter.py, nen context la `aiops/` (cha), KHONG phai `aiops/remediation/` -
+# matrix cua job build-aiops khai dung nhu vay.
+#
+# QUAN TRONG: pod nay khoi dong voi REMEDIATION_DRY_RUN=true (AN TOAN, chi log +
+# alert, KHONG goi K8s API ghi). Chi doi sang "false" sau khi da xac nhan hanh vi
+# dung qua dry-run that tren EKS (xem report/ chaos-test evidence).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aiops-remediation
+  namespace: techx-tf1
+  labels:
+    app: aiops-remediation
+    team: aio03
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aiops-remediation
+  template:
+    metadata:
+      labels:
+        app: aiops-remediation
+    spec:
+      serviceAccountName: aiops-remediation
+      # MANDATE-05: non-root, khong leo thang dac quyen, drop het capability.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: aiops-remediation
+          # MANDATE-05: pin tag co dinh, khong dung tag troi (:latest).
+          image: 384511757667.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.1-aiops-remediation-1f7457d
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: PROM_URL
+              value: "http://prometheus:9090"
+            - name: OPENSEARCH_URL
+              value: "http://opensearch:9200"
+            # AN TOAN mac dinh (spec anomaly_remediation.md Sec4.1) - doi tay sang
+            # "false" chi khi da san sang cho remediation act that len K8s.
+            #
+            # DA TRA VE "true" sau khi do xong MTTR cho TF1-106 (PR #459 tat tam thoi).
+            # So do duoc, tren pod moi mttr-canary da xoa:
+            #   MTTR before (kubelet CrashLoopBackOff) : 310.3s
+            #   MTTR after  (remediation xoa pod)      :  67.2s
+            #     trong do 61.0s la detector poll (30s) + remediation poll (~31s)
+            #     va 6.2s la khoi dong container
+            #
+            # Nhung con so 4.6x do CHI dung cho MOT lan: blast_radius cho toi da
+            # 1 hanh dong/gio/namespace, nen tren mot pod hong lap lai (OOM moi ~2 phut)
+            # vong tu dap chi cuu duoc 1 trong ~30 lan -> MTTR trung binh ~302s, gan nhu
+            # khong cai thien. Voi mot OOM DON LE thi con nguoc: kubelet restart lan dau
+            # chi ~10s, cham hon la vong tu dap voi 67s. Chi tiet o report/mandate15/.
+            - name: REMEDIATION_DRY_RUN
+              value: "true"
+            # Tai dung secret webhook cua aiops-detector - remediation gui audit/escalate
+            # alert vao cung kenh Discord, phan biet qua title "remediation-*".
+            - name: AIOPS_SLACK_WEBHOOK_CRITICAL
+              valueFrom:
+                secretKeyRef:
+                  name: aiops-alert
+                  key: webhook
+                  optional: true
+            # TF1-112 (MANDATE-22 DoD doi "audit log lan do"). rootfs read-only
+            # (MANDATE-05, khong duoc lui) nen phai tro sang emptyDir writable —
+            # dung mau ALERTER_HISTORY_FILE ma detector da dung.
+            #
+            # Truoc thay doi nay remediation KHONG ghi lai gi: dau vet duy nhat la
+            # alert Slack + stdout cua pod, ma stdout mat sach khi pod restart. Voi
+            # mot vong tu dong co quyen `delete pods` thi do khong phai audit trail.
+            - name: REMEDIATION_AUDIT_FILE
+              value: "/data/audit_log.jsonl"
+            # Alerter dung chung cua detector cung ghi history vao duong dan mac dinh
+            # canh module (/app, read-only) -> tu truoc gio ghi hong im lang. Tro luon.
+            - name: ALERTER_HISTORY_FILE
+              value: "/data/alerter_history.jsonl"
+          volumeMounts:
+            - name: aiops-data
+              mountPath: /data
+          # Block style (khong phai flow `{ }`): yq cua job bump se viet lai flow-map
+          # -> diff rac moi lan bump. Xem comment cung cho o aiops/detector.
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
+      volumes:
+        # Ephemeral: MAT khi pod restart. Du de tra loi "lan chay vua roi da qua nhung
+        # cong nao", KHONG phai durable audit store — de giu qua nhieu lan restart thi
+        # phai day ra ngoai (S3/OpenSearch), pham vi lon hon va chua lam.
+        # Ghi ra day thay vi giau: mot audit log mat khi restart la audit log yeu.
+        - name: aiops-data
+          emptyDir: {}

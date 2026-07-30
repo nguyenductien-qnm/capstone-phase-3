@@ -1,0 +1,9 @@
+{
+  "group": "longterm",
+  "case": "recall-new-session",
+  "passed": true,
+  "reason": "phiên mới nhớ lại: True",
+  "latency": 10.82,
+  "cache_status": "miss",
+  "response": "Tôi khuyên bạn nên xem xét \"Starsense Explorer Refractor Telescope\". Đây là kính thiên văn lý tưởng cho người mới bắt đầu, với giao diện người dùng thân thiện và các hướng dẫn chi tiết. Kính này sử dụng điện thoại thông minh của bạn để phân tích bầu trời đêm và tính toán vị trí của nó trong thời gia"
+}

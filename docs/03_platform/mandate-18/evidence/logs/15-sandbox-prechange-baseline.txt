@@ -1,0 +1,96 @@
+MANDATE-18 sandbox remediation - pre-change baseline
+Capture window: 2026-07-23T08:06:00Z to 2026-07-23T08:13:00Z
+AWS profile: phase3-cdo
+Caller: arn:aws:sts::[REDACTED_ACCOUNT_ID]:assumed-role/AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568/[REDACTED_SESSION]
+Region: us-east-1
+Cluster: ecommerce-dev-eks (ACTIVE, Kubernetes 1.36)
+Namespace: techx-tf1
+Argo application: techx-corp | Synced | Healthy
+Git branch: fix/mandate-18-sandbox-rollout
+Base commit: 317f278ecf0e56a8ad27a472339c9bfc21c2ac23 (equal to origin/develop at branch creation)
+Mutation during this baseline: none
+
+Runtime source confirmation
+---------------------------
+Argo chart path: platform/charts/application
+Argo destination namespace: techx-tf1
+Argo value files:
+- ../../gitops/environments/sandbox/values-flagd-sync.yaml
+- ../../gitops/environments/sandbox/values-ops-observability.yaml
+- ../../gitops/environments/sandbox/values-external-secrets.yaml
+- ../../gitops/environments/sandbox/values-aio-llm.yaml
+- ../../gitops/environments/sandbox/values-application.yaml
+- ../../gitops/environments/sandbox/values-image-tags.yaml
+
+Terraform source confirmation
+-----------------------------
+Canonical root for this rollout: terraform/environments/sandbox
+Backend initialization: successful, S3 backend configured.
+State resource count: 301.
+Target-group addresses in Terraform state: NONE.
+Note: backend key is the existing repository value dev/terraform.tfstate; it was
+not changed in this remediation. The runtime VPC/cluster match was independently
+verified before any destructive operation.
+
+Runtime health
+--------------
+- All 26 Deployments report desired READY/AVAILABLE replicas.
+- Pods whose phase is not Running: NONE.
+- AWS Load Balancer Controller: 2/2 Ready.
+- Active storefront LoadBalancer:
+  k8s-techxtf1-frontend-3e4ad10231 | active | network | project VPC.
+- Protected Target Group:
+  k8s-techxtf1-frontend-da03cf6043 | one LB association | two healthy targets.
+- Frontend service: techx-tf1/frontend-proxy, type LoadBalancer.
+- Direct storefront probe before cleanup:
+  HTTP=200, connect=0.292519s, TTFB=0.560610s, total=0.811569s.
+
+Cleanup scope at baseline
+-------------------------
+- Authorized candidates: 123123321, 89345789437843.
+- Explicit HOLD: testt (different VPC/project scope).
+- Explicit KEEP/protected: k8s-techxtf1-frontend-da03cf6043.
+
+Consolidated pre-change inventory and quantitative baseline
+-----------------------------------------------------------
+The following measurements were collected from the same account, region,
+cluster and namespace in the immediately preceding read-only Mandate-18 audit.
+Their full raw records remain in the referenced logs; they are not after data.
+
+- EBS: 9 total, 9 in-use, 0 available, 9 gp3, 0 gp2. OpenSearch PVC was
+  10 GiB/85% used and Prometheus PVC was 20 GiB/28% used. See
+  18-storage-runtime-audit.txt.
+- Snapshot/DLM: zero DLM policies. CloudTrail S3 lifecycle transitions to
+  Glacier IR at 90 days and expires at 2555 days. Shared Terraform state bucket
+  had no versioning/lifecycle/tags. See 18-storage-runtime-audit.txt.
+- Network: NAT available; one private app/MQ egress route table routed
+  0.0.0.0/0 to NAT; no S3 endpoint route existed. NAT 24h ingress-side bytes
+  were 180,538,445 from source and 4,903,817,398 from destination; average
+  active connections 54.6682; 17,419 attempts and 4,606 established. See
+  07-data-transfer-prompt5.txt.
+- Cost Explorer, 2026-07-15 through 2026-07-22 end-exclusive: account-wide
+  DataTransfer-Regional-Bytes 357.6794858022 GB; NatGateway-Bytes
+  61.9773010455 GB; NatGateway-Hours 158 Hrs; xAZ Out 1.603371047 GB; xAZ In
+  1.2116824725 GB. Units are not added. See 02-noncompute-usage-before.json.
+- OTel five-minute rates: accepted spans 16.5448867426/s, exporter deliveries
+  24.8362518651/s, accepted logs 0.7655176100/s, exporter deliveries
+  1.5310341974/s. The exporter counts include duplicate debug delivery and are
+  not a loss ratio. See 09-telemetry-prompt6-before.txt.
+- Prometheus: 230,879 active series. Top family was
+  apiserver_request_duration_seconds_bucket at 26,112 series; top distinct
+  label was __name__ at 1,697 values. See 09-telemetry-prompt6-before.txt.
+- OpenSearch: 16 indices, 14,098,369 documents, 8,004,309,801 bytes; no ISM
+  policies. See 09-telemetry-prompt6-before.txt.
+- Comparable SLO window: checkout/frontend/cart success 100%; request rate
+  moved from 4.6500/s to 5.5083/s (+18.46% within the declared +/-20% band),
+  but storefront p95 was 15,000 ms and therefore failed the <1,000 ms target.
+  See 11-slo-final-verification.txt.
+- Runtime health in that verification: Argo Synced/Healthy, all Deployments,
+  OpenSearch and OTel ready; no current image-pull/container errors or AWS API
+  credential errors. See 11-slo-final-verification.txt.
+
+Safety note
+-----------
+No Terraform apply, Kubernetes write, Argo sync, target deregistration, tag
+change, listener/rule change, NAT change, or resource deletion occurred while
+collecting this baseline.

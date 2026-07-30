@@ -1,0 +1,89 @@
+MANDATE-18 sandbox remediation - storage runtime audit
+Capture window: 2026-07-23T08:21:55Z to 2026-07-23T08:24:10Z
+AWS profile/region: phase3-cdo / us-east-1
+Cluster/namespace: ecommerce-dev-eks / techx-tf1
+Account: [REDACTED_ACCOUNT_ID]
+Mutation performed: none
+
+EBS inventory
+-------------
+Count: 9 total; 9 in-use; 0 available/unattached; 9 gp3; 0 gp2.
+Every volume reports 3000 IOPS and 125 MiB/s throughput.
+
+| Volume | Size GiB | AZ | Attachment | Delete on termination |
+|---|---:|---|---|---|
+| vol-0252d11693615e50d | 30 | us-east-1c | i-09c0cbc83317e2b39 /dev/xvda | true |
+| vol-040fb98dd58b9f2ba | 30 | us-east-1c | i-05d21dd779747b3d7 /dev/xvda | true |
+| vol-0b23d740442706f19 | 30 | us-east-1b | i-05521ab3dc556c159 /dev/xvda | true |
+| vol-00fd2f355611abb77 | 50 | us-east-1b | i-0012e5cc7ae63d02d /dev/xvda | true |
+| vol-0f9e13e8112f6dd97 | 50 | us-east-1c | i-0b659bb9a84b93965 /dev/xvda | true |
+| vol-06998a929465d9eb2 | 30 | us-east-1c | i-03d637e0b937c9f25 /dev/xvda | true |
+| vol-0292d203ab12af28f | 20 | us-east-1b | i-05521ab3dc556c159 /dev/xvdab | false |
+| vol-01982a5488a286711 | 30 | us-east-1c | i-0d204991c940453bb /dev/xvda | true |
+| vol-0c46a97379f928a24 | 10 | us-east-1b | i-05521ab3dc556c159 /dev/xvdaa | false |
+
+Runtime result: EBS type requirement PASS (all gp3). Orphan EBS requirement
+PASS at this capture (all volumes in-use). This does not prove long-term size
+optimality for every node root disk because a workload utilization series was
+not available for all filesystems.
+
+Kubernetes PVC usage
+--------------------
+1. opensearch-opensearch-0
+   - Bound, storage class gp3-observability, requested capacity 10Gi.
+   - Filesystem bytes: total=10464022528, used=8848871424,
+     available=1598373888, used=85%.
+   - Decision: DO NOT SHRINK. Current headroom is about 15%, below a safe 20%
+     operating margin. Retention/policy remediation and capacity alerting are
+     higher priority; expansion may be required if growth continues.
+
+2. prometheus
+   - Bound, storage class gp3-observability, requested capacity 20Gi.
+   - Correct PVC mount is /data (not /prometheus).
+   - Filesystem bytes: total=20957446144, used=5789921280,
+     available=15150747648, used=28%.
+   - Decision: potential migration-based right-size candidate only after a
+     multi-day max-usage series. EBS/PVC cannot be safely shrunk in place.
+     No storage mutation is proposed in this rollout.
+
+Snapshot lifecycle / DLM
+------------------------
+Runtime aws dlm get-lifecycle-policies result: [] (zero policies).
+Classification: GAP/PARTIAL. No DLM policy exists to prove bounded snapshot
+lifecycle. No snapshot was deleted or policy created in this task.
+
+S3 lifecycle and tiering
+------------------------
+Bucket: ecommerce-dev-cloudtrail-logs
+- Versioning: Enabled.
+- Lifecycle rule archive-and-retain-audit-logs: Enabled.
+- Transition: GLACIER_IR after 90 days.
+- Current and noncurrent expiration: 2555 days.
+- Tags: Project=ecommerce, Environment=dev, Owner=CDO-09,
+  ManagedBy=Terraform.
+- Code/runtime match: PASS. terraform/modules/cloudtrail contains the
+  versioning and lifecycle controls and runtime reflects them.
+
+Bucket: terraform-state-phase-3
+- Versioning response: empty/not enabled.
+- Lifecycle configuration: NONE.
+- Tags: NONE.
+- Classification: runtime GAP. This is a shared backend bucket; changing it is
+  outside the smallest safe Mandate-18 rollout and requires platform-owner
+  approval. No bucket mutation was performed.
+
+Control versus runtime summary
+------------------------------
+| Control | Code | Runtime | Status |
+|---|---|---|---|
+| EKS/root EBS gp3 | Present in terraform/modules/eks | 9/9 gp3 | PASS |
+| Observability PVC gp3 | Present in sandbox GitOps values | Both Bound on gp3-observability | PASS |
+| CloudTrail versioning/lifecycle | Present in cloudtrail module | Enabled, 90d Glacier IR, 2555d expire | PASS |
+| Snapshot DLM | No Mandate-18 control found | Zero policies | GAP |
+| Terraform-state lifecycle | No scoped change in this rollout | Versioning/lifecycle/tags absent | GAP/BLOCKED on shared-owner decision |
+| OpenSearch storage headroom | 10Gi declared | 85% used | GAP; do not shrink |
+
+Safety
+------
+No EBS modify-volume, PVC patch, snapshot action, DLM mutation, S3 mutation,
+Terraform apply or Kubernetes write was performed.

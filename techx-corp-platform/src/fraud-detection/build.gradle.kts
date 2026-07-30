@@ -9,7 +9,7 @@ plugins {
     id("java")
     id("idea")
     id("com.google.protobuf") version "0.9.6"
-    id("com.github.johnrengelman.shadow") version "8.1.1"
+    id("com.gradleup.shadow") version "8.3.9"
 }
 
 group = "io.opentelemetry"
@@ -18,6 +18,8 @@ version = "1.0"
 
 val grpcVersion = "1.78.0"
 val protobufVersion = "4.33.2"
+val nettyVersion = "4.2.16.Final"
+val jacksonVersion = "2.21.5"
 
 
 repositories {
@@ -28,6 +30,10 @@ repositories {
 
 
 dependencies {
+    // netty/jackson kéo vào transitively qua grpc-netty, kafka-clients và flagd;
+    // BOM ép version đã vá cho cả nhánh transitive (Trivy gate CRITICAL,HIGH).
+    implementation(platform("io.netty:netty-bom:${nettyVersion}"))
+    implementation(platform("com.fasterxml.jackson:jackson-bom:${jacksonVersion}"))
     implementation("com.google.protobuf:protobuf-java:${protobufVersion}")
     testImplementation(kotlin("test"))
     implementation(kotlin("script-runtime"))

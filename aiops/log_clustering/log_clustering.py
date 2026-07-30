@@ -228,8 +228,13 @@ def build_drain3_miner(state_file: Optional[str] = None) -> TemplateMiner:
 
     # ── Drain parameters ──────────────────────────────────────────────────────
     # sim_th: ngưỡng tương đồng (0.0 – 1.0). Cao = gom chặt, thấp = nhóm rộng.
-    config.drain_sim_th = 0.5
-    # max_children: số nhánh tối đa của cây prefix.
+    # sim_th: grid 12/07 tren 19.3k dong log THAT cho 0.3 troi 0.4 o CA 4 tieu chi
+    # (templates/coverage/singleton/stability) -> default = so DO, khong phai spec cu (0.4).
+    # Env-overridable. Grid CO masking (13/07, 8k dong): 0.3 VAN thang 0.4/0.5/0.6 ca 4 tieu chi
+    # (397 vs 554 templates, coverage 59% vs 55%, singleton/stability thap nhat) -> 0.3 xac nhan.
+    # Re-confirm cuoi tren 24h log EKS (MASK=1 drain3_param_grid.py).
+    config.drain_sim_th = float(os.getenv("DRAIN_SIM_TH", "0.3"))
+    # max_children/max_clusters: DEFAULT thu vien Drain3 (chua backtest cho corpus nay) - TF1-71.
     config.drain_max_children = 100
     # max_clusters: giới hạn số template sinh ra.
     config.drain_max_clusters = 1000
@@ -545,7 +550,44 @@ def run(output_path: str = "results/log_clustering_report.json") -> list[dict]:
 
 if __name__ == "__main__":
     import sys
+    
+    # Import Alerter from detector
+    detector_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'detector')
+    if detector_dir not in sys.path:
+        sys.path.append(detector_dir)
+    try:
+        from alerter import Alerter
+    except ImportError as e:
+        logger.error(f"Failed to import Alerter: {e}")
+        Alerter = None
+
     output = sys.argv[1] if len(sys.argv) > 1 else "results/log_clustering_report.json"
     alerts = run(output_path=output)
+    
+    if alerts and Alerter:
+        logger.info(f"Sending {len(alerts)} alerts to Webhook...")
+        alerter = Alerter(provider="auto", cooldown_seconds=0) # Drain3 runs per window, no need for Alerter cooldown
+        for alert in alerts:
+            severity = "critical" if alert["alert_type"] == "ERROR_SPIKE" else "info"
+            title = f"Drain3 {alert['alert_type']}"
+            
+            # Format message
+            services = ", ".join(alert.get("services", []))
+            template = alert.get("template", "")
+            count = alert.get("count", 0)
+            sample = alert.get("sample_message", "")
+            
+            msg = (
+                f"Dị thường Log Clustering: {alert['alert_type']}\n"
+                f"Services: {services}\n"
+                f"Template: {template}\n"
+                f"Số lần xuất hiện (Count): {count}\n"
+            )
+            if sample:
+                msg += f"Ví dụ log: {sample}\n"
+                
+            dedup_key = f"drain3_{alert['cluster_id']}_{alert['alert_type']}"
+            alerter.send(dedup_key=dedup_key, severity=severity, title=title, message=msg)
+
     # Exit code non-zero khi có alert (hữu ích cho CI/CD pipeline)
     sys.exit(1 if alerts else 0)

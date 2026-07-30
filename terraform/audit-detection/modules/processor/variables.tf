@@ -1,0 +1,78 @@
+variable "name_prefix" {
+  type        = string
+  description = "Shared prefix for audit-detection resources"
+}
+
+variable "tags" {
+  type        = map(string)
+  description = "Mandatory and additional resource tags"
+}
+
+variable "lambda_package_file" {
+  type        = string
+  description = "Absolute path to the version-controlled Lambda ZIP package"
+}
+
+variable "processing_queue_arn" {
+  type        = string
+  description = "ARN of the SQS processing queue consumed by Lambda"
+}
+
+variable "queue_kms_key_arn" {
+  type        = string
+  description = "KMS key ARN used to encrypt SQS messages"
+}
+
+variable "slack_webhook_url" {
+  type        = string
+  description = "Slack webhook written to Secrets Manager through a Terraform write-only argument"
+  sensitive   = true
+  ephemeral   = true
+}
+
+variable "slack_webhook_secret_version" {
+  type        = number
+  description = "Non-secret version counter for write-only Slack webhook updates"
+}
+
+variable "slack_webhook_kms_key_arn" {
+  type        = string
+  description = "Optional customer-managed KMS key ARN for the Secrets Manager secret"
+  default     = null
+  nullable    = true
+}
+
+variable "lambda_timeout_seconds" {
+  type        = number
+  description = "Lambda timeout"
+}
+
+variable "lambda_memory_size_mb" {
+  type        = number
+  description = "Lambda memory allocation"
+}
+
+variable "lambda_maximum_concurrency" {
+  type        = number
+  description = "Maximum SQS event-source concurrency"
+}
+
+variable "lambda_log_level" {
+  type        = string
+  description = "Lambda application log level"
+}
+
+variable "log_retention_days" {
+  type        = number
+  description = "Lambda operational-log retention"
+}
+
+variable "idempotency_lease_seconds" {
+  type        = number
+  description = "In-progress event lease duration"
+}
+
+variable "idempotency_retention_seconds" {
+  type        = number
+  description = "Completed eventID retention duration"
+}

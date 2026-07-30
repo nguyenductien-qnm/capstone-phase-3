@@ -5,6 +5,7 @@ import { NextApiHandler } from 'next';
 import {context, Exception, Span, SpanStatusCode, trace} from '@opentelemetry/api';
 import { SemanticAttributes } from '@opentelemetry/semantic-conventions';
 import { metrics } from '@opentelemetry/api';
+import { grpcErrorHttpStatus } from '../../gateways/rpc/GrpcDeadline';
 
 const meter = metrics.getMeter('frontend');
 const requestCounter = meter.createCounter('app.frontend.requests');
@@ -23,6 +24,16 @@ const InstrumentationMiddleware = (handler: NextApiHandler): NextApiHandler => {
     } catch (error) {
       span.recordException(error as Exception);
       span.setStatus({ code: SpanStatusCode.ERROR });
+      const upstreamStatus = grpcErrorHttpStatus(error);
+      if (upstreamStatus) {
+        httpStatus = upstreamStatus;
+        const message = upstreamStatus === 504
+          ? 'A required upstream service exceeded its deadline.'
+          : 'A required upstream service is temporarily unavailable.';
+        response.status(upstreamStatus).json({ error: message });
+        return;
+      }
+
       httpStatus = 500;
       throw error;
     } finally {

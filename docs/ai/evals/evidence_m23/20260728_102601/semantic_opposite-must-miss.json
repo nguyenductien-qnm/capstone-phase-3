@@ -1,0 +1,9 @@
+{
+  "group": "semantic",
+  "case": "opposite-must-miss",
+  "passed": true,
+  "reason": "đổi mốc giá dưới→trên: miss (không được hit_semantic)",
+  "latency": 47.87,
+  "cache_status": "miss",
+  "response": "Xin lỗi, tôi chưa có thông tin đó trong dữ liệu sản phẩm hiện có. Bạn có thể hỏi tôi về giá, đánh giá, hoặc gợi ý sản phẩm theo danh mục (Telescopes, Binoculars, Accessories, Cameras, Books)."
+}

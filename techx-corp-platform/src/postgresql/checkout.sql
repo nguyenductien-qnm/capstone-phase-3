@@ -1,0 +1,37 @@
+CREATE SCHEMA IF NOT EXISTS checkout;
+
+-- Write-optimized with JSONB data format
+CREATE TABLE checkout.orders (
+	order_id TEXT PRIMARY KEY,
+	user_id TEXT NOT NULL,
+	currency_code TEXT NOT NULL DEFAULT 'USD',
+	status TEXT NOT NULL DEFAULT 'PROCESSING',
+	
+	order_metadata JSONB NOT NULL,
+	order_payload JSONB,
+	idempotency_key TEXT,
+	idempotency_request_hash TEXT,
+	order_result JSONB,
+
+	created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+	updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE UNIQUE INDEX checkout_orders_user_idempotency_uidx
+	ON checkout.orders (user_id, idempotency_key)
+	WHERE idempotency_key IS NOT NULL;
+
+-- Control which fields downstream services can consume
+-- Do not include user sensitive credentials/payment data here
+-- Keep Kafka message lightweight
+CREATE TABLE checkout.outbox (
+	id BIGSERIAL PRIMARY KEY, -- Auto-increment
+	aggregate_id TEXT NOT NULL, -- order_id
+	event_type TEXT NOT NULL, -- 'ORDER_PLACED', 'ORDER_COMPLETED',
+	
+	order_id TEXT,
+	user_id TEXT NOT NULL,
+	
+	processed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+

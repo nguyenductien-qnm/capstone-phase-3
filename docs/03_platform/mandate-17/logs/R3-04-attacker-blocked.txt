@@ -1,0 +1,17 @@
+### R3 - POD LA BI CHAN (default-deny) @ 2026-07-22T11:19:52Z
+=== POD LA (khong co nhan hop le) THU KET NOI TRUC TIEP ===
+  -> cart:8080 : http=000  (000/timeout = BI CHAN)
+  -> payment:50051 : http=000  (000/timeout = BI CHAN)
+  -> product-catalog:8080 : http=000  (000/timeout = BI CHAN)
+  -> checkout:8080 : http=000  (000/timeout = BI CHAN)
+  -> llm:8000 : http=000  (000/timeout = BI CHAN)
+  -> valkey-cart:6379 : http=000  (000/timeout = BI CHAN)
+=== DNS (duoc phep theo allow-dns-egress) ===
+Name:	cart.techx-develop.svc.cluster.local
+Address: 172.20.242.234
+
+
+=== EGRESS INTERNET (khong co nhan egress-internet) ===
+  https://example.com -> 000  (000 = BI CHAN)
+=== API SERVER (khong thuoc apiServerEgress) ===
+  kubernetes.default:443 -> 000  (000 = BI CHAN)

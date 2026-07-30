@@ -1,0 +1,9 @@
+{
+  "group": "semantic",
+  "case": "negation-must-miss",
+  "passed": true,
+  "reason": "câu phủ định: miss (không được hit_semantic)",
+  "latency": 5.62,
+  "cache_status": "miss",
+  "response": "Xin lỗi, trợ lý đang tạm quá tải. Bạn vui lòng thử lại sau ít giây, hoặc duyệt sản phẩm trực tiếp trên cửa hàng."
+}

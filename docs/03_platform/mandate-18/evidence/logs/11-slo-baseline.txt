@@ -1,0 +1,25 @@
+MANDATE-18 GRAFANA/PROMETHEUS SLO BASELINE
+Captured: 2026-07-22T07:26:37Z to 2026-07-22T07:27:06Z
+Source dashboard: platform/charts/application/grafana/provisioning/dashboards/slo-dashboard.json
+Runtime datasource: Prometheus in namespace techx-tf1
+
+Rolling 5m:
+- Checkout SLI: 100% (target >=99%)
+- Browse/frontend SLI: 100% (target >=99.5%)
+- Cart SLI: 100% (target >=99.5%)
+- frontend|cart|checkout request/span rate: 4.600006389006946 calls/s
+- Storefront frontend-proxy p95: NaN because frontend-proxy rate was 0 calls/s in the exact 5m instant window
+
+Longer windows for the same frontend-proxy histogram:
+- p95 over 1h: 47.50622910968382 ms (rate 0.0034081972172261958 calls/s)
+- p95 over 24h: 196.82915777111006 ms
+- Target: <1000 ms
+
+Dashboard 24h error-budget-remaining expressions at capture:
+- Checkout: 100%
+- Browse/frontend: 100%
+- Cart: 100%
+
+STATUS: PARTIAL
+Reason: success/error-budget and 1h/24h latency satisfy configured thresholds, but the exact 5m p95 panel was idle/NaN. This is a real baseline snapshot, not a controlled comparable load test and not after-change evidence.
+No traffic was generated and no workload/resource was changed.

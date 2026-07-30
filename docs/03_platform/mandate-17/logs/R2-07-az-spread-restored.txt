@@ -1,0 +1,28 @@
+### R2 - PHAN BO AZ SAU KHI KHOI PHUC (uncordon + rollout restart)
+  accounting             {'us-east-1b': 1}  1-replica
+  ad                     {'us-east-1a': 2, 'us-east-1b': 2}  OK-multiAZ
+  cart                   {'us-east-1b': 2, 'us-east-1a': 1}  OK-multiAZ
+  checkout               {'us-east-1a': 1, 'us-east-1b': 1}  OK-multiAZ
+  currency               {'us-east-1a': 1, 'us-east-1b': 1}  OK-multiAZ
+  email                  {'us-east-1b': 1, 'us-east-1a': 1}  OK-multiAZ
+  flagd                  {'us-east-1b': 1}  1-replica
+  fraud-detection        {'us-east-1b': 1}  1-replica
+  frontend               {'us-east-1a': 2, 'us-east-1b': 1}  OK-multiAZ
+  frontend-proxy         {'us-east-1a': 1, 'us-east-1b': 1}  OK-multiAZ
+  grafana                {'us-east-1b': 1}  1-replica
+  image-provider         {'us-east-1b': 1}  1-replica
+  jaeger                 {'us-east-1b': 1}  1-replica
+  kube-state-metrics     {'us-east-1b': 1}  1-replica
+  llm                    {'us-east-1b': 1}  1-replica
+  opensearch             {'us-east-1b': 1}  1-replica
+  payment                {'us-east-1a': 2, 'us-east-1b': 2}  OK-multiAZ
+  product-catalog        {'us-east-1a': 1, 'us-east-1b': 1}  OK-multiAZ
+  product-reviews        {'us-east-1b': 2}  !! 1 AZ
+  prometheus             {'us-east-1b': 1}  1-replica
+  quote                  {'us-east-1b': 1, 'us-east-1a': 1}  OK-multiAZ
+  recommendation         {'us-east-1a': 1, 'us-east-1b': 2}  OK-multiAZ
+  reloader               {'us-east-1b': 1}  1-replica
+  shipping               {'us-east-1a': 1, 'us-east-1b': 1}  OK-multiAZ
+  shopping-copilot       {'us-east-1b': 1}  1-replica
+
+Dich vu >=2 replica trai >=2 AZ: 12/13

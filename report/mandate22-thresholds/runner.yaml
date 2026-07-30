@@ -1,0 +1,78 @@
+# Runner thi nghiem TF1-107 — chay DUNG image va DUNG code cua aiops-remediation,
+# nhung voi config rieng va REMEDIATION_DRY_RUN=false.
+#
+# VI SAO CHAY RIENG thay vi bat dry-run cua remediation dang deploy:
+#   - Deployment `aiops-remediation` do ArgoCD quan ly (selfHeal). Sua env bang kubectl
+#     se bi revert; sua bang PR thi phai cho mot vong deploy ~25 phut cho MOI lan doi
+#     tham so. TF1-106 da phai lam theo duong PR (#459/#460) va no ton ca buoi.
+#   - Quan trong hon: remediation dang deploy giu nguyen dry_run=true suot thi nghiem,
+#     nen tu the an toan cua he KHONG bi ha xuong trong luc do.
+#   - Pod remediation co rootfs read-only va khong co volume ghi duoc, nen khong the
+#     chen config thu vao trong no.
+#
+# THAM SO DOI SO VOI BAN SHIP — chi DUNG MOT thu:
+#   blast_radius: 1 action/3600s  ->  10 action/600s
+# Ly do: circuit_breaker can 3 lan verify FAIL LIEN TIEP. Moi lan fail ton 1 action.
+# Voi 1 action/3600s thi breaker can toi thieu 2 GIO moi mo, va bat ky lan restart pod
+# remediation nao cung reset _fail_count ve 0 (state nam trong RAM). Noi blast_radius
+# la cach DUY NHAT quan sat duoc breaker trong mot phien do.
+#   -> Chinh dieu do la mot ket qua cua TF1-107, phai ghi vao report chu khong giau.
+# verify va circuit_breaker GIU NGUYEN gia tri ship (120s/20s, 3 fail/86400s).
+#
+# XOA SAU KHI DO XONG:
+#   kubectl -n techx-tf1 delete -f report/mandate22-thresholds/runner.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tf1107-runner
+  namespace: techx-tf1
+  labels:
+    app.kubernetes.io/managed-by: manual-experiment-TF1-107
+  annotations:
+    experiment: "TF1-107 validate nguong remediation — XOA SAU KHI DO XONG"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tf1107-runner
+  template:
+    metadata:
+      labels:
+        app: tf1107-runner
+    spec:
+      serviceAccountName: aiops-remediation
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: runner
+          image: 804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.1-aiops-remediation-ebb7b7b
+          args: ["--config", "/etc/tf1107/policy.yaml"]
+          env:
+            - name: PROM_URL
+              value: http://prometheus:9090
+            - name: OPENSEARCH_URL
+              value: http://opensearch:9200
+            # CO Y tat dry-run: day la muc dich cua thi nghiem. Runner nay song ngan
+            # va bi xoa ngay sau khi do xong.
+            - name: REMEDIATION_DRY_RUN
+              value: "false"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests: {cpu: 20m, memory: 64Mi}
+            limits: {cpu: 300m, memory: 256Mi}
+          volumeMounts:
+            - name: policy
+              mountPath: /etc/tf1107
+              readOnly: true
+      volumes:
+        - name: policy
+          configMap:
+            name: tf1107-policy

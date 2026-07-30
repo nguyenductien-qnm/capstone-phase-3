@@ -1,0 +1,53 @@
+﻿session_start=2026-07-21T00:12:38.4187017+07:00 mode=Drill profile=Production region=us-east-1 primary=ecommerce-dev-postgres
+2026-07-21T00:12:38.4222793+07:00 step=State safety guard
+2026-07-21T00:12:38.4378527+07:00 state_guard=no_terraform_commands
+2026-07-21T00:12:38.4554391+07:00 step=Safety check: AWS identity
+2026-07-21T00:12:41.0345641+07:00 identity_account=804372444787 identity_arn=arn:aws:sts::804372444787:assumed-role/AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568/hoangplt
+2026-07-21T00:12:43.7305074+07:00 target_param_group=ecommerce-dev-postgres-pg-20260720160930964900000001
+2026-07-21T00:12:43.7326129+07:00 step=Preflight: PRIMARY and current parameter group
+2026-07-21T00:12:43.7486975+07:00 screenshot_target=m09-tbd4-01-terminal-preflight-multiaz.png what=AWS identity, RDS 17.x, MultiAZ=true, status=available, current PG in-sync.
+2026-07-21T00:12:53.5139181+07:00 preflight engine=17.10 multi_az=True status=available target_group=ecommerce-dev-postgres-pg-20260720160930964900000001 pg_status=in-sync
+2026-07-21T00:12:53.5169168+07:00 step=HTTP smoke: baseline-before-param-change
+2026-07-21T00:12:54.2348782+07:00 curl label=baseline-before-param-change index=1 code=200
+2026-07-21T00:12:56.5787089+07:00 curl label=baseline-before-param-change index=2 code=200
+2026-07-21T00:12:59.1506845+07:00 curl label=baseline-before-param-change index=3 code=200
+2026-07-21T00:13:01.5278294+07:00 curl label=baseline-before-param-change index=4 code=200
+2026-07-21T00:13:03.8775131+07:00 curl label=baseline-before-param-change index=5 code=200
+2026-07-21T00:13:06.5291816+07:00 curl label=baseline-before-param-change index=6 code=200
+2026-07-21T00:13:09.0913871+07:00 curl label=baseline-before-param-change index=7 code=200
+2026-07-21T00:13:11.4425325+07:00 curl label=baseline-before-param-change index=8 code=200
+2026-07-21T00:13:13.4552822+07:00 curl label=baseline-before-param-change ok=8 bad=0
+2026-07-21T00:13:13.4583065+07:00 step=Set TBD4 static parameter on current PG
+2026-07-21T00:13:13.4756663+07:00 screenshot_target=m09-tbd4-02-terminal-param-attach.png what=Current custom PG is still attached; track_activity_query_size is changed to 8192 pending reboot.
+2026-07-21T00:13:54.9000076+07:00 parameter_set group=ecommerce-dev-postgres-pg-20260720160930964900000001 name=track_activity_query_size value=8192 apply_method=pending-reboot
+2026-07-21T00:13:54.9021232+07:00 step=Multi-AZ force failover reboot: activate TBD4 static parameter
+2026-07-21T00:13:54.9216554+07:00 screenshot_target=m09-tbd4-03-grafana-during-failover.png what=Grafana during reboot --force-failover with request volume > 0 and no sustained error spike.
+2026-07-21T00:16:24.5387510+07:00 force_failover_done reason=activate TBD4 static parameter
+2026-07-21T00:16:27.2910938+07:00 target_group_in_sync group=ecommerce-dev-postgres-pg-20260720160930964900000001
+2026-07-21T00:16:27.2930928+07:00 step=Post-failover verify
+2026-07-21T00:16:27.3129122+07:00 screenshot_target=m09-tbd4-04-terminal-verify-curl.png what=RDS available, parameter group in-sync, curl summary shows bad=0 or all HTTP 200.
+2026-07-21T00:16:34.1962590+07:00 step=HTTP smoke: after-failover
+2026-07-21T00:16:34.8058433+07:00 curl label=after-failover index=1 code=200
+2026-07-21T00:16:37.1581118+07:00 curl label=after-failover index=2 code=200
+2026-07-21T00:16:39.4881671+07:00 curl label=after-failover index=3 code=200
+2026-07-21T00:16:42.0883897+07:00 curl label=after-failover index=4 code=200
+2026-07-21T00:16:44.4423529+07:00 curl label=after-failover index=5 code=200
+2026-07-21T00:16:47.0119325+07:00 curl label=after-failover index=6 code=200
+2026-07-21T00:16:49.3641203+07:00 curl label=after-failover index=7 code=200
+2026-07-21T00:16:52.2330045+07:00 curl label=after-failover index=8 code=200
+2026-07-21T00:16:54.5824638+07:00 curl label=after-failover index=9 code=200
+2026-07-21T00:16:57.1436324+07:00 curl label=after-failover index=10 code=200
+2026-07-21T00:16:59.4944948+07:00 curl label=after-failover index=11 code=200
+2026-07-21T00:17:01.8447402+07:00 curl label=after-failover index=12 code=200
+2026-07-21T00:17:04.4288062+07:00 curl label=after-failover index=13 code=200
+2026-07-21T00:17:06.7754348+07:00 curl label=after-failover index=14 code=200
+2026-07-21T00:17:09.1130618+07:00 curl label=after-failover index=15 code=200
+2026-07-21T00:17:11.4454921+07:00 curl label=after-failover index=16 code=200
+2026-07-21T00:17:13.7855274+07:00 curl label=after-failover index=17 code=200
+2026-07-21T00:17:16.1417914+07:00 curl label=after-failover index=18 code=200
+2026-07-21T00:17:18.4926885+07:00 curl label=after-failover index=19 code=200
+2026-07-21T00:17:21.0655154+07:00 curl label=after-failover index=20 code=200
+2026-07-21T00:17:23.0804507+07:00 curl label=after-failover ok=20 bad=0
+2026-07-21T00:17:23.0849455+07:00 step=SQL verification required
+2026-07-21T00:17:23.1038641+07:00 screenshot_target=m09-tbd4-05-terminal-show-parameter.png what=psql output: SHOW track_activity_query_size; returns 8192.
+2026-07-21T00:17:23.1218955+07:00 drill_done pending_sql_show=track_activity_query_size expected=8192 rollback_required=true

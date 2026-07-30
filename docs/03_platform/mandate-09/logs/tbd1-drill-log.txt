@@ -1,0 +1,6 @@
+session_start=2026-07-20T15:48:41.8029181+07:00
+A_baseline=2026-07-20T15:49:09.4324242+07:00
+B1_primary_start=2026-07-20T15:49:33.5602654+07:00 PRIMARY=ecommerce-dev-postgres
+B1_primary_end=2026-07-20T15:52:39.3943067+07:00
+B2_replica_start=2026-07-20T15:52:39.3989158+07:00 REPLICA=ecommerce-dev-postgres-replica
+B2_replica_end=2026-07-20T15:58:29.3756801+07:00

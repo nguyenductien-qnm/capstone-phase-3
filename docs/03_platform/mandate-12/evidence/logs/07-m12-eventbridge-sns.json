@@ -1,0 +1,35 @@
+{
+  "capturedAtUtc": "2026-07-21T14:54:49Z",
+  "rule": {
+    "name": "ecommerce-dev-m12-audit-tamper",
+    "state": "ENABLED",
+    "eventBusName": "default",
+    "description": "MANDATE-12 alert for CloudTrail and audit guardrail tamper attempts",
+    "coverage": {
+      "cloudTrailActions": [
+        "StopLogging",
+        "DeleteTrail",
+        "UpdateTrail",
+        "PutEventSelectors",
+        "PutInsightSelectors"
+      ],
+      "iamGuardrailActions": [
+        "DetachRolePolicy",
+        "DeletePolicy",
+        "DeletePolicyVersion",
+        "CreatePolicyVersion",
+        "SetDefaultPolicyVersion"
+      ],
+      "identityCenterGuardrailActions": [
+        "DetachCustomerManagedPolicyReferenceFromPermissionSet"
+      ],
+      "protectedPolicyName": "ecommerce-dev-audit-log-tamper-deny"
+    }
+  },
+  "target": {
+    "id": "m12-audit-tamper-email",
+    "service": "SNS",
+    "topicName": "ecommerce-dev-m12-audit-tamper"
+  },
+  "note": "Read-only AWS CLI capture. Rule, target and policy account-specific ARNs were reduced to names."
+}

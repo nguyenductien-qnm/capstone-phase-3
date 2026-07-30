@@ -1,0 +1,7 @@
+### R3 - XÁC MINH ĐẦY ĐỦ SAU KHI VÁ (bản sửa lệnh) @ 2026-07-22T11:41:51Z
+--- 1) money path: orderId thật ---
+  orderId = 55d3c735-85c2-11f1-a01d-2aacf2a180bf
+  shippingTrackingId = 6d85c31e-59a5-4ce8-b832-15926ff6ba59
+--- 2) pod KHÔNG khỏe (dùng python, awk không có backreference) ---
+  So pod KHONG khoe: 0
+--- 3) prometheus targets up ---

@@ -118,20 +118,23 @@ pytest test_log_clustering.py -v
 
 ## Tích hợp vào pipeline AIOps
 
-Module này có thể được gọi từ vòng lặp AIOps auto-remediation:
+Module này tự động được tích hợp với hệ thống **Webhook Alerter** (dùng chung mã nguồn với thư mục `detector`). 
+Mỗi khi chạy (như một CronJob) và phát hiện dị thường, nó sẽ tự động gửi thông báo dưới định dạng Slack Block Kit.
 
-```python
-from aiops.log_clustering.log_clustering import run
+Biến môi trường cần thiết để webhook hoạt động:
+- `AIOPS_SLACK_WEBHOOK_CRITICAL`: Gửi các cảnh báo `ERROR_SPIKE`
+- `AIOPS_SLACK_WEBHOOK_INFO`: Gửi các cảnh báo `NEW_ERROR_TEMPLATE`
 
-alerts = run(output_path="results/report.json")
-if alerts:
-    # Gửi alert lên Slack / PagerDuty
-    # Kích hoạt bước kiểm tra an toàn (dry-run)
-    for alert in alerts:
-        handle_alert(alert)
+```bash
+# Ví dụ chạy với webhook
+export AIOPS_SLACK_WEBHOOK_CRITICAL="https://hooks.slack.com/services/..."
+export AIOPS_SLACK_WEBHOOK_INFO="https://hooks.slack.com/services/..."
+python log_clustering.py
 ```
 
-Exit code = `1` nếu có alert (để CI/CD pipeline bắt được).
+Lưu ý:
+- Nếu chạy mà không thiết lập biến môi trường Webhook, log sẽ tự động fallback in ra màn hình (`stdout`) để phục vụ Dry-run.
+- Exit code của chương trình = `1` nếu có bất kỳ alert nào được phát hiện (hữu ích để CI/CD pipeline hoặc CronJob bắt được).
 
 ---
 
@@ -186,4 +189,4 @@ Exit code = `1` nếu có alert (để CI/CD pipeline bắt được).
 
 - [Drain3 GitHub](https://github.com/logpai/Drain3)
 - Paper gốc: *Drain: An Online Log Parsing Approach with Fixed Depth Tree* (He et al., ICWS 2017)
-- Spec AIOps: [docs/ai/specs/anomaly_remediation.md](../../docs/ai/specs/anomaly_remediation.md)
+- Spec AIOps: [docs/ai/03_specs/anomaly_remediation.md](../../docs/ai/03_specs/anomaly_remediation.md)

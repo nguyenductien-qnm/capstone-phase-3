@@ -1,0 +1,9 @@
+{
+  "eventTime": "2026-07-21T12:49:08Z",
+  "eventName": "GetObject",
+  "eventCategory": "Data",
+  "managementEvent": false,
+  "readOnly": true,
+  "bucket": "ecommerce-dev-cloudtrail-logs",
+  "actor": "AWSReservedSSO_Phase3-CDO-PermissionSet_29ab4c042f467568"
+}

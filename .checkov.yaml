@@ -1,0 +1,211 @@
+# Checkov skip — IaC finding được BỎ QUA CÓ CHỦ Ý, từng check một, có lý do và hạn review.
+#
+# Vì sao cần file này: gate IaC (`infra-cd.yaml`) chuyển từ `soft_fail: true` sang CHẶN
+# THẬT. Không có file skip thì mọi PR chạm `terraform/` đỏ ngay, cả team đứng hình. Nhưng
+# tắt gate lại thì quay về "pipeline chạy cho vui" — đúng thứ DIRECTIVE #10 cấm.
+# Cách giữa: khai từng check bỏ qua kèm lý do đọc được, để finding MỚI vẫn đỏ.
+#
+# QUY TẮC: chỉ thêm khi (a) không sửa được vì ràng buộc kiến trúc, (b) đã xác minh là
+# false positive, hoặc (c) sửa được nhưng vượt ngân sách — ràng buộc mà directive cho
+# phép, miễn KHAI RÕ chứ không im lặng. Không thêm chỉ vì CI đỏ.
+# Tới hạn review: chạy lại `checkov -d terraform --framework terraform --compact`,
+# cái nào đã sửa được thì XOÁ dòng ở đây.
+#
+# Trước khi thêm bất cứ dòng nào: đã thử FIX THẬT chưa?
+#   - Đợt 26/07 đã sửa thật 8 finding (SNS mã hoá, KMS rotation + policy, default SG,
+#     SG description) thay vì skip. Chỉ những gì còn lại mới nằm ở đây.
+#
+# Đối chiếu đầy đủ 136 finding + phân nhóm:
+#   docs/cdo09/evidence-mandate-10/IAC-GATE.md
+
+skip-check:
+  # =========================================================================
+  # NHÓM 1 — FALSE POSITIVE (đã verify bằng cách đọc code, không đoán)
+  # =========================================================================
+
+  # Checkov check trên `aws_secretsmanager_secret` mà không nhìn sang resource
+  # `aws_secretsmanager_secret_rotation` liền kề. db_credentials ĐÃ có rotation tại
+  # terraform/modules/rds/main.tf:239. Còn db_endpoint/msk_endpoint chỉ chứa host:port
+  # nên xoay vòng vô nghĩa. Review: 2026-10-26
+  - CKV2_AWS_57
+
+  # Báo CloudTrail chưa tích hợp CloudWatch Logs, nhưng đã có
+  # `cloud_watch_logs_group_arn` tại terraform/modules/cloudtrail/main.tf:186.
+  # Review: 2026-10-26
+  - CKV2_AWS_10
+
+  # Báo EKS chạy version không được hỗ trợ. Cluster đang chạy 1.36 — Checkov 3.3.8
+  # chưa biết version này. Gỡ skip khi nâng Checkov. Review: 2026-10-26
+  - CKV_AWS_339
+
+  # =========================================================================
+  # NHÓM 1 — RÀNG BUỘC KIẾN TRÚC (sửa thì hỏng hệ thống)
+  # =========================================================================
+
+  # Egress 0.0.0.0/0 trên SG của pod/RDS/MSK/ElastiCache. Pod PHẢI gọi Rekor + Fulcio
+  # (Sigstore) để Kyverno verify chữ ký ảnh, cộng ECR + Bedrock + Secrets Manager.
+  # Chặn egress = Kyverno chết = yêu cầu #3 của directive sụp. Thu hẹp thì phải liệt kê
+  # IP range Sigstore, mà chúng đổi thường xuyên nên sẽ thành nguồn sự cố.
+  # Review: 2026-10-26
+  - CKV_AWS_382
+
+  # Subnet public gán IP công khai — đúng bản chất subnet public, NAT gateway và ALB nằm
+  # đó. Review: 2026-10-26
+  - CKV_AWS_130
+
+  # EKS public endpoint. Bật có chủ đích để GitHub Actions apply Terraform được. Đã giới
+  # hạn bằng `public_access_cidrs` (terraform/modules/eks/main.tf:110) kèm validation bắt
+  # buộc ở dòng 120 — không cho bật public mà để trống CIDR. Review: 2026-10-26
+  - CKV_AWS_38
+  - CKV_AWS_39
+
+  # Security group dự phòng chưa gắn resource (rds proxy). Review: 2026-10-26
+  - CKV2_AWS_5
+
+  # S3 event notification — không có nhu cầu nghiệp vụ nào trên các bucket này.
+  # Review: 2026-10-26
+  - CKV2_AWS_62
+
+  # CloudTrail chưa khai SNS topic — đã dùng EventBridge để định tuyến cảnh báo.
+  # Review: 2026-10-26
+  - CKV_AWS_252
+
+  # Lambda code signing — quá mức cho 2 lambda nội bộ (cost_guard, audit_processor) chạy
+  # từ artifact do chính CI của mình dựng. Review: 2026-10-26
+  - CKV_AWS_272
+
+  # =========================================================================
+  # NHÓM 2 — NGOÀI NGÂN SÁCH (directive cho phép, nhưng phải khai rõ)
+  # =========================================================================
+
+  # Giữ CloudWatch log 1 năm — phí lưu trữ. Retention hiện tại đủ cho vòng đời capstone.
+  # Review: 2026-10-26
+  - CKV_AWS_338
+
+  # S3 cross-region replication — ×2 tiền lưu trữ + phí transfer. Review: 2026-10-26
+  - CKV_AWS_144
+
+  # RDS enhanced monitoring + Performance Insights — phí CloudWatch tính theo giây.
+  # Review: 2026-10-26
+  - CKV_AWS_118
+  - CKV_AWS_353
+
+  # WAF cho CloudFront — ~$5-10/tháng + phí per-request. Review: 2026-10-26
+  - CKV_AWS_68
+  - CKV2_AWS_47
+
+  # RDS Multi-AZ — ×2 tiền RDS. Review: 2026-10-26
+  - CKV_AWS_157
+
+  # Lambda trong VPC — cần thêm NAT gateway. Review: 2026-10-26
+  - CKV_AWS_117
+
+  # Nhóm CMK riêng thay cho key mặc định — ~$1/key/tháng + phí request.
+  #
+  # SNS (CKV_AWS_26) đã sửa THẬT và KHÔNG nằm trong danh sách skip. Sửa hai lần:
+  #   26/07 — dùng alias/aws/sns. Rule xanh, nhưng SAI: topic nhận từ EventBridge và
+  #           AWS Budgets, mà service publisher cần kms:GenerateDataKey*/kms:Decrypt khai
+  #           trong KEY POLICY — key AWS-managed không sửa policy được nên publish fail
+  #           IM LẶNG. Bài học: rule xanh không có nghĩa là thứ đang chạy còn chạy.
+  #   27/07 — CMK riêng có key policy mở đúng service principal. Chi phí thật ~$3/tháng:
+  #           sandbox(804) 2 key vì enable_mandate_12_alert=true, develop(458) 1 key vì
+  #           flag đó default false. Request nằm trong 20k free tier.
+  #
+  # CKV_AWS_149 còn kéo theo việc cấp kms:Decrypt cho role ESO. Review: 2026-10-26
+  - CKV_AWS_149
+  - CKV_AWS_158
+  - CKV_AWS_191
+  - CKV_AWS_119
+
+  # =========================================================================
+  # NHÓM 3 — S3 + RDS: hoãn theo quyết định 26/07
+  # =========================================================================
+  # Chủ động hoãn để đợt này chỉ đụng nhóm rủi ro thấp. RDS đang phục vụ prod, còn S3
+  # cần rà thêm lifecycle/replication cho khớp nhu cầu lưu trữ thật.
+
+  # RDS: minor upgrade tự động, copy tag sang snapshot, deletion protection.
+  # Review: 2026-10-26
+  - CKV_AWS_226
+  - CKV2_AWS_60
+  - CKV_AWS_293
+
+  # S3: access logging, mã hoá KMS, versioning, public access block, lifecycle.
+  # CKV2_AWS_6 (public access block trên bucket msk_plugins) là finding đáng sửa nhất
+  # trong nhóm này — ưu tiên xử lý ở đợt sau. Review: 2026-10-26
+  - CKV_AWS_18
+  - CKV_AWS_145
+  - CKV_AWS_21
+  - CKV2_AWS_6
+  - CKV2_AWS_61
+  - CKV_AWS_300
+
+  # =========================================================================
+  # NHÓM 3 — RỦI RO CAO / TỐN CHI PHÍ VẬN HÀNH
+  # =========================================================================
+
+  # EKS secret encryption. Thao tác MỘT CHIỀU, không tắt lại được, trên cluster prod
+  # đang chạy. Cần cửa sổ bảo trì + backup etcd. Hoãn tới khi hạ tầng ổn định (hiện còn
+  # sự cố node hết IP). Review: 2026-10-26
+  - CKV_AWS_58
+
+  # Bật đủ 5 log type EKS control plane — phí CloudWatch. Review: 2026-10-26
+  - CKV_AWS_37
+
+  # VPC flow log — phí lưu trữ. Đáng làm cho Auditability, cân nhắc đợt sau.
+  # Review: 2026-10-26
+  - CKV2_AWS_11
+
+  # DynamoDB point-in-time recovery cho bảng idempotency — bảng chỉ giữ khoá chống
+  # xử lý trùng, mất không ảnh hưởng dữ liệu nghiệp vụ. Review: 2026-10-26
+  - CKV_AWS_28
+
+  # =========================================================================
+  # NHÓM 4 — IAM: cần đọc từng policy
+  # =========================================================================
+
+  # Role bootstrap dùng AdministratorAccess (aws_iam_role.github_terraform).
+  # Root module dựng VPC/EKS/IAM/RDS/ElastiCache/MSK/audit stack nên tập API trải khắp
+  # gần như mọi service. Blast radius giới hạn bằng account riêng + trust policy khoá
+  # theo đúng GitHub Environment OIDC subject của repo. Ngoại lệ này đã ghi vào
+  # terraform/md/TERRAFORM_BEST_PRACTICE.md. Thay bằng policy hẹp khi đo được tập API
+  # thực tế. Review: 2026-10-26
+  - CKV_AWS_274
+
+  # IAM dùng "*" làm resource / write không ràng buộc. Karpenter controller BẮT BUỘC cần
+  # "*" cho ec2:Describe* (AWS không hỗ trợ resource-level cho nhóm action này); các
+  # policy KMS của detection-routing cũng vậy. Nhưng external-dns thu hẹp được theo
+  # hosted zone ARN và Bedrock thu hẹp được theo model ARN — đó là việc của đợt sau.
+  # Review: 2026-10-26
+  - CKV_AWS_356
+  - CKV_AWS_355
+  - CKV_AWS_111
+  - CKV_AWS_109
+  - CKV_AWS_290
+  - CKV_AWS_108
+  - CKV_AWS_61
+
+  # =========================================================================
+  # NHÓM 4 — Lambda / CloudFront / RDS còn lại
+  # =========================================================================
+
+  # Lambda: DLQ, mã hoá env var, giới hạn concurrency, X-Ray.
+  # CKV_AWS_116 (DLQ) đáng sửa nhất — mất message khi lambda lỗi. Review: 2026-10-26
+  - CKV_AWS_116
+  - CKV_AWS_173
+  - CKV_AWS_115
+  - CKV_AWS_50
+
+  # CloudFront: access logging và response headers policy đáng sửa, để đợt sau.
+  # Giới hạn địa lý và origin failover thì bỏ hẳn — storefront phải public toàn cầu và
+  # chỉ có 1 origin. Review: 2026-10-26
+  - CKV_AWS_86
+  - CKV2_AWS_32
+  - CKV_AWS_305
+  - CKV_AWS_374
+  - CKV_AWS_310
+
+  # RDS: log export và query logging tốn tiền CloudWatch; IAM auth đụng app (app đang
+  # dùng user/pass qua External Secrets). Review: 2026-10-26
+  - CKV_AWS_129
+  - CKV2_AWS_30
+  - CKV_AWS_161

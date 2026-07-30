@@ -1,0 +1,20 @@
+### R3 - XÁC MINH CUỐI: CONTAINMENT + SỨC KHỎE @ 2026-07-22T11:48:22Z
+=== POD LA THU KET NOI (sau khi da va scraperEgress + apiServerClusterIP) ===
+  -> cart:8080 : http=000  (000 = BI CHAN)
+  -> payment:50051 : http=000  (000 = BI CHAN)
+  -> product-catalog:8080 : http=000  (000 = BI CHAN)
+  -> checkout:8080 : http=000  (000 = BI CHAN)
+  -> llm:8000 : http=000  (000 = BI CHAN)
+  -> valkey-cart:6379 : http=000  (000 = BI CHAN)
+=== cac duong VUA MO cho scraper - pod la co loi dung duoc khong? ===
+  kubelet 10.60.12.251:10250      -> 000  (000 = BI CHAN, dung)
+  CoreDNS 10.60.12.95:9153        -> 000  (000 = BI CHAN, dung)
+  API ClusterIP 172.20.0.1:443    -> 000  (000 = BI CHAN, dung)
+  Internet example.com            -> 000  (000 = BI CHAN)
+
+--- money path ---
+  orderId = 4044e116-85c3-11f1-a01d-2aacf2a180bf
+--- pod không khỏe ---
+  So pod KHONG khoe: 1 ['m17-attacker']
+--- ksm ---
+  1/1 Running restarts=7

@@ -45,6 +45,11 @@ fun main() {
         exitProcess(1)
     }
     props[BOOTSTRAP_SERVERS_CONFIG] = bootstrapServers
+    props["security.protocol"] = "SASL_SSL"
+    props["sasl.mechanism"] = "SCRAM-SHA-512"
+    val kafkaUser = System.getenv("KAFKA_USER") ?: ""
+    val kafkaPassword = System.getenv("KAFKA_PASSWORD") ?: ""
+    props["sasl.jaas.config"] = "org.apache.kafka.common.security.scram.ScramLoginModule required username=\"$kafkaUser\" password=\"$kafkaPassword\";"
     val consumer = KafkaConsumer<String, ByteArray>(props).apply {
         subscribe(listOf(topic))
     }

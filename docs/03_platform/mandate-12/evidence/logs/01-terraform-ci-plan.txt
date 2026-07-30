@@ -1,0 +1,19 @@
+CapturedAtUtc: 2026-07-21T14:54:49Z
+Workflow: Infra CD (Terraform + ArgoCD bootstrap)
+WorkflowRunId: 29818863006
+Event: workflow_dispatch
+Commit: c20780add61cc73dcbf611741f8892b261b6e4cc
+Status: completed
+Conclusion: success
+
+Terraform plan sandbox:
+Plan: 5 to add, 1 to change, 0 to destroy.
+
+Terraform apply sandbox:
+Apply complete! Resources: 5 added, 1 changed, 0 destroyed.
+
+Workflow URL:
+https://github.com/nguyenductien-qnm/capstone-phase-3/actions/runs/29818863006
+
+Evidence was reduced to the plan/apply summary. Full workflow logs were not
+saved because they contain account-specific infrastructure identifiers.

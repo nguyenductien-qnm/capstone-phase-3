@@ -1,0 +1,9 @@
+{
+  "group": "shortterm",
+  "case": "three-turns",
+  "passed": false,
+  "reason": "lượt 3 nhắc lại sản phẩm của lượt trước: KHÔNG",
+  "latency": 20.02,
+  "cache_status": "miss",
+  "response": "Dựa trên đánh giá của khách hàng, sản phẩm này có điểm trung bình là 3.8. Một số đánh giá cho biết rằng sản phẩm này phù hợp cho người mới bắt đầu và trẻ em. Một khách hàng cho biết rằng sản phẩm này là một lựa chọn tốt cho gia đình. Tuy nhiên, một số khách hàng cũng cho biết rằng sản phẩm này không"
+}
