@@ -207,6 +207,14 @@ thanos:
     replicationFactor: 3
     service:
       additionalHeadless: true
+      publishNotReadyAddresses: true
+    resources:
+      requests:
+        cpu: 200m
+        memory: 1Gi
+      limits:
+        cpu: "1"
+        memory: 4Gi
     podAntiAffinityPreset: hard
     nodeSelector:
       workload-tier: platform
