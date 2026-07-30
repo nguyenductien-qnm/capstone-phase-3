@@ -17,7 +17,27 @@ spec:
       values: |
         clusterName: ecommerce-dev-eks
         region: us-east-1
-        vpcId: vpc-06d4c34ec03f55c6d
+        # 30/07/2026 — SỬA: vpcId đang là vpc-06d4c34ec03f55c6d, VPC của account cũ
+        # 804372444787 ĐÃ BỊ DESTROY sau sự cố AWS credits. Đợt trỏ lại account mới
+        # (PR #493) quét theo chuỗi "804372444787" nên KHÔNG bắt được dòng này: VPC ID
+        # không chứa số account. Hệ quả: controller đi tìm subnet trong một VPC không
+        # tồn tại -> Service frontend-proxy treo <pending> 7h liền, lỗi lặp 43 lần:
+        #   "unable to resolve at least one subnet (0 match VPC and tags:
+        #    [kubernetes.io/role/elb])"
+        # Tag thì đúng cả 3 subnet public (modules/vpc/main.tf gán role/elb=1) — thứ
+        # lệch là VPC. Giá trị mới đối chiếu từ hai nguồn độc lập, cùng ra một ID:
+        #   aws ec2 describe-vpcs --filters Name=tag:Name,Values=ecommerce-dev-vpc
+        #   aws eks describe-cluster --name ecommerce-dev-eks \
+        #     --query cluster.resourcesVpcConfig.vpcId
+        #
+        # VÌ SAO KHÔNG BỎ HẲN DÒNG NÀY cho controller tự dò VPC: docs chart ghi
+        # "Set this manually when your pods are unable to use the metadata service to
+        # determine this automatically" — và pod ở cụm này đúng là không dò được, vì
+        # HttpPutResponseHopLimit = 1 trên cả 4 node (pod là thêm 1 hop -> không tới
+        # IMDS). Cách bền hơn là `vpcTags` (dò theo tag Name, sống sót qua lần dựng lại
+        # VPC), nhưng chart 1.8.1 CHƯA có key đó — đã tải chart về kiểm: values.yaml chỉ
+        # có `vpcId`. Muốn dùng vpcTags phải nâng chart trước.
+        vpcId: vpc-0085623a1538f2129
         serviceAccount:
           create: true
           name: aws-load-balancer-controller

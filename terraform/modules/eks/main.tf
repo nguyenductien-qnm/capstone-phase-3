@@ -272,6 +272,8 @@ resource "aws_eks_node_group" "this" {
 }
 
 resource "aws_launch_template" "ops" {
+  count = var.enable_ops_node_group ? 1 : 0
+
   name_prefix            = "${local.cluster_name}-ops-"
   update_default_version = true
 
@@ -306,6 +308,8 @@ resource "aws_launch_template" "ops" {
 }
 
 resource "aws_eks_node_group" "ops" {
+  count = var.enable_ops_node_group ? 1 : 0
+
   cluster_name    = aws_eks_cluster.this.name
   node_group_name = "${local.cluster_name}-ops"
   node_role_arn   = aws_iam_role.node.arn
@@ -314,8 +318,8 @@ resource "aws_eks_node_group" "ops" {
   capacity_type   = "ON_DEMAND"
 
   launch_template {
-    id      = aws_launch_template.ops.id
-    version = aws_launch_template.ops.latest_version
+    id      = aws_launch_template.ops[0].id
+    version = aws_launch_template.ops[0].latest_version
   }
 
   scaling_config {

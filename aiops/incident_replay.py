@@ -35,6 +35,14 @@ Usage:
   # window (used once MANDATE-22's remediation scenario lands on top of this).
   python incident_replay.py run aiops/incident_scenarios/case_real_incident.json \\
       --check-remediation
+
+  # MANDATE-26: RCA on the same window — names ONE suspected root service with the
+  # evidence behind it, not just a list of whatever is red. Works standalone (the
+  # mentor supplies a window, no scenario file needed) or attached to run/score.
+  python incident_replay.py rca --start 1721800000 --end 1721800120 \\
+      --prom-url http://localhost:9090
+  python incident_replay.py score /path/to/btc-hidden-scenario.json \\
+      --start .. --end .. --rca
 """
 import argparse
 import json
@@ -42,6 +50,8 @@ import os
 import subprocess
 import sys
 import time
+
+import diagnose
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _REPO_ROOT = os.path.abspath(os.path.join(_HERE, ".."))
@@ -283,10 +293,33 @@ def check_remediation(audit_log_path, window_start, window_end):
     return records
 
 
+def run_rca(args, window_start, window_end):
+    """MANDATE-26: name ONE suspected root service for this window, with the evidence.
+
+    Deliberately a thin wrapper: all the reasoning lives in diagnose.py so it can be read
+    and unit-tested on its own. Topology comes from spanmetrics when a Prometheus URL is
+    given and falls back to aiops/topology.json otherwise — never silently, the source is
+    always reported alongside the verdict.
+    """
+    alerts = _load_jsonl(args.alerter_history)
+    graph, source, note = diagnose.resolve_topology(
+        prom_url=getattr(args, "prom_url", None),
+        static_path=getattr(args, "topology", diagnose.DEFAULT_TOPOLOGY),
+    )
+    ratios = {}
+    if getattr(args, "prom_url", None):
+        # Sample at the end of the window: rate(...[5m]) there still covers the incident.
+        ratios = diagnose.error_ratios_at(args.prom_url, window_end)
+    return diagnose.diagnose(
+        alerts, window_start, window_end,
+        graph=graph, topology_source=source, topology_note=note, error_ratios=ratios,
+    )
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
-def _print_report(scenario, score, remediation_records=None):
+def _print_report(scenario, score, remediation_records=None, rca=None):
     print("\n" + "=" * 70)
     print(f"SCENARIO: {scenario.get('id')} [{scenario.get('type')}]")
     print(scenario.get("description", ""))
@@ -309,9 +342,11 @@ def _print_report(scenario, score, remediation_records=None):
             print(f"    outcome={r.get('outcome')} verify={r.get('verify')} "
                   f"rollback_or_escalate={r.get('rollback_or_escalate')}")
     print("=" * 70 + "\n")
+    if rca is not None:
+        print(diagnose.format_report(rca))
 
 
-def _write_result(scenario_path, scenario, events, score, remediation_records):
+def _write_result(scenario_path, scenario, events, score, remediation_records, rca=None):
     ok, reason = verdict_for_type(scenario.get("type"), score["per_event"])
     result = {
         "scenario_id": scenario.get("id"),
@@ -320,6 +355,7 @@ def _write_result(scenario_path, scenario, events, score, remediation_records):
         "score": score,
         "verdict": {"pass": ok, "reason": reason},
         "remediation_records": remediation_records,
+        "rca": rca,
     }
     out_path = os.path.splitext(scenario_path)[0] + ".result.json"
     with open(out_path, "w", encoding="utf-8") as f:
@@ -337,8 +373,9 @@ def cmd_run(args):
     remediation_records = None
     if args.check_remediation:
         remediation_records = check_remediation(args.audit_log, score["window"]["start"], score["window"]["end"])
-    _print_report(scenario, score, remediation_records)
-    _write_result(args.scenario, scenario, events, score, remediation_records)
+    rca = run_rca(args, score["window"]["start"], score["window"]["end"]) if args.rca else None
+    _print_report(scenario, score, remediation_records, rca)
+    _write_result(args.scenario, scenario, events, score, remediation_records, rca)
 
 
 DEFAULT_RULES_YAML = os.path.join(_HERE, "detector", "rules.yaml")
@@ -466,20 +503,49 @@ def cmd_score(args):
     remediation_records = None
     if args.check_remediation:
         remediation_records = check_remediation(args.audit_log, score["window"]["start"], score["window"]["end"])
-    _print_report(scenario, score, remediation_records)
-    _write_result(args.scenario, scenario, events, score, remediation_records)
+    rca = run_rca(args, score["window"]["start"], score["window"]["end"]) if args.rca else None
+    _print_report(scenario, score, remediation_records, rca)
+    _write_result(args.scenario, scenario, events, score, remediation_records, rca)
+
+
+def cmd_rca(args):
+    """Standalone RCA — no scenario file needed.
+
+    MANDATE-26 is graded by the mentor feeding a case and verifying on the spot, and the
+    case may be one they injected themselves without ever writing a scenario JSON. So RCA
+    has to answer from a bare window: "these services went red, which one is the root".
+    """
+    if args.start is None or args.end is None:
+        print("rca requires --start/--end (the window the incident was observed in)",
+              file=sys.stderr)
+        sys.exit(2)
+    result = run_rca(args, args.start, args.end)
+    print(diagnose.format_report(result))
+    if args.out:
+        with open(args.out, "w", encoding="utf-8") as f:
+            json.dump(result, f, indent=2, default=str)
+        print(f"  rca written to {args.out}")
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="cmd", required=True)
 
-    common = argparse.ArgumentParser(add_help=False)
+    # Shared by every subcommand, including the scenario-less `rca`.
+    rca_opts = argparse.ArgumentParser(add_help=False)
+    rca_opts.add_argument("--alerter-history", default=DEFAULT_ALERTER_HISTORY)
+    rca_opts.add_argument("--prom-url", default=os.environ.get("PROM_URL"),
+                          help="Prometheus base URL; without it RCA falls back to aiops/topology.json")
+    rca_opts.add_argument("--topology", default=diagnose.DEFAULT_TOPOLOGY,
+                          help="static dependency graph used when spanmetrics yields no edges")
+
+    common = argparse.ArgumentParser(add_help=False, parents=[rca_opts])
     common.add_argument("scenario", help="path to a scenario JSON file (aiops/incident_scenarios/*.json)")
-    common.add_argument("--alerter-history", default=DEFAULT_ALERTER_HISTORY)
     common.add_argument("--audit-log", default=DEFAULT_AUDIT_LOG)
     common.add_argument("--check-remediation", action="store_true",
                         help="also pull aiops/remediation/audit_log.jsonl for this window (MANDATE-22)")
+    common.add_argument("--rca", action="store_true",
+                        help="also run root-cause analysis on the scored window (MANDATE-26)")
 
     p_run = sub.add_parser("run", parents=[common], help="inject the scenario live, then score it")
     p_run.set_defaults(func=cmd_run)
@@ -489,6 +555,13 @@ def main():
     p_score.add_argument("--start", type=float, default=None, help="unix ts the injected scenario started")
     p_score.add_argument("--end", type=float, default=None, help="unix ts the injected scenario ended")
     p_score.set_defaults(func=cmd_score)
+
+    p_rca = sub.add_parser("rca", parents=[rca_opts],
+                           help="root-cause analysis on a window — names ONE suspected root (MANDATE-26)")
+    p_rca.add_argument("--start", type=float, default=None, help="unix ts the incident window starts")
+    p_rca.add_argument("--end", type=float, default=None, help="unix ts the incident window ends")
+    p_rca.add_argument("--out", default=None, help="also write the RCA verdict to this JSON path")
+    p_rca.set_defaults(func=cmd_rca)
 
     args = parser.parse_args()
     args.func(args)

@@ -1,5 +1,31 @@
 name: "4 · Release — Đóng dấu ảnh đã promote"
 
+# ###########################################################################
+# ### TẠM NGƯNG — 29/07/2026. ĐỪNG DISPATCH WORKFLOW NÀY.                 ###
+# ###                                                                     ###
+# ### Sau sự cố AWS credits (report/credit-incident/                      ###
+# ### aws-personal-incident-2026-07-28.md) cụm DEVELOP đã bị destroy, chỉ  ###
+# ### còn MỘT môi trường (thư mục environments/sandbox). Mô hình           ###
+# ### build-once-promote cần HAI môi trường mới có nghĩa, nên bước C       ###
+# ### (đóng dấu) và bước D (app-promote.yaml) đều tạm ngưng.               ###
+# ###                                                                     ###
+# ### app-build.yaml nay bump THẲNG vào environments/sandbox/              ###
+# ### values-image-tags.yaml, không đi qua đây nữa.                        ###
+# ###                                                                     ###
+# ### File GIỮ NGUYÊN, không xoá: chỉ có trigger workflow_dispatch nên nó  ###
+# ### nằm im, và còn tự khoá if: github.ref == refs/heads/develop.         ###
+# ### Chạy bây giờ sẽ hỏng vì TAGS_FILE bên dưới vẫn đọc tags file develop ###
+# ### — file đó đã đóng băng, tag trong đó không còn ai deploy.            ###
+# ###                                                                     ###
+# ### KHÔI PHỤC (khi dựng lại môi trường thứ hai), theo đúng thứ tự:       ###
+# ###   1. Trả TAGS_FILE của app-build.yaml về environments/develop/...    ###
+# ###   2. Bỏ khối TẠM NGƯNG ở app-promote.yaml                            ###
+# ###   3. Bỏ khối này                                                     ###
+# ###   4. Kiểm ECR repo attest (ecommerce-dev-techx-corp-attest) còn sống ###
+# ###   5. trace-image-provenance.yaml: đổi default của input              ###
+# ###      require_promote_attestation về true, rồi gỡ khối cảnh báo ở đó  ###
+# ###########################################################################
+#
 # Bước C của deploy model build-once-promote (xem app-build.yaml): sau khi develop
 # chạy ổn định, operator dispatch workflow này để cosign attest predicate
 # "promoted-develop" vào DIGEST của từng image đang chạy ở develop (đọc từ
@@ -33,7 +59,7 @@ concurrency:
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
-  ECR_REGISTRY: ${{ vars.ECR_REGISTRY || '804372444787.dkr.ecr.us-east-1.amazonaws.com' }}
+  ECR_REGISTRY: ${{ vars.ECR_REGISTRY || '384511757667.dkr.ecr.us-east-1.amazonaws.com' }}
   ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY || 'ecommerce-dev-techx-corp' }}
   # Repo ECR MUTABLE chứa attestation promoted-develop (tách khỏi repo image vì
   # .att repo chính đã bị SBOM app-build chiếm + IMMUTABLE không cho ghi đè).

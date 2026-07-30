@@ -1,5 +1,24 @@
 name: "4 · Release — Promote develop → prod"
 
+# ###########################################################################
+# ### TẠM NGƯNG — 29/07/2026. ĐỪNG DISPATCH WORKFLOW NÀY.                 ###
+# ###                                                                     ###
+# ### Cụm DEVELOP đã bị destroy sau sự cố AWS credits (report/            ###
+# ### credit-incident/aws-personal-incident-2026-07-28.md). Chỉ còn MỘT   ###
+# ### môi trường, và nó chính là thư mục environments/sandbox mà workflow ###
+# ### này vẫn coi là "đích promote". Promote từ một môi trường sang chính ###
+# ### nó là vô nghĩa.                                                     ###
+# ###                                                                     ###
+# ### app-build.yaml nay bump THẲNG vào PROD_TAGS_FILE bên dưới.          ###
+# ### Chạy workflow này bây giờ sẽ FAIL ở bước verify: ảnh build sau      ###
+# ### 29/07 không có attestation promoted-develop (app-attest cũng tạm    ###
+# ### ngưng) -> fail-closed, không mở PR. Đó là hành vi ĐÚNG, không phải  ###
+# ### lỗi cần vá.                                                         ###
+# ###                                                                     ###
+# ### File GIỮ NGUYÊN, không xoá: chỉ có workflow_dispatch nên nằm im.    ###
+# ### Khôi phục: xem thứ tự 4 bước ghi ở đầu app-attest.yaml.             ###
+# ###########################################################################
+#
 # Bước D của deploy model build-once-promote (xem app-build.yaml + app-attest.yaml):
 # dispatch -> đọc tag đang chạy ở develop (values-image-tags.yaml develop) ->
 # resolve tag -> digest trên ECR -> cosign verify chữ ký build + verify-attestation
@@ -28,7 +47,7 @@ concurrency:
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
-  ECR_REGISTRY: ${{ vars.ECR_REGISTRY || '804372444787.dkr.ecr.us-east-1.amazonaws.com' }}
+  ECR_REGISTRY: ${{ vars.ECR_REGISTRY || '384511757667.dkr.ecr.us-east-1.amazonaws.com' }}
   ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY || 'ecommerce-dev-techx-corp' }}
   # Repo ECR chứa attestation promoted-develop — phải khớp ATTEST_REPOSITORY của
   # app-attest.yaml (attestation KHÔNG nằm cạnh image: .att repo chính là SBOM

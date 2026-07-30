@@ -18,7 +18,9 @@ default:
   image:
     # SEED registry (image mẫu BTC cấp). Mỗi TF ĐỔI sang ECR của account mình:
     #   helm ... --set default.image.repository=<ACCOUNT>.dkr.ecr.<REGION>.amazonaws.com/techx-corp
-    repository: 804372444787.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp
+    # 29/07/2026: đổi 804372444787 -> 384511757667 sau sự cố AWS credits (account
+    # cũ đã destroy toàn bộ, xem report/credit-incident/).
+    repository: 384511757667.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp
     # Overrides the image tag whose default is the chart appVersion.
     # The service's name will be applied to the end of this value.
     tag: "1.0"
@@ -563,6 +565,31 @@ components:
   # Dedicated background MSK Kafka Worker
   cart-consumer-worker:
     enabled: true
+
+    # 30/07/2026 — KHAI QUAN HỆ ẢNH RA CHO CI ĐỌC ĐƯỢC.
+    #
+    # Component này KHÔNG có Dockerfile riêng (techx-corp-platform/src/cart-consumer-worker/
+    # không tồn tại): nó chạy CHÍNH ảnh của `cart`, chỉ khác `command`. Vì không có
+    # Dockerfile nên job `detect` của app-build.yaml không xếp nó vào build matrix, mà
+    # bước bump lại duyệt đúng matrix đó -> nó KHÔNG BAO GIỜ được ghi tag.
+    #
+    # Hệ quả nếu để nguyên: mỗi lần `cart` được bump sang SHA mới, worker vẫn giữ tag
+    # cũ. Phát hiện 30/07/2026 khi dựng lại account: tags-file trỏ worker vào
+    # `1.0-cart-4986041`, tag đó không tồn tại trên ECR mới -> ImagePullBackOff.
+    #
+    # Trước đây quan hệ "worker dùng ảnh của cart" KHÔNG được khai ở đâu cả. Hai dòng
+    # tag bằng nhau trong values-image-tags.yaml chỉ là do có người gõ cùng một chuỗi
+    # hai lần — một sự trùng khớp, không phải một khai báo, nên CI không có cách nào
+    # suy ra được. `imageFrom` biến nó thành khai báo máy đọc được.
+    #
+    # Bump đọc key này (xem app-build.yaml, bước "Bump imageOverride.tag từng service")
+    # và ghi tag của `cart` sang đây. Gate "Verify diff chỉ chạm service đã build" cũng
+    # đọc nó để cho phép worker xuất hiện trong diff — nhưng CHỈ khi `cart` nằm trong
+    # tập vừa build, nên gate vẫn giữ nguyên tác dụng chặn tag trỏ vào ảnh chưa có.
+    #
+    # Thêm worker dùng chung ảnh với service khác sau này thì khai `imageFrom` là xong,
+    # KHÔNG cần sửa workflow nữa.
+    imageFrom: cart
     imageOverride: {}
     initContainers:
       - name: wait-for-valkey-cart
@@ -1132,6 +1159,15 @@ components:
       annotations:
         alb.ingress.kubernetes.io/scheme: internet-facing
         alb.ingress.kubernetes.io/target-type: ip
+        # TODO(29/07/2026): ARN này là CERT CỤ THỂ ở account cũ 804372444787, không
+        # phải thứ đổi số account là xong — account 384511757667 chưa có cert nào.
+        # CỐ Ý GIỮ NGUYÊN: sửa thành 384511757667:certificate/58a4ee05-... sẽ tạo ra
+        # một ARN trông hợp lệ nhưng trỏ vào hư không, ALB fail lúc tạo listener và
+        # lỗi khó lần hơn hẳn so với một ARN cũ nhìn là biết cũ.
+        # Hiện KHÔNG ảnh hưởng gì: `ingress.enabled: false` ngay phía trên — cụm
+        # đang ra ngoài bằng Service type LoadBalancer (NLB), không dùng ALB Ingress.
+        # Khi nào bật ingress: request cert mới trong ACM us-east-1 của account mới
+        # cho origin-ecommerce.nguyenductien.cloud rồi dán ARN thật vào đây.
         alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:us-east-1:804372444787:certificate/58a4ee05-8248-4e70-bc30-f7dfe47e0720"
         alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
       hosts:
@@ -2593,6 +2629,10 @@ grafana:
 opensearch:
   enabled: true
   fullnameOverride: opensearch
+  # The chart appends "-headless" to masterService for discovery.seed_hosts.
+  # Keep this aligned with fullnameOverride; the chart default
+  # "opensearch-cluster-master" points at a Service that does not exist.
+  masterService: opensearch
   clusterName: demo-cluster
   nodeGroup: techx-corp
   singleNode: true

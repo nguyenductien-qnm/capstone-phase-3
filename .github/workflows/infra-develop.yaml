@@ -193,8 +193,17 @@ jobs:
             echo "::error::Expected Develop account $AWS_ACCOUNT_ID, got $actual_account."
             exit 1
           fi
+          # 29/07/2026: THÊM 384511757667 chứ KHÔNG thay thế 804372444787. Chốt này
+          # là danh sách CẤM, không phải danh sách trỏ tới account hiện hành — càng
+          # dài càng an toàn. 804 là account prod cũ (đã destroy), 384 là account
+          # prod mới. Cả hai đều không được phép nhận Terraform của môi trường
+          # develop. Ghi 2 dòng riêng để log nói rõ trúng account nào.
           if [ "$actual_account" = "804372444787" ]; then
-            echo "::error::Refusing to run Develop Terraform in the Product-like account."
+            echo "::error::Refusing to run Develop Terraform in the old Product-like account (804372444787)."
+            exit 1
+          fi
+          if [ "$actual_account" = "384511757667" ]; then
+            echo "::error::Refusing to run Develop Terraform in the current Product-like account (384511757667)."
             exit 1
           fi
           aws s3api head-bucket --bucket "$TF_BACKEND_BUCKET"
@@ -284,7 +293,9 @@ jobs:
           set -euo pipefail
           actual_account="$(aws sts get-caller-identity --query Account --output text)"
           test "$actual_account" = "458580846647"
+          # Danh sách CẤM (xem ghi chú ở job plan): 804 = prod cũ, 384 = prod mới.
           test "$actual_account" != "804372444787"
+          test "$actual_account" != "384511757667"
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3

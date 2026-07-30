@@ -362,7 +362,15 @@ jobs:
   image-scan-gate:
     name: Image scan gate
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # 29/07/2026 — nâng 10 -> 22 phút. Cũ: vòng chờ 40 x 15s = 600s = ĐÚNG BẰNG
+    # timeout-minutes 10. Không còn một giây dư nào cho phần code sau vòng lặp, nên
+    # khi app-build chạy lâu thì job bị GIẾT giữa vòng, không bao giờ tới được đoạn
+    # ra phán quyết. Đo thật ở PR #493: app-build full rebuild (do chính app-build.yaml
+    # bị sửa -> detect chọn tất cả service) mất 12.5 phút > 10 -> gate cancelled, mà
+    # đây là required check nên PR KHÔNG THỂ merge dù mọi thứ khác xanh.
+    # Nay vòng chờ 72 x 15s = 18 phút, timeout 22 phút -> luôn dư 4 phút để chạy nốt
+    # phần phán quyết. Nguyên tắc: budget vòng lặp phải NHỎ HƠN HẲN timeout của job.
+    timeout-minutes: 22
     permissions:
       contents: read
       # Cần để đọc kết quả job của workflow KHÁC (app-build) qua API.
@@ -414,10 +422,15 @@ jobs:
           # lúc với workflow này nên thường chưa có kết quả ngay.
           # Tách hai loại chờ: 8 vòng đầu (2 phút) là hạn CHỜ NÓ XUẤT HIỆN — quá hạn mà
           # vẫn chưa có run nào thì kết luận app-build không được kích hoạt, cho qua luôn
-          # thay vì đợi hết 10 phút. Khi đã thấy run rồi thì chờ tiếp tới 40 vòng cho nó
-          # chạy xong.
+          # thay vì đợi hết cả budget. Khi đã thấy run rồi thì chờ tiếp tới 72 vòng
+          # (18 phút) cho nó chạy xong.
+          #
+          # Vì sao 72 chứ không phải 40: trường hợp xấu nhất là full rebuild — xảy ra khi
+          # PR sửa chính app-build.yaml, lúc đó detect chọn TẤT CẢ service x 2 kiến trúc.
+          # Đo thật ở PR #493: 12.5 phút. 40 vòng = 10 phút, không bao giờ đủ.
+          # 72 vòng = 18 phút, còn cách timeout-minutes 22 một khoảng 4 phút.
           run_json=""
-          for i in $(seq 1 40); do
+          for i in $(seq 1 72); do
             run_json=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${TARGET_SHA}&per_page=100" \
                         --jq '[.workflow_runs[] | select(.path == ".github/workflows/app-build.yaml")]
                               | sort_by(.run_number) | last // empty' 2>/dev/null || true)
@@ -432,7 +445,7 @@ jobs:
             fi
             status=$(printf '%s' "$run_json" | python3 -c "import json,sys;print(json.load(sys.stdin)['status'])")
             [ "$status" = "completed" ] && break
-            echo "[$i/40] app-build đang chạy ($status)..."
+            echo "[$i/72] app-build đang chạy ($status)..."
             sleep 15
           done
 
@@ -457,7 +470,7 @@ jobs:
           echo "app-build run: $run_id (status=$run_status)"
 
           if [ "$run_status" != "completed" ]; then
-            echo "::error::app-build (run $run_id) chưa xong sau 10 phút. Chạy lại job này khi nó kết thúc."
+            echo "::error::app-build (run $run_id) chưa xong sau 18 phút. Chạy lại job này khi nó kết thúc."
             exit 1
           fi
 

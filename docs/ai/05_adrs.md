@@ -1361,3 +1361,116 @@ BTC bơm lúc chấm, không phải demo một lần.
   các đợt tải của người khác trên cụm dùng chung — đo đối chứng 28/07 lúc 22 user:
   `total_rps`=34.99 trong khi `current_rps`=5.60. Các con số cũ đọc từ `total_rps`
   ("24.69 → 94.80 req/s = 3.84×", "1.47×") đã bị bỏ.
+
+---
+
+# ADR-018: RCA chỉ đúng gốc — đồ thị phụ thuộc quyết định, thời gian phá hoà (MANDATE-26)
+
+- **Trạng thái:** Chấp nhận (Accepted)
+- **Ngày:** 2026-07-29
+- **Người ký:** **Thanh Pham Huu Tien** (`phamthanh.forwork@gmail.com`) — cá nhân chịu trách nhiệm về quyết định kỹ thuật này và về tính đúng của mọi con số trong ADR.
+- **Trụ:** AI (AIOps) / Reliability / Operational Excellence
+- **Task:** MANDATE-26 · nối tiếp ADR-012 (Detect) và ADR-013 (Act) — đây là chặng **Diagnose**
+
+## Context
+
+MANDATE-26 đòi: khi sự cố lan chéo nhiều service, hệ tự chỉ ra **một** service nghi là gốc
+**kèm lý lẽ dựa trên bằng chứng** — không liệt kê service đang đỏ, không dừng ở triệu chứng
+downstream. Chấm bằng cách mentor tự đưa ca vào chạy tại chỗ, cuối chương trình.
+
+Trước ADR này repo **không có một dòng code RCA nào**. `correlate.py` là chặng Correlate (ma
+trận tương quan 24h), và chính nó ghi ở dòng 149 rằng việc này *"belongs with the Diagnose/RCA
+work, not here"*. Thứ duy nhất đã có là cửa replay nhận kịch bản ngoài (PR #456, làm cho
+MANDATE-15) — đúng thứ mandate đòi, dùng lại được nguyên.
+
+## Decision
+
+### 1. RCA chạy trên **cửa sổ sự cố**, không dùng ma trận tương quan 24h
+`correlation_matrix.json` là baseline lịch sử — nó trả lời *"tín hiệu nào thường dẫn trước
+tín hiệu nào"*, không trả lời *"trong 5 phút vừa rồi cái gì hỏng trước"*. RCA từng ca cần
+cái sau. Nên `diagnose.py` đọc `alerter_history.jsonl` trong đúng cửa sổ được hỏi.
+
+Hệ quả: bug `best_lag` của `correlate.py` (chọn lag chỉ theo Spearman, khiến
+`leading_indicators` rỗng) **không chặn** việc này. Bug đó vẫn có thật và vẫn đáng sửa, nhưng
+là việc riêng.
+
+### 2. Chỉ stdlib
+`incident_replay.py` cố ý chỉ phụ thuộc stdlib — *"harness phải chạy được trên máy của giám
+khảo mà không cần cài thêm gì"*. MANDATE-26 chấm bằng cách mentor tự chạy, nên tính chất đó
+là **một phần của yêu cầu**, không phải sở thích. `diagnose.py` gọi Prometheus bằng
+`urllib.request`, không numpy/scipy.
+
+### 3. Đồ thị phụ thuộc suy từ spanmetrics, dự phòng bằng file tĩnh, **luôn khai báo nguồn**
+spanmetrics không có nhãn `peer.service` (đo 27/07, `verify.md` §V2), nên suy cạnh bằng khớp
+`span_name` giữa span CLIENT của A và span SERVER của B. Span_name mơ hồ (một tên ứng nhiều
+service SERVER, ví dụ `GET` của HTTP) bị **bỏ và đếm lại** — đoán mơ hồ mà vẫn nối cạnh thì
+đồ thị sai theo hướng không đoán trước được, và đồ thị sai nguy hiểm hơn không có đồ thị.
+
+Rỗng thì dùng `aiops/topology.json`, và output luôn mang `topology_source` +
+`static-fallback` kèm cảnh báo lỗi thời. Không bao giờ xuống cấp âm thầm — đó là lớp lỗi đã
+trả giá ba lần (rule kafka câm, `check_error_budget_ok` fail-open, 5 scenario chấm sai).
+
+### 4. Cạnh qua Kafka **không** vào đồ thị nhân quả
+`edges` chỉ chứa quan hệ **lan lỗi đồng bộ**. `checkout → payment` nằm ở `async_edges`, không
+ở `edges`, vì có số đo: 26/07 giết `payment` 367 giây → tỉ lệ lỗi của `checkout` đứng nguyên
+**0.0000 suốt 13/13 mẫu**. Đặt cạnh đó vào đồ thị nhân quả sẽ khiến RCA kết luận sai rằng
+payment giải thích được trạng thái của checkout.
+
+### 5. Loại tương quan = **loại khỏi danh sách nghi phạm**, không phải hạ điểm
+Service đỏ mà không có đường phụ thuộc nào tới nhóm đỏ còn lại thì không phải "nghi phạm
+yếu" — nó là **một sự cố riêng chạy song song**. Nên nó ra khỏi bảng xếp hạng và vào mục
+`concurrent_unrelated` kèm lý do.
+
+Chỉ áp khi đồ thị dùng được VÀ có ít nhất một cặp nối được với nhau; nếu không thì "không nối
+được" phản ánh topology thiếu chứ không phản ánh hệ thống, và loại là vu oan.
+
+### 6. Cách chấm: **đồ thị quyết định, thời gian phá hoà** — không phải tổng có trọng số
+
+```
+điểm  = (số service đỏ khác phụ thuộc bắc cầu vào ứng viên) / max
+xếp   = sort by (-điểm, thời điểm kêu đầu tiên)
+```
+
+Bản đầu viết `W_GRAPH*g + W_TIME*t + W_MAGNITUDE*m`. **Bỏ dần cả ba số hạng phụ, mỗi lần đều
+vì kiểm chiều FAIL cho thấy số hạng đó không đổi được kết quả nào:**
+
+| Đã bỏ | Vì sao |
+|---|---|
+| `W_MAGNITUDE` (độ lớn lỗi) | Đặt về 0 không test nào đổi. **Và nó kéo sai hướng**: mandate cấm dừng ở triệu chứng downstream, mà downstream chính là chỗ có volume lỗi lớn nhất (cart chết → checkout lỗi 100%, cart chỉ lỗi ở phần request chạm tới nó). Vẫn **đọc và báo cáo** tỉ lệ lỗi làm bối cảnh, chỉ không cho tham gia quyết định |
+| `W_TIME` (thứ tự thời gian) | Tiebreak `(-score, t_first)` đã làm đúng việc đó. Đặt `W_TIME=0` vẫn xanh hết |
+| `UNLINKED_PENALTY` 0.2 | Đặt lại thành 1.0 vẫn xanh hết → đổi sang loại hẳn (quyết định 5) |
+| `MIN_LINKED_FOR_CASCADE` | `_linked` đối xứng nên tập `linked` là 0 hoặc ≥2, không bao giờ đúng 1 — một ngưỡng nhận giá trị nào cũng như nhau là ngưỡng giả |
+
+**Bài học chung, đáng giữ hơn cả code:** một tham số không đổi được kết quả nào là một nút
+giật cho có. Nó làm mô hình **trông** phức tạp hơn năng lực thật của nó. Bốn cái ở trên chỉ
+lộ ra vì mỗi cơ chế đều bị phá thử để xem có test nào đỏ không.
+
+### 7. `confidence` là `None` khi đồ thị không đóng góp
+Khi không ai phụ thuộc vào ai, mọi điểm bằng 0 và thứ tự hoàn toàn do thời gian. Lúc đó
+`basis: "temporal-only"` và `confidence: null` — **bịa một con số ở đó là nói dối**. Phần
+giải thích nói thẳng rằng kết luận yếu hơn bình thường.
+
+## Alternatives considered
+
+- **Bật `servicegraph` connector của collector** (`traces_service_graph_request_total{client,
+  server}`) — đúng chuẩn nhất, không phải suy luận từ `span_name`. Loại cho vòng này vì phải
+  sửa `values.yaml` = đất của CDO, cần co-sign và một vòng deploy. **Đây là đường nâng cấp
+  đúng**, ghi lại để vòng sau làm.
+- **Chạy thường trực trong cụm, tự gắn RCA vào mỗi cụm alert** — ăn điểm vận hành, nhưng
+  mandate không đòi chạy liên tục (*"hệ phải sẵn sàng để mentor tự đưa ca kiểm vào"*), và
+  thêm một Deployment + RBAC là thêm mặt lỗi cho zero điểm mandate. → CLI offline.
+- **Chấm bằng mô hình học không giám sát trên lịch sử alert** — cần catalog fault để học, mà
+  mandate lại chấm bằng ca **chưa từng thấy**. Đồ thị + mốc thời gian không học gì nên hình
+  dạng cascade nào cũng chạy. → Loại, và đây chính là câu trả lời cho nice-to-have #3.
+- **Dùng `leading_indicators` của `correlate.py` làm bằng chứng thời gian** → xem quyết định 1.
+
+## Consequences
+
+- **Đồ thị suy từ `span_name` CHƯA verify được trên cụm** (SSO hết hạn 29/07). Khớp `span_name`
+  đúng với gRPC (`Package.Service/Method` dùng chung tên hai đầu), kém chắc với HTTP. Nếu khớp
+  hụt thì `topology.json` gánh — và file tĩnh sẽ lỗi thời âm thầm. Ví dụ sống: `checkout →
+  payment` từng là gRPC đồng bộ, chuyển sang Kafka 25/07. **Đây là nợ thật, không phải giả định.**
+- `oom-detected` hiện báo `service: "unknown"` (TF1-116) nên mọi OOM bị bỏ qua khỏi RCA —
+  sửa TF1-116 thì RCA tự khá lên, không phải đụng `diagnose.py`.
+- Bộ đo hoàn toàn offline (19 test, `aiops/test_diagnose.py`), mỗi fixture có gốc thật biết
+  trước, và **có kiểm chiều fail**: phá 8 cơ chế thì cả 8 đều có test đỏ.

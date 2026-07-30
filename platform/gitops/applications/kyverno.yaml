@@ -48,7 +48,7 @@ spec:
                 # Đường values ĐÚNG là admissionController.rbac.serviceAccount.annotations
                 # (không phải serviceAccount.annotations ở gốc — path đó chart bỏ qua
                 # im lặng, IRSA sẽ không được annotate mà không báo lỗi gì).
-                eks.amazonaws.com/role-arn: arn:aws:iam::804372444787:role/ecommerce-dev-kyverno
+                eks.amazonaws.com/role-arn: arn:aws:iam::384511757667:role/ecommerce-dev-kyverno
           container:
             # Default chart: 100m/128Mi req, 384Mi limit. Nâng riêng MEMORY vì
             # verifyImages keyless giữ TUF root + cache Rekor/Fulcio trong RAM, còn
@@ -96,7 +96,7 @@ spec:
           rbac:
             serviceAccount:
               annotations:
-                eks.amazonaws.com/role-arn: arn:aws:iam::804372444787:role/ecommerce-dev-kyverno
+                eks.amazonaws.com/role-arn: arn:aws:iam::384511757667:role/ecommerce-dev-kyverno
           # Nâng memory vì reports-controller cũng verify chữ ký khi background-scan
           # sinh PolicyReport — cùng lý do với admission controller. limits.cpu khai
           # tường minh vì VAP require-resources (xem admissionController ở trên).
