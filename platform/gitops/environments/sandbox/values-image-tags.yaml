@@ -14,64 +14,64 @@ components:
       # Sua tay 1 lan (incident 2026-07-16): tag tran "1.1-cart" bi ECR lifecycle
       # policy xoa -> ImagePullBackOff; image rebuild tu source, push tag sha.
       # Tags file prod chi doi qua promote PR (CI khong bump thang vao sandbox).
-      tag: "1.0-cart-4986041"
+      tag: "1.0-cart-5b99f29"
   cart-consumer-worker:
     imageOverride:
       tag: "1.0-cart-4986041"
   checkout:
     imageOverride:
-      tag: "1.0-checkout-6beefa4"
+      tag: "1.0-checkout-5b99f29"
   frontend-proxy:
     imageOverride:
-      tag: "1.0-frontend-proxy-6beefa4"
+      tag: "1.0-frontend-proxy-5b99f29"
   product-catalog:
     imageOverride:
-      tag: "1.0-product-catalog-6beefa4"
+      tag: "1.0-product-catalog-5b99f29"
   ad:
     imageOverride:
-      tag: 1.0-ad-6beefa4
+      tag: 1.0-ad-5b99f29
   currency:
     imageOverride:
-      tag: 1.0-currency-8909351
+      tag: 1.0-currency-5b99f29
   accounting:
     imageOverride:
-      tag: 1.0-accounting-6beefa4
+      tag: 1.0-accounting-5b99f29
   product-reviews:
     imageOverride:
-      tag: 1.0-product-reviews-6beefa4
+      tag: 1.0-product-reviews-5b99f29
   llm:
     imageOverride:
-      tag: 1.0-llm-6beefa4
+      tag: 1.0-llm-5b99f29
   load-generator:
     imageOverride:
-      tag: 1.0-load-generator-6beefa4
+      tag: 1.0-load-generator-5b99f29
   quote:
     imageOverride:
-      tag: 1.0-quote-6beefa4
+      tag: 1.0-quote-5b99f29
   recommendation:
     imageOverride:
-      tag: 1.0-recommendation-6855da8
+      tag: 1.0-recommendation-5b99f29
   shipping:
     imageOverride:
-      tag: 1.0-shipping-18ab2f7
+      tag: 1.0-shipping-5b99f29
   shopping-copilot:
     imageOverride:
-      tag: 1.0-shopping-copilot-6beefa4
+      tag: 1.0-shopping-copilot-5b99f29
   ml-guard:
     imageOverride:
-      tag: 1.0-ml-guard-6beefa4
+      tag: 1.0-ml-guard-5b99f29
   fraud-detection:
     imageOverride:
-      tag: 1.0-fraud-detection-6beefa4
+      tag: 1.0-fraud-detection-5b99f29
   frontend:
     imageOverride:
-      tag: 1.0-frontend-6beefa4
+      tag: 1.0-frontend-5b99f29
   image-provider:
     imageOverride:
-      tag: 1.0-image-provider-6beefa4
+      tag: 1.0-image-provider-5b99f29
   payment:
     imageOverride:
-      tag: 1.0-payment-03a92c8
+      tag: 1.0-payment-5b99f29
   email:
     imageOverride:
-      tag: 1.0-email-6beefa4
+      tag: 1.0-email-5b99f29
