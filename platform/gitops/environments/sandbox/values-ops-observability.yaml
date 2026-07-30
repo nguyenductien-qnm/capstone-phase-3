@@ -60,6 +60,17 @@ jaeger:
         labelSelector:
           matchLabels:
             app.kubernetes.io/name: jaeger
+      # mandate-21 gap fix (31-07-2026): host-only spread means "different AZ"
+      # was only coincidental (primary nodegroup happens to have 1 node/AZ).
+      # Add a real zone-level guarantee, matching the pattern already used by
+      # Prometheus (podAntiAffinityTopologyKey: topology.kubernetes.io/zone).
+      - maxSkew: 1
+        topologyKey: topology.kubernetes.io/zone
+        whenUnsatisfiable: DoNotSchedule
+        minDomains: 2
+        labelSelector:
+          matchLabels:
+            app.kubernetes.io/name: jaeger
     resources:
       requests:
         cpu: 100m
@@ -155,6 +166,15 @@ grafana:
       labelSelector:
         matchLabels:
           app.kubernetes.io/name: grafana
+    # mandate-21 gap fix (31-07-2026): same reasoning as jaeger above — add a
+    # real zone-level guarantee instead of relying on host-spread coincidence.
+    - maxSkew: 1
+      topologyKey: topology.kubernetes.io/zone
+      whenUnsatisfiable: DoNotSchedule
+      minDomains: 2
+      labelSelector:
+        matchLabels:
+          app.kubernetes.io/name: grafana
   podLabels:
     egress-internet: "true"
   plugins:
@@ -203,6 +223,9 @@ thanos:
         cpu: "1"
         memory: 1Gi
     podAntiAffinityPreset: hard
+    # mandate-21 gap fix (31-07-2026): default anti-affinity topology is
+    # hostname; match Prometheus's real zone-level guarantee.
+    podAntiAffinityTopologyKey: topology.kubernetes.io/zone
     nodeSelector:
       workload-tier: platform
   queryFrontend:
@@ -223,6 +246,9 @@ thanos:
         cpu: "1"
         memory: 4Gi
     podAntiAffinityPreset: hard
+    # mandate-21 gap fix (31-07-2026): default anti-affinity topology is
+    # hostname; match Prometheus's real zone-level guarantee.
+    podAntiAffinityTopologyKey: topology.kubernetes.io/zone
     nodeSelector:
       workload-tier: platform
     persistence:
@@ -235,6 +261,9 @@ thanos:
     service:
       additionalHeadless: true
     podAntiAffinityPreset: hard
+    # mandate-21 gap fix (31-07-2026): default anti-affinity topology is
+    # hostname; match Prometheus's real zone-level guarantee.
+    podAntiAffinityTopologyKey: topology.kubernetes.io/zone
     nodeSelector:
       workload-tier: platform
     persistence:
