@@ -209,6 +209,8 @@ jobs:
       TF_VAR_audit_slack_webhook_url: ${{ secrets.AUDIT_SLACK_WEBHOOK_URL }}
       TF_VAR_audit_pipeline_health_email: ${{ secrets.AUDIT_PIPELINE_HEALTH_EMAIL }}
       TF_VAR_mandate_12_alert_email: ${{ secrets.MANDATE_12_ALERT_EMAIL }}
+      TF_VAR_tailscale_oauth_client_id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
+      TF_VAR_tailscale_oauth_client_secret: ${{ secrets.TAILSCALE_OAUTH_CLIENT_SECRET }}
     concurrency:
       group: terraform-sandbox-state
       cancel-in-progress: false
@@ -309,6 +311,8 @@ jobs:
       TF_VAR_audit_slack_webhook_url: ${{ secrets.AUDIT_SLACK_WEBHOOK_URL }}
       TF_VAR_audit_pipeline_health_email: ${{ secrets.AUDIT_PIPELINE_HEALTH_EMAIL }}
       TF_VAR_mandate_12_alert_email: ${{ secrets.MANDATE_12_ALERT_EMAIL }}
+      TF_VAR_tailscale_oauth_client_id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
+      TF_VAR_tailscale_oauth_client_secret: ${{ secrets.TAILSCALE_OAUTH_CLIENT_SECRET }}
     concurrency:
       group: terraform-sandbox-state
       cancel-in-progress: false
