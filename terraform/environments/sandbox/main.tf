@@ -316,7 +316,8 @@ module "external_secrets_irsa" {
     module.elasticache.secret_arn,
     module.msk.msk_secret_arn,
     module.msk.msk_endpoint_secret_arn,
-    "arn:aws:secretsmanager:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secret:${var.project_name}-${var.environment}-bedrock-config-*"
+    "arn:aws:secretsmanager:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secret:${var.project_name}-${var.environment}-bedrock-config-*",
+    aws_secretsmanager_secret.tailscale_oauth.arn,
   ]
 
   # Secret MSK mã hoá bằng KMS key riêng của module msk -> ESO cần kms:Decrypt trên
