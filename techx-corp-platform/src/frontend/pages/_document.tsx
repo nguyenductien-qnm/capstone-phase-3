@@ -35,7 +35,12 @@ export default class MyDocument extends Document<{ envString: string }> {
         };`;
       return {
         ...initialProps,
-        styles: [initialProps.styles, sheet.getStyleElement()],
+        styles: (
+          <>
+            {initialProps.styles}
+            {sheet.getStyleElement()}
+          </>
+        ),
         envString,
       };
     } finally {

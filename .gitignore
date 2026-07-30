@@ -1,6 +1,22 @@
 # Ignore CodeGraph index directory
 .codegraph/
 
+# OS and editor files
+.DS_Store
+.idea/
+.vscode/
+
+# Python generated files
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Local environment and secret files
+.env
+.env.*
+!.env.example
+
 # Ignore local Terraform directories
 .terraform/
 
@@ -8,14 +24,57 @@
 *.tfstate
 *.tfstate.*
 errored.tfstate
+tfplan
+*.tfplan
 
 # Ignore sensitive variable files
 *.tfvars
 *.tfvars.json
+!terraform/environments/*/access.auto.tfvars
+!terraform/environments/sandbox/primary-capacity.tfvars
+# Node subnet cho Karpenter: không chứa secret/account ID, PHẢI được commit —
+# thiếu nó thì private_node_subnets = {} (default) và CI plan ra 0 subnet.
+!terraform/environments/sandbox/node-subnets.auto.tfvars
 
 # Ignore temporary logs
 *.log
-docs/ai/evals/drift_evidence.json
+# ...except run logs under report/, which ARE the deliverable: the AI mandates
+# are graded on "bằng chứng chạy thật" (AI_MANDATE_EVIDENCE.md muc 3), and that
+# evidence is the captured stdout of the run.
+!report/**/*.log
 
-docs/ai/evals/drift_window_state.json
+# Ignore local reports
+vinh/jira_week2_report.md
 
+# Ignore generated eval reports (TF-64)
+docs/ai/evals/eval_report_*.json
+# Build and test output
+dist/
+build/
+coverage/
+.coverage
+
+# Bản gốc BTC phát (xbrain-learners/phase3) — dùng để diff, không commit
+_baseline-phase3/
+
+# Python bytecode & local artifacts (review 12/07: pycache tung bi commit o root)
+*.pyc
+*.db
+
+# CDO-83 evidence output (runtime snapshots)
+docs/templates/cdo/evidence/
+docs/ai/evals/evidence/
+docs/ai/gap_analysis.md
+
+# Local agents configuration
+.agents/
+
+# Jira Agent package (contains .env with API tokens)
+Jira_Agent_Week2_Package/
+
+# aiops/remediation/audit_log.jsonl: file runtime cua vong tu dap (TF1-112).
+# Tren EKS no nam o emptyDir /data; o may ca nhan thi mac dinh ghi canh module.
+# Khong commit — no la du lieu chay, khong phai ma nguon.
+aiops/remediation/audit_log.jsonl
+\n# Playwright MCP\n.playwright-mcp/
+.playwright-mcp/
