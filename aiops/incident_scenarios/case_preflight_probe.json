@@ -1,0 +1,36 @@
+{
+  "id": "case-preflight-probe-001",
+  "type": "real",
+  "description": "THAM DO TRUOC `case_sustained_stacked.json`. Chay cai nay (7 phut) truoc cai kia (40 phut). No tra loi dung MOT cau hoi chan: giet `quote` thi `shipping` co sinh span STATUS_CODE_ERROR that khong, hay `shipping` nuot loi bang fallback im lang. Neu nuot thi su kien 2 cua kich ban dai se FAIL vi ly do SAI, va ta se mat 40 phut + lam gian doan cum ma khong hoc duoc gi.",
+  "settle_seconds": 120,
+  "events": [
+    {
+      "label": "tham-do-quote-shipping",
+      "service": "shipping",
+      "expected_rule_ids": [
+        "service-error-rate-high"
+      ],
+      "expect_fire": true,
+      "offset_seconds": 0,
+      "duration_seconds": 180,
+      "inject": {
+        "type": "command",
+        "on": "kubectl scale deploy/quote -n techx-tf1 --replicas=0",
+        "off": "kubectl scale deploy/quote -n techx-tf1 --replicas=2"
+      }
+    }
+  ],
+  "notes": [
+    "DOC KET QUA THE NAO. PASS = `shipping` co alert `service-error-rate-high` trong cua so -> cap quote/shipping dung duoc, chay tiep kich ban dai. FAIL = khong co alert nao -> `shipping` khong bao loi khi `quote` chet (nhieu kha nang co fallback, hoac loi nam o span CLIENT ma rule khong dem). Khi do PHAI doi cap khac chu KHONG duoc chay kich ban dai.",
+
+    "NEU FAIL THI DOI SANG DAU. Rang buoc van nguyen: nan nhan cua su kien 2 khong duoc la `frontend`, `checkout` hay `cart` (ca ba deu do san vi su kien 1 giet cart). Ung vien tiep theo, theo do thi do 30/07: `productCatalogFailure`-style — giet `product-catalog` thi `recommendation` va `product-reviews` cung do, va ca hai deu KHONG goi cart. Nhung ban kinh rong hon han (product-catalog con bi frontend + checkout goi), nen chi dung khi quote/shipping that su khong duoc.",
+
+    "180s DU CHUA. Rule `service-error-rate-high` doc cua so 5m nhung detector poll 30s va tang TINH (nguong SLO) khong can baseline. Giet 180s thi ti le loi cua `shipping` len gan 100% trong vong vai chu ky — du de vuot nguong tinh. Neu 180s ma khong keu thi keo dai hon cung khong doi ket luan: van la `shipping` khong bao loi.",
+
+    "KHONG DE THAM DO NAY DAI HON. Muc dich la tra loi mot cau hoi nhi phan, khong phai do gi. Cang ngan cang it lam phien nguoi khac dang dung cum.",
+
+    "LENH CUU HO neu tien trinh chet giua chung:\n    kubectl scale deploy/quote -n techx-tf1 --replicas=2",
+
+    "TIEN QUYET giong kich ban dai: `memory-saturation-high` phai duoi 0.85 (30/07 prometheus-server o 0.887 va da OOMKilled that), va cum khong dang co load test chay."
+  ]
+}
