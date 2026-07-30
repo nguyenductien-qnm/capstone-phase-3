@@ -1,0 +1,39 @@
+# Tailscale Kubernetes Operator (ADR-001, docs/05_adr/ADR-log-cdo05.md).
+# Chart này tạo IngressClass "tailscale" + proxy pod cho 4 Ingress đã có ở
+# platform/gitops/tailscale/ (app tailscale-ingress). oauth.clientId/clientSecret
+# CỐ Ý bỏ trống trong values — chart mặc định tự tìm Secret "operator-oauth"
+# (client_id/client_secret) trong namespace của nó; Secret đó do ExternalSecret
+# platform/gitops/tailscale/operator-oauth-external-secret.yaml sinh ra, đọc
+# từ AWS Secrets Manager (ecommerce-dev-tailscale-oauth) — không hardcode secret
+# trong Helm values / git.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: tailscale-operator
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    # Phải sync TRƯỚC tailscale-ingress (wave mặc định "0") để IngressClass
+    # "tailscale" tồn tại trước khi 4 Ingress kia được ArgoCD apply.
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  project: default
+  source:
+    repoURL: https://pkgs.tailscale.com/helmcharts
+    chart: tailscale-operator
+    targetRevision: 1.98.9
+    helm:
+      values: |
+        operatorConfig:
+          defaultTags:
+            - "tag:k8s-operator"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: tailscale
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
