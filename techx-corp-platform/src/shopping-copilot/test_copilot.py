@@ -133,6 +133,24 @@ def test_degraded_on_bedrock_failure():
     assert res.text and "trợ lý" in res.text.lower()
 
 
+def test_garbage_output_is_blocked_before_tool_execution():
+    executed = []
+    original_flag = agent._check_flag
+    original_tool = tools.get_cart
+    agent._check_flag = lambda name, default=False: name == "llmFaultGarbageOutput"
+    tools.get_cart = lambda user_id: executed.append(user_id) or '{"status":"ok"}'
+    try:
+        res = agent.run_agent(
+            FakeBedrock([_tool_use("get_cart", {})]), "m",
+            [{"role": "user", "content": [{"text": "show cart"}]}], "u1",
+        )
+        assert res.degraded is True
+        assert res.actions_taken == []
+        assert executed == [], "malformed output reached tool execution"
+    finally:
+        agent._check_flag = original_flag
+        tools.get_cart = original_tool
+
 
 def test_thinking_tags_are_stripped():
     res = agent.run_agent(FakeBedrock([_end("<thinking>hidden</thinking> Visible answer")]), "m",
@@ -142,7 +160,7 @@ def test_thinking_tags_are_stripped():
     assert res.text == "Visible answer"
 
 
-def test_reasoning_in_trace_steps():
+def test_raw_reasoning_is_not_exposed_in_trace_steps():
     import json
     orig = tools.get_cart
     tools.get_cart = lambda uid: '{"status":"ok","items":[]}'
@@ -158,8 +176,8 @@ def test_reasoning_in_trace_steps():
 
         assert len(res.trace_steps) >= 1
         detail = json.loads(res.trace_steps[0]["detail"])
-        assert "reasoning" in detail
-        assert "Checking cart now." in detail["reasoning"]
+        assert "reasoning" not in detail
+        assert "Checking cart now." not in res.trace_steps[0]["detail"]
     finally:
         tools.get_cart = orig
 
@@ -169,7 +187,8 @@ if __name__ == "__main__":
     test_read_tool_routing_and_audit()
     test_max_loop_limit()
     test_degraded_on_bedrock_failure()
+    test_garbage_output_is_blocked_before_tool_execution()
     test_thinking_tags_are_stripped()
-    test_reasoning_in_trace_steps()
+    test_raw_reasoning_is_not_exposed_in_trace_steps()
 
     print("OK — all shopping-copilot self-checks passed")

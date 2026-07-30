@@ -1087,6 +1087,7 @@ services:
       - BEDROCK_AWS_EXTERNAL_ID
       - AWS_REGION
       - AWS_SHARED_CREDENTIALS_FILE=/app/.aws/credentials
+      - LLM_FAULT_GARBAGE_OUTPUT
       - OTEL_EXPORTER_OTLP_ENDPOINT
       - OTEL_SERVICE_NAME=shopping-copilot
       - OTEL_RESOURCE_ATTRIBUTES

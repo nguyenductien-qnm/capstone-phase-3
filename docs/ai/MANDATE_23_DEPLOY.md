@@ -29,7 +29,7 @@ Có 2 file migration cần chạy. Cả hai đều là `CREATE ... IF NOT EXISTS
 
 ```bash
 RDS_URL=$(kubectl -n techx-tf1 get secret db-secret -o jsonpath='{.data.reviews-db-conn}' | base64 -d)
-psql "$RDS_URL" -v ON_ERROR_STOP=1 -f docs/ai/migrations/m23_ai_schema.sql
+RDS_URL="postgresql://..." bash docs/ai/migrations/apply_m23.sh
 ```
 
 ### 0b. Schema `catalog.product_embeddings_v2` (Semantic Search + Recommendations)

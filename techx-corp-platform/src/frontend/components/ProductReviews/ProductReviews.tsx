@@ -6,6 +6,7 @@ import { TraceCitationPanel } from '../TraceCitationPanel';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { MandateBadges } from '../MandateExperience/MandateExperience';
 
 const clamp = (n: number, min = 0, max = 5) => Math.max(min, Math.min(max, n));
 
@@ -52,7 +53,10 @@ const ProductReviews = () => {
   return (
     <div aria-live="polite" data-cy={CypressFields.ProductReviews} className="flex flex-col gap-6">
       <Card className="p-4" data-cy="AskAISection">
-        <h3 className="mb-3 text-lg font-bold">Ask AI About This Product</h3>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-lg font-bold">Ask AI About This Product</h3>
+          <MandateBadges compact />
+        </div>
         <div className="flex gap-2">
           <Input
             id="ask-ai-input"
@@ -89,7 +93,7 @@ const ProductReviews = () => {
             <p className="rounded-md bg-muted p-3 text-sm">
               <strong>AI Response:</strong> {typeof aiResponse === 'string' ? aiResponse : aiResponse.text}
             </p>
-            {typeof aiResponse !== 'string' && aiResponse.traceId && (
+            {typeof aiResponse !== 'string' && (aiResponse.traceId || aiResponse.traceSteps?.length || aiResponse.citations?.length) && (
               <TraceCitationPanel
                 traceId={aiResponse.traceId}
                 citations={aiResponse.citations}

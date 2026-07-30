@@ -49,6 +49,7 @@ from openai import OpenAI
 
 # Model Router
 from model_router import ModelRouter
+from llm_trace import build_trace_record, record_trace
 
 from botocore.exceptions import ClientError, ReadTimeoutError, ConnectTimeoutError, BotoCoreError
 from botocore.config import Config
@@ -529,9 +530,9 @@ def invoke_bedrock_converse_with_fallback(messages, system_prompt, tool_config=N
                 
                 with _cb_lock:
                     _cb_state["failures"] = 0
-                return response
+                return response, main_model, "ok"
                 
-            except (ClientError, BotoCoreError) as e:
+            except Exception as e:
                 # BotoCoreError phu ca NoCredentials/EndpointConnection/timeout — loi ngoai du kien
                 # khong duoc phep thoat khoi ladder (fallback/CB phai van hanh voi moi lop loi).
                 is_retryable = isinstance(e, (ReadTimeoutError, ConnectTimeoutError))
@@ -595,9 +596,9 @@ def invoke_bedrock_converse_with_fallback(messages, system_prompt, tool_config=N
                 # Record Bedrock token usage metrics
                 _record_bedrock_metrics(response, fallback_model, status="fallback")
                 
-                return response
+                return response, fallback_model, "fallback"
                 
-            except (ClientError, BotoCoreError) as e:
+            except Exception as e:
                 # BotoCoreError phu ca NoCredentials/EndpointConnection/timeout — loi ngoai du kien
                 # khong duoc phep thoat khoi ladder (fallback/CB phai van hanh voi moi lop loi).
                 is_retryable = isinstance(e, (ReadTimeoutError, ConnectTimeoutError))
@@ -624,8 +625,9 @@ def invoke_bedrock_converse_with_fallback(messages, system_prompt, tool_config=N
                     logger.error(f"Fallback Model exhausted or failed with non-retryable error. Code: {err_code}, Msg: {err_msg}")
                     break
                     
-    # 3. If we reach here, both primary and fallback failed
-    raise Exception("All model attempts exhausted or failed.")
+    # 3. Both primary and fallback failed: return explicit route metadata so callers
+    # can emit an honest zero-cost error trace before serving the safe fallback.
+    return None, fallback_model, "error"
 
 def get_titan_embedding(text):
     with tracer.start_as_current_span("bedrock_embed") as span:
@@ -868,17 +870,35 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                 ai_assistant_response.trace_steps.extend(trace_steps)
                 return ai_assistant_response
             try:
-                response = invoke_bedrock_converse_with_fallback(
+                response, actual_model_id, model_outcome = invoke_bedrock_converse_with_fallback(
                     messages=messages,
                     system_prompt=system_prompt,
                     tool_config=None
                 )
+                if response is None:
+                    raise RuntimeError("All model attempts exhausted or failed")
                 result = response["output"]["message"]["content"][0]["text"]
             except Exception as e:
+                actual_model_id = locals().get("actual_model_id", os.environ.get(
+                    "LLM_REVIEWS_FALLBACK_MODEL", "amazon.nova-micro-v1:0"))
+                model_outcome = "error"
                 logger.error(f"Bedrock converse failure: {str(e)}")
                 logger.error(f"AI_SUMMARY_FALLBACK stage=bedrock reason={type(e).__name__}")
                 span.record_exception(e)
                 span.set_status(Status(StatusCode.ERROR, description=str(e)))
+                trace_id = f"{span.get_span_context().trace_id:032x}" if span.get_span_context().is_valid else ""
+                record_trace(valkey_client, build_trace_record(
+                    trace_id=trace_id, session_id="", model_id=actual_model_id, usage={},
+                    latency_s=time.time() - start_llm, outcome=model_outcome, tool_calls=[],
+                    surface="product-reviews", messages=messages,
+                ))
+                trace_steps.append(demo_pb2.TraceStep(
+                    step_name="Model Gateway & Bedrock Nova",
+                    latency_ms=int((time.time() - start_llm) * 1000),
+                    status=model_outcome,
+                    detail=redact_pii(json.dumps({"routed_model": actual_model_id}, ensure_ascii=False))
+                ))
+                ai_assistant_response.trace_id = trace_id
                 ai_assistant_response.response = MOCK_SUMMARY_VI
                 ai_assistant_response.trace_steps.extend(trace_steps)
                 return ai_assistant_response
@@ -936,8 +956,16 @@ def get_ai_assistant_response(request_product_id, question, context=None):
             trace_steps.append(demo_pb2.TraceStep(
                 step_name="Model Gateway & Bedrock Nova",
                 latency_ms=lat_llm,
-                status="ok",
-                detail=redact_pii(json.dumps({"routed_model": os.environ.get('LLM_REVIEWS_MAIN_MODEL', 'amazon.nova-micro-v1:0')}, ensure_ascii=False))
+                status=model_outcome,
+                detail=redact_pii(json.dumps({"routed_model": actual_model_id}, ensure_ascii=False))
+            ))
+            current_span = trace.get_current_span()
+            trace_id = (f"{current_span.get_span_context().trace_id:032x}"
+                        if current_span and current_span.get_span_context().is_valid else "")
+            record_trace(valkey_client, build_trace_record(
+                trace_id=trace_id, session_id="", model_id=actual_model_id,
+                usage=response.get("usage", {}), latency_s=lat_llm / 1000,
+                outcome=model_outcome, tool_calls=[], surface="product-reviews", messages=messages,
             ))
             ai_assistant_response.trace_steps.extend(trace_steps)
 

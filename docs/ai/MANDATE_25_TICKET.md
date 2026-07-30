@@ -12,15 +12,9 @@ Branch: `feat/mandates-23-to-25-and-ui-refactoring`
 ---
 
 ## 2. Cách chạy lại (repro)
-Sử dụng cờ (flag) mô phỏng lỗi dữ liệu rác để kiểm tra cơ chế kiểm tra đầu ra và dự phòng (degraded fallback):
-1. Bật flag `llmFaultGarbageOutput` thành `true` trong file `src/flagd/demo.flagd.json`
-2. Chạy script để xem hướng dẫn và vị trí log:
+Script tự backup/restore flag, build đúng image hiện tại, bật fault injection, gửi gRPC thật, assert `degraded=true` + không có tool action và chỉ lưu log evidence đã lọc:
 ```bash
 ./repro_m25.sh
-```
-3. Khởi động lại service và gọi GRPC để thu thập log Circuit Breaker/Output Validator:
-```bash
-docker compose logs shopping-copilot | grep -E 'Garbage|degraded|Circuit Breaker'
 ```
 
 ---

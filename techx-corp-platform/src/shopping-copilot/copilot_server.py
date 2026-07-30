@@ -277,13 +277,8 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
             result = agent.run_agent(self._bedrock, routed_model, session, request.user_id,
                                      valkey_client=self._valkey, session_id=session_id)
             lat_llm = int((time.time() - start_llm) * 1000)
-            trace_steps.append(demo_pb2.TraceStep(
-                step_name="Model Gateway & Bedrock Nova",
-                latency_ms=lat_llm,
-                status="ok",
-                detail=redact_pii(json.dumps({"routed_model": routed_model}, ensure_ascii=False))
-            ))
-            
+
+            # run_agent owns the model route/outcome because only it knows whether fallback answered.
             for ts in result.trace_steps:
                 trace_steps.append(demo_pb2.TraceStep(
                     step_name=ts.get("step_name", ""),

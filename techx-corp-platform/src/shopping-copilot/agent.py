@@ -444,7 +444,7 @@ def invoke_bedrock_converse_with_fallback(primary_client, model_id, system, mess
                 if tool_config: kwargs["toolConfig"] = tool_config
                 res = primary_client.converse(**kwargs)
                 with _cb_lock: _cb_state["failures"] = 0
-                return res
+                return res, model_id, "ok"
             except Exception as e:
                 if is_fake:
                     break # let fake exceptions fall through to fallback/failure
@@ -478,10 +478,10 @@ def invoke_bedrock_converse_with_fallback(primary_client, model_id, system, mess
                 "inferenceConfig": inference_config
             }
             if tool_config: kwargs["toolConfig"] = tool_config
-            return fallback_client.converse(**kwargs)
+            return fallback_client.converse(**kwargs), fallback_model, "fallback"
         except Exception as e:
             if is_fake:
-                raise e
+                return None, fallback_model, "error"
             is_retryable = False
             if isinstance(e, ClientError):
                 status_code = e.response.get("ResponseMetadata", {}).get("HTTPStatusCode", 500)
@@ -493,7 +493,7 @@ def invoke_bedrock_converse_with_fallback(primary_client, model_id, system, mess
                 time.sleep(random.uniform(0, 0.05 * (1.5 ** attempt)))
                 attempt += 1
             else:
-                raise e
+                return None, fallback_model, "error"
 def _record_model_trace(vc, trace_id, session_id, model_id, usage, latency_s, outcome, blocks, messages):
     """Fire-and-forget trace record. Never blocks the main path."""
     if not trace_id or vc is None:
@@ -510,7 +510,10 @@ def _record_model_trace(vc, trace_id, session_id, model_id, usage, latency_s, ou
         logger.exception("_record_model_trace")
 
 def _check_flag(name: str, default: bool = False) -> bool:
-    """Delegate to model_router's flagd client. Returns default on any error."""
+    """Delegate to flagd; M25 also has an explicit startup override for deterministic repro."""
+    if name == "llmFaultGarbageOutput" and os.environ.get(
+            "LLM_FAULT_GARBAGE_OUTPUT", "").lower() == "true":
+        return True
     try:
         return model_router.check_feature_flag(name, default)
     except Exception:
@@ -542,16 +545,36 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str,
             bedrock_span.set_attribute("gen_ai.request.model", model_id)
             t_converse = time.time()
             try:
-                response = invoke_bedrock_converse_with_fallback(
-                    primary_client=bedrock_client,
-                    model_id=model_id,
-                    system=[{"text": SYSTEM_PROMPT}],
-                    messages=current,
-                    tool_config={"tools": TOOLS_DEFINITION},
-                    # temperature 0: eval MANDATE-14 chốt xanh bằng 2 lần chạy giống nhau, mà ở
-                    # 0.1 cùng một câu hỏi lúc tóm tắt đúng 5 review lúc lại nói "chưa có đánh giá".
-                    inference_config={"maxTokens": 1024, "temperature": 0.0, "topP": 0.9},
-                )
+                fault_injected = _check_flag("llmFaultGarbageOutput")
+                if fault_injected:
+                    response = {
+                        "stopReason": "tool_use",
+                        "usage": {},
+                        "output": {"message": {"content": []}},
+                    }
+                    actual_model_id, model_outcome = "fault-injection", "error"
+                    logger.warning("M25 fault injection: garbage output → testing output validator")
+                else:
+                    response, actual_model_id, model_outcome = invoke_bedrock_converse_with_fallback(
+                        primary_client=bedrock_client,
+                        model_id=model_id,
+                        system=[{"text": SYSTEM_PROMPT}],
+                        messages=current,
+                        tool_config={"tools": TOOLS_DEFINITION},
+                        # temperature 0: eval MANDATE-14 chốt xanh bằng 2 lần chạy giống nhau.
+                        inference_config={"maxTokens": 1024, "temperature": 0.0, "topP": 0.9},
+                    )
+                if response is None:
+                    _record_model_trace(valkey_client, trace_id_hex, session_id, actual_model_id, {},
+                                        time.time() - t_converse, model_outcome, [], current)
+                    trace_steps.append({
+                        "step_name": "Model Gateway & Bedrock Nova",
+                        "latency_ms": int((time.time() - t_converse) * 1000),
+                        "status": model_outcome,
+                        "detail": redact_pii(json.dumps({"routed_model": actual_model_id}, ensure_ascii=False)),
+                    })
+                    return AgentResult(text=_fallback_text(), actions_taken=actions, degraded=True,
+                                       trace_id=trace_id_hex, trace_steps=trace_steps, cacheable=False)
             except ClientError as e:
                 code = e.response["Error"].get("Code", "Unknown") if "Error" in e.response else "Unknown"
                 bedrock_span.set_attribute("error", True)
@@ -572,37 +595,49 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str,
             bedrock_span.set_attribute("gen_ai.response.finish_reason", stop)
             bedrock_span.set_attribute("gen_ai.usage.input_tokens", usage.get("inputTokens", 0))
             bedrock_span.set_attribute("gen_ai.usage.output_tokens", usage.get("outputTokens", 0))
-            logger.info("audit bedrock_usage model=%s input_tokens=%s output_tokens=%s",
-                        model_id, usage.get("inputTokens", "?"), usage.get("outputTokens", "?"))
-            # MANDATE-24: record trace for every model call
-            _record_model_trace(valkey_client, trace_id_hex, session_id, model_id, usage,
-                                time.time() - t_converse, "ok", blocks, current)
-
+            logger.info("audit bedrock_usage model=%s outcome=%s input_tokens=%s output_tokens=%s",
+                        actual_model_id, model_outcome, usage.get("inputTokens", "?"),
+                        usage.get("outputTokens", "?"))
         # MANDATE-25: validate output before processing tool calls
-        _blocks = blocks
-        if _check_flag("llmFaultGarbageOutput"):
-            _blocks = [{"toolUse": {"name": "bad_tool", "input": "not_a_dict"}}]
-            logger.warning("M25 fault injection: garbage output → testing output validator")
+        _blocks = ([{"toolUse": {"name": "bad_tool", "input": "not_a_dict"}}]
+                   if fault_injected else blocks)
         _tool_ok, _tool_err = _validate_tool_calls(_blocks)
         if not _tool_ok:
             logger.error("Garbage output blocked: %s — degraded fallback", _tool_err)
-            return AgentResult(text=_fallback_text(), actions_taken=actions, degraded=True, trace_id=trace_id_hex)
+            latency_s = time.time() - t_converse
+            _record_model_trace(valkey_client, trace_id_hex, session_id, actual_model_id, usage,
+                                latency_s, "error", [], current)
+            trace_steps.append({
+                "step_name": "Output validator",
+                "latency_ms": int(latency_s * 1000),
+                "status": "error",
+                "detail": redact_pii(json.dumps({
+                    "routed_model": actual_model_id,
+                    "error": _tool_err,
+                }, ensure_ascii=False)),
+            })
+            return AgentResult(text=_fallback_text(), actions_taken=actions, degraded=True,
+                               trace_id=trace_id_hex, trace_steps=trace_steps, cacheable=False)
         blocks = _blocks
+        # MANDATE-24: only mark success/fallback after the model output passes validation.
+        _record_model_trace(valkey_client, trace_id_hex, session_id, actual_model_id, usage,
+                            time.time() - t_converse, model_outcome, blocks, current)
 
         # Trace UI: show the model's DECISION this turn (what the AI "thinks" it should do next) —
         # either it chose to call tool(s), or it produced a direct answer.
         _decided = [b["toolUse"]["name"] for b in blocks if "toolUse" in b]
-        _raw_text = "\n".join(b["text"] for b in blocks if "text" in b).strip()
-        
-        detail_dict = {"decided_tools": _decided, "stop_reason": stop}
-        if _raw_text:
-            detail_dict["reasoning"] = _raw_text if len(_raw_text) <= 1500 else _raw_text[:1500] + "... [truncated]"
-
+        # Customer-visible traces expose structured decisions, never raw model reasoning.
+        # Raw text is sanitized/guarded below before it can reach the response.
+        detail_dict = {
+            "decided_tools": _decided,
+            "stop_reason": stop,
+            "routed_model": actual_model_id,
+        }
         trace_steps.append({
             "step_name": (f"LLM → gọi tool: {', '.join(_decided)}" if _decided
                           else "LLM → trả lời trực tiếp"),
             "latency_ms": int((time.time() - t_converse) * 1000),
-            "status": "ok",
+            "status": model_outcome,
             "detail": redact_pii(json.dumps(detail_dict, ensure_ascii=False))
         })
 

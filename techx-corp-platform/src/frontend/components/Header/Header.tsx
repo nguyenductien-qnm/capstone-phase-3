@@ -14,6 +14,7 @@ const Header = () => {
             <S.BrandImg />
           </S.NavBarBrand>
           <S.Controls>
+            <S.NavLink href="/ai-mandates">AI Mandates</S.NavLink>
             <CurrencySwitcher />
             <CartIcon />
           </S.Controls>

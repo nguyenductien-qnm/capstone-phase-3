@@ -51,5 +51,25 @@ export const BrandImg = styled.img.attrs({
 
 export const Controls = styled.div`
   display: flex;
+  align-items: center;
   height: 60px;
+`;
+
+export const NavLink = styled(Link)`
+  display: none;
+  margin-right: 20px;
+  color: ${({ theme }) => theme.colors.textGray};
+  font-weight: ${({ theme }) => theme.fonts.semiBold};
+  text-decoration: none;
+
+  &:hover,
+  &:focus-visible {
+    color: ${({ theme }) => theme.colors.otelBlue};
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+
+  ${({ theme }) => theme.breakpoints.desktop} {
+    display: inline-flex;
+  }
 `;

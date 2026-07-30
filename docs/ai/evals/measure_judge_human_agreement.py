@@ -3,7 +3,8 @@
 This script is deliberately separate from eval_mandate14.py: the latter checks
 machine-verifiable runtime evidence, while this file validates that a semantic
 LLM judge follows the human rubric. It never fabricates labels when Bedrock is
-unavailable.
+unavailable. A checked-in results JSON can be replayed offline with
+``--replay-results judge_human_agreement_results.json``.
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ DEFAULT_MODEL = os.environ.get("LLM_HUMAN_AGREEMENT_MODEL", "amazon.nova-lite-v1
 DEFAULT_REGION = os.environ.get("AWS_REGION", "us-east-1")
 
 RUBRIC_PATH = Path(__file__).parent / "JUDGE_HUMAN_RUBRIC.md"
+RESULTS_PATH = Path(__file__).parent / "judge_human_agreement_results.json"
 
 
 def load_human_cases(dataset_file: str | None = None) -> list[dict]:
@@ -85,6 +87,45 @@ def evaluate_judge_prediction(case: dict, client: Any = None, **kwargs) -> str:
     return judge_case(case, client=client, **kwargs)["label"]
 
 
+def _safe_rationale(value: object) -> str:
+    """Keep replay rationale useful without persisting obvious PII or full model output."""
+    text = str(value).strip()
+    text = re.sub(r"[\w.\-]+@[\w\-]+\.\w{2,}", "<redacted-email>", text)
+    text = re.sub(r"\b(?:\d[ -]?){13,16}\b", "<redacted-number>", text)
+    return text[:500]
+
+
+def save_judge_results(path: str | Path, cases: list[dict], judge_results: list[dict],
+                       model_id: str) -> None:
+    if len(cases) != len(judge_results):
+        raise ValueError("Cases and judge results must have equal length")
+    payload = {
+        "model_id": model_id,
+        "results": [
+            {"case_id": case["case_id"], "label": result["label"],
+             "rationale": _safe_rationale(result.get("rationale", ""))}
+            for case, result in zip(cases, judge_results)
+        ],
+    }
+    Path(path).write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def load_judge_results(path: str | Path, cases: list[dict]) -> tuple[str, list[dict]]:
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    recorded = payload.get("results", [])
+    expected_ids = [case["case_id"] for case in cases]
+    if [result.get("case_id") for result in recorded] != expected_ids:
+        raise ValueError("Recorded result case IDs do not match the adjudicated dataset")
+    results = []
+    for result in recorded:
+        label = str(result.get("label", "")).upper()
+        rationale = str(result.get("rationale", "")).strip()
+        if label not in {"PASS", "FAIL"} or not rationale:
+            raise ValueError(f"Invalid recorded judge result for {result.get('case_id')!r}")
+        results.append({"label": label, "rationale": rationale})
+    return str(payload.get("model_id") or "unknown-recorded-model"), results
+
+
 def compute_cohens_kappa(human_labels: list[str], judge_labels: list[str]) -> tuple[float, float, float, dict]:
     if len(human_labels) != len(judge_labels):
         raise ValueError("Human and judge label lists must have equal length")
@@ -104,8 +145,7 @@ def compute_cohens_kappa(human_labels: list[str], judge_labels: list[str]) -> tu
 
 def generate_report(cases: list[dict], judge_results: list[dict], p_o: float,
                     p_e: float, kappa: float, matrix: dict,
-                    model_id: str = DEFAULT_MODEL) -> str:
-    judge_labels = [r["label"] for r in judge_results]
+                    model_id: str = DEFAULT_MODEL, replayed: bool = False) -> str:
     lines = [
         "# Live Judge ↔ Human Agreement Report (MANDATE-14)", "",
         f"- Total Human-Adjudicated Cases: **{len(cases)}**",
@@ -126,7 +166,13 @@ def generate_report(cases: list[dict], judge_results: list[dict], p_o: float,
         agree = "✅" if case["human_label"] == result["label"] else "❌"
         rationale = result["rationale"].replace("|", "\\|")
         lines.append(f"| `{case['case_id']}` | `{case['category']}` | **{case['human_label']}** | **{result['label']}** | {agree} | {rationale} |")
-    lines += ["", "_Labels above came from a live Bedrock judge call; human labels were loaded from the adjudicated dataset._"]
+    provenance = (
+        "_Labels above were replayed offline from recorded live Bedrock results; "
+        "human labels were loaded from the adjudicated dataset._"
+        if replayed else
+        "_Labels above came from a live Bedrock judge call; human labels were loaded from the adjudicated dataset._"
+    )
+    lines += ["", provenance]
     return "\n".join(lines)
 
 
@@ -136,14 +182,27 @@ def main() -> None:
     parser.add_argument("--model-id", default=DEFAULT_MODEL)
     parser.add_argument("--region", default=DEFAULT_REGION)
     parser.add_argument("--output", default=str(Path(__file__).parent / "judge_human_agreement_report.md"))
+    parser.add_argument("--results-output", default=str(RESULTS_PATH),
+                        help="Save live judge outputs for deterministic offline replay")
+    parser.add_argument("--replay-results",
+                        help="Replay recorded judge outputs instead of calling Bedrock")
     args = parser.parse_args()
     cases = load_human_cases(args.dataset)
-    results = [judge_case(case, model_id=args.model_id, region=args.region) for case in cases]
+    replayed = bool(args.replay_results)
+    if replayed:
+        model_id, results = load_judge_results(args.replay_results, cases)
+    else:
+        model_id = args.model_id
+        results = [judge_case(case, model_id=model_id, region=args.region) for case in cases]
+        save_judge_results(args.results_output, cases, results, model_id)
     human_labels = [c["human_label"] for c in cases]
     judge_labels = [r["label"] for r in results]
     p_o, p_e, kappa, matrix = compute_cohens_kappa(human_labels, judge_labels)
-    Path(args.output).write_text(generate_report(cases, results, p_o, p_e, kappa, matrix, args.model_id), encoding="utf-8")
-    print(f"Evaluated {len(cases)} cases with {args.model_id}.")
+    Path(args.output).write_text(
+        generate_report(cases, results, p_o, p_e, kappa, matrix, model_id, replayed),
+        encoding="utf-8",
+    )
+    print(f"{'Replayed' if replayed else 'Evaluated'} {len(cases)} cases with {model_id}.")
     print(f"Observed Agreement: {p_o * 100:.2f}%")
     print(f"Cohen's Kappa: {kappa:.4f}")
     print(f"Report written to {args.output}")

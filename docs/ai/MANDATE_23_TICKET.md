@@ -7,9 +7,8 @@ Branch: `feat/mandates-23-to-25-and-ui-refactoring`
 |---|---|
 | `f9768646` | fix(ai): MANDATE-23 caching and memory actually work end to end |
 | `4cc47e58` | feat(ai): MANDATE-23 GenAI caching and memory integration |
-| *(pending)* | envelope cache (citations+tool provenance), guardrail parallel, leak needle, product-id guard |
 
-**PR chính:** *(sẽ tạo sau khi push)*
+**PR chính:** [#488 — feat(ai+ui): MANDATE 23 to 25 and UI styled-components refactoring](https://github.com/nguyenductien-qnm/capstone-phase-3/pull/488) *(OPEN; merge sau khi review)*
 
 **PR liên quan:** chung nhánh với MANDATE-14 (TF1-113, PR #371) do cache MANDATE-23 ảnh hưởng trực tiếp đến MANDATE-14 (cache hit làm mất citations → task/grounding/citation đều trượt).
 
