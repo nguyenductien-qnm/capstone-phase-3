@@ -44,10 +44,17 @@ tests:
       - expr: >-
           (
             (
-              sum by (service_name) (rate(traces_span_metrics_calls_total{
-                status_code="STATUS_CODE_ERROR", service_name!="checkout",
-                span_name!="grpc.health.v1.Health/Check",
-                span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[5m]))
+              (
+                sum by (service_name) (rate(traces_span_metrics_calls_total{
+                  status_code="STATUS_CODE_ERROR", service_name!="checkout",
+                  span_name!="grpc.health.v1.Health/Check",
+                  span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[5m]))
+                or
+                sum by (service_name) (rate(traces_span_metrics_calls_total{
+                  service_name!="checkout",
+                  span_name!="grpc.health.v1.Health/Check",
+                  span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[5m])) * 0
+              )
               / clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total{
                 service_name!="checkout",
                 span_name!="grpc.health.v1.Health/Check",
@@ -55,10 +62,17 @@ tests:
             ) / 0.005
             <
             (
-              sum by (service_name) (rate(traces_span_metrics_calls_total{
-                status_code="STATUS_CODE_ERROR", service_name!="checkout",
-                span_name!="grpc.health.v1.Health/Check",
-                span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h]))
+              (
+                sum by (service_name) (rate(traces_span_metrics_calls_total{
+                  status_code="STATUS_CODE_ERROR", service_name!="checkout",
+                  span_name!="grpc.health.v1.Health/Check",
+                  span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h]))
+                or
+                sum by (service_name) (rate(traces_span_metrics_calls_total{
+                  service_name!="checkout",
+                  span_name!="grpc.health.v1.Health/Check",
+                  span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h])) * 0
+              )
               / clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total{
                 service_name!="checkout",
                 span_name!="grpc.health.v1.Health/Check",
@@ -68,10 +82,17 @@ tests:
           or
           (
             (
-              sum by (service_name) (rate(traces_span_metrics_calls_total{
-                status_code="STATUS_CODE_ERROR", service_name!="checkout",
-                span_name!="grpc.health.v1.Health/Check",
-                span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h]))
+              (
+                sum by (service_name) (rate(traces_span_metrics_calls_total{
+                  status_code="STATUS_CODE_ERROR", service_name!="checkout",
+                  span_name!="grpc.health.v1.Health/Check",
+                  span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h]))
+                or
+                sum by (service_name) (rate(traces_span_metrics_calls_total{
+                  service_name!="checkout",
+                  span_name!="grpc.health.v1.Health/Check",
+                  span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h])) * 0
+              )
               / clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total{
                 service_name!="checkout",
                 span_name!="grpc.health.v1.Health/Check",
@@ -88,10 +109,17 @@ tests:
       - expr: >-
           (
             (
-              sum by (service_name) (rate(traces_span_metrics_calls_total{
-                status_code="STATUS_CODE_ERROR", service_name!="checkout",
-                span_name!="grpc.health.v1.Health/Check",
-                span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[5m]))
+              (
+                sum by (service_name) (rate(traces_span_metrics_calls_total{
+                  status_code="STATUS_CODE_ERROR", service_name!="checkout",
+                  span_name!="grpc.health.v1.Health/Check",
+                  span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[5m]))
+                or
+                sum by (service_name) (rate(traces_span_metrics_calls_total{
+                  service_name!="checkout",
+                  span_name!="grpc.health.v1.Health/Check",
+                  span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[5m])) * 0
+              )
               / clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total{
                 service_name!="checkout",
                 span_name!="grpc.health.v1.Health/Check",
@@ -101,10 +129,17 @@ tests:
           and
           (
             (
-              sum by (service_name) (rate(traces_span_metrics_calls_total{
-                status_code="STATUS_CODE_ERROR", service_name!="checkout",
-                span_name!="grpc.health.v1.Health/Check",
-                span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h]))
+              (
+                sum by (service_name) (rate(traces_span_metrics_calls_total{
+                  status_code="STATUS_CODE_ERROR", service_name!="checkout",
+                  span_name!="grpc.health.v1.Health/Check",
+                  span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h]))
+                or
+                sum by (service_name) (rate(traces_span_metrics_calls_total{
+                  service_name!="checkout",
+                  span_name!="grpc.health.v1.Health/Check",
+                  span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h])) * 0
+              )
               / clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total{
                 service_name!="checkout",
                 span_name!="grpc.health.v1.Health/Check",
@@ -133,10 +168,17 @@ tests:
       - expr: >-
           (
             (
-              sum by (service_name) (rate(traces_span_metrics_calls_total{
-                status_code="STATUS_CODE_ERROR", service_name!="checkout",
-                span_name!="grpc.health.v1.Health/Check",
-                span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[5m]))
+              (
+                sum by (service_name) (rate(traces_span_metrics_calls_total{
+                  status_code="STATUS_CODE_ERROR", service_name!="checkout",
+                  span_name!="grpc.health.v1.Health/Check",
+                  span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[5m]))
+                or
+                sum by (service_name) (rate(traces_span_metrics_calls_total{
+                  service_name!="checkout",
+                  span_name!="grpc.health.v1.Health/Check",
+                  span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[5m])) * 0
+              )
               / clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total{
                 service_name!="checkout",
                 span_name!="grpc.health.v1.Health/Check",
@@ -144,10 +186,17 @@ tests:
             ) / 0.005
             <
             (
-              sum by (service_name) (rate(traces_span_metrics_calls_total{
-                status_code="STATUS_CODE_ERROR", service_name!="checkout",
-                span_name!="grpc.health.v1.Health/Check",
-                span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h]))
+              (
+                sum by (service_name) (rate(traces_span_metrics_calls_total{
+                  status_code="STATUS_CODE_ERROR", service_name!="checkout",
+                  span_name!="grpc.health.v1.Health/Check",
+                  span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h]))
+                or
+                sum by (service_name) (rate(traces_span_metrics_calls_total{
+                  service_name!="checkout",
+                  span_name!="grpc.health.v1.Health/Check",
+                  span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h])) * 0
+              )
               / clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total{
                 service_name!="checkout",
                 span_name!="grpc.health.v1.Health/Check",
@@ -157,10 +206,17 @@ tests:
           or
           (
             (
-              sum by (service_name) (rate(traces_span_metrics_calls_total{
-                status_code="STATUS_CODE_ERROR", service_name!="checkout",
-                span_name!="grpc.health.v1.Health/Check",
-                span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h]))
+              (
+                sum by (service_name) (rate(traces_span_metrics_calls_total{
+                  status_code="STATUS_CODE_ERROR", service_name!="checkout",
+                  span_name!="grpc.health.v1.Health/Check",
+                  span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h]))
+                or
+                sum by (service_name) (rate(traces_span_metrics_calls_total{
+                  service_name!="checkout",
+                  span_name!="grpc.health.v1.Health/Check",
+                  span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h])) * 0
+              )
               / clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total{
                 service_name!="checkout",
                 span_name!="grpc.health.v1.Health/Check",
@@ -175,10 +231,17 @@ tests:
       - expr: >-
           (
             (
-              sum by (service_name) (rate(traces_span_metrics_calls_total{
-                status_code="STATUS_CODE_ERROR", service_name!="checkout",
-                span_name!="grpc.health.v1.Health/Check",
-                span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[5m]))
+              (
+                sum by (service_name) (rate(traces_span_metrics_calls_total{
+                  status_code="STATUS_CODE_ERROR", service_name!="checkout",
+                  span_name!="grpc.health.v1.Health/Check",
+                  span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[5m]))
+                or
+                sum by (service_name) (rate(traces_span_metrics_calls_total{
+                  service_name!="checkout",
+                  span_name!="grpc.health.v1.Health/Check",
+                  span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[5m])) * 0
+              )
               / clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total{
                 service_name!="checkout",
                 span_name!="grpc.health.v1.Health/Check",
@@ -188,10 +251,17 @@ tests:
           and
           (
             (
-              sum by (service_name) (rate(traces_span_metrics_calls_total{
-                status_code="STATUS_CODE_ERROR", service_name!="checkout",
-                span_name!="grpc.health.v1.Health/Check",
-                span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h]))
+              (
+                sum by (service_name) (rate(traces_span_metrics_calls_total{
+                  status_code="STATUS_CODE_ERROR", service_name!="checkout",
+                  span_name!="grpc.health.v1.Health/Check",
+                  span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h]))
+                or
+                sum by (service_name) (rate(traces_span_metrics_calls_total{
+                  service_name!="checkout",
+                  span_name!="grpc.health.v1.Health/Check",
+                  span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h])) * 0
+              )
               / clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total{
                 service_name!="checkout",
                 span_name!="grpc.health.v1.Health/Check",
@@ -202,3 +272,123 @@ tests:
         exp_samples:
           - labels: '{service_name="cart"}'
             value: 18.181818181818183
+
+  # ---------------------------------------------------------------------------
+  # CA 3 — service CO traffic nhung CHUA TUNG co span loi.
+  #
+  # Do that tren cum ecommerce-dev-eks 30/07: 15 service co traffic, rule chi sinh 5 series.
+  # 10 service con lai chua tung loi bao gio, nen chuoi tu so khong ton tai va phep chia
+  # khong sinh ra gi. Rule im lang ve chung — ke ca khi chung sap hoan toan.
+  #
+  # Day la thu KHONG fixture nao truoc do bat duoc, vi fixture nao cung dung san CA tu lan mau.
+  # Chi lo ra khi chay tren Prometheus that, noi co nhung service chua bao gio loi.
+  # ---------------------------------------------------------------------------
+  - interval: 1m
+    name: "service sach loi — ban cu VANG MAT, ban moi bao 0"
+    input_series:
+      # `quote` chay tot suot 2 tieng: chi co span OK, khong co MOT span loi nao.
+      - series: 'traces_span_metrics_calls_total{service_name="quote", status_code="STATUS_CODE_OK", span_name="GetQuote", span_kind="SPAN_KIND_SERVER"}'
+        values: '0+6000x120'
+
+    promql_expr_test:
+      # --- BAN CU: tu so khong co chuoi -> ca bieu thuc RONG ---
+      - expr: >-
+          (
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              status_code="STATUS_CODE_ERROR", service_name!="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h]))
+            / clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total{
+              service_name!="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h])), 0.001)
+          ) / 0.005
+        eval_time: 120m
+        # RONG — va `detector-silent-rule` khong bat duoc, vi no chi bao khi CA rule tra
+        # 0 series. Tren cum that rule van tra 5 series tu 5 service khac, nen trong nhu song.
+        exp_samples: []
+
+      # --- BAN MOI: `or <mau so> * 0` -> co so do, bang 0 ---
+      - expr: >-
+          (
+            (
+              sum by (service_name) (rate(traces_span_metrics_calls_total{
+                status_code="STATUS_CODE_ERROR", service_name!="checkout",
+                span_name!="grpc.health.v1.Health/Check",
+                span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h]))
+              or
+              sum by (service_name) (rate(traces_span_metrics_calls_total{
+                service_name!="checkout",
+                span_name!="grpc.health.v1.Health/Check",
+                span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h])) * 0
+            )
+            / clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total{
+              service_name!="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[1h])), 0.001)
+          ) / 0.005
+        eval_time: 120m
+        exp_samples:
+          - labels: '{service_name="quote"}'
+            value: 0
+
+  # ---------------------------------------------------------------------------
+  # CA 4 — loi da TANH o cua so ngan nhung con trong cua so dai.
+  #
+  # Day la ly do phai sua ca BA bieu thuc chu khong chi bieu thuc cua so dai. Neu chi cua so
+  # dai co mac dinh 0:
+  #     A_short RONG  ->  `A_short < A_long` RONG  ->  roi xuong nhanh `or (A_long)`
+  #     -> rule tra ve gia tri CUA SO DAI -> KEU du 5 phut vua roi da sach loi.
+  # Tuc la pha dung cai ngu nghia multi-window sinh ra de bao ve: phai CA HAI cua so cung
+  # vuot moi duoc page.
+  #
+  # `cart` loi deu tu phut 0 den phut 115, roi span loi ngung han (dau `_` = khong co mau).
+  # Tai phut 120: cua so [5m] khong con mau nao -> chuoi vang mat; cua so [1h] van con.
+  # ---------------------------------------------------------------------------
+  - interval: 1m
+    name: "loi da tanh o 5m — ban cu van keu theo cua so 1h, ban moi im"
+    input_series:
+      - series: 'traces_span_metrics_calls_total{service_name="cart", status_code="STATUS_CODE_OK", span_name="Get", span_kind="SPAN_KIND_SERVER"}'
+        values: '0+6000x120'
+      - series: 'traces_span_metrics_calls_total{service_name="cart", status_code="STATUS_CODE_ERROR", span_name="Get", span_kind="SPAN_KIND_SERVER"}'
+        values: '0+600x115 _x5'
+
+    promql_expr_test:
+      # --- BAN CU, cua so ngan: RONG. Day chinh la mam cua bao gia. ---
+      - expr: >-
+          (
+            sum by (service_name) (rate(traces_span_metrics_calls_total{
+              status_code="STATUS_CODE_ERROR", service_name!="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[5m]))
+            / clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total{
+              service_name!="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[5m])), 0.001)
+          ) / 0.005
+        eval_time: 120m
+        exp_samples: []
+
+      # --- BAN MOI, cua so ngan: 0. Loi da tanh thi so do phai la 0, khong phai vang mat. ---
+      - expr: >-
+          (
+            (
+              sum by (service_name) (rate(traces_span_metrics_calls_total{
+                status_code="STATUS_CODE_ERROR", service_name!="checkout",
+                span_name!="grpc.health.v1.Health/Check",
+                span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[5m]))
+              or
+              sum by (service_name) (rate(traces_span_metrics_calls_total{
+                service_name!="checkout",
+                span_name!="grpc.health.v1.Health/Check",
+                span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[5m])) * 0
+            )
+            / clamp_min(sum by (service_name) (rate(traces_span_metrics_calls_total{
+              service_name!="checkout",
+              span_name!="grpc.health.v1.Health/Check",
+              span_kind=~"SPAN_KIND_SERVER|SPAN_KIND_CONSUMER"}[5m])), 0.001)
+          ) / 0.005
+        eval_time: 120m
+        exp_samples:
+          - labels: '{service_name="cart"}'
+            value: 0

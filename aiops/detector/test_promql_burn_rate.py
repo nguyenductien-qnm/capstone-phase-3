@@ -77,12 +77,31 @@ def test_burn_rate_dung_min_idiom_khong_dung_and():
     assert burn_rules, "khong con rule burn-rate nao — neu co y bo thi xoa ca test nay"
 
     for rule in burn_rules:
-        query = rule["query"]
+        # Chuan hoa khoang trang truoc khi kiem cau truc: YAML `>-` GOP cac dong o muc thut
+        # goc nhung GIU nguyen xuong dong o cac dong thut sau hon. Nen `or` (thut goc) nam
+        # giua hai dau cach con `<` (thut sau) nam giua hai dau xuong dong — kiem tho tren
+        # chuoi goc se cho ket qua khac nhau giua hai toan tu chi vi cach trinh bay.
+        query = " ".join(rule["query"].split())
+        # Kiem `<` chu KHONG chi kiem `or`. Tu 30/07 tu so co them `or <mau so> * 0` (sua loi
+        # mu theo service), nen `" or " in query` da tu dung duoc cho ca query BO HAN phep so
+        # sanh min() — tuc phep kiem cu tro thanh luon xanh. Phep so sanh moi la thu dac hieu
+        # cho idiom `(A_short < A_long) or (A_long)`.
+        assert " < " in query, (
+            f"{rule['id']}: mat phep so sanh cua idiom min() `(A_short < A_long) or (A_long)` "
+            "— rule chi con nhin MOT cua so. Xem promql_tests/burn_rate_test.yml truoc khi doi."
+        )
         assert " or " in query, (
-            f"{rule['id']}: mat idiom min() `(A_short < A_long) or (A_long)`. "
+            f"{rule['id']}: mat nhanh du phong `or (A_long)` cua idiom min(). "
             "Xem promql_tests/burn_rate_test.yml truoc khi doi."
         )
         assert " and " not in query, (
             f"{rule['id']}: dung `and` — rule se im lang trong he khoe, lam "
             "`detector-silent-rule` khong phan biet duoc rule mu voi he khoe."
+        )
+        # Tu so phai co mac dinh 0, khong thi rule mu voi service chua tung loi (do that
+        # 30/07: 15 service co traffic, rule chi sinh 5 series).
+        assert query.count("* 0") == 3, (
+            f"{rule['id']}: tu so thieu mac dinh `or <mau so> * 0`. Phai co du 3 cho "
+            "(cua so ngan, cua so dai trong phep so sanh, va cua so dai o nhanh `or`) — "
+            f"dang co {query.count('* 0')}. Thieu o cua so NGAN thi sinh bao gia khi loi da tanh."
         )
