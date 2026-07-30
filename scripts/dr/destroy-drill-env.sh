@@ -26,8 +26,16 @@ log_error() {
 # 1. Định nghĩa Target DB cần dọn dẹp
 # Cho phép truyền tham số DB Identifier, mặc định là ecommerce-develop-dev-postgres-drill-temp
 DB_IDENTIFIER="${1:-ecommerce-develop-dev-postgres-drill-temp}"
+# Tham số thứ 2: Region, mặc định us-east-1
+REGION="${2:-us-east-1}"
 
-log_info "Bắt đầu quy trình dọn dẹp môi trường DR Drill cho database: $DB_IDENTIFIER..."
+# Kiểm tra AWS_PROFILE đã được export chưa
+if [ -z "${AWS_PROFILE:-}" ]; then
+    log_warn "AWS_PROFILE chưa được export. Script sẽ dùng profile mặc định."
+    log_warn "Nếu sai tài khoản, hãy chạy: export AWS_PROFILE=<tên-profile> trước khi gọi script."
+fi
+
+log_info "Bắt đầu quy trình dọn dẹp môi trường DR Drill cho database: $DB_IDENTIFIER (region: $REGION)..."
 
 # 2. KIỂM TRA AN TOÀN (SAFETY GUARD)
 # Chỉ cho phép xóa DB instance nếu tên chứa hậu tố "-drill-temp"
@@ -39,7 +47,7 @@ fi
 
 # Kiểm tra sự tồn tại của database trên AWS
 log_info "Đang kiểm tra sự tồn tại của database: $DB_IDENTIFIER..."
-if ! aws rds describe-db-instances --db-instance-identifier "$DB_IDENTIFIER" >/dev/null 2>&1; then
+if ! aws rds describe-db-instances --db-instance-identifier "$DB_IDENTIFIER" --region "$REGION" >/dev/null 2>&1; then
     log_warn "Không tìm thấy DB Instance '$DB_IDENTIFIER'. Có thể tài nguyên đã được dọn dẹp trước đó."
     exit 0
 fi
@@ -48,6 +56,7 @@ fi
 log_info "Đang kiểm tra Deletion Protection cho DB Instance: $DB_IDENTIFIER..."
 PROTECTION_STATUS=$(aws rds describe-db-instances \
     --db-instance-identifier "$DB_IDENTIFIER" \
+    --region "$REGION" \
     --query "DBInstances[0].DeletionProtection" \
     --output text | tr '[:upper:]' '[:lower:]')
 
@@ -55,6 +64,7 @@ if [ "$PROTECTION_STATUS" = "true" ]; then
     log_info "Deletion Protection đang Bật. Tiến hành tắt Deletion Protection cho DB Instance: $DB_IDENTIFIER..."
     aws rds modify-db-instance \
         --db-instance-identifier "$DB_IDENTIFIER" \
+        --region "$REGION" \
         --no-deletion-protection \
         --apply-immediately > /dev/null
 
@@ -63,6 +73,7 @@ if [ "$PROTECTION_STATUS" = "true" ]; then
     while true; do
         PROTECTION_STATUS=$(aws rds describe-db-instances \
             --db-instance-identifier "$DB_IDENTIFIER" \
+            --region "$REGION" \
             --query "DBInstances[0].DeletionProtection" \
             --output text | tr '[:upper:]' '[:lower:]')
         
@@ -79,20 +90,21 @@ fi
 
 # Chờ instance sẵn sàng để xóa (Available)
 log_info "Đang chờ DB chuyển sang trạng thái Available để tiến hành xóa..."
-aws rds wait db-instance-available --db-instance-identifier "$DB_IDENTIFIER"
+aws rds wait db-instance-available --db-instance-identifier "$DB_IDENTIFIER" --region "$REGION"
 
 # 4. TIẾN HÀNH XÓA DB INSTANCE (Bỏ qua Final Snapshot để tối ưu cost)
 log_info "Đang thực hiện lệnh xóa DB Instance: $DB_IDENTIFIER..."
 aws rds delete-db-instance \
     --db-instance-identifier "$DB_IDENTIFIER" \
+    --region "$REGION" \
     --skip-final-snapshot \
     --delete-automated-backups > /dev/null
 
 log_info "Đang chờ DB xóa hoàn toàn khỏi hệ thống (Quá trình này có thể mất từ 5-10 phút)..."
-aws rds wait db-instance-deleted --db-instance-identifier "$DB_IDENTIFIER"
+aws rds wait db-instance-deleted --db-instance-identifier "$DB_IDENTIFIER" --region "$REGION"
 
 log_info "Xác minh trạng thái dọn dẹp..."
-if ! aws rds describe-db-instances --db-instance-identifier "$DB_IDENTIFIER" >/dev/null 2>&1; then
+if ! aws rds describe-db-instances --db-instance-identifier "$DB_IDENTIFIER" --region "$REGION" >/dev/null 2>&1; then
     log_info "Chúc mừng! DB Instance '$DB_IDENTIFIER' đã được xóa hoàn toàn và không còn phát sinh chi phí."
 else
     log_error "Instance vẫn tồn tại. Vui lòng kiểm tra lại thủ công trên AWS Console."
