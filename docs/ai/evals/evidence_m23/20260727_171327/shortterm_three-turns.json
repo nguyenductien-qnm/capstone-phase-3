@@ -1,0 +1,9 @@
+{
+  "group": "shortterm",
+  "case": "three-turns",
+  "passed": false,
+  "reason": "lượt 3 nhắc lại sản phẩm của lượt trước: KHÔNG",
+  "latency": 26.86,
+  "cache_status": "miss",
+  "response": "Có một sản phẩm phù hợp cho người mới: \"Starsense Explorer Refractor Telescope\". Giá của nó là $349.95. Đây là kính thiên văn lý tưởng cho người mới bắt đầu vì ứng dụng của nó có giao diện dễ sử dụng và các hướng dẫn chi tiết. Nó giống như có hướng dẫn du lịch cá nhân của bạn trong bầu trời đêm."
+}

@@ -74,13 +74,17 @@ def apply_guardrail_input(bedrock_client, text):
 def apply_guardrail_output(bedrock_client, answer, source_text, query):
     if not answer or not answer.strip():
         return (False, answer)
+    if not ML_GUARD_URL:
+        return (False, answer)  # fail-open when ml-guard not configured (local dev / CI)
     try:
         stub = _get_stub()
         req = ml_guard_pb2.CheckOutputRequest(answer=answer, grounding_source=source_text, query=query)
         resp = stub.CheckOutput(req, timeout=ML_GUARD_TIMEOUT)
         return (resp.blocked, resp.sanitized_text)
     except Exception as e:
-        logger.warning("CheckOutput fallback (error): %s", e)
+        # Fallback to fail-open when ml-guard is unavailable (as per ADR-014/015),
+        # but ensure PII is still masked.
+        logger.warning("CheckOutput fail-open (error): %s", e)
         return (False, redact_pii(answer))
 
 

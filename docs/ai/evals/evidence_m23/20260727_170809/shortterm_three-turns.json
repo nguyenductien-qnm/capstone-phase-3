@@ -1,0 +1,9 @@
+{
+  "group": "shortterm",
+  "case": "three-turns",
+  "passed": false,
+  "reason": "lượt 3 nhắc lại sản phẩm của lượt trước: KHÔNG",
+  "latency": 1.21,
+  "cache_status": "hit_exact",
+  "response": "Rất tiếc, hiện tại chúng tôi không có kính thiên văn nào trong danh mục. Tuy nhiên, nếu bạn đang tìm kiếm kính thiên văn phù hợp cho người mới bắt đầu, bạn nên tìm kiếm các mẫu kính có đường kính ống kính lớn (thường từ 70mm trở lên), dễ cài đặt và sử dụng, và có giá cả phải chăng. Bạn có thể quay l"
+}

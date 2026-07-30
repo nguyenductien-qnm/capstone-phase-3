@@ -1,0 +1,9 @@
+{
+  "group": "semantic",
+  "case": "negation-must-miss",
+  "passed": true,
+  "reason": "câu phủ định: miss (không được hit_semantic)",
+  "latency": 5.49,
+  "cache_status": "miss",
+  "response": "Không tìm thấy sản phẩm. TUYỆT ĐỐI DỪNG TÌM KIẾM và trả lời khách hàng ngay lập tức."
+}

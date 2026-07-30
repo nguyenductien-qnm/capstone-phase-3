@@ -8,6 +8,9 @@
 # request falls back to under guardrail-service outage.
 #
 # Run: python3 test_guardrails.py
+import os
+os.environ["ML_GUARD_URL"] = ""  # offline test: no ml-guard, skip gRPC
+
 import guardrails as g
 
 

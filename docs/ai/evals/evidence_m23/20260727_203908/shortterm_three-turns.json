@@ -1,0 +1,9 @@
+{
+  "group": "shortterm",
+  "case": "three-turns",
+  "passed": true,
+  "reason": "lượt 3 nhắc lại sản phẩm của lượt trước: ['Solar Filter']",
+  "latency": 3.89,
+  "cache_status": "miss",
+  "response": "\"Solar Filter\" cho ống kính 8\" là một phụ kiện hữu ích cho kính thiên văn, đặc biệt là khi bạn muốn quan sát Mặt Trời một cách an toàn. Tuy nhiên, để có thể sử dụng hiệu quả phụ kiện này, bạn cần có kính thiên văn với ống kính 8\". Nếu bạn mới bắt đầu, hãy xem xét việc mua một kính thiên văn phù hợp "
+}

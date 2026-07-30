@@ -1,0 +1,9 @@
+{
+  "group": "crossuser",
+  "case": "no-cache-leak",
+  "passed": true,
+  "reason": "user B hỏi câu user A: miss (không được hit)",
+  "latency": 2.77,
+  "cache_status": "miss",
+  "response": "Xin lỗi, trợ lý đang tạm quá tải. Bạn vui lòng thử lại sau ít giây, hoặc duyệt sản phẩm trực tiếp trên cửa hàng."
+}

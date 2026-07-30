@@ -1,3 +1,25 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: #ffffff;
+  --color-foreground: #29293e;
+  --color-card: #ffffff;
+  --color-card-foreground: #29293e;
+  --color-primary: #5262a8;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #eef0f8;
+  --color-secondary-foreground: #29293e;
+  --color-muted: #f3f4f6;
+  --color-muted-foreground: #64748b;
+  --color-accent: #eef0f8;
+  --color-accent-foreground: #29293e;
+  --color-destructive: #dc2626;
+  --color-border: #e2e8f0;
+  --color-input: #cbd5e1;
+  --color-ring: #5262a8;
+  --font-sans: 'Open Sans', sans-serif;
+}
+
 /* Copyright The OpenTelemetry Authors */
 /* */
 /* Licensed under the Apache License, Version 2.0 (the "License"); */
@@ -20,12 +42,14 @@ body {
   background: white;
   margin: 0px;
   font-family: 'Open Sans', sans-serif;
-}
-
-body * {
-  box-sizing: border-box;
   color: #29293E;
   font-weight: 600;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
 #__next {

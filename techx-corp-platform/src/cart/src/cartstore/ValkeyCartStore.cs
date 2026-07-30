@@ -529,7 +529,7 @@ public sealed class ValkeyCartStore : ICartStore, IDisposable, IAsyncDisposable
             return new Oteldemo.Cart { UserId = userId };
         }
 
-        var cart = Oteldemo.Cart.Parser.ParseFrom(value);
+        var cart = Oteldemo.Cart.Parser.ParseFrom((byte[])value);
 
         if (string.IsNullOrEmpty(cart.UserId))
         {

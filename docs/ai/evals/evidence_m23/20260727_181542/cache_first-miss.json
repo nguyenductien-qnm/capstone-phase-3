@@ -1,0 +1,9 @@
+{
+  "group": "cache",
+  "case": "first-miss",
+  "passed": true,
+  "reason": "lần đầu miss",
+  "latency": 28.12,
+  "cache_status": "miss",
+  "response": "Ống nhòm Roof Binoculars có giá $209.95. Nếu bạn muốn biết thêm thông tin hoặc cần gợi ý sản phẩm khác, hãy cho tôi biết!"
+}

@@ -1,0 +1,9 @@
+{
+  "group": "longterm",
+  "case": "recall-new-session",
+  "passed": true,
+  "reason": "phiên mới nhớ trình độ=True, mục đích=True",
+  "latency": 4.37,
+  "cache_status": "miss",
+  "response": "Có, tôi đã biết trình độ của bạn là người mới bắt đầu và mục đích sử dụng là ngắm sao. Bạn cần tìm kính thiên văn, ống nhòm hay phụ kiện gì không?"
+}

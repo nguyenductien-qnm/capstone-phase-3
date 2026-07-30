@@ -119,7 +119,11 @@ _GROUND_JUDGE_SYSTEM = (
     "NGUỒN có thể gồm NHIỀU khối JSON nối nhau (kết quả của nhiều tool). Thông tin nằm ở "
     "BẤT KỲ khối nào cũng tính là có căn cứ. Dịch sang tiếng Việt, đổi tên sản phẩm thành "
     "product_id (hoặc ngược lại), làm tròn điểm, tóm tắt nhiều review thành một câu — đều là "
-    "diễn đạt lại, KHÔNG phải bịa: trả về YES."
+    "diễn đạt lại, KHÔNG phải bịa: trả về YES.\n"
+    "SỐ TỔNG HỢP tính được từ NGUỒN (điểm trung bình, số lượng review, tổng, cao nhất, "
+    "thấp nhất) là CÓ CĂN CỨ kể cả khi con số đó không xuất hiện nguyên văn trong NGUỒN. "
+    "Ví dụ NGUỒN có 5 review điểm 4.5/4.0/3.5/4.0/3.0 và CÂU TRẢ LỜI nói 'trung bình 3.8 "
+    "trên 5 đánh giá' → YES. Chỉ trả NO khi con số sai so với dữ liệu NGUỒN."
 )
 
 
@@ -402,7 +406,7 @@ class MLGuardServicer(ml_guard_pb2_grpc.MLGuardServiceServicer):
     async def CheckInput(self, request, context):
         with get_span("CheckInput"):
             if not _state["ready"]:
-                context.abort(grpc.StatusCode.UNAVAILABLE, "Model not ready")
+                await context.abort(grpc.StatusCode.UNAVAILABLE, "Model not ready")
                 
             text = request.text
             if not text or not text.strip():
@@ -450,7 +454,7 @@ class MLGuardServicer(ml_guard_pb2_grpc.MLGuardServiceServicer):
     async def CheckOutput(self, request, context):
         with get_span("CheckOutput"):
             if not _state["ready"]:
-                context.abort(grpc.StatusCode.UNAVAILABLE, "Model not ready")
+                await context.abort(grpc.StatusCode.UNAVAILABLE, "Model not ready")
                 
             answer = request.answer
             if not answer or not answer.strip():
@@ -477,24 +481,36 @@ class MLGuardServicer(ml_guard_pb2_grpc.MLGuardServiceServicer):
                 logger.warning("Grounding BLOCK (NLI contradiction)")
                 return ml_guard_pb2.CheckOutputResponse(blocked=True, sanitized_text=masked, reason="Grounding block (NLI)")
 
-            # Layer 2: Nova Judge
-            if action == "judge":
-                verdict = await _judge(
-                    _GROUND_JUDGE_SYSTEM,
-                    f"NGUỒN:\n{src[:5000]}\n\nCÂU TRẢ LỜI:\n{masked[:2000]}",
-                )
-                if verdict == "NO":
-                    logger.warning("Grounding BLOCK (judge said NO)")
-                    return ml_guard_pb2.CheckOutputResponse(blocked=True, sanitized_text=masked, reason="Grounding block (Judge NO)")
-                    
-            # Layer 3: Bedrock Guardrail
+            # Layer 2 và Layer 3 chạy SONG SONG: nối tiếp thì tổng độ trễ vượt
+            # deadline 25s của client, CheckOutput fail-closed và câu trả lời đúng
+            # bị thay bằng fallback (đo 28/07: 12 lần trong một vòng eval).
+            judge_task = asyncio.create_task(_judge(
+                _GROUND_JUDGE_SYSTEM,
+                f"NGUỒN:\n{src[:5000]}\n\nCÂU TRẢ LỜI:\n{masked[:2000]}",
+            ))
+            guardrail_task = None
             if GUARDRAIL_ENABLED:
-                content = [
+                guardrail_task = asyncio.create_task(_apply_bedrock_guardrail("OUTPUT", [
                     {"text": {"text": src, "qualifiers": ["grounding_source"]}},
                     {"text": {"text": (request.query or "")[:1000], "qualifiers": ["query"]}},
                     {"text": {"text": masked[:5000], "qualifiers": ["guard_content"]}},
-                ]
-                resp = await _apply_bedrock_guardrail("OUTPUT", content)
+                ]))
+
+            verdict = await judge_task
+            if verdict != "YES":
+                if guardrail_task is not None:
+                    guardrail_task.cancel()
+                reason = "Judge unavailable" if verdict is None else "Judge NO"
+                logger.warning("Grounding BLOCK (%s)", reason)
+                return ml_guard_pb2.CheckOutputResponse(
+                    blocked=True,
+                    sanitized_text=masked,
+                    reason=f"Grounding block ({reason})",
+                )
+
+            # Layer 3: Bedrock Guardrail — đã bắn song song ở trên, giờ chỉ chờ kết quả.
+            if guardrail_task is not None:
+                resp = await guardrail_task
                 if resp is not None:
                     original = masked
                     outputs = resp.get("outputs", [])
@@ -522,7 +538,7 @@ class MLGuardServicer(ml_guard_pb2_grpc.MLGuardServiceServicer):
     async def SanitizeReviews(self, request, context):
         with get_span("SanitizeReviews"):
             if not _state["ready"]:
-                context.abort(grpc.StatusCode.UNAVAILABLE, "Model not ready")
+                await context.abort(grpc.StatusCode.UNAVAILABLE, "Model not ready")
                 
             json_str = request.json_payload
             try:

@@ -1,0 +1,9 @@
+{
+  "group": "longterm",
+  "case": "recall-new-session",
+  "passed": true,
+  "reason": "phiên mới nhớ trình độ=True, mục đích=True",
+  "latency": 3.11,
+  "cache_status": "miss",
+  "response": "Dạ, mình đã ghi lại trình độ của bạn là beginner và mục đích sử dụng là stargazing. Bạn có muốn thay đổi hay không?"
+}

@@ -76,3 +76,5 @@ Jira_Agent_Week2_Package/
 # Tren EKS no nam o emptyDir /data; o may ca nhan thi mac dinh ghi canh module.
 # Khong commit — no la du lieu chay, khong phai ma nguon.
 aiops/remediation/audit_log.jsonl
+\n# Playwright MCP\n.playwright-mcp/
+.playwright-mcp/

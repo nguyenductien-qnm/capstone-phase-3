@@ -1,0 +1,9 @@
+{
+  "group": "semantic",
+  "case": "paraphrase-hit",
+  "passed": true,
+  "reason": "diễn đạt khác cùng ý: hit_semantic (similarity=0.8862338662147522)",
+  "latency": 1.4,
+  "cache_status": "hit_semantic",
+  "response": "The \"Roof Binoculars\" are priced at $209.95. This versatile binocular is ideal for various activities, including nature observation and bird watching, thanks to its ED glass and close focus capability."
+}

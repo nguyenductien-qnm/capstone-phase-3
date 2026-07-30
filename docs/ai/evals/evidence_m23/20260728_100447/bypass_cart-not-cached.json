@@ -1,0 +1,9 @@
+{
+  "group": "bypass",
+  "case": "cart-not-cached",
+  "passed": true,
+  "reason": "câu chạm giỏ hàng: bypass (phải bypass)",
+  "latency": 7.81,
+  "cache_status": "bypass",
+  "response": "Giỏ hàng của bạn hiện tại không có sản phẩm nào. Bạn có thể tìm kiếm và thêm sản phẩm vào giỏ hàng bất kỳ lúc nào."
+}

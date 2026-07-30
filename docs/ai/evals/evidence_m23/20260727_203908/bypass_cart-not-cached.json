@@ -1,0 +1,9 @@
+{
+  "group": "bypass",
+  "case": "cart-not-cached",
+  "passed": true,
+  "reason": "câu chạm giỏ hàng: bypass (phải bypass)",
+  "latency": 8.29,
+  "cache_status": "bypass",
+  "response": "Giỏ hàng của bạn hiện tại đang trống. Bạn có thể tìm kiếm và thêm các sản phẩm vào giỏ hàng bất kỳ lúc nào. Bạn có muốn tìm kiếm kính thiên văn nào để thêm vào giỏ hàng không?"
+}

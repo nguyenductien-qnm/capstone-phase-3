@@ -1,0 +1,138 @@
+{
+  "before_no_cache": {
+    "n": 12,
+    "hit_exact": 0,
+    "hit_semantic": 0,
+    "p50_hit": 0,
+    "p95_hit": 0,
+    "p50_miss": 5.0,
+    "p95_miss": 20.72,
+    "tin": 130479,
+    "tout": 1923,
+    "usd": 0.01674772,
+    "normalized_usd": 0.008290259999999999
+  },
+  "after_with_cache": {
+    "n": 12,
+    "hit_exact": 6,
+    "hit_semantic": 0,
+    "p50_hit": 1.15,
+    "p95_hit": 1.7,
+    "p50_miss": 9.43,
+    "p95_miss": 22.45,
+    "tin": 71217,
+    "tout": 1244,
+    "usd": 0.03522682,
+    "normalized_usd": 0.0045715800000000004
+  },
+  "rows_after": [
+    {
+      "q": "Kính thiên văn nào rẻ nhất?",
+      "lat": 9.43,
+      "status": "miss",
+      "tin": 16844,
+      "tout": 426,
+      "usd": 0.014838400000000002,
+      "normalized_usd": 0.0011128800000000001
+    },
+    {
+      "q": "Ống nhòm Roof Binoculars giá bao nhiêu?",
+      "lat": 22.45,
+      "status": "miss",
+      "tin": 10913,
+      "tout": 115,
+      "usd": 0.00068238,
+      "normalized_usd": 0.00068238
+    },
+    {
+      "q": "Có sách thiên văn nào không?",
+      "lat": 6.46,
+      "status": "miss",
+      "tin": 10842,
+      "tout": 159,
+      "usd": 0.0006886800000000001,
+      "normalized_usd": 0.0006886799999999999
+    },
+    {
+      "q": "Kính lúp có mấy loại?",
+      "lat": 12.68,
+      "status": "miss",
+      "tin": 10916,
+      "tout": 250,
+      "usd": 0.0007149599999999999,
+      "normalized_usd": 0.00071496
+    },
+    {
+      "q": "Máy ảnh phim nào đang bán?",
+      "lat": 4.75,
+      "status": "miss",
+      "tin": 10845,
+      "tout": 150,
+      "usd": 0.009156000000000001,
+      "normalized_usd": 0.0006867
+    },
+    {
+      "q": "Địa cầu quay có sẵn không?",
+      "lat": 5.36,
+      "status": "miss",
+      "tin": 10857,
+      "tout": 144,
+      "usd": 0.009146399999999999,
+      "normalized_usd": 0.00068598
+    },
+    {
+      "q": "Kính thiên văn nào rẻ nhất?",
+      "lat": 1.7,
+      "status": "hit_exact",
+      "tin": 0,
+      "tout": 0,
+      "usd": 0.0,
+      "normalized_usd": 0.0
+    },
+    {
+      "q": "Ống nhòm Roof Binoculars giá bao nhiêu?",
+      "lat": 1.12,
+      "status": "hit_exact",
+      "tin": 0,
+      "tout": 0,
+      "usd": 0.0,
+      "normalized_usd": 0.0
+    },
+    {
+      "q": "Có sách thiên văn nào không?",
+      "lat": 1.13,
+      "status": "hit_exact",
+      "tin": 0,
+      "tout": 0,
+      "usd": 0.0,
+      "normalized_usd": 0.0
+    },
+    {
+      "q": "Kính lúp có mấy loại?",
+      "lat": 1.31,
+      "status": "hit_exact",
+      "tin": 0,
+      "tout": 0,
+      "usd": 0.0,
+      "normalized_usd": 0.0
+    },
+    {
+      "q": "Máy ảnh phim nào đang bán?",
+      "lat": 1.15,
+      "status": "hit_exact",
+      "tin": 0,
+      "tout": 0,
+      "usd": 0.0,
+      "normalized_usd": 0.0
+    },
+    {
+      "q": "Địa cầu quay có sẵn không?",
+      "lat": 1.05,
+      "status": "hit_exact",
+      "tin": 0,
+      "tout": 0,
+      "usd": 0.0,
+      "normalized_usd": 0.0
+    }
+  ]
+}

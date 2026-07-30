@@ -1,0 +1,9 @@
+{
+  "group": "cache",
+  "case": "review-warm",
+  "passed": false,
+  "reason": "không warm được cache review để test invalidation",
+  "latency": 0,
+  "cache_status": "miss",
+  "response": "Xin lỗi, tôi chưa có thông tin đó trong dữ liệu sản phẩm hiện có. Bạn có thể hỏi tôi về giá, đánh giá, hoặc gợi ý sản phẩm theo danh mục (Telescopes, Binoculars, Accessories, Cameras, Books)."
+}

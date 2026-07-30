@@ -163,6 +163,15 @@
         "on": true
       }
     },
+    "llmFaultGarbageOutput": {
+      "defaultVariant": "off",
+      "description": "MANDATE-25: inject malformed Bedrock output (missing toolUse fields, wrong schema) to validate output validator blocks garbage args.",
+      "state": "ENABLED",
+      "variants": {
+        "off": false,
+        "on": true
+      }
+    },
     "loadGeneratorFloodHomepage": {
       "defaultVariant": "off",
       "description": "Flood the frontend with a large amount of requests.",

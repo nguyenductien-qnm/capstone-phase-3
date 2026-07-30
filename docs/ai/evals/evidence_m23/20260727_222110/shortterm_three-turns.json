@@ -1,0 +1,9 @@
+{
+  "group": "shortterm",
+  "case": "three-turns",
+  "passed": false,
+  "reason": "lượt 3 nhắc lại sản phẩm của lượt trước: KHÔNG",
+  "latency": 15.09,
+  "cache_status": "miss",
+  "response": "Starsense Explorer Refractor Telescope có giá $349.95. Nó có giao diện người dùng thân thiện và các hướng dẫn chi tiết, rất phù hợp cho người mới bắt đầu."
+}

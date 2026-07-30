@@ -1,0 +1,9 @@
+{
+  "group": "shortterm",
+  "case": "three-turns",
+  "passed": true,
+  "reason": "lượt 3 nhắc lại sản phẩm của lượt trước: ['Solar Filter']",
+  "latency": 16.04,
+  "cache_status": "miss",
+  "response": "Dựa trên các đánh giá, Solar Filter có điểm trung bình là 3.8 với 5 đánh giá. Một số nhận xét cho thấy nó hơi khó làm quen với các điều khiển thủ công, nhưng khi đã quen, nó rất bổ ích. Một số người dùng cũng cho biết nó là một lựa chọn tốt cho trẻ em và người mới bắt đầu. Do đó, Solar Filter có thể"
+}

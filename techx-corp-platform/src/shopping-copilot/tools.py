@@ -23,6 +23,7 @@ user-scoped ``add_item``.
 import json
 import logging
 import os
+import re
 import urllib.request
 
 import grpc
@@ -59,6 +60,10 @@ def _product_to_dict(product) -> dict:
         "name": product.name,
         "price": _money_to_float(product.price_usd),
         "category": product.categories[0] if product.categories else "",
+        # Giữ ĐỦ nhãn: sản phẩm gắn nhiều category ("accessories,telescopes") mà chỉ
+        # so khớp phần tử đầu thì bộ lọc dưới kia đánh rớt oan → agent báo "không có
+        # sản phẩm nào" dù catalog có (đo 27/07 ở lượt 1-2 của phiên 3 lượt).
+        "categories": list(product.categories),
         "description": product.description,
     }
 
@@ -72,17 +77,31 @@ def search_products(query: str, category: str | None = None) -> str:
         effective_query = (query or "").strip() or (category or "").strip()
         with grpc.insecure_channel(PRODUCT_CATALOG_ADDR) as channel:
             stub = demo_pb2_grpc.ProductCatalogServiceStub(channel)
-            response = stub.SearchProducts(
-                demo_pb2.SearchProductsRequest(query=effective_query), timeout=_RPC_TIMEOUT
-            )
-        products = [_product_to_dict(p) for p in response.results]
-        if category:
-            cat = category.lower()
-            products = [p for p in products if cat in p.get("category", "").lower()]
+
+            def fetch(search_query: str) -> list[dict]:
+                response = stub.SearchProducts(
+                    demo_pb2.SearchProductsRequest(query=search_query), timeout=_RPC_TIMEOUT
+                )
+                found = [_product_to_dict(p) for p in response.results]
+                if category:
+                    cat = category.lower().rstrip("s")  # "Telescopes" ↔ "telescope"
+                    found = [p for p in found
+                             if any(cat in c.lower() for c in p.get("categories", []))]
+                return found
+
+            products = fetch(effective_query)
+            # Semantic queries such as "beginner stargazing" can be too narrow for
+            # the tiny demo catalog. Retry once with the explicit category instead of
+            # reporting no products while valid category items exist.
+            if not products and category and effective_query.casefold() != category.casefold():
+                products = fetch(category)
         if not products:
+            # message = câu khách được đọc; chỉ dẫn điều khiển agent để riêng ở
+            # next_action, vì model từng chép nguyên chuỗi chỉ dẫn ra làm câu trả lời.
             return json.dumps({
-                "status": "not_found", 
-                "message": "Không tìm thấy sản phẩm. TUYỆT ĐỐI DỪNG TÌM KIẾM và trả lời khách hàng ngay lập tức.", 
+                "status": "not_found",
+                "message": "Không tìm thấy sản phẩm phù hợp trong danh mục.",
+                "next_action": "stop_searching_and_answer",
                 "products": []
             })
         for p in products:
@@ -92,13 +111,15 @@ def search_products(query: str, category: str | None = None) -> str:
         logger.error("SearchProducts RPC failed: %s", e)
         return json.dumps({
             "error": f"SearchProducts failed: {e.code().name} – {e.details()}",
-            "message": "Lỗi hệ thống hoặc quá thời gian. TUYỆT ĐỐI DỪNG TÌM KIẾM và trả lời khách hàng ngay lập tức."
+            "message": "Hệ thống tra cứu sản phẩm đang bận.",
+            "next_action": "stop_searching_and_answer"
         })
     except Exception as e:
         logger.error("search_products error: %s", e)
         return json.dumps({
             "error": str(e),
-            "message": "Lỗi hệ thống. TUYỆT ĐỐI DỪNG TÌM KIẾM và trả lời khách hàng ngay lập tức."
+            "message": "Hệ thống tra cứu sản phẩm đang gặp sự cố.",
+            "next_action": "stop_searching_and_answer"
         })
 
 
@@ -109,6 +130,15 @@ def get_product_reviews(product_id: str) -> str:
     context*. When the product has no reviews, ``review_count`` is 0 and the
     agent must say it has no information (no fabrication).
     """
+    # Model hay truyền TÊN sản phẩm vào product_id ("Roof Binoculars"); service trả
+    # 0 review và model nói với khách là "chưa có đánh giá nào" trong khi sản phẩm
+    # có 5 review (đo 28/07). Bắt sớm và bảo model đi tra id trước.
+    if not re.fullmatch(r"[A-Z0-9]{10}", (product_id or "").strip()):
+        return json.dumps({
+            "status": "invalid_product_id",
+            "message": f"'{product_id}' không phải mã sản phẩm.",
+            "next_action": "search_products_first",
+        })
     try:
         with grpc.insecure_channel(PRODUCT_REVIEWS_ADDR) as channel:
             stub = demo_pb2_grpc.ProductReviewServiceStub(channel)

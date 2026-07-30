@@ -87,6 +87,9 @@ class MockPaymentServiceStub : public PaymentService::StubInterface {
   MOCK_METHOD3(Charge, ::grpc::Status(::grpc::ClientContext* context, const ::oteldemo::ChargeRequest& request, ::oteldemo::ChargeResponse* response));
   MOCK_METHOD3(AsyncChargeRaw, ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::ChargeResponse>*(::grpc::ClientContext* context, const ::oteldemo::ChargeRequest& request, ::grpc::CompletionQueue* cq));
   MOCK_METHOD3(PrepareAsyncChargeRaw, ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::ChargeResponse>*(::grpc::ClientContext* context, const ::oteldemo::ChargeRequest& request, ::grpc::CompletionQueue* cq));
+  MOCK_METHOD3(Validate, ::grpc::Status(::grpc::ClientContext* context, const ::oteldemo::ValidatePaymentRequest& request, ::oteldemo::ValidatePaymentResponse* response));
+  MOCK_METHOD3(AsyncValidateRaw, ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::ValidatePaymentResponse>*(::grpc::ClientContext* context, const ::oteldemo::ValidatePaymentRequest& request, ::grpc::CompletionQueue* cq));
+  MOCK_METHOD3(PrepareAsyncValidateRaw, ::grpc::ClientAsyncResponseReaderInterface< ::oteldemo::ValidatePaymentResponse>*(::grpc::ClientContext* context, const ::oteldemo::ValidatePaymentRequest& request, ::grpc::CompletionQueue* cq));
 };
 
 class MockEmailServiceStub : public EmailService::StubInterface {

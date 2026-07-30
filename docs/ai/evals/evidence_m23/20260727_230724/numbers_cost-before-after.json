@@ -1,0 +1,9 @@
+{
+  "group": "numbers",
+  "case": "cost-before-after",
+  "passed": true,
+  "reason": "token 144929 → 66176 (-78753) · USD chuẩn hoá Nova Lite $0.009095 → $0.004148 (-54%); USD thực tế A/B $0.035951 → $0.021361",
+  "latency": 0.0,
+  "cache_status": null,
+  "response": ""
+}

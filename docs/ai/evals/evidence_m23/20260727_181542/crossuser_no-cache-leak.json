@@ -1,0 +1,9 @@
+{
+  "group": "crossuser",
+  "case": "no-cache-leak",
+  "passed": true,
+  "reason": "user B hỏi câu user A: miss (không được hit)",
+  "latency": 9.37,
+  "cache_status": "miss",
+  "response": "Ống nhòm Roof Binoculars có giá $209.95. Nếu bạn muốn thêm vào giỏ hàng, hãy thông báo cho tôi."
+}

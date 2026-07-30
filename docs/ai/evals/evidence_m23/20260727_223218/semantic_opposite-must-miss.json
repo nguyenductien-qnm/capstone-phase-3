@@ -1,0 +1,9 @@
+{
+  "group": "semantic",
+  "case": "opposite-must-miss",
+  "passed": true,
+  "reason": "đổi mốc giá dưới→trên: miss (không được hit_semantic)",
+  "latency": 9.12,
+  "cache_status": "miss",
+  "response": "Rất tiếc, không có kính thiên văn nào có giá trên [unverified] USD trong danh mục của chúng tôi. Tuy nhiên, tôi tìm thấy một phụ kiện có giá 69.95 USD, có thể là một lựa chọn phù hợp cho bạn. Đây là \"Solar Filter\" cho kính thiên văn 8\". Nó có hai dải Velcro và bốn miếng dán Velcro tự dính để tăng th"
+}

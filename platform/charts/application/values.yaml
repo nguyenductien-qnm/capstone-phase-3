@@ -1893,6 +1893,41 @@ components:
         value: http://$(OTEL_COLLECTOR_NAME):4317
       - name: ML_GUARD_URL
         value: ml-guard:8090
+      # MANDATE-23 — cache + memory. Cùng MỘT đường code với local: local trỏ
+      # valkey-cart không TLS, prod trỏ ElastiCache TLS + auth token; chỉ khác giá trị
+      # env. CHƯA APPLY lên cluster (vòng này chốt ở local) — apply phải kèm bước
+      # migration docs/ai/migrations/m23_ai_schema.sql cho user_memory.
+      - name: VALKEY_ADDR
+        valueFrom:
+          secretKeyRef:
+            name: valkey-secret
+            key: address
+      - name: VALKEY_TLS
+        value: "true"
+      - name: VALKEY_AUTH_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: valkey-secret
+            key: auth_token
+      # Long-term memory remains in Postgres; L2 semantic cache uses Valkey Search
+      # on ElastiCache Valkey 8.2. Cache eviction is acceptable for L2.
+      - name: DB_CONNECTION_STRING
+        valueFrom:
+          secretKeyRef:
+            name: db-secret
+            key: reviews-db-conn
+      - name: SEMANTIC_CACHE_ENABLED
+        value: "true"
+      # 0.85 do sweep đo mà ra, kèm rule-guard pb/semantic_guard.py — không phải số
+      # chọn theo cảm tính. Bảng đầy đủ: docs/ai/evals/param_sweep_m23.md
+      - name: SEMANTIC_CACHE_MIN_SIM
+        value: "0.85"
+      - name: COPILOT_CACHE_TTL
+        value: "3600"
+      - name: COPILOT_SESSION_TTL
+        value: "3600"
+      - name: COPILOT_MAX_SESSION_MESSAGES
+        value: "20"
     resources:
       requests:
         cpu: 10m

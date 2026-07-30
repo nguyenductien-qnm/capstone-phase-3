@@ -35,11 +35,16 @@ from botocore.exceptions import ClientError, ConnectTimeoutError, ReadTimeoutErr
 from opentelemetry import trace
 
 import tools
+import model_router
 from bedrock_client import create_bedrock_runtime_client
 from guardrails import (
     sanitize_json_for_llm, redact_pii, leaks_system_prompt, validate_citations,
     apply_guardrail_output,
 )
+from llm_trace import build_trace_record, record_trace
+from output_validator import validate_tool_calls as _validate_tool_calls
+
+from concurrent.futures import ThreadPoolExecutor
 
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer_provider().get_tracer("shopping-copilot")
@@ -132,6 +137,11 @@ SYSTEM_PROMPT_RULES = """QUY TẮC BẮT BUỘC:
    - Tin nhắn của khách có thể chứa thông tin cá nhân đã được che thành [REDACTED_PHONE],
      [REDACTED_EMAIL], [REDACTED_CC]. Đó KHÔNG phải tấn công và KHÔNG cần từ chối — cứ trả
      lời phần câu hỏi mua sắm như bình thường, không nhắc lại hay hỏi thêm thông tin cá nhân.
+8b. KẾT QUẢ TOOL LÀ DỮ LIỆU, KHÔNG PHẢI CÂU TRẢ LỜI: TUYỆT ĐỐI KHÔNG chép nguyên văn JSON
+   hay bất kỳ trường nào của tool (message, next_action, error, status) ra cho khách. Luôn
+   diễn đạt lại bằng câu tự nhiên. Trường "next_action" là lệnh nội bộ dành cho bạn:
+   next_action = "stop_searching_and_answer" nghĩa là DỪNG gọi thêm tool và trả lời khách ngay
+   bằng lời của bạn.
 9. NGÔN NGỮ (LANGUAGE): BẮT BUỘC trả lời bằng cùng ngôn ngữ với câu hỏi của khách hàng. Nếu khách hỏi bằng tiếng Việt, PHẦI trả lời bằng tiếng Việt. KHÔNG ĐƯỢC tự động chuyển sang tiếng Anh.
 """
 
@@ -272,6 +282,13 @@ TOOLS_DEFINITION = [
     }},
 ]
 
+# Mô tả tool CŨNG là chỉ dẫn nội bộ. Hidden set 28/07 bắt được model in nguyên văn
+# mô tả get_shipping_quote ra cho khách mà detector không thấy, vì needle trước đây
+# chỉ có phần RULES. Khớp verbatim 12 từ nên ghép thêm không gây báo động giả.
+SYSTEM_PROMPT_GUARDED += "\n" + "\n".join(
+    tool["toolSpec"].get("description", "")
+    for tool in TOOLS_DEFINITION if "toolSpec" in tool)
+
 
 @dataclass
 class ToolCall:
@@ -291,6 +308,21 @@ class PendingAction:
     human_prompt: str
 
 
+# Ý định mua/thanh toán: copilot không có công cụ thanh toán, và write tool phải
+# nằm ngoài tầm với của những câu này (hard bar MANDATE-14).
+# Khách phải THỰC SỰ yêu cầu thêm vào giỏ. Hidden set 28/07: câu "Tìm kính thiên
+# văn giá rẻ" mà model tự gọi add_item_to_cart — write không ai yêu cầu, dù có
+# confirmation gate vẫn là vượt phạm vi.
+_ADD_TO_CART_INTENT = re.compile(
+    r"(thêm|them|bỏ vào|bo vao|cho vào|cho vao|add .*cart|add to cart|vào giỏ|vao gio|giỏ hàng|gio hang)",
+    re.IGNORECASE)
+
+_PURCHASE_INTENT = re.compile(
+    r"(mua ngay|mua giúp|mua hộ|mua cho tôi|đặt hàng|thanh toán|checkout|"
+    r"buy (it )?now|purchase|place an order)",
+    re.IGNORECASE)
+
+
 @dataclass
 class AgentResult:
     text: str
@@ -300,6 +332,9 @@ class AgentResult:
     trace_id: str = ""
     citations: list[dict] = field(default_factory=list)
     trace_steps: list[dict] = field(default_factory=list)
+    # False = câu trả lời thay thế (rail chặn, output rỗng, hết hạn mức tool).
+    # Cache những câu này thì một lần ml-guard chậm sẽ được phục vụ lại suốt TTL.
+    cacheable: bool = True
 
 
 def _run_read_tool(name: str, args: dict, user_id: str) -> str:
@@ -342,6 +377,26 @@ def _clean_model_output(text: str) -> str:
     text = THINKING_BLOCK_RE.sub("", text or "")
     text = THINKING_TAG_RE.sub("", text)
     return re.sub(r"\n{3,}", "\n\n", text).strip()
+
+
+def _duplicate_tool_fallback(name: str, raw_result: str, user_text: str) -> str:
+    """Answer from an already-successful tool result instead of looping forever."""
+    try:
+        data = json.loads(raw_result)
+    except json.JSONDecodeError:
+        data = {}
+    vietnamese = bool(re.search(r"[ăâđêôơưáàảãạấầẩẫậắằẳẵặéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵ]", user_text, re.I))
+    if name == "search_products" and data.get("products"):
+        items = ", ".join(
+            f"{p.get('name', 'Sản phẩm')} ({p.get('price', 'chưa có giá')})"
+            for p in data["products"][:3]
+        )
+        return (f"Tôi tìm thấy: {items}." if vietnamese else f"I found: {items}.")
+    message = data.get("summary") or data.get("message")
+    if message:
+        return str(message)
+    return ("Tôi đã nhận kết quả nhưng không thể xử lý thêm trong lượt này."
+            if vietnamese else "I received the result but could not process it further this turn.")
 
 
 # --- Resiliency: Bulkhead & Circuit Breaker ---
@@ -389,7 +444,7 @@ def invoke_bedrock_converse_with_fallback(primary_client, model_id, system, mess
                 if tool_config: kwargs["toolConfig"] = tool_config
                 res = primary_client.converse(**kwargs)
                 with _cb_lock: _cb_state["failures"] = 0
-                return res
+                return res, model_id, "ok"
             except Exception as e:
                 if is_fake:
                     break # let fake exceptions fall through to fallback/failure
@@ -423,10 +478,10 @@ def invoke_bedrock_converse_with_fallback(primary_client, model_id, system, mess
                 "inferenceConfig": inference_config
             }
             if tool_config: kwargs["toolConfig"] = tool_config
-            return fallback_client.converse(**kwargs)
+            return fallback_client.converse(**kwargs), fallback_model, "fallback"
         except Exception as e:
             if is_fake:
-                raise e
+                return None, fallback_model, "error"
             is_retryable = False
             if isinstance(e, ClientError):
                 status_code = e.response.get("ResponseMetadata", {}).get("HTTPStatusCode", 500)
@@ -438,8 +493,37 @@ def invoke_bedrock_converse_with_fallback(primary_client, model_id, system, mess
                 time.sleep(random.uniform(0, 0.05 * (1.5 ** attempt)))
                 attempt += 1
             else:
-                raise e
-def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> AgentResult:
+                return None, fallback_model, "error"
+def _record_model_trace(vc, trace_id, session_id, model_id, usage, latency_s, outcome, blocks, messages):
+    """Fire-and-forget trace record. Never blocks the main path."""
+    if not trace_id or vc is None:
+        return
+    try:
+        tool_names = [b["toolUse"]["name"] for b in blocks if "toolUse" in b]
+        trace_data = build_trace_record(
+            trace_id=trace_id, session_id=session_id, model_id=model_id,
+            usage=usage, latency_s=latency_s, outcome=outcome,
+            tool_calls=tool_names, surface="copilot", messages=messages,
+        )
+        _executor.submit(record_trace, vc, trace_data)
+    except Exception:
+        logger.exception("_record_model_trace")
+
+def _check_flag(name: str, default: bool = False) -> bool:
+    """Delegate to flagd; M25 also has an explicit startup override for deterministic repro."""
+    if name == "llmFaultGarbageOutput" and os.environ.get(
+            "LLM_FAULT_GARBAGE_OUTPUT", "").lower() == "true":
+        return True
+    try:
+        return model_router.check_feature_flag(name, default)
+    except Exception:
+        logger.debug("check_feature_flag(%s) failed, defaulting to %s", name, default)
+        return default
+
+_executor = ThreadPoolExecutor(max_workers=2)
+
+def run_agent(bedrock_client, model_id: str, messages: list, user_id: str,
+              *, valkey_client=None, session_id: str = "") -> AgentResult:
     """Run one Bedrock agent turn. Falls back to a degraded reply on LLM failure."""
     actions: list[ToolCall] = []
     pending: PendingAction | None = None
@@ -448,6 +532,9 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
     tool_calls = 0
     tool_results_raw: list[str] = []  # Thu thap tool results de validate citations (mentor 16/07)
     review_citations: list[dict] = []  # UI citations (Phase 5) -- reviews actually fetched this turn
+    seen_tool_results: dict[str, str] = {}
+    user_text = next((c["text"] for m in reversed(messages) if m.get("role") == "user"
+                      for c in m.get("content", []) if "text" in c), "")
     trace_id_hex = _current_trace_id()
 
     while True:
@@ -458,16 +545,36 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
             bedrock_span.set_attribute("gen_ai.request.model", model_id)
             t_converse = time.time()
             try:
-                response = invoke_bedrock_converse_with_fallback(
-                    primary_client=bedrock_client,
-                    model_id=model_id,
-                    system=[{"text": SYSTEM_PROMPT}],
-                    messages=current,
-                    tool_config={"tools": TOOLS_DEFINITION},
-                    # temperature 0: eval MANDATE-14 chốt xanh bằng 2 lần chạy giống nhau, mà ở
-                    # 0.1 cùng một câu hỏi lúc tóm tắt đúng 5 review lúc lại nói "chưa có đánh giá".
-                    inference_config={"maxTokens": 1024, "temperature": 0.0, "topP": 0.9},
-                )
+                fault_injected = _check_flag("llmFaultGarbageOutput")
+                if fault_injected:
+                    response = {
+                        "stopReason": "tool_use",
+                        "usage": {},
+                        "output": {"message": {"content": []}},
+                    }
+                    actual_model_id, model_outcome = "fault-injection", "error"
+                    logger.warning("M25 fault injection: garbage output → testing output validator")
+                else:
+                    response, actual_model_id, model_outcome = invoke_bedrock_converse_with_fallback(
+                        primary_client=bedrock_client,
+                        model_id=model_id,
+                        system=[{"text": SYSTEM_PROMPT}],
+                        messages=current,
+                        tool_config={"tools": TOOLS_DEFINITION},
+                        # temperature 0: eval MANDATE-14 chốt xanh bằng 2 lần chạy giống nhau.
+                        inference_config={"maxTokens": 1024, "temperature": 0.0, "topP": 0.9},
+                    )
+                if response is None:
+                    _record_model_trace(valkey_client, trace_id_hex, session_id, actual_model_id, {},
+                                        time.time() - t_converse, model_outcome, [], current)
+                    trace_steps.append({
+                        "step_name": "Model Gateway & Bedrock Nova",
+                        "latency_ms": int((time.time() - t_converse) * 1000),
+                        "status": model_outcome,
+                        "detail": redact_pii(json.dumps({"routed_model": actual_model_id}, ensure_ascii=False)),
+                    })
+                    return AgentResult(text=_fallback_text(), actions_taken=actions, degraded=True,
+                                       trace_id=trace_id_hex, trace_steps=trace_steps, cacheable=False)
             except ClientError as e:
                 code = e.response["Error"].get("Code", "Unknown") if "Error" in e.response else "Unknown"
                 bedrock_span.set_attribute("error", True)
@@ -488,24 +595,50 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
             bedrock_span.set_attribute("gen_ai.response.finish_reason", stop)
             bedrock_span.set_attribute("gen_ai.usage.input_tokens", usage.get("inputTokens", 0))
             bedrock_span.set_attribute("gen_ai.usage.output_tokens", usage.get("outputTokens", 0))
-            logger.info("audit bedrock_usage model=%s input_tokens=%s output_tokens=%s",
-                        model_id, usage.get("inputTokens", "?"), usage.get("outputTokens", "?"))
+            logger.info("audit bedrock_usage model=%s outcome=%s input_tokens=%s output_tokens=%s",
+                        actual_model_id, model_outcome, usage.get("inputTokens", "?"),
+                        usage.get("outputTokens", "?"))
+        # MANDATE-25: validate output before processing tool calls
+        _blocks = ([{"toolUse": {"name": "bad_tool", "input": "not_a_dict"}}]
+                   if fault_injected else blocks)
+        _tool_ok, _tool_err = _validate_tool_calls(_blocks)
+        if not _tool_ok:
+            logger.error("Garbage output blocked: %s — degraded fallback", _tool_err)
+            latency_s = time.time() - t_converse
+            _record_model_trace(valkey_client, trace_id_hex, session_id, actual_model_id, usage,
+                                latency_s, "error", [], current)
+            trace_steps.append({
+                "step_name": "Output validator",
+                "latency_ms": int(latency_s * 1000),
+                "status": "error",
+                "detail": redact_pii(json.dumps({
+                    "routed_model": actual_model_id,
+                    "error": _tool_err,
+                }, ensure_ascii=False)),
+            })
+            return AgentResult(text=_fallback_text(), actions_taken=actions, degraded=True,
+                               trace_id=trace_id_hex, trace_steps=trace_steps, cacheable=False)
+        blocks = _blocks
+        # MANDATE-24: only mark success/fallback after the model output passes validation.
+        _record_model_trace(valkey_client, trace_id_hex, session_id, actual_model_id, usage,
+                            time.time() - t_converse, model_outcome, blocks, current)
 
         # Trace UI: show the model's DECISION this turn (what the AI "thinks" it should do next) —
         # either it chose to call tool(s), or it produced a direct answer.
         _decided = [b["toolUse"]["name"] for b in blocks if "toolUse" in b]
-        _raw_text = "\n".join(b["text"] for b in blocks if "text" in b).strip()
-        
-        detail_dict = {"decided_tools": _decided, "stop_reason": stop}
-        if _raw_text:
-            detail_dict["reasoning"] = _raw_text if len(_raw_text) <= 1500 else _raw_text[:1500] + "... [truncated]"
-
+        # Customer-visible traces expose structured decisions, never raw model reasoning.
+        # Raw text is sanitized/guarded below before it can reach the response.
+        detail_dict = {
+            "decided_tools": _decided,
+            "stop_reason": stop,
+            "routed_model": actual_model_id,
+        }
         trace_steps.append({
             "step_name": (f"LLM → gọi tool: {', '.join(_decided)}" if _decided
                           else "LLM → trả lời trực tiếp"),
             "latency_ms": int((time.time() - t_converse) * 1000),
-            "status": "ok",
-            "detail": redact_pii(json.dumps(detail_dict))
+            "status": model_outcome,
+            "detail": redact_pii(json.dumps(detail_dict, ensure_ascii=False))
         })
 
         if stop != "tool_use":
@@ -529,6 +662,7 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
             # OUTPUT rail (TF1-61): Bedrock contextual-grounding — answer over retrieved
             # reviews/catalog must be faithful; ungrounded → say "không có thông tin".
             # Fail-OPEN (PII already masked by redact_pii above). Only when tools ran.
+            cacheable = True
             if tool_results_raw and clean_text and pending is None:
                 with tracer.start_as_current_span("guardrail_output_grounding") as ground_span:
                     user_query = next((c["text"] for m in reversed(messages) if m.get("role") == "user"
@@ -538,7 +672,7 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
                     start_out = time.time()
                     blocked_out, clean_text = apply_guardrail_output(bedrock_client, clean_text, source_text, user_query)
                     lat_out = int((time.time() - start_out) * 1000)
-                    trace_steps.append({"step_name": "Output Guardrail (Grounding)", "latency_ms": lat_out, "status": "blocked" if blocked_out else "pass", "detail": redact_pii(json.dumps({"blocked": blocked_out}))})
+                    trace_steps.append({"step_name": "Output Guardrail (Grounding)", "latency_ms": lat_out, "status": "blocked" if blocked_out else "pass", "detail": redact_pii(json.dumps({"blocked": blocked_out}, ensure_ascii=False))})
                     
                     ground_span.set_attribute("guardrail.blocked", blocked_out)
                     if blocked_out:
@@ -547,6 +681,7 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
                                       "Bạn có thể hỏi tôi về giá, đánh giá, hoặc gợi ý sản phẩm theo danh mục "
                                       "(Telescopes, Binoculars, Accessories, Cameras, Books).")
                         review_citations = []  # blocked -> fallback text isn't grounded on these reviews
+                        cacheable = False
             if not clean_text:
                 # Repro'd live 18/07: model sometimes wraps its entire reply in <thinking>
                 # with no visible text after stripping (rule 7 above now tells it not to,
@@ -554,14 +689,17 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
                 logger.warning("AI_COPILOT_FALLBACK stage=empty-output reason=ThinkingOnlyOrStripped")
                 clean_text = "Xin chào! Bạn muốn tìm sản phẩm gì, xem review, hay kiểm tra giỏ hàng?"
                 review_citations = []
+                cacheable = False
             return AgentResult(text=clean_text, actions_taken=actions, pending=pending,
-                               trace_id=trace_id_hex, citations=review_citations, trace_steps=trace_steps)
+                               trace_id=trace_id_hex, citations=review_citations,
+                               trace_steps=trace_steps, cacheable=cacheable)
 
         tool_calls += 1
         if tool_calls > MAX_TOOL_CALLS:
             return AgentResult(
                 text=f"⚠️ Đã đạt giới hạn {MAX_TOOL_CALLS} tool/lượt. Vui lòng hỏi câu đơn giản hơn.",
-                actions_taken=actions, pending=pending, trace_id=trace_id_hex, trace_steps=trace_steps)
+                actions_taken=actions, pending=pending, trace_id=trace_id_hex,
+                trace_steps=trace_steps, cacheable=False)
 
         current.append({"role": "assistant", "content": blocks})
         results = []
@@ -570,26 +708,64 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
                 continue
             tu = b["toolUse"]
             name, args, tuid = tu["name"], tu.get("input", {}), tu["toolUseId"]
+            signature = f"{name}:{json.dumps(args, sort_keys=True, ensure_ascii=False)}"
+            if signature in seen_tool_results:
+                logger.warning("AI_COPILOT_TOOL_LOOP duplicate=%s", signature[:300])
+                trace_steps.append({
+                    "step_name": f"Tool loop stopped: {name}",
+                    "latency_ms": 0,
+                    "status": "deduplicated",
+                    "detail": redact_pii(json.dumps({"args": args}, ensure_ascii=False)),
+                })
+                return AgentResult(
+                    text=redact_pii(_duplicate_tool_fallback(
+                        name, seen_tool_results[signature], user_text)),
+                    actions_taken=actions, pending=pending, trace_id=trace_id_hex,
+                    citations=review_citations, trace_steps=trace_steps)
             started = time.time()
 
             with tracer.start_as_current_span("tool_call") as tool_span:
                 tool_span.set_attribute("tool.name", name)
-                tool_span.set_attribute("tool.arguments", json.dumps(args)[:500])
+                tool_span.set_attribute("tool.arguments", json.dumps(args, ensure_ascii=False)[:500])
                 if name == "add_item_to_cart":
-                    # Confirmation gate: prepare, do NOT execute.
-                    pid = args.get("product_id", "")
-                    qty = max(1, int(args.get("quantity", 1) or 1))
-                    pending = PendingAction(
-                        tool_name="add_item_to_cart",
-                        arguments={"product_id": pid, "quantity": qty},
-                        human_prompt=f"Bạn có đồng ý thêm {qty}x {pid} vào giỏ hàng không?",
-                    )
-                    out = json.dumps({"status": "pending_confirmation",
-                                      "message": "Đã chuẩn bị, chờ khách xác nhận."})
-                    ok = True
+                    # Hard bar MANDATE-14: ý định "mua ngay / thanh toán / đặt hàng"
+                    # TUYỆT ĐỐI không được chạm write tool, kể cả qua confirmation
+                    # gate. Rule 6 trong prompt không đủ — hidden set 28/07 bắt được
+                    # model vẫn gọi add_item_to_cart cho "Mua ngay 5 cái kính".
+                    if _PURCHASE_INTENT.search(user_text):
+                        logger.warning("AI_COPILOT_BLOCK stage=write reason=PurchaseIntent")
+                        return AgentResult(
+                            text="Mình không thực hiện mua hàng hay thanh toán được. "
+                                 "Bạn có thể xem sản phẩm rồi tự thêm vào giỏ và thanh toán ở trang giỏ hàng nhé.",
+                            actions_taken=actions, trace_id=trace_id_hex,
+                            trace_steps=trace_steps, cacheable=False)
+                    elif not _ADD_TO_CART_INTENT.search(user_text):
+                        # Khách không yêu cầu thêm giỏ → KHÔNG tạo pending. Trả tool
+                        # result để model trả lời tiếp bằng dữ liệu đã có, thay vì
+                        # chuẩn bị một write không ai yêu cầu.
+                        logger.warning("AI_COPILOT_BLOCK stage=write reason=NoAddToCartIntent")
+                        out = json.dumps({
+                            "status": "not_requested",
+                            "message": "Khách chưa yêu cầu thêm sản phẩm vào giỏ.",
+                            "next_action": "answer_without_cart",
+                        })
+                        ok = True
+                    else:
+                        # Confirmation gate: prepare, do NOT execute.
+                        pid = args.get("product_id", "")
+                        qty = max(1, int(args.get("quantity", 1) or 1))
+                        pending = PendingAction(
+                            tool_name="add_item_to_cart",
+                            arguments={"product_id": pid, "quantity": qty},
+                            human_prompt=f"Bạn có đồng ý thêm {qty}x {pid} vào giỏ hàng không?",
+                        )
+                        out = json.dumps({"status": "pending_confirmation",
+                                          "message": "Đã chuẩn bị, chờ khách xác nhận."})
+                        ok = True
                 else:
                     out = _run_read_tool(name, args, user_id)
                     tool_results_raw.append(out)  # Luu tool result de validate citations
+                    seen_tool_results[signature] = out
                     ok = '"error"' not in out
                     if name == "get_product_reviews" and ok:
                         try:
@@ -601,11 +777,11 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
 
             dur_ms = int((time.time() - started) * 1000)
             actions.append(ToolCall(
-                tool_name=name, arguments_json=json.dumps(args), succeeded=ok,
+                tool_name=name, arguments_json=json.dumps(args, ensure_ascii=False), succeeded=ok,
                 started_at_unix=int(started), duration_ms=dur_ms,
             ))
             logger.info("audit tool_call tool=%s args=%s succeeded=%s duration_ms=%s",
-                        name, redact_pii(json.dumps(args)), ok, dur_ms)
+                        name, redact_pii(json.dumps(args, ensure_ascii=False)), ok, dur_ms)
             # Trace UI: show WHAT the AI operated with (which tool + key argument).
             _arg_hint = args.get("query") or args.get("category") or args.get("product_id") or args.get("to_code") or args.get("amount") or ""
             if _arg_hint and not isinstance(_arg_hint, str):
@@ -614,7 +790,7 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str) -> Ag
                 "step_name": f"Tool: {name}" + (f" ({_arg_hint})" if _arg_hint else ""),
                 "latency_ms": dur_ms,
                 "status": "ok" if ok else "error",
-                "detail": redact_pii(json.dumps({"args": args, "succeeded": ok}))
+                "detail": redact_pii(json.dumps({"args": args, "succeeded": ok}, ensure_ascii=False))
             })
             parsed_out = json.loads(out)
             if not isinstance(parsed_out, dict):

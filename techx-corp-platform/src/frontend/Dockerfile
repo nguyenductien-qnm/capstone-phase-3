@@ -12,6 +12,8 @@ RUN npm ci
 
 COPY ./src/frontend/components/ components/
 COPY ./src/frontend/gateways/ gateways/
+COPY ./src/frontend/hooks/ hooks/
+COPY ./src/frontend/lib/ lib/
 COPY ./src/frontend/pages/ pages/
 COPY ./src/frontend/protos/ protos/
 COPY ./src/frontend/providers/ providers/

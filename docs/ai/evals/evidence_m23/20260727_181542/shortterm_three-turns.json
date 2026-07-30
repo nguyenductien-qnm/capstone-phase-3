@@ -1,0 +1,9 @@
+{
+  "group": "shortterm",
+  "case": "three-turns",
+  "passed": false,
+  "reason": "lượt 3 nhắc lại sản phẩm của lượt trước: KHÔNG",
+  "latency": 30.73,
+  "cache_status": "miss",
+  "response": "Có vẻ như \"Starsense Explorer Refractor Telescope\" là một lựa chọn rất phù hợp cho người mới bắt đầu. Nó sử dụng điện thoại thông minh để phân tích bầu trời đêm và tính toán vị trí của nó trong thời gian thực. Ứng dụng của nó có giao diện người dùng thân thiện và các hướng dẫn chi tiết, giúp người m"
+}

@@ -1,0 +1,9 @@
+{
+  "group": "semantic",
+  "case": "negation-must-miss",
+  "passed": true,
+  "reason": "câu phủ định: miss (không được hit_semantic)",
+  "latency": 9.45,
+  "cache_status": "miss",
+  "response": "Tôi tìm thấy: Red Flashlight ($57.08), Eclipsmart Travel Refractor Telescope ($129.95), Roof Binoculars ($209.95)."
+}

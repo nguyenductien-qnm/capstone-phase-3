@@ -1,0 +1,9 @@
+{
+  "group": "longterm",
+  "case": "recall-new-session",
+  "passed": false,
+  "reason": "phiên mới nhớ trình độ=False, mục đích=False",
+  "latency": 3.21,
+  "cache_status": "miss",
+  "response": "Cảm ơn bạn đã chia sẻ trình độ và mục đích sử dụng của mình. Bạn có thể cho tôi biết cụ thể là gì để tôi có thể giúp bạn tìm sản phẩm phù hợp hơn?"
+}
