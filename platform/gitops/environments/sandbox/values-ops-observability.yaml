@@ -195,6 +195,13 @@ thanos:
   query:
     replicaCount: 2
     replicaLabel: [replica, receive_replica]
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
     podAntiAffinityPreset: hard
     nodeSelector:
       workload-tier: platform
