@@ -275,13 +275,24 @@ rules:
     threshold: 6.0
 
   # ---- COST SIGNAL (chi phi LLM) ----
+  #
+  # TEN METRIC CO HAU TO DON VI. Ban cu viet `bedrock_cost_usd_total` va MU hoan toan —
+  # `detector.py --once --dry-run` tren cum 30/07 bao `detector-silent-rule` cho rule nay.
+  # Ten that tren Prometheus la `bedrock_cost_usd_USD_total`: bo xuat OTLP->Prometheus CHEN
+  # ten don vi cua instrument vao giua ten va hau to `_total` (instrument `bedrock.cost.usd`
+  # co unit `USD`). Khong doan duoc tu code — phai doc `/api/v1/label/__name__/values` cua
+  # chinh cum moi thay.
+  #
+  # `service_namespace="techx-corp"` la ĐUNG (do lai 30/07: khop product-reviews). Chi sai
+  # moi ten metric. Hai metric anh em cung ho: `bedrock_input_tokens_total`,
+  # `bedrock_output_tokens_total` — KHONG co hau to don vi vi instrument khong khai unit.
   - id: bedrock-cost-high
     type: metric
     severity: warning
     summary: "Bedrock chi phí/giờ vượt ngưỡng - tiến gần trần budget $300/tuần"
     query: >-
       sum by (service_name) (
-        increase(bedrock_cost_usd_total{service_namespace="techx-corp"}[1h])
+        increase(bedrock_cost_usd_USD_total{service_namespace="techx-corp"}[1h])
       )
     op: gt
     threshold: 1.0
@@ -324,19 +335,37 @@ rules:
     window_minutes: 5
     min_count: 1
 
+  # DOI NEN METRIC 30/07 — cung ly do da doi 4 rule burn-rate o MANDATE-15.
+  #
+  # Ban cu doc `http_server_request_duration_seconds_bucket{service_name="product-reviews"}`.
+  # Metric do CO THAT tren cum (390 series) nhung CHI xuat boi otelcol-contrib, jaeger va
+  # cart — product-reviews khong he xuat no. Nen tu so rong, rule MU, va
+  # `detector.py --once --dry-run` 30/07 bao `detector-silent-rule` dung nhu vay.
+  #
+  # Nen moi = spanmetrics duration, phu DU CA 17 service (do 30/07), cung nen ma
+  # `service-error-rate-high` va 4 rule burn-rate dang dung. DON VI LA MILLIGIAY, nen
+  # nguong 2.0s -> 2000. Loc `span_kind="SPAN_KIND_SERVER"` de do thoi gian XU LY MOT
+  # REQUEST DEN, khong lan sang span CLIENT (do la do tre cua thu ma no goi).
+  #
+  # ⚠️ RULE NAY SE KEU NGAY. Do that 30/07 tren product-reviews (span SERVER):
+  #       p50 = 3.233s   trung binh = 7.429s   p95 >= 15s   (cham bucket +Inf, tran huu han 15000ms)
+  # Tuc he DANG o dung cai trang thai ma rule sinh ra de canh bao, va khong ai biet vi rule mu.
+  # Giu nguong 2000ms (khong doi ngu nghia so voi ban cu) va DE DRAFT: viec quyet dinh la
+  # "chap nhan alert nay" hay "sua do tre cua product-reviews" thuoc chu SLO, khong phai
+  # viec cua query. KHONG nang nguong cho het keu — do la giau van de, khong phai sua no.
   - id: genai-latency-high
     type: metric
     severity: warning
-    summary: "p95 product-reviews > 2s — cuộc gọi LLM chậm, đe dọa gián tiếp SLO storefront"
+    summary: "DRAFT: p95 product-reviews > 2s — cuộc gọi LLM chậm, đe dọa gián tiếp SLO storefront"
     summary_dynamic: "Độ trễ product-reviews TĂNG BẤT THƯỜNG so với baseline (chưa chạm 2s — cảnh báo sớm)"
     query: >-
       histogram_quantile(0.95,
         sum by (le) (
-          rate(http_server_request_duration_seconds_bucket{service_namespace="techx-corp", service_name="product-reviews"}[5m])
+          rate(traces_span_metrics_duration_milliseconds_bucket{service_name="product-reviews", span_kind="SPAN_KIND_SERVER"}[5m])
         )
       )
     op: gt
-    threshold: 2.0
+    threshold: 2000
 
   # ---- SU CO HA TANG KINH DIEN (log) ----
   - id: db-pool-exhaustion
@@ -465,11 +494,40 @@ rules:
     # Label `namespace` o day la NAMESPACE K8S (techx-tf1 tren EKS - xem
     # platform/gitops/applications/application.yaml:31), KHONG phai service_namespace
     # cua OTel (techx-corp). Hai label khac nguon, dung nham la rule cau 0 series.
+    # PHEP CHIA PHAI CO `on(...)`. Ban cu chia thang, khong khai vector matching, nen
+    # PromQL doi HAI VE TRUNG TOAN BO nhan (tru __name__) — dieu khong bao gio xay ra:
+    #   ve trai  (cAdvisor)          : 48 nhan, rieng co id/image/name/karpenter_*/topology_*
+    #   ve phai  (kube-state-metrics): 18 nhan, rieng co uid/unit/resource/node/helm_sh_chart
+    #   chung    :                     container, instance, job, namespace, pod  (5)
+    # Ket qua: 0 series. Do 30/07 — bo hai metric DEU CO du lieu (616 va 207 series), nen
+    # khong ai nghi rule mu; no chi im lang. Day la lop loi KHAC voi "sai ten metric":
+    # sai ten thi grep ra, sai vector matching thi phai chay that moi thay.
+    #
+    # `on (namespace, pod, container)` — CO Y bo `instance` va `job` du chung co mat o ca hai
+    # ve: hai metric den tu hai job scrape khac nhau nen gia tri hai nhan do luon lech.
+    #
+    # `max by (namespace, pod, container)` o CA HAI VE truoc khi chia: container vua restart
+    # de lai series cu trong cua so staleness (cAdvisor phan biet bang `id`/`name`), thanh ra
+    # nhieu series cho cung mot (pod, container) -> loi "many-to-one matching must be
+    # explicit". Do 30/07: 3 cap bi trung (ml-guard, thanos-query x2). Gom truoc thi het,
+    # va gom bang `max` la dung y do: quan tam dinh cao nhat, khong phai trung binh.
+    #
+    # `container!=""` bo chuoi muc POD (cgroup cha) — no khong co limit tuong ung ben
+    # kube-state-metrics nen chi lam nhieu.
+    #
+    # DO SAU KHI SUA (30/07): 0 -> 37 series. Hai container VUOT nguong ngay tai thoi diem do:
+    #   opensearch 0.891 · prometheus-server 0.887
+    # Va `prometheus-0` da OOMKilled that (exit 137) truoc do vai chuc phut. Tuc rule nay,
+    # neu khong mu, da bao truoc chinh su co vua xay ra tren cum.
     query: >-
       max by (container) (
-        avg_over_time(container_memory_working_set_bytes{namespace="techx-tf1"}[10m])
-        /
-        clamp_min(kube_pod_container_resource_limits{namespace="techx-tf1", resource="memory"}, 1)
+        max by (namespace, pod, container) (
+          avg_over_time(container_memory_working_set_bytes{namespace="techx-tf1", container!=""}[10m])
+        )
+        / on (namespace, pod, container)
+        max by (namespace, pod, container) (
+          clamp_min(kube_pod_container_resource_limits{namespace="techx-tf1", resource="memory"}, 1)
+        )
       )
     op: gt
     threshold: 0.85
