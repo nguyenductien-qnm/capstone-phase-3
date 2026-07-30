@@ -565,6 +565,31 @@ components:
   # Dedicated background MSK Kafka Worker
   cart-consumer-worker:
     enabled: true
+
+    # 30/07/2026 — KHAI QUAN HỆ ẢNH RA CHO CI ĐỌC ĐƯỢC.
+    #
+    # Component này KHÔNG có Dockerfile riêng (techx-corp-platform/src/cart-consumer-worker/
+    # không tồn tại): nó chạy CHÍNH ảnh của `cart`, chỉ khác `command`. Vì không có
+    # Dockerfile nên job `detect` của app-build.yaml không xếp nó vào build matrix, mà
+    # bước bump lại duyệt đúng matrix đó -> nó KHÔNG BAO GIỜ được ghi tag.
+    #
+    # Hệ quả nếu để nguyên: mỗi lần `cart` được bump sang SHA mới, worker vẫn giữ tag
+    # cũ. Phát hiện 30/07/2026 khi dựng lại account: tags-file trỏ worker vào
+    # `1.0-cart-4986041`, tag đó không tồn tại trên ECR mới -> ImagePullBackOff.
+    #
+    # Trước đây quan hệ "worker dùng ảnh của cart" KHÔNG được khai ở đâu cả. Hai dòng
+    # tag bằng nhau trong values-image-tags.yaml chỉ là do có người gõ cùng một chuỗi
+    # hai lần — một sự trùng khớp, không phải một khai báo, nên CI không có cách nào
+    # suy ra được. `imageFrom` biến nó thành khai báo máy đọc được.
+    #
+    # Bump đọc key này (xem app-build.yaml, bước "Bump imageOverride.tag từng service")
+    # và ghi tag của `cart` sang đây. Gate "Verify diff chỉ chạm service đã build" cũng
+    # đọc nó để cho phép worker xuất hiện trong diff — nhưng CHỈ khi `cart` nằm trong
+    # tập vừa build, nên gate vẫn giữ nguyên tác dụng chặn tag trỏ vào ảnh chưa có.
+    #
+    # Thêm worker dùng chung ảnh với service khác sau này thì khai `imageFrom` là xong,
+    # KHÔNG cần sửa workflow nữa.
+    imageFrom: cart
     imageOverride: {}
     initContainers:
       - name: wait-for-valkey-cart

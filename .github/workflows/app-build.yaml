@@ -1201,6 +1201,7 @@ jobs:
         if: needs.merge.result == 'success' && needs.detect.outputs.any == 'true'
         env:
           MATRIX: ${{ needs.detect.outputs.matrix }}
+          VALUES: platform/charts/application/values.yaml
         run: |
           set -euo pipefail
           SHORT_SHA=$(git rev-parse --short HEAD)
@@ -1210,6 +1211,25 @@ jobs:
             TAG="${IMAGE_VERSION}-${svc}-${SHORT_SHA}"
             echo "== $svc -> $TAG =="
             yq -i ".components.\"$svc\".imageOverride.tag = \"$TAG\"" "$TAGS_FILE"
+
+            # FOLLOWER: component khai `imageFrom: <svc>` trong chart là component chạy
+            # CHÍNH ảnh của $svc (không có Dockerfile riêng, chỉ khác command). Nó không
+            # nằm trong build matrix nên vòng lặp trên không chạm tới, và nếu bỏ qua thì
+            # nó đứng im ở SHA cũ trong khi leader đã sang SHA mới.
+            #
+            # Gặp thật 30/07/2026: cart-consumer-worker treo ở `1.0-cart-4986041` sau khi
+            # dựng lại account, tag đó không tồn tại trên ECR mới -> ImagePullBackOff.
+            # Trước đó quan hệ này không được khai ở đâu, hai dòng tag bằng nhau trong
+            # TAGS_FILE chỉ là trùng khớp do gõ tay nên CI không thể suy ra.
+            #
+            # Đọc từ chart chứ không hardcode tên: thêm worker mới chỉ cần khai
+            # `imageFrom` trong values.yaml, không phải sửa workflow.
+            for follower in $(yq -r ".components | to_entries[]
+                                     | select(.value.imageFrom == \"$svc\")
+                                     | .key" "$VALUES"); do
+              echo "   ↳ $follower (imageFrom: $svc) -> $TAG"
+              yq -i ".components.\"$follower\".imageOverride.tag = \"$TAG\"" "$TAGS_FILE"
+            done
           done
 
       # MANDATE-10 #6: bump chỉ được chạm ĐÚNG service vừa build. Nếu matrix và diff
@@ -1219,6 +1239,7 @@ jobs:
         if: needs.merge.result == 'success' && needs.detect.outputs.any == 'true'
         env:
           EXPECTED: ${{ needs.detect.outputs.services }}
+          VALUES: platform/charts/application/values.yaml
         run: |
           set -euo pipefail
 
@@ -1244,7 +1265,25 @@ jobs:
             done
           )
 
+          # FOLLOWER cũng được phép có mặt trong diff, nhưng CHỈ khi leader của nó nằm
+          # trong tập vừa build. Follower = component khai `imageFrom: <leader>` trong
+          # chart, tức chạy chính ảnh của leader (không có Dockerfile riêng) nên không
+          # bao giờ xuất hiện trong $EXPECTED. Không nới chỗ này thì bước bump ở trên
+          # ghi tag cho nó và chính gate này đánh sập lần build kế tiếp.
+          #
+          # Điều kiện "leader phải nằm trong $EXPECTED" là thứ giữ nguyên tác dụng của
+          # gate: follower ăn theo một ảnh VỪA được build và push, không phải một tag
+          # đoán bừa. Bỏ điều kiện đó là mở lại đúng lỗ mà gate sinh ra để bịt.
+          ALLOWED="$EXPECTED"
+          for svc in $EXPECTED; do
+            followers=$(yq -r ".components | to_entries[]
+                               | select(.value.imageFrom == \"$svc\")
+                               | .key" "$VALUES")
+            [ -n "$followers" ] && ALLOWED="$ALLOWED $followers"
+          done
+
           echo "Service đã build : $EXPECTED"
+          echo "Được phép bump   : $ALLOWED"
           echo "Service bị bump  : ${changed_svcs[*]:-<không có>}"
 
           # So khớp theo TỪNG DÒNG (grep -qx) chứ không tìm chuỗi con: tên service có
@@ -1253,8 +1292,8 @@ jobs:
           rc=0
           for svc in "${changed_svcs[@]:-}"; do
             [ -z "$svc" ] && continue
-            if ! printf '%s\n' $EXPECTED | grep -qx "$svc"; then
-              echo "::error::Bump ghi tag cho '$svc' nhưng service này KHÔNG nằm trong tập vừa build ($EXPECTED). Tag sẽ trỏ tới image không tồn tại trên ECR."
+            if ! printf '%s\n' $ALLOWED | grep -qx "$svc"; then
+              echo "::error::Bump ghi tag cho '$svc' nhưng service này KHÔNG nằm trong tập vừa build ($EXPECTED) và cũng không khai imageFrom trỏ vào service nào trong tập đó. Tag sẽ trỏ tới image không tồn tại trên ECR."
               rc=1
             fi
           done

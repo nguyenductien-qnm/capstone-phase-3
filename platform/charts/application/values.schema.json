@@ -303,6 +303,10 @@
         "imageOverride": {
           "$ref": "#/definitions/Image"
         },
+        "imageFrom": {
+          "type": "string",
+          "description": "Component này chạy CHÍNH ảnh của component được nêu tên (không có Dockerfile riêng, thường chỉ khác command). Key dành cho CI: app-build.yaml job bump đọc nó để ghi tag của leader sang đây, và gate 'Verify diff chỉ chạm service đã build' đọc nó để cho phép component này có mặt trong diff khi leader nằm trong tập vừa build. Template KHÔNG dùng key này - tag hiệu dụng vẫn lấy từ imageOverride.tag trong values-image-tags.yaml."
+        },
         "replicas": {
           "type": "integer"
         },
