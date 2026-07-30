@@ -1,0 +1,8 @@
+NODE                          ZONE         TYPE
+ip-10-0-11-166.ec2.internal   us-east-1a   <none>
+ip-10-0-12-66.ec2.internal    us-east-1b   <none>
+ip-10-0-13-175.ec2.internal   us-east-1c   <none>
+ip-10-0-58-3.ec2.internal     us-east-1a   spot
+ip-10-0-60-167.ec2.internal   us-east-1a   on-demand
+ip-10-0-79-215.ec2.internal   us-east-1b   on-demand
+ip-10-0-79-96.ec2.internal    us-east-1b   spot
