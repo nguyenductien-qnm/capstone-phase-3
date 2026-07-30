@@ -47,7 +47,7 @@ spec:
       containers:
         - name: aiops-detector
           # MANDATE-05: pin tag co dinh, khong dung tag troi (:latest).
-          image: 384511757667.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.3-aiops-detector-6855da8
+          image: 384511757667.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.3-aiops-detector-5b99f29
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false
