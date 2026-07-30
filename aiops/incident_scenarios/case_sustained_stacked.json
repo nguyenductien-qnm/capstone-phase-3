@@ -1,7 +1,7 @@
 {
-  "id": "case-sustained-stacked-001",
+  "id": "case-sustained-stacked-002",
   "type": "sustained",
-  "description": "MANDATE-28: su co KEO DAI 35 phut tren `cart`, va giua chung mot su co THU HAI no chong tren `recommendation` khi su co dau chua dut. Kiem ba thu cung luc: (1) bao xuyen suot su co dai, khong khoang cam; (2) khong bao gia vi tai nen dao dong; (3) su co 2 duoc bat va TACH RIENG chu khong bi su co 1 che. Hai su kien CO Y chong nhau — do la ly do do_inject phai chay theo lich chung thay vi tuan tu.",
+  "description": "MANDATE-28: su co KEO DAI 35 phut lam hong `cart` (cham diem tren nan nhan `checkout`), va giua chung mot su co THU HAI no chong lam hong `quote` (nan nhan `shipping`) khi su co dau chua dut. Kiem ba thu cung luc: (1) bao xuyen suot su co dai, khong khoang cam; (2) khong bao gia vi tai nen dao dong; (3) su co 2 duoc bat va TACH RIENG chu khong bi su co 1 che. Hai su kien CO Y chong nhau — do la ly do do_inject phai chay theo lich chung thay vi tuan tu.",
   "settle_seconds": 300,
   "events": [
     {
@@ -20,8 +20,8 @@
       }
     },
     {
-      "label": "su-co-chong-recommendation",
-      "service": "frontend",
+      "label": "su-co-chong-quote",
+      "service": "shipping",
       "expected_rule_ids": [
         "service-error-rate-high"
       ],
@@ -30,18 +30,40 @@
       "duration_seconds": 600,
       "inject": {
         "type": "command",
-        "on": "kubectl scale deploy/recommendation -n techx-tf1 --replicas=0",
-        "off": "kubectl scale deploy/recommendation -n techx-tf1 --replicas=2"
+        "on": "kubectl scale deploy/quote -n techx-tf1 --replicas=0",
+        "off": "kubectl scale deploy/quote -n techx-tf1 --replicas=2"
       }
     }
   ],
   "notes": [
-    "CHUA CHAY DUOC TREN CUM — SSO het han 29/07. Bang chung offline nam o aiops/detector/test_sustained.py va aiops/test_timeline.py; chay that la buoc rieng, xem ADR-019.",
+    "CHAY `case_preflight_probe.json` (7 phut) VA DOC KET QUA TRUOC khi chay file nay (40 phut). Probe tra loi dung mot cau: giet `quote` thi `shipping` co sinh span STATUS_CODE_ERROR that khong, hay no nuot loi bang fallback. Neu no nuot thi ban nay se FAIL vi ly do SAI — mat 40 phut va lam gian doan cum ma khong hoc duoc gi.",
+
+    "VI SAO `kubectl scale` CHU KHONG PHAI flagd. flagd la co che bom su co chinh thuc cua chuong trinh, nhung TF KHONG dung duoc no: `platform/gitops/environments/sandbox/values-flagd-sync.yaml` doi `--sources` sang endpoint HTTP trung tam cua BTC va go han flagd-ui local; chinh file do ghi 'TF khong tu doi duoc flag vi nguon trung tam sync de len'. Do tren cum 30/07 xac nhan dieu do: container flagd chay voi `--sources` tro ra URL ngoai, con ConfigMap `flagd-config` chi duoc initContainer chep sang emptyDir roi BO KHONG. Sua ConfigMap khong co tac dung gi. Nen tang K8s la duong duy nhat con lai.",
+
+    "DOI SU KIEN 2 TU `recommendation`/`frontend` SANG `quote`/`shipping` (30/07). Ban 001 khai su kien 2 giet `recommendation` va cham diem tren `frontend`. Nhung do thi phu thuoc THAT do tu spanmetrics ngay 30/07 cho thay `frontend` GOI CA HAI: `frontend -> oteldemo.CartService/GetCart` + `AddItemAndGetCart`, va `frontend -> oteldemo.RecommendationService/ListRecommendations`. Tuc su kien 1 (giet cart) da lam `frontend` do TRUOC KHI su kien 2 bat dau, nen phep kiem 'su co 2 duoc bat VA tach rieng' se PASS DU FREEZE CO HOAT DONG HAY KHONG. Mot ca kiem luon xanh con te hon khong co ca kiem nao (bai hoc PR #482).",
+
+    "VI SAO CAP `quote` -> `shipping` la sach. Do 30/07: (a) `quote` chi co DUNG MOT nguoi goi — khong service nao ngoai `shipping` co CLIENT span toi no; (b) `shipping` chi co DUNG MOT CLIENT span (POST -> quote) va KHONG goi `cart`, nen no mien nhiem voi su kien 1; (c) traffic du de tinh ti le loi tren cua so 5m: quote 6.28 rps, shipping 6.27 rps (do luc cum dang co tai nang). Ban kinh anh huong cung hep hon han: giet quote chi dung toi shipping, con giet recommendation thi dung toi frontend — service dong nguoi dung nhat.",
+
+    "VI SAO VAN GIU su kien 1 la `cart` du no lam CA `frontend` lan `checkout` do. Cham diem su kien 1 tren `checkout` (luong ra tien). Viec frontend cung do la tac dung phu chap nhan duoc — no khong lam sai phep kiem nao, MIEN LA su kien 2 khong cham diem tren frontend. Do chinh la thu ban 001 pham phai.",
+
+    "ARGOCD SE KHONG KEO LAI (da kiem 30/07). App quan `techx-tf1` co `selfHeal: true` va khong co `ignoreDifferences`, NHUNG chart bo han truong `replicas` khi HPA bat — xem `platform/charts/application/templates/_objects.tpl:27` (`{{- if not (.hpa).enabled }}`). Truong khong nam trong manifest thi ArgoCD khong so huu no. Vua la tin tot (bom giu duoc 35 phut) vua la canh bao: KHONG co luoi an toan tu dong, tien trinh chet giua chung thi khong ai keo `cart` ve.",
+
+    "HPA CUNG KHONG KEO LAI. Khi target o 0 replica, HPA controller tu tat (ScalingActive=False, ly do ScalingDisabled) chu khong keo len minReplicas. Nen bom giu duoc. Luc `off` scale ve 2 = dung minReplicas cua ca `cart` lan `quote`, HPA tiep quan lai binh thuong.",
+
+    "LENH CUU HO — chay ngay neu tien trinh chet giua chung, khong can biet dang o buoc nao:\n    kubectl scale deploy/cart  -n techx-tf1 --replicas=2\n    kubectl scale deploy/quote -n techx-tf1 --replicas=2\n  Hai lenh idempotent, chay thua khong hai gi.",
+
+    "DIEU KIEN TIEN QUYET VE TAI NGUYEN. Do 30/07: `prometheus-server` o 0.887 va `opensearch` o 0.891 so voi limit RAM, va `prometheus-0` DA OOMKilled that (exit 137) trong ngay. Bom su co sinh them alert, them series, them truy van. Prometheus chet giua chung thi mat CA phep do LAN `alerter_history.jsonl` — tuc mat luon dau vao de cham diem. Kiem `memory-saturation-high` xuong duoi 0.85 truoc khi chay.",
+
+    "DIEU KIEN TIEN QUYET VE TAI NEN. 30/07 HPA dang keo `frontend` len 12 pod va `cart` o 83% CPU — co nguoi dang chay load test. Do luc do thi so cua minh lan voi tai cua ho, va chaos cua minh cong vao tai cua ho. Cho cum yen roi hay chay.",
+
     "VI SAO 2100s (35 phut) cho su co 1. Truoc khi co freeze, do duoc tren chinh eval_metric_rule: mot su co o muc duoi nguong SLO bi nuot sau ~9 phut (baseline 30 mau x poll 30s = 15 phut de bi keo len het). Kich ban phai dai HON han cua so do moi kiem duoc gi; 35 phut cho bien hon gap doi.",
-    "VI SAO su co 2 bom vao `recommendation` chu khong phai service khac. Ba dieu kien phai thoa cung luc: (a) khac service voi su co 1 de kiem duoc 'tach rieng'; (b) khong nam tren duong phu thuoc cua cart, neu khong thi giet no chi lam nang them chinh trieu chung cua su co 1; (c) frontend chiu duoc no chet ma van co loi do duoc. Theo aiops/topology.json thi frontend -> recommendation la canh dong bo truc tiep, va recommendation khong goi cart.",
+
     "VI SAO su kien 2 bat o offset 1200 (phut 20). Phai nam TRON trong su co 1 (0-2100) va phai sau moc ~9 phut ma detector cu da bi nuot — de neu freeze khong hoat dong thi ca nay FAIL that chu khong FAIL vi ly do khac.",
-    "RANG BUOC BOM: hai su kien chong nhau khong duoc dung chung mot diem bom. Tat `cart` va tat `recommendation` la hai deployment khac nhau nen doc lap. Neu doi sang bom cung mot service thi lenh `off` cua su kien 1 se xoa luon loi cua su kien 2.",
+
+    "RANG BUOC BOM: hai su kien chong nhau khong duoc dung chung mot diem bom. `cart` va `quote` la hai deployment khac nhau nen doc lap. Neu doi sang bom cung mot service thi lenh `off` cua su kien 1 se xoa luon loi cua su kien 2.",
+
     "KHOI PHUC: ca hai `off` deu scale ve 2 = dung minReplicas cua HPA. Tong thoi gian mot lan chay: 2100 + 300 settle = 40 phut.",
-    "AN TOAN: `aiops-remediation` chay REMEDIATION_DRY_RUN=true va chi co policy cho oom-detected, nen no khong can thiep vao ca nay."
+
+    "AN TOAN: `aiops-remediation` chay REMEDIATION_DRY_RUN=true (xac nhan tren cum 30/07 qua env cua deployment) va chi co policy cho `oom-detected`, nen no khong can thiep vao ca nay."
   ]
 }

@@ -213,13 +213,45 @@ def test_lich_bom_tuan_tu_khong_doi_hanh_vi():
     ]
 
 
-def test_kich_ban_sustained_trong_repo_hop_le():
-    """File kich ban commit trong repo phai thuc su chong lan, khong chi noi la chong."""
+def _kich_ban(ten):
     import json
     import os
-    p = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                     "incident_scenarios", "case_sustained_stacked.json")
-    sc = json.load(open(p, encoding="utf-8"))
+    p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "incident_scenarios", ten)
+    return json.load(open(p, encoding="utf-8"))
+
+
+def _diem_bom(ev):
+    """Ten deployment bi giet, doc tu lenh `inject.on`."""
+    import re
+    m = re.search(r"deploy/([a-z0-9-]+)", ev["inject"]["on"])
+    assert m, f"khong doc duoc diem bom tu: {ev['inject']['on']}"
+    return m.group(1)
+
+
+def _phu_thuoc_vao(topo, tu, den):
+    """`tu` co phu thuoc DONG BO (truc tiep hay bac cau) vao `den` khong?
+
+    Chi di theo `edges`. `async_edges` co y KHONG tinh: da do 26/07 rang giet payment
+    KHONG lam ti le loi cua checkout nhuc nhich (0.0000 suot 13/13 mau), nen canh qua
+    Kafka khong truyen loi sang nguoi goi.
+    """
+    edges = {k: v for k, v in topo.get("edges", {}).items() if not k.startswith("_")}
+    da_tham, hang_doi = set(), [tu]
+    while hang_doi:
+        node = hang_doi.pop()
+        if node in da_tham:
+            continue
+        da_tham.add(node)
+        for ke in edges.get(node, []):
+            if ke == den:
+                return True
+            hang_doi.append(ke)
+    return False
+
+
+def test_kich_ban_sustained_trong_repo_hop_le():
+    """File kich ban commit trong repo phai thuc su chong lan, khong chi noi la chong."""
+    sc = _kich_ban("case_sustained_stacked.json")
     assert sc["type"] == "sustained"
     dai, chong = sc["events"]
     assert dai["duration_seconds"] >= 1800, "su co 'dai' phai dai hon cua so baseline 15 phut"
@@ -228,3 +260,56 @@ def test_kich_ban_sustained_trong_repo_hop_le():
             < dai["offset_seconds"] + dai["duration_seconds"]), \
         "su co 2 phai nam TRON trong su co 1, khong thi khong goi la no chong"
     assert dai["service"] != chong["service"], "hai su co phai o hai service khac nhau"
+
+
+def test_nan_nhan_su_kien_2_khong_duoc_do_san_vi_su_kien_1():
+    """Bay da SAP DAM PHAI mot lan — ban 001 cua kich ban nay.
+
+    Ban do giet `cart` (su kien 1) roi cham diem su kien 2 tren `frontend`. Nhung
+    `frontend -> cart` la canh dong bo, nen frontend DA do truoc khi su kien 2 bat dau.
+    Phep kiem "su co 2 duoc bat va tach rieng" khi do PASS du freeze co hoat dong hay
+    khong — mot ca kiem luon xanh, dung thu ma ca dot MANDATE-15/26 di tim.
+
+    Rang buoc: nan nhan cua su kien 2 KHONG duoc phu thuoc dong bo vao diem bom cua
+    su kien 1. Kiem tren chinh `topology.json` de con so khong troi khoi do thi.
+    """
+    import json
+    import os
+    topo = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                       "topology.json"), encoding="utf-8"))
+    sc = _kich_ban("case_sustained_stacked.json")
+    dai, chong = sc["events"]
+    bom_1 = _diem_bom(dai)
+
+    assert not _phu_thuoc_vao(topo, chong["service"], bom_1), (
+        f"nan nhan su kien 2 (`{chong['service']}`) phu thuoc vao `{bom_1}` — thu ma su kien 1 "
+        f"giet. No se do san truoc khi su kien 2 bat dau, nen phep kiem 'tach rieng' thanh vo nghia."
+    )
+    assert chong["service"] != bom_1, "nan nhan su kien 2 khong duoc chinh la thu su kien 1 giet"
+
+
+def test_hai_su_kien_khong_dung_chung_diem_bom():
+    """Lenh `off` cua su kien 1 se xoa luon loi cua su kien 2 neu chung cung mot deployment."""
+    dai, chong = _kich_ban("case_sustained_stacked.json")["events"]
+    assert _diem_bom(dai) != _diem_bom(chong)
+
+
+def test_co_kich_ban_tham_do_va_no_kiem_dung_cap_service():
+    """Kich ban dai bat buoc phai co ban tham do di truoc, va tham do phai do DUNG cap do.
+
+    Khong co rang buoc nay thi de xay ra canh: doi cap service o kich ban dai ma quen doi
+    ban tham do, roi chay 40 phut de phat hien ra minh tham do nham thu.
+    """
+    probe = _kich_ban("case_preflight_probe.json")
+    dai, chong = _kich_ban("case_sustained_stacked.json")["events"]
+
+    assert len(probe["events"]) == 1, "tham do chi nen hoi MOT cau"
+    ev = probe["events"][0]
+    assert ev["service"] == chong["service"], (
+        f"tham do dang do `{ev['service']}` nhung kich ban dai cham diem su kien 2 tren "
+        f"`{chong['service']}` — do nham thu"
+    )
+    assert _diem_bom(ev) == _diem_bom(chong), "tham do phai bom dung diem ma su kien 2 bom"
+    assert ev["duration_seconds"] <= 300, (
+        "tham do phai NGAN — muc dich la tra loi mot cau hoi nhi phan, khong phai do dac"
+    )

@@ -1567,11 +1567,30 @@ thì cả hai đều không đáng tin.
 - Yêu cầu 3 (tách sự cố chồng) **đã đạt sẵn từ trước**, không nhờ PR này: `metric_history` khóa
   theo `rule_id:service` từ `#7a`. Đo xác nhận: `cart` cháy từ chu kỳ 15, `payment` vẫn bắt được ở
   chu kỳ 45, hai lịch sử riêng (mean 0.2960 vs 0.0484). Freeze cũng khóa theo cùng khoá đó.
-- **Chưa chạy được trên cụm** — SSO hết hạn 29/07. `case_sustained_stacked.json` đã commit nhưng
-  chưa có số đo thật. Bằng chứng offline chứng minh **cơ chế**, không chứng minh hành vi dưới nhiễu
-  thật của EKS. Nợ đã ghi, có task riêng.
-- Bộ đo: 14 test `test_sustained.py` + 18 test `test_timeline.py`, và **kiểm chiều fail**: phá 10
-  cơ chế thì cả 10 đều có test đỏ.
+- **Chưa chạy được trên cụm.** Bằng chứng offline chứng minh **cơ chế**, không chứng minh hành vi
+  dưới nhiễu thật của EKS. Nợ đã ghi, có task riêng. Lý do chặn đã **đổi hai lần**, ghi lại để
+  không ai truy lại từ đầu:
+  - 29/07 — SSO hết hạn.
+  - 30/07 — cụm cũ **đã bị destroy** sau sự cố credit AWS 28/07; cụm mới dựng trên account khác,
+    vào bằng IAM user `AIO-member` → assume `ecommerce-dev-eks-aio` (chỉ namespace `techx-tf1`).
+    Vào được rồi, nhưng chưa chạy vì ba lý do đo được: Prometheus ở **0.887** so với limit RAM và
+    **đã OOMKilled thật** trong ngày; có người đang chạy load test (HPA kéo frontend lên 12 pod);
+    và bản thân kịch bản còn lỗi thiết kế (mục dưới).
+- **Kịch bản bản 001 có lỗi khiến yêu cầu 3 tự pass — đã sửa 30/07.** Bản đó giết `cart` (sự kiện 1)
+  rồi chấm điểm sự kiện 2 trên `frontend`. Nhưng đồ thị phụ thuộc đo thật từ spanmetrics cho thấy
+  `frontend` gọi **cả** `cart` lẫn `recommendation`, nên frontend đã đỏ sẵn trước khi sự kiện 2 nổ
+  — phép kiểm "tách riêng" pass **dù freeze có hoạt động hay không**. Bản 002 đổi sự kiện 2 sang
+  cặp `quote → shipping`: `quote` chỉ có duy nhất `shipping` gọi, và `shipping` chỉ có đúng một
+  CLIENT span (tới quote), không đụng `cart`. Ràng buộc này giờ có test khoá lại
+  (`test_nan_nhan_su_kien_2_khong_duoc_do_san_vi_su_kien_1`) đọc thẳng `topology.json`, nên không
+  tái phát bằng cách sửa file kịch bản.
+- **flagd không dùng được để bơm sự cố, dù nó là cơ chế chính thức.** `values-flagd-sync.yaml` đổi
+  `--sources` của flagd sang endpoint HTTP trung tâm của BTC và gỡ hẳn flagd-ui local; chính file
+  đó ghi *"TF không tự đổi được flag vì nguồn trung tâm sync đè lên"*. Đo trên cụm xác nhận:
+  ConfigMap `flagd-config` chỉ được initContainer chép sang emptyDir rồi **bỏ không**. Nên tầng K8s
+  (`kubectl scale`) là đường duy nhất còn lại — đó là lý do kịch bản dùng nó, không phải vì tiện.
+- Bộ đo: 14 test `test_sustained.py` + 23 test `test_timeline.py`, và **kiểm chiều fail**: phá 10
+  cơ chế thì cả 10 đều có test đỏ; ba ràng buộc mới của kịch bản cũng đã phá thử và cả ba đều đỏ.
 
 ## Ghi chú phương pháp — hai lỗi do chính việc kiểm chiều fail moi ra
 
