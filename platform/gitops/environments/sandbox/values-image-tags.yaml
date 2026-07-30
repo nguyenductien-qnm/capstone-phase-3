@@ -2,6 +2,12 @@
 # Tách khỏi values.yaml gốc để bump tag không reformat/phá comment của chart.
 # Load SAU values.yaml (helm -f cuối cùng thắng) -> override imageOverride.tag.
 # Tag convention: <version>-<service>-<sha>. ArgoCD selfHeal sync khi file này đổi.
+#
+# TẠM NGƯNG (29/07/2026): cụm develop đã destroy sau sự cố AWS credits, chỉ còn MỘT
+# môi trường. app-build.yaml (env TAGS_FILE) nay bump THẲNG vào file này; hai bước
+# app-attest + app-promote tạm ngưng, KHÔNG còn PR promote nào ghi vào đây nữa.
+# Ghi chú "chi doi qua promote PR" ở khối cart bên dưới là trạng thái CŨ, giữ lại
+# để truy vết. Dựng lại môi trường thứ hai thì khôi phục đường promote trước.
 components:
   cart:
     imageOverride:

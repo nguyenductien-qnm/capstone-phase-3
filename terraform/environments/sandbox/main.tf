@@ -92,6 +92,13 @@ module "eks" {
   node_capacity_type  = var.eks_node_capacity_type
   node_disk_size_gib  = var.eks_node_disk_size_gib
   node_scaling        = var.eks_node_scaling
+  node_labels = {
+    "workload-tier" = "platform"
+  }
+
+  # Observability shares the HA primary MNG with EKS system workloads. Application
+  # pods remain isolated on Karpenter through their capacity-type node selectors.
+  enable_ops_node_group = false
 
   ops_node_subnet_id      = module.vpc.private_app_subnet_ids[var.eks_ops_node_subnet_key]
   ops_node_instance_types = var.eks_ops_node_instance_types

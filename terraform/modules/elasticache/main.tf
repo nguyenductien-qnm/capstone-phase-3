@@ -43,7 +43,7 @@ resource "aws_elasticache_replication_group" "this" {
   port                 = 6379
 
   engine         = "valkey"
-  engine_version = "7.2"
+  engine_version = "8.2"
 
   subnet_group_name  = aws_elasticache_subnet_group.this.name
   security_group_ids = [aws_security_group.valkey.id]

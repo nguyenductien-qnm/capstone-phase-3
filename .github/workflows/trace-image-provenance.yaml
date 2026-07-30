@@ -3,6 +3,29 @@ name: "9 · Ops — Truy vết nguồn gốc ảnh"
 # Manual evidence workflow for Mandate 10. It starts from a running pod and a
 # claimed image digest, then reconstructs the supply-chain trail:
 # pod -> runtime digest -> SLSA provenance -> signature -> SBOM -> promote attest -> build run -> PR reviewer.
+#
+# ###########################################################################
+# ### 29/07/2026 — MẮT XÍCH "promote attest" KHÔNG CÒN BẮT BUỘC.          ###
+# ###                                                                     ###
+# ### app-attest.yaml tạm ngưng (xem khối TẠM NGƯNG ở đầu file đó) vì cụm  ###
+# ### develop đã destroy, chỉ còn MỘT môi trường. Ảnh build từ 29/07 vì    ###
+# ### vậy KHÔNG có attestation promoted-develop — trước đây điều đó làm    ###
+# ### cả job chết ngay tại bước 5 (script chạy set -euo pipefail), kéo     ###
+# ### theo mất luôn 2 mắt xích cuối dù chúng không hỏng.                   ###
+# ###                                                                     ###
+# ### Nay có input `require_promote_attestation`, MẶC ĐỊNH false:          ###
+# ###   false -> VẪN THỬ verify. Có con dấu thì báo PASS như cũ (ảnh cũ    ###
+# ###            build trước 29/07 vẫn trace đủ 7 mắt xích). Không có thì  ###
+# ###            ghi SKIP kèm lý do rồi CHẠY TIẾP sang mắt xích 6, 7.      ###
+# ###   true  -> fail-closed y như trước. Dùng khi đã khôi phục promote,   ###
+# ###            hoặc khi cần chứng minh dứt khoát một ảnh đã qua develop. ###
+# ###                                                                     ###
+# ### CỐ Ý không "tắt hẳn" bước này khi false: tắt hẳn thì ảnh cũ vốn có   ###
+# ### con dấu cũng mất bằng chứng, mà đó là bằng chứng thật.               ###
+# ###                                                                     ###
+# ### Khi khôi phục promote: đổi default của input về true, rồi gỡ khối    ###
+# ### này. Xem thứ tự 4 bước khôi phục ở đầu app-attest.yaml.              ###
+# ###########################################################################
 
 on:
   workflow_dispatch:
@@ -24,6 +47,11 @@ on:
         description: "Container name; empty = first container"
         required: false
         type: string
+      require_promote_attestation:
+        description: "Bắt buộc có attestation promoted-develop (fail nếu thiếu). Để false khi app-attest.yaml còn tạm ngưng."
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -35,7 +63,7 @@ permissions:
 env:
   AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
   CLUSTER_NAME: ${{ vars.EKS_CLUSTER_NAME || 'ecommerce-dev-eks' }}
-  ECR_REGISTRY: ${{ vars.ECR_REGISTRY || '804372444787.dkr.ecr.us-east-1.amazonaws.com' }}
+  ECR_REGISTRY: ${{ vars.ECR_REGISTRY || '384511757667.dkr.ecr.us-east-1.amazonaws.com' }}
   ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY || 'ecommerce-dev-techx-corp' }}
   ATTEST_REPOSITORY: ${{ vars.ECR_ATTEST_REPOSITORY || 'ecommerce-dev-techx-corp-attest' }}
   BUILD_IDENTITY: https://github.com/${{ github.repository }}/.github/workflows/app-build.yaml@refs/heads/develop
@@ -54,7 +82,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c # v4
         with:
           role-to-assume: ${{ vars.TF_AWS_ROLE_ARN }}
-          allowed-account-ids: "804372444787"
+          allowed-account-ids: "384511757667"
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: gha-trace-provenance-${{ github.actor }}-${{ github.run_id }}
 
@@ -73,6 +101,7 @@ jobs:
           NAMESPACE: ${{ inputs.namespace }}
           POD: ${{ inputs.pod }}
           CONTAINER: ${{ inputs.container }}
+          REQUIRE_PROMOTE_ATTESTATION: ${{ inputs.require_promote_attestation }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
@@ -176,30 +205,56 @@ jobs:
 
           echo "== Promoted-develop attestation =="
           ATTEST_REPO="${ECR_REGISTRY}/${ATTEST_REPOSITORY}"
+
+          # LUÔN THỬ verify, kể cả khi không bắt buộc — ảnh build trước 29/07/2026 vẫn
+          # còn con dấu thật trong repo attest, bỏ qua vô điều kiện là vứt bằng chứng có
+          # thật. Chỉ khi verify KHÔNG ra mới phân nhánh theo require.
+          # `|| promote_rc=$?` là bắt buộc: script chạy `set -e`, thiếu nó thì cosign
+          # fail là job chết ngay tại đây, đúng cái ta đang muốn thôi.
+          # stderr gom vào file để chế độ SKIP không đổ log đỏ gây hiểu nhầm là job hỏng.
+          promote_rc=0
           COSIGN_REPOSITORY="$ATTEST_REPO" cosign verify-attestation \
             --type "$PROMOTED_DEVELOP_TYPE" \
             --certificate-identity "$ATTEST_IDENTITY" \
             --certificate-oidc-issuer "$OIDC_ISSUER" \
-            "$IMAGE_REF" > promoted-develop-attestation.json
+            "$IMAGE_REF" > promoted-develop-attestation.json 2> promoted-develop-error.txt \
+            || promote_rc=$?
 
-          PROMOTE_JSON="$(
-            jq -ecs '
-              [.[] | .payload | @base64d | fromjson | .predicate]
-              | map(select(.environment == "develop"))
-              | .[0] // empty
-            ' promoted-develop-attestation.json
-          )"
-          [ -n "$PROMOTE_JSON" ] || fail "promoted-develop attestation exists but no develop predicate was found"
+          if [ "$promote_rc" -ne 0 ]; then
+            if [ "${REQUIRE_PROMOTE_ATTESTATION:-false}" = "true" ]; then
+              echo "--- cosign verify-attestation stderr ---" >&2
+              cat promoted-develop-error.txt >&2
+              fail "promoted-develop attestation không tìm thấy cho $IMAGE_REF (require_promote_attestation=true)"
+            fi
+            echo "--- cosign verify-attestation stderr (KHÔNG chặn, chỉ để tham khảo) ---"
+            cat promoted-develop-error.txt
+            PROMOTE_TRACED=false
+            printf 'SKIP %-24s %s\n' "promote attestation" "không có con dấu — require_promote_attestation=false"
+            echo "| Promoted from develop | SKIP — không có attestation. app-attest.yaml tạm ngưng từ 29/07/2026 (chỉ còn 1 môi trường). Bật \`require_promote_attestation\` để bắt buộc. |" >> "$GITHUB_STEP_SUMMARY"
+          else
+            PROMOTE_JSON="$(
+              jq -ecs '
+                [.[] | .payload | @base64d | fromjson | .predicate]
+                | map(select(.environment == "develop"))
+                | .[0] // empty
+              ' promoted-develop-attestation.json
+            )"
+            [ -n "$PROMOTE_JSON" ] || fail "promoted-develop attestation exists but no develop predicate was found"
 
-          PROMOTED_SERVICE="$(jq -r '.service // "unknown"' <<<"$PROMOTE_JSON")"
-          PROMOTED_TAG="$(jq -r '.tag // "unknown"' <<<"$PROMOTE_JSON")"
-          PROMOTED_DIGEST="$(jq -r '.digest // "unknown"' <<<"$PROMOTE_JSON")"
-          PROMOTED_BY="$(jq -r '.attestedBy // "unknown"' <<<"$PROMOTE_JSON")"
-          if [ "$PROMOTED_DIGEST" != "unknown" ] && [ "${PROMOTED_DIGEST,,}" != "${DIGEST,,}" ]; then
-            fail "promoted-develop digest mismatch. attestation=$PROMOTED_DIGEST runtime=$DIGEST"
+            PROMOTED_SERVICE="$(jq -r '.service // "unknown"' <<<"$PROMOTE_JSON")"
+            PROMOTED_TAG="$(jq -r '.tag // "unknown"' <<<"$PROMOTE_JSON")"
+            PROMOTED_DIGEST="$(jq -r '.digest // "unknown"' <<<"$PROMOTE_JSON")"
+            PROMOTED_BY="$(jq -r '.attestedBy // "unknown"' <<<"$PROMOTE_JSON")"
+            # Digest lệch là dấu hiệu con dấu của ẢNH KHÁC bị lôi vào — luôn fail, kể cả
+            # require=false. Đây không phải "thiếu bằng chứng" mà là "bằng chứng sai".
+            if [ "$PROMOTED_DIGEST" != "unknown" ] && [ "${PROMOTED_DIGEST,,}" != "${DIGEST,,}" ]; then
+              fail "promoted-develop digest mismatch. attestation=$PROMOTED_DIGEST runtime=$DIGEST"
+            fi
+            PROMOTE_TRACED=true
+            pass_line "promote attestation" "service=$PROMOTED_SERVICE tag=$PROMOTED_TAG"
+            echo "| Promoted from develop | PASS service=\`${PROMOTED_SERVICE}\`, tag=\`${PROMOTED_TAG}\`, attestedBy=${PROMOTED_BY} |" >> "$GITHUB_STEP_SUMMARY"
           fi
-          pass_line "promote attestation" "service=$PROMOTED_SERVICE tag=$PROMOTED_TAG"
-          echo "| Promoted from develop | PASS service=\`${PROMOTED_SERVICE}\`, tag=\`${PROMOTED_TAG}\`, attestedBy=${PROMOTED_BY} |" >> "$GITHUB_STEP_SUMMARY"
+
           echo "== GitHub Actions build run =="
           gh run list \
             --repo "$GITHUB_REPOSITORY" \
@@ -319,6 +374,15 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "### Result" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "PASS: pod runtime digest traced to SLSA provenance, cosign signature, SBOM, promoted-develop attestation, successful app-build run, and approved PR." >> "$GITHUB_STEP_SUMMARY"
+          # Câu kết luận phải khớp ĐÚNG số mắt xích đã verify. Trước đây nó ghi cứng cả
+          # "promoted-develop attestation"; giữ nguyên khi bước đó bị SKIP là tự khai
+          # một bằng chứng mình không có — đúng thứ workflow này sinh ra để chống.
+          if [ "${PROMOTE_TRACED:-false}" = "true" ]; then
+            echo "PASS: pod runtime digest traced to SLSA provenance, cosign signature, SBOM, promoted-develop attestation, successful app-build run, and approved PR." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "PASS (6/7 mắt xích): pod runtime digest traced to SLSA provenance, cosign signature, SBOM, successful app-build run, and approved PR." >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "> THIẾU mắt xích \`promoted-develop\`: app-attest.yaml tạm ngưng từ 29/07/2026 vì chỉ còn MỘT môi trường, nên ảnh build sau mốc đó không được đóng dấu \"đã chạy thử ở develop\" — bản thân điều đó cũng không còn đúng nữa. Sáu mắt xích còn lại đã verify đầy đủ." >> "$GITHUB_STEP_SUMMARY"
+          fi
 
 

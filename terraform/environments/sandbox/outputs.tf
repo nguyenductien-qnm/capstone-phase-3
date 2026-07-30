@@ -114,11 +114,6 @@ output "eks_node_group_name" {
   value       = module.eks.node_group_name
 }
 
-output "eks_ops_node_group_name" {
-  description = "Tên EKS managed node group cho observability"
-  value       = module.eks.ops_node_group_name
-}
-
 output "eks_ebs_csi_role_arn" {
   description = "Pod Identity IAM role cho EBS CSI controller"
   value       = module.eks.ebs_csi_role_arn
@@ -315,4 +310,3 @@ output "msk_connect_connector_arn" {
   description = "ARN of the MSK Connect Debezium Postgres connector"
   value       = aws_mskconnect_connector.debezium_postgres.arn
 }
-
