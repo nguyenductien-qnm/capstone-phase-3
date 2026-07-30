@@ -382,7 +382,7 @@ kubectl delete -f scripts/dr/pod_verify.yaml
 Môi trường diễn tập thực tế đã được vận hành thành công dưới tài khoản IAM User `CDO-member` (`384511757667`) trên cụm EKS `ecommerce-dev-eks` và cơ sở dữ liệu `ecommerce-dev-postgres`.
 
 ### 1. Bước Seed Dữ Liệu Mẫu ($T_0$)
-* **Mốc thời gian $T_0$:** `2026-07-30T01:36:25Z`
+* **Mốc thời gian $T_0$:** `2026-07-30T03:21:48Z`
 * **Log kết quả Seed:**
   ```text
   CREATE SCHEMA
@@ -396,7 +396,7 @@ Môi trường diễn tập thực tế đã được vận hành thành công d
 * **Baseline Hash:** `5|bc178e08178eafa1efd07da38e0ea875`
 
 ### 2. Bước Giả Lập Mất Dữ Liệu ($T_1$)
-* **Mốc thời gian $T_1$:** `2026-07-30T01:37:34Z`
+* **Mốc thời gian $T_1$:** `2026-07-30T03:22:00Z`
 * **Log kết quả Loss:**
   ```text
   NOTICE:  drop cascades to table drill_m20.orders_audit
@@ -412,14 +412,14 @@ Môi trường diễn tập thực tế đã được vận hành thành công d
     --target-db-instance-identifier ecommerce-dev-postgres-drill-temp \
     --db-subnet-group-name ecommerce-dev-rds-subnet-group \
     --vpc-security-group-ids "sg-03a3d1abd357b6ffa" \
-    --restore-time "2026-07-30T01:36:25Z" \
+    --restore-time "2026-07-30T03:21:48Z" \
     --no-multi-az \
     --no-publicly-accessible \
     --storage-type gp3 \
     --region us-east-1
   ```
-* **Thời gian RTO bắt đầu:** `01:37:34Z` (khi schema bị DROP).
-* **Thời gian phục hồi sẵn sàng (Available):** `02:06:37Z` (Lệnh `aws rds wait` hoàn tất thành công).
+* **Thời gian RTO bắt đầu:** `03:22:00Z` (khi schema bị DROP).
+* **Thời gian phục hồi sẵn sàng (Available):** `03:51:00Z` (Lệnh `aws rds wait` hoàn tất thành công).
 
 ### 4. Bước Xác Minh Dữ Liệu Phục Hồi (Verify & Integrity)
 * **Log Verify Pod output:**
@@ -430,10 +430,11 @@ Môi trường diễn tập thực tế đã được vận hành thành công d
   (1 row)
   ```
 * **Trùng khớp MD5:** Khớp 100% với Baseline $T_0$ (`bc178e08...`).
-* **Thời gian RTO dừng:** `02:07:19Z` (khi Verify log trả về kết quả thành công).
-* **Kết quả đo RTO thực tế:** `29 phút 45 giây (≈ 30 phút)` (Đạt SLA $\le 45$ phút).
-* **Kết quả đo RPO thực tế:** Phục hồi chính xác từng giây, không mất mát dữ liệu nào phát sinh ngoài cửa sổ khôi phục.
+* **Thời gian RTO dừng:** `03:52:31Z` (khi Verify log trả về kết quả thành công và lấy thời gian xác nhận).
+* **Kết quả đo RTO thực tế:** `30 phút 31 giây` (Đạt SLA $\le 45$ phút).
+* **Kết quả đo RPO thực tế:** `0 giây` (Phục hồi chính xác từng giây, không mất mát dữ liệu nào phát sinh ngoài cửa sổ khôi phục).
 
 ### 5. Bước Dọn Dẹp Sạch Sẽ (Cleanup)
 * DB tạm `-drill-temp` đã được gỡ Deletion Protection và xóa hoàn toàn khỏi hệ thống (Status: `deleting`), tránh mọi chi phí phát sinh ngầm.
+
 
