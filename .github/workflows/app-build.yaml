@@ -659,14 +659,43 @@ jobs:
       - name: Install Syft
         uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
 
-      # `pattern` phải khai tường minh theo service. Dùng glob trần rồi gộp hết sẽ kéo
-      # cả digest của service KHÁC vào cùng một manifest list — index sai vẫn ký được,
-      # vẫn qua Kyverno, và không cổng nào phía sau bắt được.
-      - name: Download digests
+      # Digest phải tải theo TÊN CHÍNH XÁC, không glob.
+      #
+      # Trước đây chỗ này dùng `pattern: digest-${{ matrix.service }}-*`. Comment cũ đã
+      # cảnh báo đúng nguy cơ ("glob trần sẽ kéo digest của service KHÁC vào cùng một
+      # manifest list — index sai vẫn ký được, vẫn qua Kyverno, không cổng nào phía sau
+      # bắt được") nhưng vẫn sót MỘT trường hợp: khi tên service này là TIỀN TỐ của tên
+      # service kia. Artifact đặt tên `digest-<service>-<arch>`, nên với service
+      # `frontend` thì `digest-frontend-*` khớp cả bốn:
+      #     digest-frontend-amd64          <- của mình
+      #     digest-frontend-arm64          <- của mình
+      #     digest-frontend-proxy-amd64    <- của service KHÁC
+      #     digest-frontend-proxy-arm64    <- của service KHÁC
+      # Gặp thật 30/07/2026, run 30507850480 job "Merge frontend":
+      #     ::error::cần đúng 2 digest (amd64+arm64), có 4
+      # Lỗi một chiều: `Merge frontend-proxy` vẫn xanh vì tên dài không ăn được tên ngắn.
+      # Trong 20 service team-owned hiện tại đúng một cặp dính: frontend / frontend-proxy.
+      #
+      # Vì sao tới 30/07 mới lộ: bug cần cả hai service build trong CÙNG một run VÀ job
+      # merge phải thật sự chạy. Lượt 29/07 chết ở bước push (ECR chưa tồn tại), lượt
+      # 01:41 thì merge bị skip sạch vì recommendation vỡ gate Trivy.
+      #
+      # Tải theo `name` là khớp tuyệt đối nên không còn chỗ cho glob ăn lẫn. Cách một
+      # bước `pattern: digest-...-@(amd64|arm64)` cũng chạy được nhưng phụ thuộc extglob
+      # của minimatch — hai bước tường minh thì không phụ thuộc gì.
+      #
+      # KHÔNG bỏ dòng kiểm `[ "$n" -eq 2 ]` bên dưới: chính nó đã biến sự cố này thành
+      # một job đỏ thay vì một index sai được ký rồi qua Kyverno và chạy sai app.
+      - name: Download digest amd64
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          pattern: digest-${{ matrix.service }}-*
-          merge-multiple: true
+          name: digest-${{ matrix.service }}-amd64
+          path: /tmp/digests/${{ matrix.service }}
+
+      - name: Download digest arm64
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: digest-${{ matrix.service }}-arm64
           path: /tmp/digests/${{ matrix.service }}
 
       - name: Create manifest list
@@ -1017,11 +1046,20 @@ jobs:
       - name: Install Syft
         uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
 
-      - name: Download digests
+      # Cùng lý do như job `merge` phía trên (xem khối comment ở đó): tải theo TÊN CHÍNH
+      # XÁC, không glob. Hai module hiện tại (detector, remediation) không ai là tiền tố
+      # của ai nên chưa vỡ, nhưng đây là cùng một mìn: thêm module tên `detector-v2` là
+      # `digest-aiops-detector-*` ăn luôn artifact của nó. Vá cả hai chỗ cho hết loại lỗi.
+      - name: Download digest amd64
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          pattern: digest-aiops-${{ matrix.module }}-*
-          merge-multiple: true
+          name: digest-aiops-${{ matrix.module }}-amd64
+          path: /tmp/digests/aiops-${{ matrix.module }}
+
+      - name: Download digest arm64
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: digest-aiops-${{ matrix.module }}-arm64
           path: /tmp/digests/aiops-${{ matrix.module }}
 
       - name: Create manifest list
