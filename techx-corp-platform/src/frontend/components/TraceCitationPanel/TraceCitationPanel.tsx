@@ -1,171 +1,9 @@
 import React, { useState } from 'react';
-import styled from 'styled-components';
-
-const PanelContainer = styled.div`
-  margin-top: 16px;
-  background: #ffffff;
-  border-radius: 12px;
-  border: 1px solid #e5e7eb;
-  font-size: 14px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  overflow: hidden;
-  transition: all 0.2s ease;
-
-  &:hover {
-    border-color: #d1d5db;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-  }
-`;
-
-const Header = styled.div`
-  width: 100%;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 16px 20px;
-  background: transparent;
-  border: none;
-  user-select: none;
-`;
-
-const ExpandButton = styled.button`
-  display: flex;
-  flex: 1;
-  align-items: center;
-  padding: 0;
-  background: transparent;
-  border: 0;
-  cursor: pointer;
-  text-align: left;
-
-  &:focus-visible {
-    outline: 2px solid #3b82f6;
-    outline-offset: 4px;
-  }
-`;
-
-const Title = styled.strong<{ $isOpen: boolean }>`
-  color: #111827;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-weight: 600;
-
-  svg {
-    color: #6b7280;
-    transition: transform 0.3s cubic-bezier(0.87, 0, 0.13, 1);
-    transform: ${props => props.$isOpen ? 'rotate(90deg)' : 'rotate(0deg)'};
-  }
-`;
-
-const TraceId = styled.button`
-  color: #3b82f6;
-  font-size: 12px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  background: #eff6ff;
-  padding: 4px 8px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background 0.2s;
-  &:hover {
-    background: #dbeafe;
-  }
-`;
-
-const ContentWrapper = styled.div<{ $isOpen: boolean }>`
-  display: grid;
-  grid-template-rows: ${props => props.$isOpen ? '1fr' : '0fr'};
-  transition: grid-template-rows 0.3s cubic-bezier(0.87, 0, 0.13, 1);
-`;
-
-const ContentInner = styled.div`
-  overflow: hidden;
-`;
-
-const Content = styled.div`
-  padding: 0 20px 20px;
-  border-top: 1px solid #f3f4f6;
-  margin-top: 4px;
-`;
-
-const SectionTitle = styled.div`
-  font-weight: 700;
-  color: #4b5563;
-  margin: 16px 0 8px 0;
-  text-transform: uppercase;
-  font-size: 12px;
-  letter-spacing: 0.05em;
-`;
-
-const StepItem = styled.div`
-  display: flex;
-  justify-content: space-between;
-  padding: 10px 0;
-  border-bottom: 1px solid #f3f4f6;
-  &:last-child {
-    border-bottom: none;
-  }
-`;
-
-const StepName = styled.span`
-  color: #1f2937;
-  font-weight: 500;
-`;
-
-const StepDetail = styled.div`
-  font-size: 12px;
-  color: #6b7280;
-  margin-top: 6px;
-  background: #f9fafb;
-  padding: 8px 12px;
-  border-radius: 6px;
-  border: 1px solid #e5e7eb;
-  white-space: pre-wrap;
-  word-break: break-all;
-  font-family: ui-monospace, monospace;
-`;
-
-const StepMetrics = styled.span`
-  display: flex;
-  gap: 16px;
-  align-items: flex-start;
-`;
-
-const StepLatency = styled.span`
-  color: #6b7280;
-  font-variant-numeric: tabular-nums;
-  font-size: 13px;
-`;
-
-const StepStatus = styled.span<{ $status: string }>`
-  font-weight: 600;
-  font-size: 12px;
-  padding: 2px 8px;
-  border-radius: 9999px;
-  background: ${props => {
-    if (props.$status === 'blocked' || props.$status === 'error') return '#fee2e2';
-    if (props.$status === 'fallback') return '#fef3c7';
-    if (props.$status === 'pass' || props.$status === 'ok') return '#dcfce7';
-    return '#f3f4f6';
-  }};
-  color: ${props => {
-    if (props.$status === 'blocked' || props.$status === 'error') return '#991b1b';
-    if (props.$status === 'fallback') return '#92400e';
-    if (props.$status === 'pass' || props.$status === 'ok') return '#166534';
-    return '#4b5563';
-  }};
-`;
-
-const CitationList = styled.ul`
-  margin: 0;
-  padding-left: 24px;
-  color: #374151;
-`;
-
-const CitationItem = styled.li`
-  margin-bottom: 8px;
-  line-height: 1.5;
-`;
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible';
+import { Card, CardContent } from '../ui/card';
+import { Button } from '../ui/button';
+import { Badge } from '../ui/badge';
+import { ChevronRight } from 'lucide-react';
 
 export interface TraceStep {
   stepName?: string;
@@ -203,55 +41,68 @@ export const TraceCitationPanel: React.FC<TraceCitationPanelProps> = ({
     return null;
   }
 
+  const getStatusVariant = (status: string): "default" | "secondary" | "destructive" | "outline" => {
+    if (status === 'blocked' || status === 'error') return 'destructive';
+    if (status === 'fallback') return 'secondary';
+    if (status === 'pass' || status === 'ok') return 'default';
+    return 'outline';
+  };
+
   return (
-    <PanelContainer data-cy="TraceCitationPanel">
-      <Header>
-        <ExpandButton type="button" aria-expanded={isOpen} onClick={() => setIsOpen(!isOpen)}>
-          <Title $isOpen={isOpen}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-            </svg>
-            AI Evaluation Trace
-          </Title>
-        </ExpandButton>
-        {traceId && (
-          <TraceId 
-            type="button"
-            aria-label="Copy trace ID"
-            title="Click to copy Trace ID"
-            onClick={(e) => {
-              e.stopPropagation();
-              navigator.clipboard?.writeText(traceId);
-            }}
-          >
-            {traceId.slice(0, 8)}...
-          </TraceId>
-        )}
-      </Header>
-      
-      <ContentWrapper $isOpen={isOpen}>
-        <ContentInner>
-          <Content>
+    <Card className="mt-4 overflow-hidden border-border/50 shadow-sm transition-all hover:shadow-md" data-cy="TraceCitationPanel">
+      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+        <div className="w-full flex justify-between items-center p-3">
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" className="flex flex-1 items-center justify-start gap-2 h-auto py-2 px-3 font-semibold text-foreground hover:bg-muted">
+              <ChevronRight className={`h-4 w-4 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`} />
+              AI Evaluation Trace
+            </Button>
+          </CollapsibleTrigger>
+          {traceId && (
+            <Button 
+              variant="outline" 
+              size="sm"
+              className="ml-2 font-mono text-xs h-7 text-primary hover:text-primary hover:bg-primary/10"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigator.clipboard?.writeText(traceId);
+              }}
+              title="Click to copy Trace ID"
+              aria-label="Copy trace ID"
+            >
+              {traceId.slice(0, 8)}...
+            </Button>
+          )}
+        </div>
+        
+        <CollapsibleContent>
+          <CardContent className="px-5 pb-5 pt-0 border-t border-border/50">
             {traceSteps && traceSteps.length > 0 && (
               <>
-                <SectionTitle>Execution Steps</SectionTitle>
-                <div>
+                <div className="font-bold text-muted-foreground mt-4 mb-2 uppercase text-xs tracking-wider">Execution Steps</div>
+                <div className="space-y-0">
                   {traceSteps.map((step, idx) => {
                     const name = step.stepName || step.step_name || 'Unknown Step';
                     const latency = step.latencyMs ?? step.latency_ms ?? 0;
                     const status = step.status || 'unknown';
                     
                     return (
-                      <StepItem key={idx}>
-                        <div style={{ flex: 1, paddingRight: '16px' }}>
-                          <StepName>{name}</StepName>
-                          {step.detail && <StepDetail>{step.detail}</StepDetail>}
+                      <div key={idx} className="flex flex-col sm:flex-row justify-between py-3 border-b border-border/30 last:border-b-0 gap-2 sm:gap-4">
+                        <div className="flex-1 pr-0 sm:pr-4">
+                          <span className="text-foreground font-medium text-sm">{name}</span>
+                          {step.detail && (
+                            <div className="text-xs text-muted-foreground mt-2 bg-muted/50 p-2.5 rounded-md border border-border/50 whitespace-pre-wrap break-all font-mono">
+                              {step.detail}
+                            </div>
+                          )}
                         </div>
-                        <StepMetrics>
-                          <StepLatency>{latency}ms</StepLatency>
-                          <StepStatus $status={status}>{status.toUpperCase()}</StepStatus>
-                        </StepMetrics>
-                      </StepItem>
+                        <div className="flex items-center sm:items-start gap-3 mt-1 sm:mt-0">
+                          <span className="text-muted-foreground font-tabular-nums text-xs">{latency}ms</span>
+                          <Badge variant={getStatusVariant(status)} className="uppercase text-[10px] h-5">
+                            {status}
+                          </Badge>
+                        </div>
+                      </div>
                     );
                   })}
                 </div>
@@ -260,19 +111,19 @@ export const TraceCitationPanel: React.FC<TraceCitationPanelProps> = ({
 
             {citations && citations.length > 0 && (
               <>
-                <SectionTitle>Grounded Sources</SectionTitle>
-                <CitationList>
+                <div className="font-bold text-muted-foreground mt-5 mb-3 uppercase text-xs tracking-wider">Grounded Sources</div>
+                <ul className="m-0 pl-5 text-sm text-foreground space-y-2 list-disc marker:text-primary/40">
                   {citations.map((c, i) => (
-                    <CitationItem key={i}>
-                      "{c.snippet}" - <em>{c.reviewId || c.review_id}</em> ({c.score}★)
-                    </CitationItem>
+                    <li key={i} className="leading-relaxed">
+                      "{c.snippet}" <span className="text-muted-foreground">- <em className="italic">{c.reviewId || c.review_id}</em> ({c.score}★)</span>
+                    </li>
                   ))}
-                </CitationList>
+                </ul>
               </>
             )}
-          </Content>
-        </ContentInner>
-      </ContentWrapper>
-    </PanelContainer>
+          </CardContent>
+        </CollapsibleContent>
+      </Collapsible>
+    </Card>
   );
 };

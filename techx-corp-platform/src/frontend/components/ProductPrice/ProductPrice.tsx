@@ -6,6 +6,7 @@ import getSymbolFromCurrency from 'currency-symbol-map';
 import { Money } from '../../protos/demo';
 import { useCurrency } from '../../providers/Currency.provider';
 import { CypressFields } from '../../utils/enums/CypressFields';
+import { Badge } from '../ui/badge';
 
 interface IProps {
   price: Money;
@@ -22,9 +23,13 @@ const ProductPrice = ({ price: { units, currencyCode, nanos } }: IProps) => {
   const total = units + nanos / 1000000000;
 
   return (
-    <span data-cy={CypressFields.ProductPrice}>
+    <Badge 
+      variant="secondary" 
+      className="px-3 py-1 text-base font-bold bg-primary/10 text-primary border-primary/20 hover:bg-primary/20 transition-colors"
+      data-cy={CypressFields.ProductPrice}
+    >
       {currencySymbol} {total.toFixed(2)}
-    </span>
+    </Badge>
   );
 };
 

@@ -12,7 +12,7 @@ import Layout from '../../../components/Layout';
 import ProductPrice from '../../../components/ProductPrice';
 import Recommendations from '../../../components/Recommendations';
 import ProductReviews from '../../../components/ProductReviews';
-import Select from '../../../components/Select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../components/ui/select';
 import { CypressFields } from '../../../utils/enums/CypressFields';
 import ApiGateway from '../../../gateways/Api.gateway';
 import { Product } from '../../../protos/demo';
@@ -91,15 +91,19 @@ const ProductDetail: NextPage = () => {
               </div>
               <p className="m-0">Quantity</p>
               <Select
-                data-cy={CypressFields.ProductQuantity}
-                onChange={event => setQuantity(+event.target.value)}
-                value={quantity}
+                value={quantity.toString()}
+                onValueChange={(value) => setQuantity(+value)}
               >
-                {quantityOptions.map(option => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
+                <SelectTrigger className="w-[100px]" data-cy={CypressFields.ProductQuantity}>
+                  <SelectValue placeholder="Quantity" />
+                </SelectTrigger>
+                <SelectContent>
+                  {quantityOptions.map(option => (
+                    <SelectItem key={option} value={option.toString()}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
               </Select>
               <Button 
                 className="flex items-center gap-2.5 justify-center w-full text-sm font-normal lg:text-base lg:w-[220px]" 

@@ -7,6 +7,9 @@ import { useCopilotAdapter } from '../components/CopilotChat/CopilotRuntime';
 import { TraceCitationPanel } from '../components/TraceCitationPanel/TraceCitationPanel';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { MessageSquare, Sparkles, Wand2 } from 'lucide-react';
 
 const promptTemplates = [
@@ -33,7 +36,6 @@ export default function CopilotPage() {
   }, []);
 
   const adapter = useCopilotAdapter(handleResponse);
-
   const runtime = useLocalRuntime(adapter);
 
   const handlePromptClick = (prompt: string) => {
@@ -49,28 +51,32 @@ export default function CopilotPage() {
         <title>Shopping Copilot | TechX Corp</title>
       </Head>
       <div className="container mx-auto max-w-7xl px-4 py-8 h-[calc(100vh-80px)] flex flex-col">
-        <div className="mb-6 flex items-center gap-3">
-          <div className="bg-primary/10 p-2 rounded-xl">
-            <Sparkles className="w-6 h-6 text-primary" />
+        <div className="mb-6 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="bg-primary/10 p-2 rounded-xl">
+              <Sparkles className="w-6 h-6 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">Shopping Copilot</h1>
+              <p className="text-muted-foreground text-sm">Your intelligent assistant for astronomy gear</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Shopping Copilot</h1>
-            <p className="text-muted-foreground text-sm">Your intelligent assistant for astronomy gear</p>
-          </div>
+          <Badge variant="outline" className="text-xs">Beta v2</Badge>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 flex-1 min-h-0">
           {/* Left Sidebar: Tracing */}
-          <div className="lg:col-span-1 flex flex-col gap-4 overflow-y-auto pr-2 pb-8">
-            <Card className="border-primary/20 shadow-sm bg-gradient-to-b from-card to-card/50">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <ActivityIcon className="w-5 h-5 text-primary" />
-                  LLM Observability
-                </CardTitle>
-                <CardDescription>Real-time tracing of AI actions</CardDescription>
-              </CardHeader>
-              <CardContent>
+          <Card className="lg:col-span-1 border-primary/20 shadow-sm bg-gradient-to-b from-card to-card/50 flex flex-col overflow-hidden">
+            <CardHeader className="pb-3 shrink-0">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <ActivityIcon className="w-5 h-5 text-primary" />
+                LLM Observability
+              </CardTitle>
+              <CardDescription>Real-time tracing of AI actions</CardDescription>
+            </CardHeader>
+            <Separator />
+            <ScrollArea className="flex-1">
+              <CardContent className="pt-4">
                 {traceData ? (
                   <TraceCitationPanel 
                     traceId={traceData.traceId} 
@@ -83,8 +89,8 @@ export default function CopilotPage() {
                   </div>
                 )}
               </CardContent>
-            </Card>
-          </div>
+            </ScrollArea>
+          </Card>
 
           {/* Center: Chat Interface */}
           <div className="lg:col-span-2 flex flex-col rounded-2xl border shadow-sm overflow-hidden bg-card min-h-[500px]">
@@ -96,16 +102,17 @@ export default function CopilotPage() {
           </div>
 
           {/* Right Sidebar: Prompt Templates */}
-          <div className="lg:col-span-1 flex flex-col gap-4 overflow-y-auto pl-2 pb-8">
-            <Card className="border-border/50 shadow-none bg-muted/10">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Wand2 className="w-5 h-5 text-indigo-500" />
-                  Try Asking
-                </CardTitle>
-                <CardDescription>Sample prompts to explore</CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-2">
+          <Card className="lg:col-span-1 border-border/50 shadow-none bg-muted/10 flex flex-col overflow-hidden">
+            <CardHeader className="pb-3 shrink-0">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Wand2 className="w-5 h-5 text-indigo-500" />
+                Try Asking
+              </CardTitle>
+              <CardDescription>Sample prompts to explore</CardDescription>
+            </CardHeader>
+            <Separator />
+            <ScrollArea className="flex-1">
+              <CardContent className="flex flex-col gap-2 pt-4">
                 {promptTemplates.map((prompt, index) => (
                   <Button 
                     key={index}
@@ -118,8 +125,8 @@ export default function CopilotPage() {
                   </Button>
                 ))}
               </CardContent>
-            </Card>
-          </div>
+            </ScrollArea>
+          </Card>
         </div>
       </div>
     </Layout>
