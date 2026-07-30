@@ -35,5 +35,5 @@ spec:
         - sh
         - -c
         - |
-          RESTORED_CONN=$(echo "$PGURL" | sed 's/ecommerce-dev-rds-proxy.proxy-c2x20s086fm5.us-east-1.rds.amazonaws.com/ecommerce-dev-postgres-drill-temp.c2x20s086fm5.us-east-1.rds.amazonaws.com/')
+          RESTORED_CONN=$(echo "$PGURL" | sed 's/ecommerce-dev-rds-proxy.proxy-cw9k28a0os7t.us-east-1.rds.amazonaws.com/ecommerce-dev-postgres-drill-temp.cw9k28a0os7t.us-east-1.rds.amazonaws.com/')
           psql "$RESTORED_CONN" -c "SELECT count(*), md5(string_agg(id::text || order_id || amount::text || status, ',' ORDER BY id)) FROM drill_m20.orders_audit;"

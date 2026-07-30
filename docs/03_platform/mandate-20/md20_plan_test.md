@@ -1,10 +1,10 @@
 # 📖 Hướng Dẫn Chi Tiết Các Bước Kiểm Tra Mandate 20 — Môi Trường Sandbox (Production)
 
 **Môi trường:** Sandbox  
-**AWS Account ID:** `804372444787`  
-**AWS CLI Profile:** `Phase3-CDO-PermissionSet-804372444787`  
+**AWS Account ID:** `384511757667`  
+**AWS CLI Profile:** `Mặc định / IAM User`  
 **Region:** `us-east-1`  
-**EKS Cluster:** `ecommerce-dev-eks` (VPC `vpc-06d4c34ec03f55c6d` / `10.0.0.0/16`)
+**EKS Cluster:** `ecommerce-dev-eks` (VPC `vpc-0085623a1538f2129` / `10.0.0.0/16`)
 
 ---
 
@@ -15,7 +15,6 @@
 aws elasticache describe-replication-groups \
   --replication-group-id ecommerce-dev-valkey \
   --region us-east-1 \
-  --profile Phase3-CDO-PermissionSet-804372444787 \
   --query "ReplicationGroups[0].{SnapshotRetentionLimit: SnapshotRetentionLimit, SnapshotWindow: SnapshotWindow}"
 ```
 
@@ -32,7 +31,6 @@ aws elasticache describe-replication-groups \
 aws rds describe-db-instances \
   --db-instance-identifier ecommerce-dev-postgres \
   --region us-east-1 \
-  --profile Phase3-CDO-PermissionSet-804372444787 \
   --query "DBInstances[0].{DeletionProtection: DeletionProtection, CopyTagsToSnapshot: CopyTagsToSnapshot, BackupRetentionPeriod: BackupRetentionPeriod, LatestRestorableTime: LatestRestorableTime}"
 ```
 
@@ -48,8 +46,7 @@ aws rds describe-db-instances \
 ### 3.1 Kiểm tra Backup Vault & Vault Lock:
 ```bash
 aws backup list-backup-vaults \
-  --region us-east-1 \
-  --profile Phase3-CDO-PermissionSet-804372444787
+  --region us-east-1
 ```
 
 ### Kết quả kỳ vọng (PASSED):
@@ -60,8 +57,7 @@ aws backup list-backup-vaults \
 ### 3.2 Kiểm tra Backup Plan:
 ```bash
 aws backup list-backup-plans \
-  --region us-east-1 \
-  --profile Phase3-CDO-PermissionSet-804372444787
+  --region us-east-1
 ```
 
 ### Kết quả kỳ vọng (PASSED):
@@ -75,13 +71,12 @@ aws backup list-backup-plans \
 ```bash
 aws iam list-policies \
   --scope Local \
-  --profile Phase3-CDO-PermissionSet-804372444787 \
   --query "Policies[?contains(PolicyName, 'backup-protection-deny')].{Name: PolicyName, Arn: Arn}"
 ```
 
 ### Kết quả kỳ vọng (PASSED):
 - Tên Policy: `ecommerce-dev-dr-backup-protection-deny`
-- ARN: `arn:aws:iam::804372444787:policy/ecommerce-dev-dr-backup-protection-deny`
+- ARN: `arn:aws:iam::384511757667:policy/ecommerce-dev-dr-backup-protection-deny`
 
 ---
 
@@ -91,9 +86,8 @@ aws iam list-policies \
 Kiểm tra cấu hình Security Group của RDS Sandbox để xác nhận port `5432` chỉ được phép nhận kết nối từ các cụm chỉ định:
 ```bash
 aws ec2 describe-security-groups \
-  --group-ids sg-0c050135646845ecc \
+  --group-ids sg-03a3d1abd357b6ffa \
   --region us-east-1 \
-  --profile Phase3-CDO-PermissionSet-804372444787 \
   --query "SecurityGroups[0].{GroupId: GroupId, GroupName: GroupName, IngressRules: IpPermissions}"
 ```
 
@@ -111,8 +105,7 @@ aws ec2 describe-security-groups \
 ```bash
 aws eks update-kubeconfig \
   --name ecommerce-dev-eks \
-  --region us-east-1 \
-  --profile Phase3-CDO-PermissionSet-804372444787
+  --region us-east-1
 ```
 
 ---
@@ -252,8 +245,7 @@ aws rds describe-db-instances \
   --db-instance-identifier ecommerce-dev-postgres \
   --query "DBInstances[0].LatestRestorableTime" \
   --output text \
-  --region us-east-1 \
-  --profile Phase3-CDO-PermissionSet-804372444787
+  --region us-east-1
 ```
 
 Khi `LatestRestorableTime >= T0`, thực hiện khôi phục DB về mốc $T_0$ (thay giá trị `2026-07-28T10:00:00Z` bằng timestamp thực tế của bạn):
@@ -263,13 +255,12 @@ aws rds restore-db-instance-to-point-in-time \
   --source-db-instance-identifier ecommerce-dev-postgres \
   --target-db-instance-identifier ecommerce-dev-postgres-drill-temp \
   --db-subnet-group-name ecommerce-dev-rds-subnet-group \
-  --vpc-security-group-ids "sg-0c050135646845ecc" \
+  --vpc-security-group-ids "sg-03a3d1abd357b6ffa" \
   --restore-time "2026-07-28T10:00:00Z" \
   --no-multi-az \
   --no-publicly-accessible \
   --storage-type gp3 \
-  --region us-east-1 \
-  --profile Phase3-CDO-PermissionSet-804372444787
+  --region us-east-1
 ```
 
 ---
@@ -280,13 +271,11 @@ aws rds restore-db-instance-to-point-in-time \
 # Chờ DB khôi phục hoàn tất (chuyển sang trạng thái Available - khoảng 5-10 phút)
 aws rds wait db-instance-available \
   --db-instance-identifier ecommerce-dev-postgres-drill-temp \
-  --region us-east-1 \
-  --profile Phase3-CDO-PermissionSet-804372444787
+  --region us-east-1
 ```
 
-> 📌 **LƯU Ý QUAN TRỌNG VỀ ENDPOINT DB KHÔI PHỤC TẠM:**
 > - Vì tên `--target-db-instance-identifier` trong kịch bản quy chuẩn là `ecommerce-dev-postgres-drill-temp`, AWS RDS sẽ sinh ra Endpoint theo định dạng:  
->   `ecommerce-dev-postgres-drill-temp.cgduc4gcisdx.us-east-1.rds.amazonaws.com`
+>   `ecommerce-dev-postgres-drill-temp.cw9k28a0os7t.us-east-1.rds.amazonaws.com`
 > - File verify bên dưới sử dụng regex `sed` để tự động thay thế proxy host bằng endpoint khôi phục tạm này.
 
 Deploy Pod Verify `pod_verify.yaml` để đếm Checksum trên DB khôi phục:
@@ -327,7 +316,7 @@ spec:
         - sh
         - -c
         - |
-          RESTORED_CONN=$(echo "$PGURL" | sed 's/ecommerce-dev-rds-proxy.proxy-c2x20s086fm5.us-east-1.rds.amazonaws.com/ecommerce-dev-postgres-drill-temp.c2x20s086fm5.us-east-1.rds.amazonaws.com/')
+          RESTORED_CONN=$(echo "$PGURL" | sed 's/ecommerce-dev-rds-proxy.proxy-cw9k28a0os7t.us-east-1.rds.amazonaws.com/ecommerce-dev-postgres-drill-temp.cw9k28a0os7t.us-east-1.rds.amazonaws.com/')
           psql "$RESTORED_CONN" -c "SELECT count(*), md5(string_agg(id::text || order_id || amount::text || status, ',' ORDER BY id)) FROM drill_m20.orders_audit;"
 ```
 
@@ -347,8 +336,7 @@ kubectl logs -n techx-tf1 psql-drill-verify
 # 1. Xóa Pod Verify
 kubectl delete -f scripts/dr/pod_verify.yaml
 
-# 2. Xóa DB Instance tạm (Bằng script bảo vệ an toàn của hệ thống)
-# ⚠️ Phải export AWS_PROFILE trước để script nhận đúng tài khoản sandbox.
-export AWS_PROFILE=Phase3-CDO-PermissionSet-804372444787
+# 2. Xóa DB Instance tạm (Bằng script dọn dẹp hệ thống)
+# LƯU Ý: Không cần export AWS_PROFILE vì đã đăng nhập bằng IAM User mặc định
 ./scripts/dr/destroy-drill-env.sh ecommerce-dev-postgres-drill-temp us-east-1
 ```
