@@ -399,16 +399,26 @@ class DriftDetector:
             and self._consecutive_drift[surface] >= CONSECUTIVE_DRIFT_REQUIRED
         )
 
+        if confirmed_drift or drifted_metrics:
+            stats_str_list = []
+            for metric in drifted_metrics:
+                md = details[metric]
+                stats_str_list.append(
+                    f"{metric} (PSI: {md.psi:.2f}, Mean: {md.baseline_mean:.2f} -> {md.current_mean:.2f})"
+                )
+            stats_str = " | ".join(stats_str_list)
+
         if confirmed_drift:
             reason = (
-                f"PSI/KS drift confirmed on [{', '.join(drifted_metrics)}] "
-                f"for {self._consecutive_drift[surface]} consecutive windows"
+                f"[Window {self._window_index[surface]}] PSI/KS drift confirmed "
+                f"for {self._consecutive_drift[surface]} consecutive windows. "
+                f"Stats: {stats_str}"
             )
         elif drifted_metrics:
             reason = (
-                f"Drift signal on [{', '.join(drifted_metrics)}] "
-                f"but only {self._consecutive_drift[surface]}/{CONSECUTIVE_DRIFT_REQUIRED} "
-                "consecutive windows — not yet confirmed"
+                f"[Window {self._window_index[surface]}] Drift signal "
+                f"({self._consecutive_drift[surface]}/{CONSECUTIVE_DRIFT_REQUIRED} windows, not confirmed). "
+                f"Stats: {stats_str}"
             )
         else:
             reason = "stable"
