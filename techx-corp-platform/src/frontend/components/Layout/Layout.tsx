@@ -10,12 +10,13 @@ interface IProps {
 
 const Layout = ({ children }: IProps) => {
   return (
-    <>
+    <div className="flex flex-col flex-1 min-h-screen">
       <Header />
-      <main>{children}</main>
+      <main className="flex-1 w-full flex flex-col overflow-x-hidden max-w-full">{children}</main>
       <Footer />
-    </>
+    </div>
   );
 };
 
 export default Layout;
+

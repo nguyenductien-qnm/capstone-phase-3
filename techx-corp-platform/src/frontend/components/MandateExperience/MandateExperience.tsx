@@ -44,10 +44,10 @@ const mandates = [
 
 export function MandateBadges({ compact = false, inverse = false }: { compact?: boolean; inverse?: boolean }) {
   return (
-    <div className="flex flex-wrap gap-2" aria-label="Active AI mandates">
+    <div className="flex flex-wrap gap-2" aria-label="Active AI features">
       {mandates.map(mandate => (
         <Badge key={mandate.id} variant="outline" className={`${compact ? 'text-[10px]' : ''} ${inverse ? 'border-white/30 bg-white/10 text-white' : ''}`}>
-          M{mandate.id} · {mandate.status}
+          F{mandate.id} · {mandate.status}
         </Badge>
       ))}
     </div>
@@ -56,11 +56,11 @@ export function MandateBadges({ compact = false, inverse = false }: { compact?: 
 
 export default function MandateExperience() {
   return (
-    <section className="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6 lg:px-8" aria-labelledby="ai-mandates-title">
+    <section className="mx-auto w-full max-w-7xl px-4 py-10 sm:px-6 lg:px-8" aria-labelledby="ai-features-title">
       <div className="mb-8 grid gap-6 rounded-3xl border bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 p-6 text-white shadow-xl md:grid-cols-[1.4fr_1fr] md:p-10">
         <div>
           <Badge className="mb-4 bg-cyan-400 text-slate-950 hover:bg-cyan-300">Production AI evidence</Badge>
-          <h1 id="ai-mandates-title" className="max-w-3xl text-3xl font-black tracking-tight sm:text-5xl">
+          <h1 id="ai-features-title" className="max-w-3xl text-3xl font-black tracking-tight sm:text-5xl">
             Trust is visible in every AI answer.
           </h1>
           <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">
@@ -75,13 +75,14 @@ export default function MandateExperience() {
         </div>
         <Card className="border-white/15 bg-white/10 text-white shadow-none backdrop-blur">
           <CardHeader>
-            <CardTitle>Mandate readiness</CardTitle>
+            <CardTitle>Feature readiness</CardTitle>
             <CardDescription className="text-slate-300">Code, checks and user-facing evidence</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Progress value={92} aria-label="Mandate readiness 92 percent" />
+            {/* mock data */}
+            <Progress value={92} aria-label="Feature readiness (mock)" />
             <MandateBadges inverse />
-            <p className="text-xs text-slate-300">M23 production database execution remains an environment deployment step; the migration and verification gate are repository-controlled.</p>
+            <p className="text-xs text-slate-300">F23 production database execution remains an environment deployment step; the migration and verification gate are repository-controlled.</p>
           </CardContent>
         </Card>
       </div>
@@ -96,7 +97,7 @@ export default function MandateExperience() {
                   <span className="rounded-lg bg-primary/10 p-2 text-primary"><Icon className="size-5" aria-hidden="true" /></span>
                   <Badge variant={mandate.id === '23' ? 'secondary' : 'default'}>{mandate.status}</Badge>
                 </div>
-                <CardTitle>Mandate {mandate.id}</CardTitle>
+                <CardTitle>Feature {mandate.id}</CardTitle>
                 <CardDescription>{mandate.title}</CardDescription>
               </CardHeader>
               <CardContent className="text-sm leading-6 text-muted-foreground">{mandate.summary}</CardContent>
@@ -127,9 +128,9 @@ export default function MandateExperience() {
           <Card>
             <CardContent className="pt-6">
               <Table>
-                <TableHeader><TableRow><TableHead>Mandate</TableHead><TableHead>Visible proof</TableHead><TableHead>State</TableHead></TableRow></TableHeader>
+                <TableHeader><TableRow><TableHead>Feature</TableHead><TableHead>Visible proof</TableHead><TableHead>State</TableHead></TableRow></TableHeader>
                 <TableBody>
-                  {mandates.map(m => <TableRow key={m.id}><TableCell className="font-medium">M{m.id}</TableCell><TableCell>{m.proof}</TableCell><TableCell><Badge variant="outline">{m.status}</Badge></TableCell></TableRow>)}
+                  {mandates.map(m => <TableRow key={m.id}><TableCell className="font-medium">F{m.id}</TableCell><TableCell>{m.proof}</TableCell><TableCell><Badge variant="outline">{m.status}</Badge></TableCell></TableRow>)}
                 </TableBody>
               </Table>
             </CardContent>
@@ -140,10 +141,10 @@ export default function MandateExperience() {
             <CardHeader><CardTitle>Small, runnable checks</CardTitle><CardDescription>Each non-trivial safety path leaves a check that fails when the behavior regresses.</CardDescription></CardHeader>
             <CardContent>
               <Accordion>
-                <AccordionItem value="m14"><AccordionTrigger>M14 · NLI and κ replay</AccordionTrigger><AccordionContent><code>python3 docs/ai/evals/measure_judge_human_agreement.py --replay-results docs/ai/evals/judge_human_agreement_results.json</code></AccordionContent></AccordionItem>
-                <AccordionItem value="m23"><AccordionTrigger>M23 · cache and memory</AccordionTrigger><AccordionContent><code>bash docs/ai/evals/repro_m23.sh</code></AccordionContent></AccordionItem>
-                <AccordionItem value="m24"><AccordionTrigger>M24 · trace metadata</AccordionTrigger><AccordionContent><code>pytest -q src/*/test_llm_trace_metadata.py</code></AccordionContent></AccordionItem>
-                <AccordionItem value="m25"><AccordionTrigger>M25 · real fault injection</AccordionTrigger><AccordionContent><code>./repro_m25.sh</code></AccordionContent></AccordionItem>
+                <AccordionItem value="f14"><AccordionTrigger>F14 · NLI and κ replay</AccordionTrigger><AccordionContent><code>python3 docs/ai/evals/measure_judge_human_agreement.py --replay-results docs/ai/evals/judge_human_agreement_results.json</code></AccordionContent></AccordionItem>
+                <AccordionItem value="f23"><AccordionTrigger>F23 · cache and memory</AccordionTrigger><AccordionContent><code>bash docs/ai/evals/repro_m23.sh</code></AccordionContent></AccordionItem>
+                <AccordionItem value="f24"><AccordionTrigger>F24 · trace metadata</AccordionTrigger><AccordionContent><code>pytest -q src/*/test_llm_trace_metadata.py</code></AccordionContent></AccordionItem>
+                <AccordionItem value="f25"><AccordionTrigger>F25 · real fault injection</AccordionTrigger><AccordionContent><code>./repro_m25.sh</code></AccordionContent></AccordionItem>
               </Accordion>
             </CardContent>
           </Card>
