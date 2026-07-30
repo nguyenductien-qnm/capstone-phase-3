@@ -94,8 +94,13 @@ components:
     resources:
       limits:
         cpu: 500m
+    # Mandate-13 (30-07-2026): max cũ (10) đã bị HPA chạm trần ở 450u trong bài load
+    # test thật 28/07 — tổng request tại trần cũ không đủ vượt capacity 2-node hiện
+    # có nên Karpenter không launch thêm node dù tải lên đỉnh. Nới trần (không đổi
+    # request/target CPU) để cùng traffic đó tạo đủ replica/CPU request vượt capacity
+    # node hiện tại, ép Karpenter scale-up thật. Xem tính toán trong ADR mandate-13.
     hpa:
-      maxReplicas: 10
+      maxReplicas: 20
   # Checkout chain: limit=100m làm throttle khi checkout tải cao (đo 21/07 @60u:
   # email 95.7%, payment 34.2%, currency 29.1%) -> checkout gãy SLO sớm (~14rps vs
   # catalog 20rps). Nới limit nâng trần luồng ra tiền; requests right-size theo CPU
@@ -145,7 +150,7 @@ components:
     hpa:
       enabled: true
       minReplicas: 2
-      maxReplicas: 4
+      maxReplicas: 8   # Mandate-13 (30-07-2026): nới trần để ép node scale thật, xem comment ở frontend
     resources:
       requests:
         cpu: 80m    # dùng thật 44m (was 50m = 88%)
@@ -162,13 +167,15 @@ components:
     hpa:
       enabled: true
       minReplicas: 2
-      maxReplicas: 4
+      maxReplicas: 8   # Mandate-13 (30-07-2026): nới trần để ép node scale thật, xem comment ở frontend
   shipping:
     hpa:
       enabled: true
       minReplicas: 2
-      maxReplicas: 4
+      maxReplicas: 8   # Mandate-13 (30-07-2026): nới trần để ép node scale thật, xem comment ở frontend
   currency:
+    hpa:
+      maxReplicas: 8   # Mandate-13 (30-07-2026): nới trần để ép node scale thật, xem comment ở frontend
     resources:
       requests:
         cpu: 50m    # dùng 33m = 66%, giữ nguyên
@@ -187,18 +194,24 @@ components:
       - name: IPV6_ENABLED
         value: "false"
   cart:
+    hpa:
+      maxReplicas: 12   # Mandate-13 (30-07-2026): nới trần để ép node scale thật, xem comment ở frontend
     resources:
       requests:
         cpu: 60m    # dùng thật 37m (was 100m = over-request 37%)
       limits:
         cpu: 350m   # throttle 13.0%@200m — dù đã scale 3 replica
   checkout:
+    hpa:
+      maxReplicas: 10   # Mandate-13 (30-07-2026): nới trần để ép node scale thật, xem comment ở frontend
     resources:
       requests:
         cpu: 60m    # dùng thật 31m (was 100m = over-request 31%)
       limits:
         cpu: 350m   # throttle 12.9%@200m — core checkout
   product-catalog:
+    hpa:
+      maxReplicas: 12   # Mandate-13 (30-07-2026): nới trần để ép node scale thật, xem comment ở frontend
     resources:
       requests:
         cpu: 40m    # dùng 9m sau-shed (was 100m) — browse bị shed trước khi tới catalog
