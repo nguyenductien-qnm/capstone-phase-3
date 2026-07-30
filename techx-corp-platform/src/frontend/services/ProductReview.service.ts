@@ -120,7 +120,7 @@ const ProductReviewService = {
       try {
         return await ProductReviewGateway.getAverageProductReviewScore(productId);
       } catch (error) {
-        console.warn(`Failed to fetch average score for ${productId}, using fallback:`, error);
+        console.warn('Failed to fetch average score for %s, using fallback:', productId, error);
         return "0.0";
       }
     });
