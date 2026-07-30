@@ -25,6 +25,7 @@ COPY ./src/frontend/utils/enums/ utils/enums/
 COPY ./src/frontend/utils/telemetry/ utils/telemetry/
 COPY ./src/frontend/utils/imageLoader.js utils/imageLoader.js
 COPY ./src/frontend/utils/Request.ts utils/Request.ts
+COPY ./src/frontend/utils/mockData.ts utils/mockData.ts
 # M17-R1: CircuitBreaker.ts (dùng bởi Ad/Recommendations gateway)
 COPY ./src/frontend/utils/resilience/ utils/resilience/
 
