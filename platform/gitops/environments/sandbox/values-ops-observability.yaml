@@ -205,6 +205,8 @@ thanos:
     replicaCount: 3
     replicaLabel: receive_replica
     replicationFactor: 3
+    service:
+      additionalHeadless: true
     podAntiAffinityPreset: hard
     nodeSelector:
       workload-tier: platform
@@ -215,6 +217,8 @@ thanos:
   storegateway:
     enabled: true
     replicaCount: 2
+    service:
+      additionalHeadless: true
     podAntiAffinityPreset: hard
     nodeSelector:
       workload-tier: platform
