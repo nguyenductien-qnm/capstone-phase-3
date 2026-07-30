@@ -1,0 +1,12 @@
+POD                            NODE                         ZONE
+grafana-7d9c664454-psvm8       ip-10-0-11-166.ec2.internal  us-east-1a
+grafana-7d9c664454-tzvsj       ip-10-0-12-66.ec2.internal   us-east-1b
+jaeger-556dbd7d4b-2vvvz        ip-10-0-13-175.ec2.internal  us-east-1c
+jaeger-556dbd7d4b-prq58        ip-10-0-11-166.ec2.internal  us-east-1a
+thanos-query-7c468cb5d4-gqbwh  ip-10-0-12-66.ec2.internal   us-east-1b
+thanos-query-7c468cb5d4-nbxx7  ip-10-0-13-175.ec2.internal  us-east-1c
+thanos-receive-0               ip-10-0-12-66.ec2.internal   us-east-1b
+thanos-receive-1               ip-10-0-11-166.ec2.internal  us-east-1a
+thanos-receive-2               ip-10-0-13-175.ec2.internal  us-east-1c
+thanos-storegateway-0          ip-10-0-11-166.ec2.internal  us-east-1a
+thanos-storegateway-1          ip-10-0-13-175.ec2.internal  us-east-1c
