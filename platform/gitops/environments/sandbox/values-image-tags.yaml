@@ -62,16 +62,16 @@ components:
       tag: 1.0-ml-guard-aaa392b
   fraud-detection:
     imageOverride:
-      tag: 1.0-fraud-detection-aaa392b
+      tag: 1.0-fraud-detection-9ef67dd
   frontend:
     imageOverride:
-      tag: 1.0-frontend-aaa392b
+      tag: 1.0-frontend-9ef67dd
   image-provider:
     imageOverride:
       tag: 1.0-image-provider-5b99f29
   payment:
     imageOverride:
-      tag: 1.0-payment-5b99f29
+      tag: 1.0-payment-9ef67dd
   email:
     imageOverride:
       tag: 1.0-email-aaa392b
