@@ -298,6 +298,7 @@ export function Cobe({
       scale: variant === "scaled" ? 2.5 : undefined,
       offset: variant === "scaled" ? [0, width * 2 * 0.4 * 0.6] : undefined,
       opacity: opacity,
+      // @ts-expect-error onRender is valid for cobe
       onRender: (state: CobeState) => {
         switch (variant) {
           case "default":
