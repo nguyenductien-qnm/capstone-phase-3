@@ -71,7 +71,7 @@ def load_summaries(path: str) -> dict:
     """
     if not os.path.isfile(path):
         print(f"{WARN_ICON} Không tìm thấy summaries file: {path}")
-        print("   Sẽ dùng mock summaries mặc định để test pipeline.")
+        print("   Sẽ chuyển sang chế độ gọi trực tiếp AWS Bedrock LLM (Live API).")
         return {}
     with open(path, "r", encoding="utf-8") as f:
         items = json.load(f).get("product-review-summaries", [])
@@ -196,6 +196,8 @@ def run_evals(
             reviews = case.get("reviews", [])
             if reviews:
                 reviews_text = " ".join(f"- {r.get('comment', '')}" for r in reviews)
+                if verbose:
+                    print(f"   [Bedrock] Đang gọi amazon.nova-lite-v1...")
                 actual_summary = call_bedrock_summarize(reviews_text)
             else:
                 actual_summary = ""
