@@ -12,7 +12,7 @@
       ],
       "expect_fire": true,
       "offset_seconds": 0,
-      "duration_seconds": 180,
+      "duration_seconds": 360,
       "inject": {
         "type": "command",
         "on": "kubectl scale deploy/quote -n techx-tf1 --replicas=0",
@@ -25,9 +25,11 @@
 
     "NEU FAIL THI DOI SANG DAU. Rang buoc van nguyen: nan nhan cua su kien 2 khong duoc la `frontend`, `checkout` hay `cart` (ca ba deu do san vi su kien 1 giet cart). Ung vien tiep theo, theo do thi do 30/07: `productCatalogFailure`-style — giet `product-catalog` thi `recommendation` va `product-reviews` cung do, va ca hai deu KHONG goi cart. Nhung ban kinh rong hon han (product-catalog con bi frontend + checkout goi), nen chi dung khi quote/shipping that su khong duoc.",
 
-    "180s DU CHUA. Rule `service-error-rate-high` doc cua so 5m nhung detector poll 30s va tang TINH (nguong SLO) khong can baseline. Giet 180s thi ti le loi cua `shipping` len gan 100% trong vong vai chu ky — du de vuot nguong tinh. Neu 180s ma khong keu thi keo dai hon cung khong doi ket luan: van la `shipping` khong bao loi.",
+    "VI SAO 360s CHU KHONG PHAI 180s (doi 30/07). Query cua rule dung `rate(...[5m])`. Bom 180s thi cua so 5m chi chua 180s loi tren 300s — ti le doc duoc chi bang ~60% muc thuc, va service se bi xep NHAM DAI khi doi chieu voi nguong. Phai bom >= 300s cho cua so bao hoa, cong them margin de co vai mau sach. Van la ngan so voi 40 phut cua kich ban dai.",
 
-    "KHONG DE THAM DO NAY DAI HON. Muc dich la tra loi mot cau hoi nhi phan, khong phai do gi. Cang ngan cang it lam phien nguoi khac dang dung cum.",
+    "CHAY KEM `aiops/blast_radius_probe.py` DE TRA LOI MOT CAU HOI SAU HON. Ban than kich ban nay chi cham diem tren `shipping`. Nhung con mot cau quan trong hon ma format kich ban khong hoi duoc: giet mot service thi TUNG service khac roi vao ti le loi bao nhieu, va co cai nao roi vao DAI [0.05, 0.10) khong.\n\n  python aiops/blast_radius_probe.py --prom-url http://localhost:9090 --target quote\n\nVi sao dai do quan trong: `service-error-rate-high` co tang TINH nguong 0.10 va tang dong bi cong SLO chan duoi 0.05. Ngoai dai do thi hoac tang tinh ganh (baseline vo can), hoac khong keu. Tuc FREEZE — thu MANDATE-28 noi ve — chi co y nghia trong dai do. Bom bang `--replicas=0` cho ti le ~1.0, nen kich ban dai se PASS yeu cau 1 nho tang tinh chu KHONG chung minh duoc freeze.",
+
+    "PROBE CON KIEM MOT THU NUA: service nao co baseline loi. Do 30/07 tren cum: chi 5/15 service co traffic la CO chuoi tu so; 10 service con lai (ad, cart, currency, image-provider, payment, product-reviews, quote, recommendation, shipping, shopping-copilot) chua tung phat ra span loi nao nen KHONG co `metric_history`. Voi chung, mot su co duoi nguong SLO se khong bao gio duoc phat hien — baseline bat dau tu chinh gia tri su co nen tang dong khong the keu, tang tinh thi chua toi nguong, va freeze vo nghia vi khong co baseline lanh de dong bang. Nguyen nhan la `service-error-rate-high` thieu mac dinh 0 o tu so, dung loi da sua cho 4 rule burn-rate o PR #509.",
 
     "LENH CUU HO neu tien trinh chet giua chung:\n    kubectl scale deploy/quote -n techx-tf1 --replicas=2",
 
