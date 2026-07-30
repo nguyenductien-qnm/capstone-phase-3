@@ -178,6 +178,13 @@ grafana:
 thanos:
   enabled: true
   fullnameOverride: thanos
+  # Bitnami removed this immutable tag from bitnami/thanos. The legacy
+  # repository preserves the same Bitnami filesystem and entrypoint expected
+  # by chart 17.3.1; using the upstream image would require command overrides.
+  image:
+    registry: docker.io
+    repository: bitnamilegacy/thanos
+    tag: 0.39.2-debian-12-r2
   objectStorage:
     bucket: ecommerce-dev-thanos-384511757667
     region: us-east-1

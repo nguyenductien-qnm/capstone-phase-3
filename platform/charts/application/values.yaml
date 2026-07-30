@@ -2569,6 +2569,10 @@ grafana:
 opensearch:
   enabled: true
   fullnameOverride: opensearch
+  # The chart appends "-headless" to masterService for discovery.seed_hosts.
+  # Keep this aligned with fullnameOverride; the chart default
+  # "opensearch-cluster-master" points at a Service that does not exist.
+  masterService: opensearch
   clusterName: demo-cluster
   nodeGroup: techx-corp
   singleNode: true
