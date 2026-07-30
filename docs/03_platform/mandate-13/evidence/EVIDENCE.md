@@ -1,6 +1,6 @@
 # Mandate 13 — Evidence Index (Sandbox)
 
-> Bằng chứng thật, thu thập **2026-07-28** trên cluster sandbox (account `804372444787`, cluster `ecommerce-dev-eks`, namespace `techx-tf1`).
+> Bằng chứng thật, thu thập **2026-07-28 & 2026-07-30** trên cluster sandbox (cluster `ecommerce-dev-eks`, namespace `techx-tf1`).
 
 ## Bảng Evidence
 
@@ -8,8 +8,8 @@
 |---|---|---|---|
 | 1 | **#1** Spot ratio (Karpenter-managed) | ✅ **63.9%** (2300m/3600m CPU requests) — chi tiết §1 | Video Live / CPU breakdown |
 | 2 | **#2** Cost Explorer — Spot vs On-Demand | ✅ Spot 63.91h/$0.21, On-Demand 151.77h/$5.00 — ảnh §1 | [`screenshots/after-cost-explorer-usage.png`](screenshots/after-cost-explorer-usage.png) |
-| 3 | **#2,#5** Node-hours giảm ≥30% | ✅ **ĐẠT** — Giảm **30.3%** node-hours trên Karpenter nodes (4.184h thực tế vs 6.000h baseline giả định) — chi tiết §2 | Video Live / Timeline co giãn |
-| 4 | **#2** Karpenter tự consolidate node underutilized | ✅ **1 sự kiện thật** — Underutilized→delete lúc 03:02:59–03:04:03 (5→4 node), Karpenter tự quyết định gom pod & hạ node | Video Live / Event log |
+| 3 | **#2,#5** Node-hours giảm ≥30% | ❌ **KHÔNG ĐẠT** — 0% chênh lệch trên pool `default` qua 2 lần load test thật (28-07 đỉnh 450u, 30-07 đỉnh 700u sau khi nới `maxReplicas`) | Xem ADR §"Đo lường thực tế (30-07-2026)" |
+| 4 | **#2** Karpenter tự consolidate node underutilized | ✅ 1 sự kiện thật (Underutilized→delete) trên pool `spot`, ~6 phút (30-07) | Karpenter event log 30-07 |
 | 5 | **#3** Live spot-kill — 0 request rớt | ✅ Node mới trong ~34s, pod Running trong ~118s, 0 pod Error/CrashLoop | Test live spot-kill |
 | 6 | **#3** Karpenter interruption-queue log | ✅ Interrupt → CordonAndDrain <1s → node mới registered 22-24s | Event log |
 | 7 | **#1,#5** `kubectl get nodes`/`nodeclaims` | ✅ Snapshot 2026-07-28T04:32 UTC | `kubectl get nodes` |
@@ -49,41 +49,23 @@
 
 ## 2. Yêu cầu #2 — Elastic Compute, Node-Hours Scale Down (≥ 30%) & Co xuống thật lúc tải giảm
 
-> **Trạng thái Node-level Pay per Demand**: ✅ **ĐẠT CHUẨN** (Ghi nhận trực tiếp qua Video Live & Karpenter Log)  
-> **Trạng thái Node-Hours Savings**: ✅ **ĐẠT CHUẨN** (Tiết kiệm **30.3%** node-hours trên Karpenter-managed compute)  
-> **Trạng thái Co xuống thật lúc tải giảm**: ✅ **ĐẠT CHUẨN** (Karpenter Auto Consolidation `Underutilized -> delete` xóa node dềnh tài nguyên)  
-> **Bằng chứng Video Live**: [Google Drive Live Video Demo](https://drive.google.com/file/d/1bGhNfVVV_SvJ6HbTT46vecP1LDFvSLzH/view?usp=sharing)
+> **Trạng thái Node-level Pay per Demand**: ✅ ĐẠT ở mức pod (HPA scale đúng tải) — ❌ KHÔNG ĐẠT ở mức node trên pool `default`
+> **Trạng thái Node-Hours Savings**: ❌ **KHÔNG ĐẠT** (0% chênh lệch trên pool `default`)
+> **Trạng thái Co xuống thật lúc tải giảm**: 🟡 Có xảy ra trên pool `spot` (~6 phút), không có trên pool `default`
 
-### 2.1 Diễn biến Elastic Scaling thực tế (Chứng minh qua Video Live & Log Karpenter)
+### 2.1 Diễn biến thực tế (load test 30-07-2026, 07:00–09:01 UTC, đỉnh 700 user qua Locust Web UI)
 
-Video live và log hệ thống ghi nhận toàn bộ chu kỳ co giãn tự động của Karpenter:
+| Thời điểm (UTC) | Node tổng | Node pool `default` | Node pool `spot` | HPA `frontend` |
+|---|---|---|---|---|
+| 07:00 (baseline) | 7 | 2 | 2 | 2 replica |
+| 07:41 | 8 | 2 | 3 (+1 launch) | 4 replica, 116%/70% |
+| 07:47 | 7 | 2 | 2 (Karpenter tự consolidate: Underutilized→delete) | — |
+| 08:01 | 7 | 2 | 2 | **20/20 replica (kịch trần), vẫn 74%/70%** |
+| 09:01 (về baseline) | 7 | 2 | 2 | 3 replica |
 
-| Thời điểm (UTC) | Diễn biến Node (Toàn cluster) | Diễn biến Node (Karpenter) | Chức năng & Hành vi chứng minh |
-|-----------------|-------------------------------|----------------------------|--------------------------------|
-| 02:30 | **7 nodes** (baseline) | **4 nodes** (baseline) | Mức sàn chịu tải ban đầu |
-| 02:54:11 | **9 nodes** (peak) | **6 nodes** (+2 spot nodes) | **Elastic Scale Up**: Karpenter tự động launch node mới khi pod phát sinh nhu cầu tài nguyên |
-| 02:55:22 | **8 nodes** | **5 nodes** (-1 spot node) | Dọn dẹp node / Reschedule pod |
-| 03:02:59–03:04:03 | **7 nodes** (stable) | **4 nodes** (-1 spot node) | **Co xuống thật (Consolidation Scale Down)**: Karpenter phát hiện node underutilized, tự động gom pod và xóa node thừa |
+**Kết quả:** pool `default` (money-path: frontend/cart/checkout/currency/quote/shipping/payment/product-catalog) giữ nguyên 2 node trong suốt bài test, kể cả khi `frontend` đạt tuyệt đối trần `maxReplicas` mới (20). Tổng CPU request tại đỉnh (~2.9 vCPU) vẫn dưới capacity 2-node (3.86 vCPU) vì các service còn lại (checkout/payment/quote/shipping/currency/product-catalog) chưa vượt 70% utilization ở mức 700 user để tự sinh thêm replica — ước tính cần ~2500+ user đồng thời mới đủ. Pool `spot` có 1 chu kỳ launch→consolidate thật (~6 phút) nhưng quá ngắn để đại diện cho node-hours.
 
-### 2.2 Bảng tính Node-Hours tiết kiệm (Đạt ≥ 30%)
-
-| Pha diễn biến | Nodes (Toàn cluster) | Nodes (Karpenter) | Thời gian | Node-hours (Karpenter) |
-|---------------|:-------------------:|:-----------------:|-----------|:----------------------:|
-| Baseline (02:30–02:54) | 7 | 4 | 24.18 min | 1.612 |
-| Peak / Provisioning (02:54–02:55) | 9 | 6 | 1.18 min | 0.118 |
-| Mid — Chờ consolidate (02:55–03:04) | 8 | 5 | 8.68 min | 0.724 |
-| Sau consolidate (03:04–03:30) | 7 | 4 | 25.95 min | 1.730 |
-| **TỔNG NĂNG LƯỢNG TIÊU THỤ (1h)** | | | **60.0 min** | **4.184 node-hours** |
-
-```
-Static baseline cố định giả định (6 node Karpenter cố định × 1h) = 6.000 node-hours
-Thực tế Karpenter co giãn tự động (Video Live)                  = 4.184 node-hours
-Tỉ lệ tiết kiệm Node-Hours (Karpenter-managed)                  = 30.3% ✅ ĐẠT (≥ 30%)
-
-(Tính trên toàn cluster bao gồm 3 node MNG cố định: 9.00 vs 7.18 node-hours = 20.2% tiết kiệm)
-```
-
-**Kết luận Yêu cầu #2**: Video live và log hệ thống đã chứng minh cơ chế co giãn tự động (Scale up khi thiếu + Auto Consolidation Scale down khi underutilized), giảm **30.3% node-hours**, đạt đầy đủ yêu cầu của Directive #13.
+**Kết luận Yêu cầu #2:** Node-hours **KHÔNG ĐẠT** yêu cầu ≥30% của Directive #13. Nguyên nhân: CPU-request sizing hiện tại quá nhỏ so với capacity node, kết hợp task-weight distribution trong locustfile khiến checkout-family khó tự scale. Chi tiết + hướng khắc phục còn lại: ADR §"Đo lường thực tế (30-07-2026)".
 
 ---
 
@@ -116,15 +98,15 @@ Right-sizing request/limit cho HPA/autoscaler đã thực hiện ở Mandate-19 
 | Yêu cầu Directive | Trạng thái |
 |---|---|
 | #1 Spot > 50% | ✅ **ĐẠT** (63.9% CPU requests) |
-| #2 Trả tiền theo demand — pod-level | ✅ **ĐẠT** (HPA scale theo tải) |
-| #2 Trả tiền theo demand — node-level | ✅ **ĐẠT** (Scale-up 4→6 node, Scale-down 6→5→4 node qua Video Live) |
+| #2 Trả tiền theo demand — pod-level | ✅ **ĐẠT** (HPA scale đúng tải) |
+| #2 Trả tiền theo demand — node-level | ❌ **KHÔNG ĐẠT** trên pool `default`; pool `spot` có 1 chu kỳ scale thật nhưng ngắn (~6 phút) |
 | #3 Sống sót spot interruption | ✅ **ĐẠT** (0 request rớt, pod reschedule trong ~118s) |
 | #4 Tín hiệu cho scheduler | ✅ **ĐẠT** (kế thừa Mandate-19) |
-| #5 Node-hours ≥30% | ✅ **ĐẠT** (Giảm **30.3%** node-hours trên Karpenter-managed nodes) |
+| #5 Node-hours ≥30% | ❌ **KHÔNG ĐẠT** (0% chênh lệch trên pool `default`) |
 | #5 Spot ≥50% | ✅ **ĐẠT** (63.9%) |
 | #5 Graviton | ❌ Deferred có chủ ý (CI build `linux/amd64`) |
-| #5 Co xuống thật lúc tải giảm | ✅ **ĐẠT** (Karpenter auto-consolidation `Underutilized -> delete` 6 → 5 → 4 nodes) |
+| #5 Co xuống thật lúc tải giảm | 🟡 Có thật trên pool `spot`, không có trên pool `default` |
 | #5 SLO giữ | ✅ **ĐẠT** (0 downtime / 0 request rớt trên luồng checkout) |
 
-**Kết luận**: Directive #13 đã **ĐẠT CHUẨN NỘP BÀI** ở các chỉ tiêu cốt lõi (Spot Ratio 63.9%, Node-hours reduction 30.3%, Co xuống thật lúc tải giảm và 0 request rớt khi spot kill).
+**Kết luận:** Directive #13 đạt các tiêu chí Spot >50%, sống sót spot interruption, tín hiệu scheduler, và SLO. **Chưa đạt tiêu chí node-hours ≥30%** — giới hạn kiến trúc thật (CPU-request sizing so với capacity node + task-weight distribution trong locustfile). Chi tiết + hướng khắc phục: ADR §"Đo lường thực tế (30-07-2026)".
 
