@@ -146,7 +146,7 @@ const ProductReviewService = {
     try {
       return await ProductReviewGateway.askProductAIAssistant(productId, normalizedQuestion);
     } catch (error) {
-      console.warn(`Failed to ask AI Assistant for ${productId}, using fallback:`, error);
+      console.warn('Failed to ask AI Assistant for %s, using fallback:', productId, error);
       return { 
         text: "Xin lỗi, AI Assistant hiện không khả dụng do hệ thống đang bảo trì. Vui lòng thử lại sau.", 
         traceId: "", 
