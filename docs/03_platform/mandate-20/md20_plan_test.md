@@ -332,11 +332,108 @@ kubectl logs -n techx-tf1 psql-drill-verify
 
 ### Bước 6.6: Dọn Dẹp Sạch Sẽ Sau Diễn Tập (BẮT BUỘC)
 
-```bash
-# 1. Xóa Pod Verify
+Bạn có thể dọn dẹp theo một trong hai cách sau:
+
+#### Cách 1: Sử dụng AWS CLI trực tiếp (Khuyên dùng cho Windows PowerShell/CMD)
+Chạy lần lượt các câu lệnh sau để gỡ bỏ Deletion Protection và xóa DB Instance tạm thời:
+```powershell
+# 1. Xóa Pod Verify trên Kubernetes
 kubectl delete -f scripts/dr/pod_verify.yaml
 
-# 2. Xóa DB Instance tạm (Bằng script dọn dẹp hệ thống)
+# 2. Tắt Deletion Protection cho DB tạm
+aws rds modify-db-instance \
+  --db-instance-identifier ecommerce-dev-postgres-drill-temp \
+  --no-deletion-protection \
+  --apply-immediately \
+  --region us-east-1
+
+# 3. Chờ DB Instance tạm chuyển sang trạng thái Available
+aws rds wait db-instance-available \
+  --db-instance-identifier ecommerce-dev-postgres-drill-temp \
+  --region us-east-1
+
+# 4. Thực thi xóa DB tạm (bỏ qua Final Snapshot và xóa Automated Backups)
+aws rds delete-db-instance \
+  --db-instance-identifier ecommerce-dev-postgres-drill-temp \
+  --skip-final-snapshot \
+  --delete-automated-backups \
+  --region us-east-1
+
+# 5. Chờ DB xóa hoàn toàn khỏi AWS
+aws rds wait db-instance-deleted \
+  --db-instance-identifier ecommerce-dev-postgres-drill-temp \
+  --region us-east-1
+```
+
+#### Cách 2: Sử dụng script dọn dẹp tự động (Dành cho môi trường có Bash)
+```bash
+# 1. Xóa Pod Verify trên Kubernetes
+kubectl delete -f scripts/dr/pod_verify.yaml
+
+# 2. Chạy script dọn dẹp DB tạm
 # LƯU Ý: Không cần export AWS_PROFILE vì đã đăng nhập bằng IAM User mặc định
 ./scripts/dr/destroy-drill-env.sh ecommerce-dev-postgres-drill-temp us-east-1
 ```
+
+---
+
+## 📊 KẾT QUẢ THỰC TẾ DIỄN TẬP PITR DRILL (Ngày 30/07/2026)
+
+Môi trường diễn tập thực tế đã được vận hành thành công dưới tài khoản IAM User `CDO-member` (`384511757667`) trên cụm EKS `ecommerce-dev-eks` và cơ sở dữ liệu `ecommerce-dev-postgres`.
+
+### 1. Bước Seed Dữ Liệu Mẫu ($T_0$)
+* **Mốc thời gian $T_0$:** `2026-07-30T01:36:25Z`
+* **Log kết quả Seed:**
+  ```text
+  CREATE SCHEMA
+  CREATE TABLE
+  INSERT 0 5
+                ?column?              
+  ------------------------------------
+   5|bc178e08178eafa1efd07da38e0ea875
+  (1 row)
+  ```
+* **Baseline Hash:** `5|bc178e08178eafa1efd07da38e0ea875`
+
+### 2. Bước Giả Lập Mất Dữ Liệu ($T_1$)
+* **Mốc thời gian $T_1$:** `2026-07-30T01:37:34Z`
+* **Log kết quả Loss:**
+  ```text
+  NOTICE:  drop cascades to table drill_m20.orders_audit
+  DROP SCHEMA
+  DATA_LOSS_EVENT_COMPLETED
+  ```
+
+### 3. Bước Phục Hồi Point-in-Time Restore (PITR)
+* **Lệnh chạy:**
+  ```bash
+  aws rds restore-db-instance-to-point-in-time \
+    --source-db-instance-identifier ecommerce-dev-postgres \
+    --target-db-instance-identifier ecommerce-dev-postgres-drill-temp \
+    --db-subnet-group-name ecommerce-dev-rds-subnet-group \
+    --vpc-security-group-ids "sg-03a3d1abd357b6ffa" \
+    --restore-time "2026-07-30T01:36:25Z" \
+    --no-multi-az \
+    --no-publicly-accessible \
+    --storage-type gp3 \
+    --region us-east-1
+  ```
+* **Thời gian RTO bắt đầu:** `01:37:34Z` (khi schema bị DROP).
+* **Thời gian phục hồi sẵn sàng (Available):** `02:06:37Z` (Lệnh `aws rds wait` hoàn tất thành công).
+
+### 4. Bước Xác Minh Dữ Liệu Phục Hồi (Verify & Integrity)
+* **Log Verify Pod output:**
+  ```text
+   count |               md5                
+  -------+----------------------------------
+       5 | bc178e08178eafa1efd07da38e0ea875
+  (1 row)
+  ```
+* **Trùng khớp MD5:** Khớp 100% với Baseline $T_0$ (`bc178e08...`).
+* **Thời gian RTO dừng:** `02:07:19Z` (khi Verify log trả về kết quả thành công).
+* **Kết quả đo RTO thực tế:** `29 phút 45 giây (≈ 30 phút)` (Đạt SLA $\le 45$ phút).
+* **Kết quả đo RPO thực tế:** Phục hồi chính xác từng giây, không mất mát dữ liệu nào phát sinh ngoài cửa sổ khôi phục.
+
+### 5. Bước Dọn Dẹp Sạch Sẽ (Cleanup)
+* DB tạm `-drill-temp` đã được gỡ Deletion Protection và xóa hoàn toàn khỏi hệ thống (Status: `deleting`), tránh mọi chi phí phát sinh ngầm.
+
