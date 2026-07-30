@@ -310,6 +310,10 @@ def test_co_kich_ban_tham_do_va_no_kiem_dung_cap_service():
         f"`{chong['service']}` — do nham thu"
     )
     assert _diem_bom(ev) == _diem_bom(chong), "tham do phai bom dung diem ma su kien 2 bom"
-    assert ev["duration_seconds"] <= 300, (
-        "tham do phai NGAN — muc dich la tra loi mot cau hoi nhi phan, khong phai do dac"
+    # Can duoi 300s: query cua rule dung `rate(...[5m])`, bom ngan hon 300s thi cua so
+    # khong bao hoa va ti le doc duoc THAP hon muc thuc -> service bi xep nham dai.
+    # Can tren 600s: tham do van phai NGAN so voi 40 phut cua kich ban dai.
+    assert 300 <= ev["duration_seconds"] <= 600, (
+        f"tham do dang {ev['duration_seconds']}s. Phai >= 300s cho cua so rate 5m bao hoa, "
+        "va <= 600s de van con la tham do chu khong thanh mot lan chay day du"
     )
