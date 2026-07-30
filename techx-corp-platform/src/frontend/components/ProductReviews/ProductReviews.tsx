@@ -3,19 +3,25 @@ import { useAiAssistant } from '../../providers/ProductAIAssistant.provider';
 import React, { useState, useMemo } from 'react';
 import { CypressFields } from '../../utils/enums/CypressFields';
 import { TraceCitationPanel } from '../TraceCitationPanel';
-import { Card } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { MandateBadges } from '../MandateExperience/MandateExperience';
+import { Sparkles, MessageSquare, Send, User, Star } from 'lucide-react';
 
 const clamp = (n: number, min = 0, max = 5) => Math.max(min, Math.min(max, n));
 
 const StarRating = ({ value, max = 5 }: { value: number; max?: number }) => {
   const rounded = clamp(Math.round(value), 0, max);
   return (
-    <span className="text-yellow-500 text-lg" aria-label={`${value.toFixed(1)} out of ${max} stars`}>
-      {Array.from({ length: max }, (_, i) => (i < rounded ? '★' : '☆')).join(' ')}
-    </span>
+    <div className="flex gap-0.5" aria-label={`${value.toFixed(1)} out of ${max} stars`}>
+      {Array.from({ length: max }, (_, i) => (
+        <Star 
+          key={i} 
+          className={`w-4 h-4 ${i < rounded ? 'fill-yellow-500 text-yellow-500' : 'fill-muted text-muted-foreground/30'}`} 
+        />
+      ))}
+    </div>
   );
 };
 
@@ -51,106 +57,156 @@ const ProductReviews = () => {
   };
 
   return (
-    <div aria-live="polite" data-cy={CypressFields.ProductReviews} className="flex flex-col gap-6">
-      <Card className="p-4" data-cy="AskAISection">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-lg font-bold">Ask AI About This Product</h3>
-          <MandateBadges compact />
-        </div>
-        <div className="flex gap-2">
-          <Input
-            id="ask-ai-input"
-            placeholder="Type a question about the product…"
-            value={aiQuestion}
-            onChange={e => setAiQuestion(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Enter' && !aiLoading && aiQuestion.trim()) handleAskAI();
-            }}
-            data-cy="AskAIInput"
-          />
-          <Button onClick={() => handleAskAI()} disabled={aiLoading || !aiQuestion.trim()} data-cy="AskAIButton">
-            {aiLoading ? 'Asking AI…' : 'Ask'}
-          </Button>
-        </div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {[
-            'Can you summarize the product reviews?',
-            'What age(s) is this recommended for?',
-            'Were there any negative reviews?',
-          ].map(p => (
-            <Button key={p} variant="outline" size="sm" onClick={() => handleQuickPrompt(p)}>
-              {p}
-            </Button>
-          ))}
-        </div>
-        {aiError && (
-          <p className="mt-2 text-sm text-red-500" data-cy="AIError">
-            {aiError.message ?? 'Sorry, something went wrong.'}
-          </p>
-        )}
-        {aiResponse && (
-          <div className="mt-3" data-cy="AIAnswer">
-            <p className="rounded-md bg-muted p-3 text-sm">
-              <strong>AI Response:</strong> {typeof aiResponse === 'string' ? aiResponse : aiResponse.text}
-            </p>
-            {typeof aiResponse !== 'string' && (aiResponse.traceId || aiResponse.traceSteps?.length || aiResponse.citations?.length) && (
-              <TraceCitationPanel
-                traceId={aiResponse.traceId}
-                citations={aiResponse.citations}
-                traceSteps={aiResponse.traceSteps}
-              />
-            )}
+    <div aria-live="polite" data-cy={CypressFields.ProductReviews} className="flex flex-col gap-10">
+      
+      {/* AI Assistant Section */}
+      <Card className="relative overflow-hidden border-border/50 bg-card shadow-sm" data-cy="AskAISection">
+        
+        <CardContent className="p-6 relative z-10">
+          <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-primary/10 rounded-xl">
+                <Sparkles className="w-6 h-6 text-primary" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold">Ask AI About This Product</h3>
+                <p className="text-sm text-muted-foreground">Get instant answers from our AI shopping assistant.</p>
+              </div>
+            </div>
+            <MandateBadges compact />
           </div>
-        )}
-      </Card>
-      <h3 className="text-xl font-bold">Customer Reviews</h3>
-      {loading && <p>Loading…</p>}
-      {!loading && error && <p>Could not load reviews.</p>}
-      {!loading && !error && !productReviews?.length && <p>No reviews yet.</p>}
-      {!loading && !error && (
-        <>
-          {average != null && (
-            <Card className="p-4">
-              <div className="flex flex-col gap-4 sm:flex-row">
-                <div className="flex flex-col items-center gap-1">
-                  <span className="text-3xl font-bold">{average.toFixed(1)}</span>
-                  <StarRating value={average} />
-                  <span className="text-xs text-muted-foreground">{productReviews?.length || 0} reviews</span>
+          
+          <div className="flex gap-3">
+            <div className="relative flex-1">
+              <MessageSquare className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+              <Input
+                id="ask-ai-input"
+                placeholder="E.g. What age is this recommended for?"
+                value={aiQuestion}
+                onChange={e => setAiQuestion(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !aiLoading && aiQuestion.trim()) handleAskAI();
+                }}
+                className="pl-10 h-12 bg-background/50 border-border/50 text-base"
+                data-cy="AskAIInput"
+              />
+            </div>
+            <Button 
+              size="lg"
+              className="h-12 px-6 gap-2"
+              onClick={() => handleAskAI()} 
+              disabled={aiLoading || !aiQuestion.trim()} 
+              data-cy="AskAIButton"
+            >
+              {aiLoading ? 'Thinking...' : 'Ask AI'}
+              {!aiLoading && <Send className="w-4 h-4" />}
+            </Button>
+          </div>
+          
+          <div className="mt-4 flex flex-wrap gap-2">
+            {[
+              'Can you summarize the product reviews?',
+              'What age(s) is this recommended for?',
+              'Were there any negative reviews?',
+            ].map(p => (
+              <Button key={p} variant="secondary" size="sm" className="bg-muted/50 hover:bg-muted text-xs rounded-full" onClick={() => handleQuickPrompt(p)}>
+                {p}
+              </Button>
+            ))}
+          </div>
+          
+          {aiError && (
+            <div className="mt-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm flex items-center gap-2" data-cy="AIError">
+              {aiError.message ?? 'Sorry, something went wrong.'}
+            </div>
+          )}
+          
+          {aiResponse && (
+            <div className="mt-6 animate-in slide-in-from-bottom-2 fade-in duration-300" data-cy="AIAnswer">
+              <div className="rounded-xl bg-muted/30 border border-border/50 p-5 backdrop-blur-sm">
+                <div className="flex items-center gap-2 mb-2 text-primary font-medium text-sm">
+                  <Sparkles className="w-4 h-4" /> AI Assistant Response
                 </div>
-                <div className="flex-1 space-y-1">
+                <p className="text-sm leading-relaxed text-foreground/90">
+                  {typeof aiResponse === 'string' ? aiResponse : aiResponse.text}
+                </p>
+              </div>
+              {typeof aiResponse !== 'string' && (aiResponse.traceId || aiResponse.traceSteps?.length || aiResponse.citations?.length) && (
+                <div className="mt-2">
+                  <TraceCitationPanel
+                    traceId={aiResponse.traceId}
+                    citations={aiResponse.citations}
+                    traceSteps={aiResponse.traceSteps}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Reviews Section */}
+      <div className="space-y-6">
+        <h3 className="text-2xl font-bold tracking-tight">Customer Reviews</h3>
+        
+        {loading && <div className="h-32 flex items-center justify-center animate-pulse bg-muted/20 rounded-xl">Loading reviews...</div>}
+        {!loading && error && <div className="p-4 bg-destructive/10 text-destructive rounded-xl">Could not load reviews.</div>}
+        {!loading && !error && !productReviews?.length && <div className="p-8 text-center text-muted-foreground border border-dashed rounded-xl">No reviews yet for this product.</div>}
+        
+        {!loading && !error && (
+          <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-8">
+            {/* Rating Summary */}
+            {average != null && (
+              <Card className="p-6 bg-card/50 h-fit border-border/50">
+                <div className="flex flex-col items-center text-center gap-2 mb-6">
+                  <span className="text-5xl font-bold tracking-tighter">{average.toFixed(1)}</span>
+                  <StarRating value={average} />
+                  <span className="text-sm text-muted-foreground mt-1">{productReviews?.length || 0} global ratings</span>
+                </div>
+                <div className="space-y-3">
                   {[5, 4, 3, 2, 1].map(score => {
                     const pct = normalizedPercents[score - 1];
                     return (
-                      <div key={score} className="flex items-center gap-2 text-sm">
-                        <span className="w-12 text-right">
-                          {score} star{score > 1 ? 's' : ''}
+                      <div key={score} className="flex items-center gap-3 text-sm group">
+                        <span className="w-12 text-right font-medium text-muted-foreground group-hover:text-foreground transition-colors">
+                          {score} star
                         </span>
-                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
-                          <div className="h-full rounded-full bg-yellow-500" style={{ width: `${pct}%` }} />
+                        <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-muted">
+                          <div className="h-full rounded-full bg-yellow-500 transition-all duration-1000 ease-out" style={{ width: `${pct}%` }} />
                         </div>
-                        <span className="w-10 text-right text-muted-foreground">{pct}%</span>
+                        <span className="w-10 text-right font-medium text-muted-foreground">{pct}%</span>
                       </div>
                     );
                   })}
                 </div>
+              </Card>
+            )}
+
+            {/* Testimonial Cards */}
+            {productReviews && productReviews.length > 0 && (
+              <div className="grid gap-4 sm:grid-cols-2 content-start">
+                {productReviews.map((review, idx) => (
+                  <Card key={`${review.username}-${review.score}-${idx}`} className="p-5 flex flex-col bg-card/30 hover:bg-card/60 transition-colors border-border/40">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
+                          {review.username?.charAt(0).toUpperCase() || <User className="w-5 h-5" />}
+                        </div>
+                        <div>
+                          <p className="font-semibold text-sm">{review.username}</p>
+                          <p className="text-xs text-muted-foreground">Verified Buyer</p>
+                        </div>
+                      </div>
+                      <StarRating value={Number(review.score) || 0} />
+                    </div>
+                    <p className="text-sm text-foreground/80 leading-relaxed italic">"{review.description || 'No description provided.'}"</p>
+                  </Card>
+                ))}
               </div>
-            </Card>
-          )}
-          {productReviews && productReviews.length > 0 && (
-            <div className="grid gap-4 sm:grid-cols-2">
-              {productReviews.map((review, idx) => (
-                <Card key={`${review.username}-${review.score}-${idx}`} className="p-4">
-                  <div className="mb-2 flex items-center justify-between">
-                    <span className="font-medium">{review.username}</span>
-                    <StarRating value={Number(review.score) || 0} />
-                  </div>
-                  <p className="text-sm text-muted-foreground">{review.description || 'No description provided.'}</p>
-                </Card>
-              ))}
-            </div>
-          )}
-        </>
-      )}
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
