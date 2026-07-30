@@ -290,6 +290,7 @@ def run_evals(
                     print(f"     Metrics bị ảnh hưởng: {drift_res.drifted_metrics}")
                     print(f"     Lý do: {drift_res.reason}")
                     print(f"  [📢 ALERTER] Đã gửi thông báo Drift tới webhook.")
+                    print(f"  [🔍 JSON EVIDENCE]:\n{json.dumps(drift_res.to_dict(), indent=2)}")
                 elif "not yet confirmed" in drift_res.reason:
                     print(f"  [⚠️ DRIFT WARNING] Tín hiệu bất thường (Nghi ngờ Drift)!")
                     print(f"     Lý do: {drift_res.reason}")
