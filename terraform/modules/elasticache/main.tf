@@ -44,7 +44,7 @@ locals {
 resource "aws_elasticache_parameter_group" "valkey_search" {
   name        = "${var.project_name}-${var.environment}-valkey8-search"
   family      = "valkey8"
-  description = "Valkey8 params cho ${var.project_name} — reserved-memory-percent cho Search/L2 semantic cache"
+  description = "Valkey8 params cho ${var.project_name} - reserved-memory-percent cho Search/L2 semantic cache"
 
   parameter {
     name  = "reserved-memory-percent"
