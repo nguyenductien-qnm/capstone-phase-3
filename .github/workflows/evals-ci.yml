@@ -10,6 +10,9 @@ on:
       - 'docs/ai/evals/**'
       - 'requirements-copilot.txt'
 
+permissions:
+  contents: read
+
 jobs:
   test-evals:
     runs-on: ubuntu-latest
