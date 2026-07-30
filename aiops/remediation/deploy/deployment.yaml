@@ -40,7 +40,7 @@ spec:
       containers:
         - name: aiops-remediation
           # MANDATE-05: pin tag co dinh, khong dung tag troi (:latest).
-          image: 384511757667.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.1-aiops-remediation-3cdbc26
+          image: 384511757667.dkr.ecr.us-east-1.amazonaws.com/ecommerce-dev-techx-corp:1.1-aiops-remediation-6855da8
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false
