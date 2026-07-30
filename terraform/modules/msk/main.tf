@@ -71,8 +71,15 @@ resource "aws_msk_cluster" "this" {
     # AVD-AWS-0179: MSK vốn đã mã hoá at-rest bằng key AWS quản lý kể cả khi không khai,
     # nhưng khai tường minh thì đọc được trong Git và scanner không phải đoán. Dùng
     # alias/aws/kafka (key mặc định của service) nên không phát sinh phí KMS.
-    # TẠM TẮT cho lần apply đầu — alias/aws/kafka chưa tồn tại.
-    # encryption_at_rest_kms_key_arn = data.aws_kms_alias.msk_managed.target_key_arn
+    #
+    # NHỊP 2 của bootstrap (30/07/2026) — khôi phục sau khi apply lần đầu đã sinh ra
+    # alias/aws/kafka. KHÔNG được có diff ở đây: cụm tạo bằng key AWS quản lý, và alias
+    # phân giải về đúng key đó. Kiểm bằng số thật trước khi mở PR này:
+    #   alias/aws/kafka          -> key 7fbc8503-3021-4b5a-b8d0-303dca3f365d
+    #   cụm ecommerce-dev-msk    -> DataVolumeKMSKeyId .../key/7fbc8503-...-303dca3f365d
+    # Trùng khít. Nếu lần nào plan đòi ĐỔI dòng này thì DỪNG, đừng apply: thuộc tính này
+    # thay đổi là thay thế cụm MSK, mất sạch message.
+    encryption_at_rest_kms_key_arn = data.aws_kms_alias.msk_managed.target_key_arn
 
     encryption_in_transit {
       client_broker = "TLS"
@@ -130,10 +137,19 @@ data "aws_caller_identity" "current" {}
 
 # Key mặc định AWS cấp sẵn cho MSK. Tham chiếu qua alias để khai encryption at-rest
 # tường minh mà không phải tạo CMK riêng (CMK tốn ~$1/key/tháng).
-# TẠM TẮT cho lần apply đầu — alias/aws/kafka chưa tồn tại.
-# data "aws_kms_alias" "msk_managed" {
-#   name = "alias/aws/kafka"
-# }
+#
+# BẪY ĐÃ GẶP (30/07/2026): alias này KHÔNG có sẵn trong account mới. AWS chỉ tạo
+# alias/aws/<service> khi account dùng service đó lần đầu — docs MSK:
+# "If you don't specify a KMS key, Amazon MSK creates an AWS managed key for you and
+# uses it on your behalf" (msk-encryption.html). Nên trên account trắng, data source
+# này trả empty và `terraform plan` CHẾT trước khi tạo được gì: muốn có alias phải tạo
+# cụm, muốn tạo cụm phải có alias.
+# Cách đã dùng để phá vòng: comment cả data source này lẫn encryption_at_rest_kms_key_arn
+# ở trên, apply một lần cho MSK tự sinh alias, rồi khôi phục (chính là PR này).
+# Ai dựng lại từ số 0 ở account mới sẽ gặp lại y hệt — làm đúng hai nhịp đó.
+data "aws_kms_alias" "msk_managed" {
+  name = "alias/aws/kafka"
+}
 
 # KMS Key cho Secrets Manager để lưu msk credentials (bắt buộc cho MSK SCRAM)
 resource "aws_kms_key" "msk" {
