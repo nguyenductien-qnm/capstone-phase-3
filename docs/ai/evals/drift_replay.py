@@ -117,25 +117,40 @@ def _stable_series(surface: str = "review_summary", n: int = 20,
 def _shifted_series(surface: str = "review_summary", n: int = 20,
                     pre_mean: float = 0.82, post_mean: float = 0.35,
                     shift_at: int = 12, std: float = 0.02,
-                    start_ts: float = None, rng: random.Random = None) -> list:
+                    start_ts: float = None, rng: random.Random = None,
+                    baseline_path: str = DEFAULT_BASELINE_PATH) -> list:
     """Generate a series that shifts distribution at shift_at index."""
     if rng is None:
         rng = random.Random(42)
     if start_ts is None:
         start_ts = time.time() - n * 300
 
+    bl_means = {}
+    if os.path.exists(baseline_path):
+        try:
+            with open(baseline_path) as f:
+                bl = json.load(f)
+            surf = bl.get(surface, {})
+            for key in ["keyword_accuracy", "word_count_mean", "fallback_rate",
+                        "hallucination_risk_rate", "task_success_rate", "abstention_rate"]:
+                v = surf.get(f"{key}_mean")
+                if v is not None:
+                    bl_means[key] = v
+        except Exception:
+            pass
+
     METRIC_BASES_PRE = {
         "review_summary": {
-            "keyword_accuracy": pre_mean, "word_count_mean": 48.0,
-            "fallback_rate": 0.02, "hallucination_risk_rate": 0.01,
+            "keyword_accuracy": pre_mean, "word_count_mean": bl_means.get("word_count_mean", 48.0),
+            "fallback_rate": bl_means.get("fallback_rate", 0.02), "hallucination_risk_rate": bl_means.get("hallucination_risk_rate", 0.01),
         },
         "copilot": {
-            "task_success_rate": pre_mean, "abstention_rate": 0.06, "fallback_rate": 0.02,
+            "task_success_rate": pre_mean, "abstention_rate": bl_means.get("abstention_rate", 0.06), "fallback_rate": bl_means.get("fallback_rate", 0.02),
         },
     }
     METRIC_BASES_POST = {
         "review_summary": {
-            "keyword_accuracy": post_mean, "word_count_mean": 12.0,
+            "keyword_accuracy": post_mean, "word_count_mean": bl_means.get("word_count_mean", 48.0) * 0.25, # drop significantly
             "fallback_rate": 0.55, "hallucination_risk_rate": 0.05,
         },
         "copilot": {

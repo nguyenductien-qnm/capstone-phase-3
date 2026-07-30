@@ -80,7 +80,7 @@ def test_psi_empty_inputs():
 # ─────────────────────────────────────────────────────────────
 def test_stable_series_no_drift(baseline_path, tmp_path):
     """Stable series near baseline → verdict = STABLE."""
-    series = _stable_series(surface="review_summary", n=20, mean=0.82)
+    series = _stable_series(surface="review_summary", n=20, baseline_path=baseline_path)
     result = replay(series, baseline_path, state_path=str(tmp_path / "state.json"))
     assert result["verdict"] == "STABLE", (
         f"Stable series should not flag drift, got: {result['drift_events']}"
@@ -92,7 +92,8 @@ def test_shifted_series_flags_drift(baseline_path, tmp_path):
     series = _shifted_series(
         surface="review_summary", n=20,
         pre_mean=0.82, post_mean=0.20,  # big drop
-        shift_at=12
+        shift_at=12,
+        baseline_path=baseline_path
     )
     result = replay(series, baseline_path, state_path=str(tmp_path / "state.json"))
     assert result["verdict"] == "DRIFT_DETECTED", (
@@ -109,7 +110,7 @@ def test_shifted_series_flags_drift(baseline_path, tmp_path):
 
 def test_no_false_alarm_on_natural_variance(baseline_path, tmp_path):
     """Small natural variance (±3%) → STABLE, no false alarm."""
-    series = _stable_series(surface="review_summary", n=20, mean=0.82, std=0.03)
+    series = _stable_series(surface="review_summary", n=20, std=0.03, baseline_path=baseline_path)
     result = replay(series, baseline_path, state_path=str(tmp_path / "state.json"))
     assert result["verdict"] == "STABLE", (
         f"Natural variance should not trigger drift, events: {result['drift_events']}"
@@ -121,7 +122,8 @@ def test_copilot_surface_drift(baseline_path, tmp_path):
     series = _shifted_series(
         surface="copilot", n=20,
         pre_mean=0.88, post_mean=0.30,
-        shift_at=10
+        shift_at=10,
+        baseline_path=baseline_path
     )
     result = replay(series, baseline_path, state_path=str(tmp_path / "state.json"))
     assert result["verdict"] == "DRIFT_DETECTED"
@@ -133,7 +135,7 @@ def test_copilot_surface_drift(baseline_path, tmp_path):
 
 def test_insufficient_data_no_drift(baseline_path, tmp_path):
     """Only 3 snapshots (< MIN_WINDOW=5) → no drift flag, not enough data."""
-    series = _shifted_series(surface="review_summary", n=3, pre_mean=0.82, post_mean=0.20)
+    series = _shifted_series(surface="review_summary", n=3, pre_mean=0.82, post_mean=0.20, baseline_path=baseline_path)
     result = replay(series, baseline_path, state_path=str(tmp_path / "state.json"))
     # With only 3 samples, detector should not confirm drift
     assert result["verdict"] == "STABLE"
@@ -141,7 +143,7 @@ def test_insufficient_data_no_drift(baseline_path, tmp_path):
 
 def test_drift_report_has_evidence(baseline_path, tmp_path):
     """Drift report must include per-metric evidence (PSI, means)."""
-    series = _shifted_series(surface="review_summary", n=20, pre_mean=0.82, post_mean=0.20)
+    series = _shifted_series(surface="review_summary", n=20, pre_mean=0.82, post_mean=0.20, baseline_path=baseline_path)
     result = replay(series, baseline_path, state_path=str(tmp_path / "state.json"))
 
     if result["verdict"] == "DRIFT_DETECTED":
