@@ -56,7 +56,7 @@ def mask_pii(text: str) -> str:
 
 def _prompt_hash(messages: list[dict]) -> str:
     """Deterministic content hash — same prompt → same hash, no raw prompt stored."""
-    raw = json.dumps(messages, sort_keys=True, default=str)
+    raw = json.dumps(messages, sort_keys=True, default=str, ensure_ascii=False)
     masked = mask_pii(raw)
     return hashlib.sha256(masked.encode()).hexdigest()[:16]
 
@@ -68,7 +68,7 @@ def record_trace(valkey_client, trace_data: dict) -> bool:
         if not trace_id:
             logger.warning("record_trace: empty trace_id, skipping")
             return False
-        payload = json.dumps(trace_data, default=str)
+        payload = json.dumps(trace_data, default=str, ensure_ascii=False)
         valkey_client.setex(f"trace:{trace_id}", TRACE_TTL, payload)
         sid = trace_data.get("session_id", "")
         if sid:

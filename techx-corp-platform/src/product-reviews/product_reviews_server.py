@@ -671,7 +671,7 @@ def get_ai_assistant_response(request_product_id, question, context=None):
             step_name="Input Guardrail (PII/Prompt Guard)",
             latency_ms=lat_in,
             status="blocked" if blocked_in else "pass",
-            detail=redact_pii(json.dumps({"question": question, "blocked": blocked_in}))
+            detail=redact_pii(json.dumps({"question": question, "blocked": blocked_in}, ensure_ascii=False))
         ))
         if blocked_in:
             logger.warning(f"[Guardrail INPUT] blocked direct question for product_id={request_product_id}")
@@ -812,7 +812,7 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                         step_name="Fallback Triggered",
                         latency_ms=0,
                         status="error",
-                        detail=json.dumps({"error": "Rate limit 429 exceeded", "fallback": "amazon.nova-micro-v1:0"})
+                        detail=json.dumps({"error": "Rate limit 429 exceeded", "fallback": "amazon.nova-micro-v1:0"}, ensure_ascii=False)
                     ))
                     
                     # Allow to fall through to the real Bedrock flow to process the fallback
@@ -829,7 +829,7 @@ def get_ai_assistant_response(request_product_id, question, context=None):
             blocked_rev, _ = apply_guardrail_input(get_bedrock_primary_client(), reviews_json)
             if blocked_rev:
                 logger.warning(f"[Guardrail INPUT] Bedrock blocked review for product_id={request_product_id}.")
-                reviews_json = json.dumps({"error": "Content blocked by security guardrail."})
+                reviews_json = json.dumps({"error": "Content blocked by security guardrail."}, ensure_ascii=False)
             
             info_json = sanitize_json_for_llm(fetch_product_info(product_id=request_product_id))
             # Điểm trung bình + số review PHẢI có sẵn trong dữ liệu đưa cho model.
@@ -843,7 +843,7 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                 step_name="Fetch reviews+info",
                 latency_ms=int((time.time() - t_tool) * 1000),
                 status="ok",
-                detail=redact_pii(json.dumps({"product_id": request_product_id}))
+                detail=redact_pii(json.dumps({"product_id": request_product_id}, ensure_ascii=False))
             ))
             
             system_prompt = SYSTEM_PROMPT
@@ -918,7 +918,7 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                     step_name="Output Guardrail (Grounding)",
                     latency_ms=lat_out,
                     status="blocked" if blocked_out else "pass",
-                    detail=redact_pii(json.dumps({"blocked": blocked_out}))
+                    detail=redact_pii(json.dumps({"blocked": blocked_out}, ensure_ascii=False))
                 ))
                 if blocked_out:
                     logger.warning(f"AI_SUMMARY_FALLBACK stage=output-grounding reason=Ungrounded product_id={request_product_id}")
@@ -937,7 +937,7 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                 step_name="Model Gateway & Bedrock Nova",
                 latency_ms=lat_llm,
                 status="ok",
-                detail=redact_pii(json.dumps({"routed_model": os.environ.get('LLM_REVIEWS_MAIN_MODEL', 'amazon.nova-micro-v1:0')}))
+                detail=redact_pii(json.dumps({"routed_model": os.environ.get('LLM_REVIEWS_MAIN_MODEL', 'amazon.nova-micro-v1:0')}, ensure_ascii=False))
             ))
             ai_assistant_response.trace_steps.extend(trace_steps)
 
@@ -988,7 +988,7 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                         "model_ver": model_ver,
                         "prompt_ver": prompt_ver
                     }
-                    valkey_client.setex(cache_key, ttl, json.dumps(cache_val))
+                    valkey_client.setex(cache_key, ttl, json.dumps(cache_val, ensure_ascii=False))
                     logger.info(f"Stored summary in Valkey cache under key {cache_key} with TTL {ttl}s")
                     ai_assistant_response.source_fingerprint = content_fp if content_fp else ""
 
@@ -996,7 +996,7 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                     # cũng giữ được trích dẫn.
                     if question_embedding:
                         _pr_insert_semantic_cache(valkey_client, scope_key, question, question_embedding,
-                                                  json.dumps(cache_val))
+                                                  json.dumps(cache_val, ensure_ascii=False))
                         logger.info(f"Stored summary in Valkey semantic cache under scope {scope_key}")
                 except Exception as e:
                     logger.error(f"Cache write error: {e}")

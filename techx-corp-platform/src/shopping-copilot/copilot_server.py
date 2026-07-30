@@ -132,7 +132,7 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
             messages = messages[-MAX_SESSION_MESSAGES:]
         if self._valkey:
             try:
-                data = json.dumps({"owner_user_id": user_id, "messages": messages})
+                data = json.dumps({"owner_user_id": user_id, "messages": messages}, ensure_ascii=False)
                 self._valkey.set(f"copilot:session:{session_id}", data, ex=SESSION_TTL)
                 return
             except Exception as e:
@@ -160,7 +160,7 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
             step_name="Input Guardrail (PII/Prompt Guard)",
             latency_ms=lat_in,
             status="blocked" if blocked else "pass",
-            detail=redact_pii(json.dumps({"question": request.question, "blocked": blocked}))
+            detail=redact_pii(json.dumps({"question": request.question, "blocked": blocked}, ensure_ascii=False))
         ))
         if blocked:
             logger.warning("[Guardrail] Blocked input for session=%s", session_id)
@@ -244,7 +244,7 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
             try:
                 embed_resp = self._bedrock.invoke_model(
                     modelId="amazon.titan-embed-text-v2:0",
-                    body=json.dumps({"inputText": sanitized_question})
+                    body=json.dumps({"inputText": sanitized_question}, ensure_ascii=False)
                 )
                 embedding = json.loads(embed_resp["body"].read())["embedding"]
                 
@@ -281,7 +281,7 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
                 step_name="Model Gateway & Bedrock Nova",
                 latency_ms=lat_llm,
                 status="ok",
-                detail=redact_pii(json.dumps({"routed_model": routed_model}))
+                detail=redact_pii(json.dumps({"routed_model": routed_model}, ensure_ascii=False))
             ))
             
             for ts in result.trace_steps:
@@ -321,7 +321,7 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
             )
             resp.pending_confirmation.CopyFrom(pb.PendingConfirmation(
                 tool_name=pending.tool_name,
-                arguments_json=json.dumps(pending.arguments),
+                arguments_json=json.dumps(pending.arguments, ensure_ascii=False),
                 human_prompt=pending.human_prompt,
                 confirmation_token=token,
                 expires_at_unix=expires_at,
@@ -357,7 +357,7 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
         started = time.time()
         out = tools.execute_add_item(entry["user_id"], entry["product_id"], entry["quantity"])
         ok = '"error"' not in out
-        args_json = json.dumps({"product_id": entry["product_id"], "quantity": entry["quantity"]})
+        args_json = json.dumps({"product_id": entry["product_id"], "quantity": entry["quantity"]}, ensure_ascii=False)
         logger.info("audit confirmed-write tool=add_item_to_cart args=%s ok=%s", args_json, ok)
         resp = pb.ChatWithCopilotResponse(
             response=(f"✅ Đã thêm {entry['quantity']}x {entry['product_id']} vào giỏ hàng."

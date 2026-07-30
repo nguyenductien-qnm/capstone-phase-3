@@ -545,7 +545,7 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str,
                 response = invoke_bedrock_converse_with_fallback(
                     primary_client=bedrock_client,
                     model_id=model_id,
-                    system=[{"text": SYSTEM_PROMPT, "cacheable": True}],
+                    system=[{"text": SYSTEM_PROMPT}],
                     messages=current,
                     tool_config={"tools": TOOLS_DEFINITION},
                     # temperature 0: eval MANDATE-14 chốt xanh bằng 2 lần chạy giống nhau, mà ở
@@ -603,7 +603,7 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str,
                           else "LLM → trả lời trực tiếp"),
             "latency_ms": int((time.time() - t_converse) * 1000),
             "status": "ok",
-            "detail": redact_pii(json.dumps(detail_dict))
+            "detail": redact_pii(json.dumps(detail_dict, ensure_ascii=False))
         })
 
         if stop != "tool_use":
@@ -637,7 +637,7 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str,
                     start_out = time.time()
                     blocked_out, clean_text = apply_guardrail_output(bedrock_client, clean_text, source_text, user_query)
                     lat_out = int((time.time() - start_out) * 1000)
-                    trace_steps.append({"step_name": "Output Guardrail (Grounding)", "latency_ms": lat_out, "status": "blocked" if blocked_out else "pass", "detail": redact_pii(json.dumps({"blocked": blocked_out}))})
+                    trace_steps.append({"step_name": "Output Guardrail (Grounding)", "latency_ms": lat_out, "status": "blocked" if blocked_out else "pass", "detail": redact_pii(json.dumps({"blocked": blocked_out}, ensure_ascii=False))})
                     
                     ground_span.set_attribute("guardrail.blocked", blocked_out)
                     if blocked_out:
@@ -680,7 +680,7 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str,
                     "step_name": f"Tool loop stopped: {name}",
                     "latency_ms": 0,
                     "status": "deduplicated",
-                    "detail": redact_pii(json.dumps({"args": args})),
+                    "detail": redact_pii(json.dumps({"args": args}, ensure_ascii=False)),
                 })
                 return AgentResult(
                     text=redact_pii(_duplicate_tool_fallback(
@@ -691,7 +691,7 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str,
 
             with tracer.start_as_current_span("tool_call") as tool_span:
                 tool_span.set_attribute("tool.name", name)
-                tool_span.set_attribute("tool.arguments", json.dumps(args)[:500])
+                tool_span.set_attribute("tool.arguments", json.dumps(args, ensure_ascii=False)[:500])
                 if name == "add_item_to_cart":
                     # Hard bar MANDATE-14: ý định "mua ngay / thanh toán / đặt hàng"
                     # TUYỆT ĐỐI không được chạm write tool, kể cả qua confirmation
@@ -742,11 +742,11 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str,
 
             dur_ms = int((time.time() - started) * 1000)
             actions.append(ToolCall(
-                tool_name=name, arguments_json=json.dumps(args), succeeded=ok,
+                tool_name=name, arguments_json=json.dumps(args, ensure_ascii=False), succeeded=ok,
                 started_at_unix=int(started), duration_ms=dur_ms,
             ))
             logger.info("audit tool_call tool=%s args=%s succeeded=%s duration_ms=%s",
-                        name, redact_pii(json.dumps(args)), ok, dur_ms)
+                        name, redact_pii(json.dumps(args, ensure_ascii=False)), ok, dur_ms)
             # Trace UI: show WHAT the AI operated with (which tool + key argument).
             _arg_hint = args.get("query") or args.get("category") or args.get("product_id") or args.get("to_code") or args.get("amount") or ""
             if _arg_hint and not isinstance(_arg_hint, str):
@@ -755,7 +755,7 @@ def run_agent(bedrock_client, model_id: str, messages: list, user_id: str,
                 "step_name": f"Tool: {name}" + (f" ({_arg_hint})" if _arg_hint else ""),
                 "latency_ms": dur_ms,
                 "status": "ok" if ok else "error",
-                "detail": redact_pii(json.dumps({"args": args, "succeeded": ok}))
+                "detail": redact_pii(json.dumps({"args": args, "succeeded": ok}, ensure_ascii=False))
             })
             parsed_out = json.loads(out)
             if not isinstance(parsed_out, dict):

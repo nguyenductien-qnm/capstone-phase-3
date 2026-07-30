@@ -120,9 +120,9 @@ def execute_with_retry(work):
 
 def fetch_product_reviews(product_id):
     try:
-        return json.dumps(fetch_product_reviews_from_db(product_id), use_decimal=True)
+        return json.dumps(fetch_product_reviews_from_db(product_id), use_decimal=True, ensure_ascii=False)
     except Exception as e:
-        return json.dumps({"error": str(e)})
+        return json.dumps({"error": str(e)}, ensure_ascii=False)
 
 
 def fetch_product_reviews_from_db(request_product_id):
