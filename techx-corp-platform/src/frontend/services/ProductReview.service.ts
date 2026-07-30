@@ -107,7 +107,7 @@ const ProductReviewService = {
       try {
         return await ProductReviewGateway.getProductReviews(productId);
       } catch (error) {
-        console.warn(`Failed to fetch product reviews for ${productId}, using fallback:`, error);
+        console.warn('Failed to fetch product reviews for %s, using fallback:', productId, error);
         return [];
       }
     });
