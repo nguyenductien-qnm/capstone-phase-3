@@ -1894,6 +1894,12 @@ components:
         value: cart:8080
       - name: PRODUCT_REVIEWS_ADDR
         value: product-reviews:3551
+      - name: RECOMMENDATION_ADDR
+        value: recommendation:8080
+      - name: CURRENCY_ADDR
+        value: currency:8080
+      - name: SHIPPING_ADDR
+        value: http://shipping:8080
       - name: FLAGD_HOST
         value: flagd
       - name: FLAGD_PORT

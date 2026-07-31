@@ -71,3 +71,27 @@ def test_failed_fallback_trace_has_zero_cost(monkeypatch):
     assert traces[0]["model_id"] == fallback_model
     assert traces[0]["outcome"] == "error"
     assert traces[0]["cost_usd"] == 0
+
+
+def test_ui_trace_step_contains_model_usage_cost_and_outcome(monkeypatch):
+    monkeypatch.setattr(agent, "_current_trace_id", lambda: "trace-ui")
+    monkeypatch.setattr(agent._executor, "submit", lambda fn, *args: fn(*args))
+    monkeypatch.setattr(agent, "record_trace", lambda *_args: True)
+
+    result = agent.run_agent(
+        FakeBedrock([_response(input_tokens=1000, output_tokens=500)]),
+        "amazon.nova-lite-v1:0",
+        [{"role": "user", "content": [{"text": "hi"}]}],
+        "u1",
+        valkey_client=object(),
+        session_id="s1",
+    )
+
+    detail = __import__('json').loads(result.trace_steps[0]["detail"])
+    assert detail["model_id"] == "amazon.nova-lite-v1:0"
+    assert detail["tokens_in"] == 1000
+    assert detail["tokens_out"] == 500
+    assert detail["cost_usd"] > 0
+    assert detail["outcome"] == "ok"
+    assert detail["timestamp_utc"]
+    assert "[REDACTED" not in detail["timestamp_utc"]

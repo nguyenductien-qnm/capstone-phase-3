@@ -243,7 +243,7 @@ _BUDGET_RANGE_RE = re.compile(
 _INTENT_MARKER = re.compile(
     r"(mình|tôi|em|tớ|chúng tôi|nhà tôi|\bi\b|\bmy\b|\bme\b)[^.?!]{0,40}"
     r"(thích|muốn|cần|đang tìm|tìm mua|quan tâm|mua|chơi|dùng|sử dụng|sưu tầm|là|"
-    r"gợi ý|recommend|looking for|want|need|prefer)"
+    r"gợi ý|recommend|looking for|want|need|prefer|interested in)"
     r"|(gợi ý|tư vấn|recommend)[^.?!]{0,20}(cho mình|cho tôi|for me)",
     re.IGNORECASE,
 )
@@ -391,10 +391,10 @@ def load_user_memory(user_id: str) -> dict[str, str]:
 # Format — build prompt context block
 # ---------------------------------------------------------------------------
 _LABEL_MAP = {
-    "preferred_category": "Loại sản phẩm quan tâm",
-    "budget_range": "Ngân sách",
-    "experience_level": "Trình độ",
-    "use_case": "Mục đích sử dụng",
+    "preferred_category": "Preferred product category",
+    "budget_range": "Budget",
+    "experience_level": "Experience level",
+    "use_case": "Intended use",
 }
 
 
@@ -406,4 +406,4 @@ def format_memory_for_prompt(memory: dict[str, str]) -> str:
     for key, value in memory.items():
         label = _LABEL_MAP.get(key, key)
         parts.append(f"{label}: {value}")
-    return "Thông tin đã biết về khách hàng này (sở thích, KHÔNG phải dữ liệu sản phẩm): " + ", ".join(parts) + "."
+    return "Known customer preferences (not product facts): " + ", ".join(parts) + "."

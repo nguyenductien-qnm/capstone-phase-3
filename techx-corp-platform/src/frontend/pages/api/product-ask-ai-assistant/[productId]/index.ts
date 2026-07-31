@@ -13,7 +13,7 @@ type TResponse = {
 } | Empty;
 
 const AI_UNAVAILABLE_RESPONSE = {
-    text: 'Xin lỗi, AI Assistant hiện không khả dụng do hệ thống đang bảo trì. Vui lòng thử lại sau.',
+    text: 'The AI review assistant is temporarily unavailable. Please read the customer reviews below or try again in a few minutes.',
     traceId: '',
     citations: [],
 };

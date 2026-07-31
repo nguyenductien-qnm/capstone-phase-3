@@ -2,40 +2,51 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import * as grpc from '@grpc/grpc-js';
 
 import InstrumentationMiddleware from '../../utils/telemetry/InstrumentationMiddleware';
-import { ShoppingCopilotServiceClient, ChatWithCopilotRequest, ChatWithCopilotResponse } from '../../protos/shopping_copilot';
+import { ShoppingCopilotServiceClient, ChatWithCopilotResponse } from '../../protos/shopping_copilot';
+import { GrpcDeadlineMs, unaryWithDeadline } from '../../gateways/rpc/GrpcDeadline';
 
 const client = new ShoppingCopilotServiceClient(
-    process.env.SHOPPING_COPILOT_ADDR || 'shopping-copilot:3552',
-    grpc.credentials.createInsecure()
+  process.env.SHOPPING_COPILOT_ADDR || 'shopping-copilot:3552',
+  grpc.credentials.createInsecure(),
 );
+const safeString = (value: unknown, max: number) => typeof value === 'string' ? value.trim().slice(0, max) : '';
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
-    if (req.method !== 'POST') {
-        return res.status(405).json({ error: 'Method not allowed' });
-    }
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-    const { question, user_id, session_id, confirmation_token } = req.body;
+  const question = safeString(req.body?.question, 4000);
+  const confirmationToken = safeString(req.body?.confirmation_token, 512);
+  const request = {
+    userId: safeString(req.body?.user_id, 256) || 'anonymous',
+    question,
+    chatHistory: [],
+    sessionId: safeString(req.body?.session_id, 256) || 'default-session',
+    confirmationToken,
+  };
+  if (!question && !confirmationToken) return res.status(400).json({ error: 'Question or confirmation token is required' });
 
-    const request = {
-        userId: user_id || 'anonymous',
-        question: question || '',
-        chatHistory: [],
-        sessionId: session_id || 'default-session',
-        confirmationToken: confirmation_token || ''
-    };
-
-    try {
-        const response = await new Promise<ChatWithCopilotResponse>((resolve, reject) => {
-            client.chatWithCopilot(request, (error, response) => {
-                if (error) return reject(error);
-                resolve(response as ChatWithCopilotResponse);
-            });
-        });
-        res.status(200).json(response);
-    } catch (error) {
-        console.error('Copilot gRPC Error:', error);
-        res.status(500).json({ error: (error as Error).message });
-    }
+  try {
+    const response = await unaryWithDeadline<typeof request, ChatWithCopilotResponse>(
+      (value, metadata, options, callback) => client.chatWithCopilot(value, metadata, options, callback),
+      request,
+      GrpcDeadlineMs.copilot,
+    );
+    return res.status(200).json(response);
+  } catch (error) {
+    console.error('Copilot gRPC request failed', error);
+    return res.status(503).json({
+      response: 'The AI service is temporarily unavailable. No action was taken. Please try again shortly.',
+      pendingConfirmation: undefined,
+      actionsTaken: [],
+      degraded: true,
+      traceId: '',
+      citations: [],
+      traceSteps: [],
+      cacheStatus: 'bypass',
+      similarity: 0,
+      sourceFingerprint: '',
+    });
+  }
 }
 
 export default InstrumentationMiddleware(handler);

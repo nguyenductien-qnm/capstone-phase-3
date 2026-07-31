@@ -1,132 +1,100 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import Head from 'next/head';
 import Layout from '../components/Layout';
 import { AssistantRuntimeProvider, useLocalRuntime } from "@assistant-ui/react";
 import { Thread } from "../components/assistant-ui/thread";
 import { useCopilotAdapter } from '../components/CopilotChat/CopilotRuntime';
-import { TraceCitationPanel } from '../components/TraceCitationPanel/TraceCitationPanel';
+import { CopilotEvidence } from '../components/CopilotChat/CopilotEvidence';
+import { COPILOT_DEMO_CASES, createConversationId } from '../components/CopilotChat/copilotEvidence';
+import SessionGateway from '../gateways/Session.gateway';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { MessageSquare, Sparkles, Wand2 } from 'lucide-react';
+import { MessageSquare, RefreshCw, Sparkles, UserRoundCog, Wand2 } from 'lucide-react';
 
-const promptTemplates = [
-  "Can you help me find a good telescope for beginners?",
-  "What is the best telescope for astrophotography?",
-  "Recommend a cheap telescope for my 10 year old son.",
-  "Which mount is better: equatorial or altazimuth?",
-  "Do you have any solar filters?"
-];
+
 
 export default function CopilotPage() {
-  const [traceData, setTraceData] = useState<{
-    traceId?: string;
-    traceSteps?: any[];
-    citations?: any[];
-  } | null>(null);
+  const [userId, setUserId] = useState('anonymous');
+  const [sessionId, setSessionId] = useState(createConversationId);
 
-  const handleResponse = React.useCallback((data: any) => {
-    setTraceData({
-      traceId: data.traceId,
-      traceSteps: data.traceSteps,
-      citations: data.citations
-    });
-  }, []);
+  useEffect(() => setUserId(SessionGateway.getSession().userId || 'anonymous'), []);
 
-  const adapter = useCopilotAdapter(handleResponse);
+  const { adapter, latestResponse, isConfirming, confirm, cancelConfirmation } = useCopilotAdapter(undefined, { userId, sessionId, surface: 'Shopping Copilot' });
   const runtime = useLocalRuntime(adapter);
+  const evidence = latestResponse?.userId === userId && latestResponse?.sessionId === sessionId ? latestResponse : null;
 
-  const handlePromptClick = (prompt: string) => {
-    runtime.thread.append({
-      role: 'user',
-      content: [{ type: 'text', text: prompt }]
-    });
+  const appendPrompt = (prompt: string) => runtime.thread.append({ role: 'user', content: [{ type: 'text', text: prompt }] });
+  const resetView = () => runtime.thread.reset();
+  const startSession = (nextUserId = userId) => {
+    setUserId(nextUserId);
+    setSessionId(createConversationId());
+    resetView();
+  };
+  const confirmAction = (token: string) => {
+    confirm(token);
+    appendPrompt('Confirm this action');
   };
 
   return (
     <Layout>
-      <Head>
-        <title>Shopping Copilot | TechX Corp</title>
-      </Head>
-      <div className="container mx-auto max-w-7xl px-4 py-8 h-[calc(100vh-80px)] flex flex-col">
-        <div className="mb-6 flex items-center justify-between">
+      <Head><title>Shopping Copilot | TechX Corp</title></Head>
+      <div className="container mx-auto flex min-h-[calc(100vh-80px)] max-w-[1440px] flex-col px-4 py-6 lg:h-[calc(100vh-5rem)] lg:min-h-[680px] lg:py-6">
+        <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-center">
           <div className="flex items-center gap-3">
-            <div className="bg-primary/10 p-2 rounded-xl">
-              <Sparkles className="w-6 h-6 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">Shopping Copilot</h1>
-              <p className="text-muted-foreground text-sm">Your intelligent assistant for astronomy gear</p>
-            </div>
+            <div className="rounded-xl bg-primary/10 p-2"><Sparkles className="h-6 w-6 text-primary" /></div>
+            <div><h1 className="text-2xl font-bold tracking-tight">Shopping Copilot</h1><p className="text-sm text-muted-foreground">Grounded answers, confirmation-gated actions and live evidence</p></div>
           </div>
-          <Badge variant="outline" className="text-xs">Beta v2</Badge>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" onClick={() => startSession()}><RefreshCw className="mr-2 size-4" />New conversation</Button>
+            <Button size="sm" variant="outline" onClick={() => startSession()}><RefreshCw className="mr-2 size-4" />Same user / new session</Button>
+            <Button size="sm" variant="outline" onClick={() => startSession(`demo-${createConversationId()}`)}><UserRoundCog className="mr-2 size-4" />Different user</Button>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 flex-1 min-h-0">
-          {/* Left Sidebar: Tracing */}
-          <Card className="lg:col-span-1 border-primary/20 shadow-sm bg-gradient-to-b from-card to-card/50 flex flex-col overflow-hidden">
-            <CardHeader className="pb-3 shrink-0">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <ActivityIcon className="w-5 h-5 text-primary" />
-                LLM Observability
-              </CardTitle>
-              <CardDescription>Real-time tracing of AI actions</CardDescription>
-            </CardHeader>
-            <Separator />
-            <ScrollArea className="flex-1">
-              <CardContent className="pt-4">
-                {traceData ? (
-                  <TraceCitationPanel 
-                    traceId={traceData.traceId} 
-                    traceSteps={traceData.traceSteps || []}
-                    citations={traceData.citations || []}
-                  />
-                ) : (
-                  <div className="text-sm text-muted-foreground bg-muted/30 p-4 rounded-lg border border-border/50 border-dashed text-center">
-                    Ask a question to see the AI trace and safety guardrails in action.
-                  </div>
-                )}
-              </CardContent>
-            </ScrollArea>
-          </Card>
-
-          {/* Center: Chat Interface */}
-          <div className="lg:col-span-2 flex flex-col rounded-2xl border shadow-sm overflow-hidden bg-card min-h-[500px]">
-            <AssistantRuntimeProvider runtime={runtime}>
-              <div className="flex-1 overflow-hidden [&_.aui-thread-viewport]:h-full [&_.aui-thread-viewport]:p-4 [&_.aui-root]:h-full">
-                <Thread />
-              </div>
-            </AssistantRuntimeProvider>
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(340px,420px)]">
+          <div className="order-1 flex min-h-[560px] min-w-0 flex-col overflow-hidden rounded-2xl border bg-card shadow-sm lg:min-h-0">
+            <AssistantRuntimeProvider runtime={runtime}><div className="flex-1 overflow-hidden [&_.aui-root]:h-full [&_.aui-thread-viewport]:h-full [&_.aui-thread-viewport]:p-4"><Thread /></div></AssistantRuntimeProvider>
           </div>
 
-          {/* Right Sidebar: Prompt Templates */}
-          <Card className="lg:col-span-1 border-border/50 shadow-none bg-muted/10 flex flex-col overflow-hidden">
-            <CardHeader className="pb-3 shrink-0">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Wand2 className="w-5 h-5 text-indigo-500" />
-                Try Asking
-              </CardTitle>
-              <CardDescription>Sample prompts to explore</CardDescription>
-            </CardHeader>
-            <Separator />
-            <ScrollArea className="flex-1">
-              <CardContent className="flex flex-col gap-2 pt-4">
-                {promptTemplates.map((prompt, index) => (
-                  <Button 
-                    key={index}
-                    variant="outline"
-                    className="justify-start h-auto py-3 px-4 text-left font-normal border-border/60 hover:bg-primary/5 hover:border-primary/30 transition-colors whitespace-normal"
-                    onClick={() => handlePromptClick(prompt)}
-                  >
-                    <MessageSquare className="w-4 h-4 mr-3 flex-shrink-0 text-muted-foreground" />
-                    <span className="text-sm">{prompt}</span>
-                  </Button>
+          <aside className="order-2 grid min-h-0 gap-4 lg:grid-rows-[minmax(0,1fr)_minmax(0,1fr)]">
+            <Card className="flex min-h-0 flex-col overflow-hidden border-primary/20">
+              <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-lg"><ActivityIcon className="h-5 w-5 text-primary" />AI Evidence</CardTitle><CardDescription>Request-derived proof, never fixed readiness badges</CardDescription></CardHeader>
+              <Separator />
+              <ScrollArea className="min-h-0 flex-1"><CardContent className="pt-4">
+                {evidence ? <CopilotEvidence response={evidence} busy={isConfirming} onConfirm={confirmAction} onCancel={cancelConfirmation} /> : <div className="rounded-lg border border-dashed bg-muted/30 p-4 text-center text-sm text-muted-foreground">Ask a question to populate trace, cache, grounding and tool evidence.</div>}
+              </CardContent></ScrollArea>
+            </Card>
+
+            <Card className="flex min-h-0 flex-col overflow-hidden border-border/50 bg-muted/10 shadow-none">
+              <CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-lg"><Wand2 className="h-5 w-5 text-indigo-500" />AIE demo cases</CardTitle><CardDescription>Core, top-race, safety, cache and memory prompts</CardDescription></CardHeader>
+              <Separator />
+              <ScrollArea className="min-h-0 flex-1"><CardContent className="space-y-5 pt-4">
+                {COPILOT_DEMO_CASES.map(group => (
+                  <section key={group.title} aria-label={group.title}>
+                    <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{group.title}</h2>
+                    <div className="flex flex-col gap-2">
+                      {group.cases.map(item => (
+                        <div key={`${group.title}-${item.label}`} className="rounded-lg border bg-background/50 p-2">
+                          <div className="px-1 pb-1 text-xs font-medium text-foreground">{item.label}</div>
+                          <div className="flex flex-col gap-1">
+                            {item.prompts.map((prompt, index) => (
+                              <Button key={prompt} variant="ghost" className="h-auto justify-start whitespace-normal px-2 py-2 text-left font-normal" onClick={() => appendPrompt(prompt)}>
+                                <MessageSquare className="mr-2 size-4 shrink-0 text-muted-foreground" />
+                                <span className="text-xs text-muted-foreground">{item.prompts.length > 1 ? `${index + 1}. ` : ''}{prompt}</span>
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
                 ))}
-              </CardContent>
-            </ScrollArea>
-          </Card>
+                <p className="text-xs text-muted-foreground">For multi-turn cases, click prompts 1 then 2 in the same session. Repeat any single-turn prompt to show an exact cache hit; use session controls to show isolation.</p>
+              </CardContent></ScrollArea>
+            </Card>
+          </aside>
         </div>
       </div>
     </Layout>

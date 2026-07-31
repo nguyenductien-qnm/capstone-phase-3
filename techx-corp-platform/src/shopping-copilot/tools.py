@@ -68,6 +68,19 @@ def _product_to_dict(product) -> dict:
     }
 
 
+_MAX_PRICE_RE = re.compile(
+    r"(?:under|below|less than|dưới|<)\s*\$?\s*(\d+(?:[.,]\d+)?)",
+    re.IGNORECASE,
+)
+
+
+def _search_constraints(query: str, category: str | None):
+    primary_category = (category or "").lower().rstrip("s")
+    match = _MAX_PRICE_RE.search(query or "")
+    max_price = float(match.group(1).replace(",", ".")) if match else None
+    return primary_category, max_price
+
+
 def search_products(query: str, category: str | None = None) -> str:
     """Intent 1 — natural-language product search via ProductCatalogService."""
     try:
@@ -75,6 +88,7 @@ def search_products(query: str, category: str | None = None) -> str:
         # embed (Titan từ chối chuỗi rỗng: "expected minLength: 1"), nên lấy category
         # làm câu truy vấn — nếu không, semantic search âm thầm rơi về keyword.
         effective_query = (query or "").strip() or (category or "").strip()
+        primary_category, max_price = _search_constraints(query, category)
         with grpc.insecure_channel(PRODUCT_CATALOG_ADDR) as channel:
             stub = demo_pb2_grpc.ProductCatalogServiceStub(channel)
 
@@ -83,10 +97,13 @@ def search_products(query: str, category: str | None = None) -> str:
                     demo_pb2.SearchProductsRequest(query=search_query), timeout=_RPC_TIMEOUT
                 )
                 found = [_product_to_dict(p) for p in response.results]
-                if category:
-                    cat = category.lower().rstrip("s")  # "Telescopes" ↔ "telescope"
+                if primary_category:
+                    # Catalog stores the product's primary type first. Secondary tags
+                    # (e.g. accessories,telescopes) describe compatibility, not type.
                     found = [p for p in found
-                             if any(cat in c.lower() for c in p.get("categories", []))]
+                             if p.get("category", "").lower().rstrip("s") == primary_category]
+                if max_price is not None:
+                    found = [p for p in found if p.get("price", float("inf")) <= max_price]
                 return found
 
             products = fetch(effective_query)
@@ -95,6 +112,29 @@ def search_products(query: str, category: str | None = None) -> str:
             # reporting no products while valid category items exist.
             if not products and category and effective_query.casefold() != category.casefold():
                 products = fetch(category)
+            if not products:
+                fallback_text = " ".join(filter(None, (effective_query, category or "")))
+                normalized_query = effective_query.casefold()
+                if "kính viễn vọng" in normalized_query or "telescope" in normalized_query:
+                    fallback_text += " telescopes"
+                tokens = {token for token in re.findall(r"[\w-]+", fallback_text.lower()) if len(token) >= 4}
+                listed = stub.ListProducts(demo_pb2.Empty(), timeout=_RPC_TIMEOUT)
+                ranked = []
+                for product in listed.products:
+                    item = _product_to_dict(product)
+                    haystack = " ".join([
+                        item.get("name", ""), item.get("description", ""),
+                        " ".join(item.get("categories", [])),
+                    ]).lower()
+                    score = sum(token in haystack for token in tokens)
+                    if score:
+                        ranked.append((score, item))
+                products = [item for _, item in sorted(ranked, key=lambda pair: pair[0], reverse=True)[:5]]
+                if primary_category:
+                    products = [p for p in products
+                                if p.get("category", "").lower().rstrip("s") == primary_category]
+                if max_price is not None:
+                    products = [p for p in products if p.get("price", float("inf")) <= max_price]
         if not products:
             # message = câu khách được đọc; chỉ dẫn điều khiển agent để riêng ở
             # next_action, vì model từng chép nguyên chuỗi chỉ dẫn ra làm câu trả lời.
@@ -235,9 +275,21 @@ def list_recommendations(product_ids: list[str]) -> str:
                 demo_pb2.ListRecommendationsRequest(product_ids=product_ids),
                 timeout=_RPC_TIMEOUT,
             )
+        recommended_ids = list(response.product_ids)
+        recommended_products = []
+        if recommended_ids:
+            with grpc.insecure_channel(PRODUCT_CATALOG_ADDR) as channel:
+                catalog = demo_pb2_grpc.ProductCatalogServiceStub(channel).ListProducts(
+                    demo_pb2.Empty(), timeout=_RPC_TIMEOUT,
+                )
+            by_id = {product.id: _product_to_dict(product) for product in catalog.products}
+            recommended_products = [by_id[product_id] for product_id in recommended_ids if product_id in by_id]
+            for product in recommended_products:
+                product["price"] = f"${product['price']:.2f}"
         return json.dumps({
             "status": "ok",
-            "recommended_product_ids": list(response.product_ids)
+            "recommended_product_ids": recommended_ids,
+            "recommended_products": recommended_products,
         })
     except grpc.RpcError as e:
         logger.error("ListRecommendations RPC failed: %s", e)
@@ -261,9 +313,14 @@ def convert_currency(amount, from_code, to_code):
                 )}
             )
             response = stub.Convert(request, timeout=_RPC_TIMEOUT)
+        converted = _money_to_float(response)
+        if float(amount) != 0 and converted == 0:
+            return _error_json(
+                f"Currency conversion from {from_code} to {to_code} is unavailable."
+            )
         return json.dumps({
             "status": "ok",
-            "amount": _money_to_float(response),
+            "amount": converted,
             "currency": to_code
         })
     except grpc.RpcError as e:
@@ -275,51 +332,23 @@ def convert_currency(amount, from_code, to_code):
 
 
 def get_shipping_quote(items=None, address=None):
+    """Return a read-only quote from the deployed Shipping HTTP endpoint."""
     try:
-        SHIPPING_ADDR = os.environ.get("SHIPPING_ADDR", "http://shipping:50050")
-        if not address:
-            address = {}
-        default_address = {
-            "street_address": "1600 Amphitheatre Parkway",
-            "city": "Mountain View",
-            "state": "CA",
-            "country": "US",
-            "zip_code": "94043"
-        }
-        for k, v in default_address.items():
-            if k not in address or not address[k]:
-                address[k] = v
-
-        is_estimate = False
-        if not items:
-            # Cho phép gọi không cần items — dùng 1 item mặc định để ước lượng
-            items = [{"product_id": "OLJCESPC7Z", "quantity": 1}]
-            is_estimate = True
-        
-        url = f"{SHIPPING_ADDR}/get-quote"
-        payload = json.dumps({
-            "items": items,
-            "address": address
-        }).encode("utf-8")
-        
-        req = urllib.request.Request(
-            url, 
-            data=payload, 
-            headers={"Content-Type": "application/json"}
-        )
-        with urllib.request.urlopen(req, timeout=_RPC_TIMEOUT) as response:
-            res_body = response.read()
-            # Depending on how the shipping service replies, it might already be JSON.
-            # Easiest is to just decode it and parse it, then return JSON with our status.
-            res_json = json.loads(res_body.decode('utf-8'))
-            result = {
-                "status": "ok",
-                "quote": res_json
-            }
-            if is_estimate:
-                result["is_estimate"] = True
-                result["note"] = "Đây là báo giá ước lượng cho 1 sản phẩm mẫu (chưa có giỏ hàng cụ thể)."
-            return json.dumps(result)
+        shipping_addr = os.environ.get("SHIPPING_ADDR", "http://shipping:50050").rstrip("/")
+        defaults = {"street_address": "1600 Amphitheatre Parkway", "city": "Mountain View", "state": "CA", "country": "US", "zip_code": "94043"}
+        normalized_address = {key: (address or {}).get(key) or value for key, value in defaults.items()}
+        is_estimate = not items
+        normalized_items = items or [{"product_id": "OLJCESPC7Z", "quantity": 1}]
+        payload = json.dumps({"items": normalized_items, "address": normalized_address}).encode("utf-8")
+        request = urllib.request.Request(f"{shipping_addr}/get-quote", data=payload, headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(request, timeout=_RPC_TIMEOUT) as response:
+            quote = json.loads(response.read().decode("utf-8"))
+        cost = quote.get("cost_usd") or {}
+        amount = float(cost.get("units", 0)) + float(cost.get("nanos", 0)) / 1_000_000_000
+        result = {"status": "ok", "quote": quote, "formatted_cost": f"${amount:.2f} {cost.get('currency_code') or 'USD'}"}
+        if is_estimate:
+            result.update({"is_estimate": True, "note": "Estimated quote for one sample product because no cart items were provided."})
+        return json.dumps(result)
     except Exception as e:
         logger.error("get_shipping_quote error: %s", e)
         return _error_json(str(e))
