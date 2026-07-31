@@ -1,0 +1,85 @@
+# MANDATE-17 (CDO-09) - allow-egress cho aiops-detector duoi default-deny cua namespace.
+#
+# M17 dua `default-deny-all` (podSelector: {} - MOI pod trong techx-tf1) vao chart
+# platform. Pod aiops bi ap theo du khong thuoc chart techx-corp. File nay khai bao
+# dung nhung dich detector THUC SU goi, dat canh rbac.yaml theo dung mo hinh AIOps
+# da tu quan RBAC.
+#
+# DANH SACH DICH KHONG PHAI DOAN - do tren cum that (namespace techx-tf1) 31/07/2026:
+#   - 11 rule `type: metric`      -> prometheus:9090   (PROM_URL)
+#   -  4 rule `type: log`         -> opensearch:9200   (OPENSEARCH_URL)
+#   -  1 rule `type: k8s_status`  -> API server:443    (oom-detected, k8s_status.py)
+#   - goi theo TEN service        -> DNS 53
+# Log pod 30/07-31/07: 0 loi OpenSearch, 0 loi K8s API -> ca 3 duong deu dang song
+# that, khong co duong nao la di san.
+#
+# VI SAO /32 CHU KHONG PHAI CA DAI VPC (khac chart platform, co chu dich).
+# Chart mo ca `apiServerCIDR: 10.0.0.0/16` cho pod observability. Detector KHONG can:
+# client kubernetes cua Python dung load_incluster_config() -> quay so vao
+# KUBERNETES_SERVICE_HOST, doc tu chinh pod dang chay = 172.20.0.1. VPC CNI doi chieu
+# policy voi dich GOC TRUOC kube-proxy DNAT (chart da verify tren develop 22/07/2026:
+# cung pod, ClusterIP 172.20.0.1:443 -> 000 khi chi mo dai ENI), nen /32 nay la dung
+# dich va la du. Mo ca /16 se cho mot pod bi chiem quet 443 khap VPC - trai voi muc
+# tieu "pod bi chiem khong quet duoc khap cluster" cua chinh M17.
+#
+# KHONG khai egress Internet. alerter.py POST webhook Discord ra 443 ngoai, nhung
+# secret `aiops-alert` hien KHONG ton tai tren cum -> provider=stdout, khong co goi ra
+# ngoai nao. Ngay ai do tao lai secret (buoc lam TAY, xem comment dau deployment.yaml)
+# thi PHAI gan them nhan `egress-internet: "true"` vao pod template - do la co che san
+# cua M17 (policy `allow-internet-egress-selected`). Neu quen: requests.post timeout
+# 5s, bi `except Exception` nuot, alerter im lang tut ve stdout va pod van Running.
+# Da ghi canh bao nay ngay canh lenh tao secret trong deployment.yaml.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-aiops-detector-egress
+  namespace: techx-tf1
+  labels:
+    app: aiops-detector
+    team: aio03
+spec:
+  podSelector:
+    matchLabels:
+      app: aiops-detector
+  # CHI Egress. 2 pod aiops khong khai containerPort nao, khong co Service, khong ai
+  # scrape -> khong can allow-ingress. Khai `Ingress` o day ma de rong se la
+  # default-deny cua rieng minh, thua.
+  policyTypes: [Egress]
+  egress:
+    # 1) DNS - bat buoc vi PROM_URL/OPENSEARCH_URL goi theo ten service.
+    # Chart platform da co `allow-dns-egress` (podSelector: {}) phu song ca pod nay,
+    # nhung khai lai o day de detector khong phu thuoc NGAM vao co `allowDNS` cua M17.
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels: { k8s-app: kube-dns }
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+
+    # 2) Prometheus - nguon cua 11 rule `type: metric`.
+    # Nhan `app.kubernetes.io/name` (subchart), KHAC `opentelemetry.io/name` cua service app.
+    - to:
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: prometheus }
+      ports:
+        - { protocol: TCP, port: 9090 }
+
+    # 3) OpenSearch - nguon cua 4 rule `type: log`.
+    # LUU Y: rule EGRESS nay CHUA du de duong nay thong. opensearch khong nam trong
+    # networkPolicy.observability.sinks/scrapers/serviceIngress cua chart, nen duoi
+    # default-deny no khong nhan ingress tu aiops. Phia nhan do M17 so huu - da bao
+    # lai de them `opensearch` vao `sinks`.
+    - to:
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: opensearch }
+      ports:
+        - { protocol: TCP, port: 9200 }
+
+    # 4) Kubernetes API server - rule `oom-detected` (type: k8s_status).
+    # Xem giai thich /32 o dau file. Kiem lai bang:
+    #   kubectl -n techx-tf1 exec deploy/aiops-detector -- printenv KUBERNETES_SERVICE_HOST
+    - to:
+        - ipBlock: { cidr: 172.20.0.1/32 }
+      ports:
+        - { protocol: TCP, port: 443 }

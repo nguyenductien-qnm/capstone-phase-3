@@ -1,0 +1,66 @@
+# MANDATE-17 (CDO-09) - allow-egress cho aiops-remediation duoi default-deny cua namespace.
+# Giai thich day du (vi sao /32, vi sao khong khai Internet, vi sao khai lai DNS) o
+# aiops/detector/deploy/networkpolicy.yaml - KHONG lap lai o day.
+#
+# DANH SACH DICH giong het detector, do tu code va log pod tren cum that 31/07/2026:
+#   - remediation.py:74   prom.query(error_budget)      -> prometheus:9090
+#   - remediation.py:101  osc.count_matches(...)        -> opensearch:9200
+#   - k8s_actions.load_k8s_client()                     -> API server:443
+#   - goi theo TEN service                              -> DNS 53
+#
+# KHAC BIET DUY NHAT so voi detector la o RBAC chu khong phai o mang: pod nay co
+# `delete pods` + `pods/log` (rbac.yaml), detector chi co get/list/watch. Cung mot
+# duong 443, hai quyen khac nhau - day chinh la y cua M17: RBAC quyet dinh DUOC LAM GI,
+# NetworkPolicy quyet dinh CO TOI DUOC KHONG.
+#
+# Vi pod nay co quyen XOA pod, day la ly do them de KHONG mo `apiServerCIDR: 10.0.0.0/16`
+# nhu chart lam cho pod observability: mot pod bi chiem ma vua co token xoa pod vua
+# quet duoc 443 khap VPC la ket hop dat nhat trong namespace.
+#
+# Log 30/07: `[DRY-RUN] se restart pod techx-tf1/thanos-receive-1` - REMEDIATION_DRY_RUN
+# van la "true", nhung pod VAN doc K8s API that de tim ung vien. Tuc duong 443 la duong
+# song ngay ca o che do dry-run; cat no khong lam pod crash, chi lam vong tu va im lang
+# ngung tim thay gi.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-aiops-remediation-egress
+  namespace: techx-tf1
+  labels:
+    app: aiops-remediation
+    team: aio03
+spec:
+  podSelector:
+    matchLabels:
+      app: aiops-remediation
+  policyTypes: [Egress]
+  egress:
+    # 1) DNS
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels: { k8s-app: kube-dns }
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+
+    # 2) Prometheus - error-budget query truoc khi quyet dinh hanh dong.
+    - to:
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: prometheus }
+      ports:
+        - { protocol: TCP, port: 9090 }
+
+    # 3) OpenSearch - poll log tim trieu chung. Xem canh bao ve phia NHAN (ingress cua
+    # opensearch chua duoc chart mo) o file networkpolicy.yaml cua detector.
+    - to:
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: opensearch }
+      ports:
+        - { protocol: TCP, port: 9200 }
+
+    # 4) Kubernetes API server - list pod + doc pods/log + (khi tat dry-run) delete pod.
+    - to:
+        - ipBlock: { cidr: 172.20.0.1/32 }
+      ports:
+        - { protocol: TCP, port: 443 }
