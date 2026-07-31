@@ -106,6 +106,31 @@ env:
   # (sửa default.image.tag trong values.yaml KHÔNG làm tag build đổi). Muốn lên version:
   # đổi vars.IMAGE_VERSION.
   IMAGE_VERSION: ${{ vars.IMAGE_VERSION || '1.0' }}
+  # Phần <sha> trong tag <version>-<svc>-<sha>. Mọi chỗ tính tag PHẢI dùng
+  # "${GITHUB_SHA:0:7}", TUYỆT ĐỐI KHÔNG dùng `git rev-parse --short HEAD`.
+  #
+  # Vì sao (sự cố 31/07/2026, 6 service kẹt): `--short` không cho độ dài cố định.
+  # core.abbrev mặc định là "auto" và git-config docs nói rõ nó "computes an
+  # appropriate value based on the approximate number of packed objects in your
+  # repository" — tức ƯỚC LƯỢNG theo SỐ LƯỢNG object, không đếm va chạm prefix
+  # thật. Công thức trong git: len = ceil((msb(object_count)+1)/2), sàn là 7.
+  # Vượt 2^14 = 16.384 object là nhảy lên 8 và KHÔNG BAO GIỜ tụt lại.
+  #
+  # Job build/merge checkout mặc định (fetch-depth 1) -> repo nông ~1.974 object
+  # -> 7 ký tự -> đó là tag đẩy lên ECR. Job bump checkout fetch-depth 0 -> repo
+  # đầy ~20.072 object -> 8 ký tự -> đó là tag ghi vào GitOps. Cùng một commit,
+  # hai chuỗi khác nhau, ảnh không tồn tại, Kyverno chặn Pod ngay tại admission
+  # nên KHÔNG có ImagePullBackOff nào để nhìn thấy — pod cũ chạy tiếp, cụm trông
+  # xanh trong khi Deployment kẹt "exceeded its progress deadline".
+  #
+  # Repo vượt ngưỡng ngày 30/07/2026: bump 1c736b70 còn ra 2cf10a0 (7), bump
+  # a31231a1 ngay sau đó đã ra f24b258b (8). Từ mốc đó trở đi lỗi là VĨNH VIỄN,
+  # không phải ngẫu nhiên — mọi bump sau đều lệch cho tới khi vá.
+  #
+  # Chọn 7 chứ không phải 8 để đồng bộ với 252 tag lịch sử đang có trên ECR; đã
+  # kiểm prefix 7 ký tự không hề đụng độ (bd2681d ứng đúng 1 object trong repo).
+  # GITHUB_SHA do runner bơm sẵn và MỌI job trong cùng một run đều thấy đúng một
+  # giá trị, nên cắt bằng bash là hết đường lệch.
   BUILD_CONTEXT: techx-corp-platform
   # CI CHỈ ghi file tags tách riêng (không comment) -> yq bump không phá format
   # values.yaml gốc. Helm/ArgoCD load file này SAU values.yaml để override tag.
@@ -388,7 +413,7 @@ jobs:
             if [ "$SELECTED_COUNT" -eq "$TOTAL_BUILDABLE" ]; then
               echo "> [!WARNING]"
               echo "> Run này chạm **toàn bộ** service. Mọi image sinh ra đều mang commit"
-              echo "> \`$(git rev-parse --short HEAD)\` — kể cả service không hề đổi trong commit đó."
+              echo "> \`${GITHUB_SHA:0:7}\` — kể cả service không hề đổi trong commit đó."
               echo "> Khi truy nguồn gốc, chúng sẽ cùng trỏ về PR của commit này; đó là hệ quả đúng"
               echo "> của việc dựng lại tất cả, không phải sai sót của bước truy vết."
             else
@@ -465,7 +490,7 @@ jobs:
         id: meta
         run: |
           set -euo pipefail
-          SHORT_SHA=$(git rev-parse --short HEAD)
+          SHORT_SHA="${GITHUB_SHA:0:7}"   # độ dài CỐ ĐỊNH — xem khối "Phần <sha>" ở env đầu file
           TAG="${IMAGE_VERSION}-${{ matrix.service }}-${SHORT_SHA}"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "image=${ECR_REGISTRY}/${ECR_REPOSITORY}:${TAG}" >> "$GITHUB_OUTPUT"
@@ -635,7 +660,7 @@ jobs:
         id: meta
         run: |
           set -euo pipefail
-          SHORT_SHA=$(git rev-parse --short HEAD)
+          SHORT_SHA="${GITHUB_SHA:0:7}"   # độ dài CỐ ĐỊNH — xem khối "Phần <sha>" ở env đầu file
           TAG="${IMAGE_VERSION}-${{ matrix.service }}-${SHORT_SHA}"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "image=${ECR_REGISTRY}/${ECR_REPOSITORY}:${TAG}" >> "$GITHUB_OUTPUT"
@@ -902,7 +927,7 @@ jobs:
         id: meta
         run: |
           set -euo pipefail
-          SHORT_SHA=$(git rev-parse --short HEAD)
+          SHORT_SHA="${GITHUB_SHA:0:7}"   # độ dài CỐ ĐỊNH — xem khối "Phần <sha>" ở env đầu file
           TAG="${{ matrix.version }}-aiops-${{ matrix.module }}-${SHORT_SHA}"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "image=${ECR_REGISTRY}/${ECR_REPOSITORY}:${TAG}" >> "$GITHUB_OUTPUT"
@@ -1022,7 +1047,7 @@ jobs:
         id: meta
         run: |
           set -euo pipefail
-          SHORT_SHA=$(git rev-parse --short HEAD)
+          SHORT_SHA="${GITHUB_SHA:0:7}"   # độ dài CỐ ĐỊNH — xem khối "Phần <sha>" ở env đầu file
           TAG="${{ matrix.version }}-aiops-${{ matrix.module }}-${SHORT_SHA}"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "image=${ECR_REGISTRY}/${ECR_REPOSITORY}:${TAG}" >> "$GITHUB_OUTPUT"
@@ -1204,7 +1229,7 @@ jobs:
           VALUES: platform/charts/application/values.yaml
         run: |
           set -euo pipefail
-          SHORT_SHA=$(git rev-parse --short HEAD)
+          SHORT_SHA="${GITHUB_SHA:0:7}"   # độ dài CỐ ĐỊNH — xem khối "Phần <sha>" ở env đầu file
 
           # Duyệt service trong matrix, map -> đúng key trong file tags riêng.
           for svc in $(echo "$MATRIX" | yq -r '.include[].service'); do
@@ -1307,7 +1332,7 @@ jobs:
         if: needs.merge-aiops.result == 'success'
         run: |
           set -euo pipefail
-          SHORT_SHA=$(git rev-parse --short HEAD)
+          SHORT_SHA="${GITHUB_SHA:0:7}"   # độ dài CỐ ĐỊNH — xem khối "Phần <sha>" ở env đầu file
 
           bump_aiops() {
             local module="$1" version="$2"
@@ -1344,7 +1369,7 @@ jobs:
           git config user.name  "${APP_SLUG}[bot]"
           git config user.email "${APP_SLUG}[bot]@users.noreply.github.com"
           git add "${BUMPED[@]}"
-          git commit -m "ci(app): bump image tags -> $(git rev-parse --short HEAD) [skip ci]"
+          git commit -m "ci(app): bump image tags -> ${GITHUB_SHA:0:7} [skip ci]"
 
           # Job này checkout branch lúc bắt đầu run rồi build vài phút mới push. Merge
           # tiếp theo trong khoảng đó làm branch tiến lên -> push non-fast-forward bị
