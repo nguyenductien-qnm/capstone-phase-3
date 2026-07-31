@@ -28,6 +28,14 @@ spec:
     metadata:
       labels:
         app: aiops-remediation
+        # MANDATE-17 — xem giai thich day du o aiops/detector/deploy/deployment.yaml.
+        #
+        # RIENG POD NAY danh doi nang hon detector: no co RBAC `delete pods`, nen gan
+        # nhan la cho mot pod vua co token xoa pod vua ra duoc Internet 443. Van gan,
+        # vi alert `remediation-*` — circuit breaker mo, error budget can, blast radius
+        # vuot, verify FAIL — deu la loai BAT BUOC co nguoi doc. De chung o stdout thi
+        # chung chet cung pod, va do dung la luc can nguoi nhat.
+        egress-internet: "true"
     spec:
       serviceAccountName: aiops-remediation
       # MANDATE-05: non-root, khong leo thang dac quyen, drop het capability.

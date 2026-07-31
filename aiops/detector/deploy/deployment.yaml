@@ -15,15 +15,20 @@
 #   kubectl -n techx-tf1 create secret generic aiops-alert \
 #     --from-literal=webhook=<slack-or-discord-webhook-url>
 #
-# !!! DOC TRUOC KHI TAO SECRET DO (MANDATE-17 default-deny) !!!
+# !!! SECRET VA NHAN MANG PHAI DI CUNG NHAU (MANDATE-17 default-deny) !!!
 # Webhook di ra Internet 443. Duoi default-deny cua M17, chi pod gan nhan
 # `egress-internet: "true"` moi ra duoc ngoai (policy `allow-internet-egress-selected`).
-# Pod nay HIEN KHONG gan nhan do - co chu dich, vi khong co secret thi khong co goi ra
-# ngoai nao (provider=stdout), va nhan thua = mo 0.0.0.0/0:443 cho mot pod khong dung toi.
-# Nen: TAO SECRET va GAN NHAN phai di CUNG NHAU. Tao secret ma quen nhan thi
-# requests.post timeout 5s, bi `except Exception` trong alerter.py nuot, alerter tut ve
-# stdout - pod van 1/1 Running, khong alert nao toi Discord nua. Do la kieu hong IM LANG
-# ma chinh M17 dang di dep.
+# Nhan do da gan o pod template ben duoi (31/07) — DUNG GO neu con muon alert toi Discord.
+#
+# Co MOT secret thi ca hai pod cung dung (remediation tai dung, phan biet qua title
+# "remediation-*"). Tao lai secret tren cum moi thi KHONG phai sua gi o day nua.
+#
+# Vi sao van de nay tung im lang mat may ngay (28/07 -> 31/07, cum cu bi destroy keo
+# secret di theo): thieu secret thi `optional: true` cho pod chay binh thuong, va
+# `_resolve_provider("auto", None)` tra ve "stdout" ma KHONG log mot dong loi nao.
+# Alert van "dispatched" trong log — chi la dispatch ra stdout. Neu sau nay lai mat
+# alert, kiem dung mot dong: `kubectl logs deploy/aiops-detector | grep starting`
+# phai thay `provider=discord`, khong phai `provider=stdout`.
 #
 # LUU Y tag: PHAI co suffix -<git-sha> (khop convention app-build). Tag tran
 # kieu "1.2-aiops-detector" tung bi ECR lifecycle policy xoa -> ImagePullBackOff
@@ -45,6 +50,15 @@ spec:
     metadata:
       labels:
         app: aiops-detector
+        # MANDATE-17: nhan nay la DIEU KIEN de alerter goi duoc webhook Discord.
+        # Duoi default-deny, chi pod mang nhan nay moi ra Internet duoc (policy
+        # `allow-internet-egress-selected` — 0.0.0.0/0 tru RFC1918, CHI cong 443).
+        # Thieu nhan thi requests.post timeout 5s, bi `except Exception` trong
+        # alerter.py nuot, alerter tut ve stdout va pod van 1/1 Running — nhin tu
+        # ngoai KHONG phan biet duoc voi truong hop chua co secret.
+        # Dat o pod template chu KHONG patch tay: ArgoCD selfHeal revert patch tay
+        # o chu ky sync ke tiep.
+        egress-internet: "true"
     spec:
       serviceAccountName: aiops-detector
       # MANDATE-05: non-root, khong leo thang dac quyen, drop het capability.
