@@ -76,6 +76,13 @@ networkPolicy:
       - opentelemetry-collector
       - jaeger
       - prometheus
+      # opensearch nhận: (1) log từ otel-collector, (2) query log từ aiops-detector/
+      # remediation (4 rule type:log). Dưới default-deny, opensearch KHÔNG nhận ingress
+      # nếu thiếu dòng này -> aiops egress tới opensearch:9200 tới nơi nhưng bị opensearch
+      # từ chối -> log-path AIOps chết im lặng. AIOps đã khai egress phía họ (PR #524);
+      # đây là mảnh ingress phía M17 sở hữu. Verify label thật trên sandbox 31/07:
+      # opensearch-0 mang app.kubernetes.io/name=opensearch (khớp selector sink template).
+      - opensearch
     # Pod cần egress tới Kubernetes API server (443) — SD/list-watch/k8sattributes.
     apiServerEgress:
       - prometheus
