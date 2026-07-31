@@ -70,10 +70,12 @@ class ModelRouter:
                         f"reviews-model-gateway:v1:{routing_key}".encode()
                     ).digest()
                     bucket = int.from_bytes(digest[:8], "big") / 2**64
-                    total = sum(weight for _, weight in routes)
+                    # Sort by model_id: reordering the flagd JSON must not change cohorts.
+                    sorted_routes = sorted(routes, key=lambda r: r[0])
+                    total = sum(weight for _, weight in sorted_routes)
                     cursor = 0.0
-                    selected = routes[-1][0]
-                    for model_id, weight in routes:
+                    selected = sorted_routes[-1][0]
+                    for model_id, weight in sorted_routes:
                         cursor += weight / total
                         if bucket < cursor:
                             selected = model_id

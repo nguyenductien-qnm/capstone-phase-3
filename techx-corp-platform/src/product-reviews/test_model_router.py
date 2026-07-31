@@ -50,3 +50,20 @@ def test_reviews_routing_key_is_sticky():
 
     assert first == second
     choices.assert_not_called()
+
+
+def test_reviews_config_order_does_not_change_sticky_assignment():
+    configs = [
+        {"amazon.nova-lite-v1:0": 80, "amazon.nova-pro-v1:0": 20},
+        {"amazon.nova-pro-v1:0": 20, "amazon.nova-lite-v1:0": 80},
+    ]
+    selected = []
+    for config in configs:
+        client = MagicMock()
+        client.get_object_value.return_value = config
+        with patch("model_router.api.get_client", return_value=client):
+            router = ModelRouter()
+            selected.append([
+                router.get_main_model(f"product-{index}") for index in range(100)
+            ])
+    assert selected[0] == selected[1]

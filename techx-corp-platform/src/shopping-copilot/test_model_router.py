@@ -74,3 +74,22 @@ def test_routing_key_is_sticky_and_forwarded_without_pii():
     context = client.get_object_value.call_args.args[2]
     assert context.targeting_key != "user-42"
     assert len(context.targeting_key) == 64
+
+
+def test_config_order_does_not_change_sticky_assignment():
+    configs = [
+        {"amazon.nova-lite-v1:0": 80, "amazon.nova-pro-v1:0": 20},
+        {"amazon.nova-pro-v1:0": 20, "amazon.nova-lite-v1:0": 80},
+    ]
+    selected = []
+    for config in configs:
+        with patch.object(model_router, "_ensure_provider"), patch.object(
+            model_router.api, "get_client", return_value=_client(config)
+        ):
+            selected.append([
+                model_router.get_routed_model(
+                    "copilot", "amazon.nova-lite-v1:0", f"user-{index}"
+                )
+                for index in range(100)
+            ])
+    assert selected[0] == selected[1]

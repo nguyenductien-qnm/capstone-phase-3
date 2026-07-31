@@ -71,15 +71,19 @@ def _validated_routes(config):
 
 
 def _sticky_choice(routes, routing_key: str):
+    # Sort by model_id so that reordering the flagd config does not shift user cohorts.
+    # Without this sort, {"A": 80, "B": 20} and {"B": 20, "A": 80} produce different
+    # bucket boundaries for the same routing_key, breaking A/B statistical validity.
+    sorted_routes = sorted(routes, key=lambda r: r[0])
     digest = hashlib.sha256(f"llm-model-gateway:v1:{routing_key}".encode()).digest()
     bucket = int.from_bytes(digest[:8], "big") / 2**64
-    total = sum(weight for _, weight in routes)
+    total = sum(weight for _, weight in sorted_routes)
     cursor = 0.0
-    for model_id, weight in routes:
+    for model_id, weight in sorted_routes:
         cursor += weight / total
         if bucket < cursor:
             return model_id
-    return routes[-1][0]
+    return sorted_routes[-1][0]
 
 
 def get_routed_model(task_type: str, default_model: str, routing_key: str = "") -> str:
