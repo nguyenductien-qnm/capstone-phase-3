@@ -146,12 +146,13 @@ def process_oom_policy(policy, rule, cfg, prom, osc, core_v1, alerter, blast_gua
                          dedup_key=dedup_key,
                          max_consecutive_failures=breaker.max_consecutive_failures,
                          reason="breaker dang mo")
-            escalation_sent = alerter.send(
+            buffered = alerter.send(
                 f"remediation-cb-open:{dedup_key}", "critical", f"remediation-circuit-breaker-open:{rule['id']}",
                 f"Circuit breaker đang MỞ cho {service_label} (namespace={namespace}) — đã fail liên tiếp quá "
                 f"{breaker.max_consecutive_failures} lần, từ chối tự động remediate. CẦN người can thiệp thủ công.",
             )
-            audit.record(audit.STAGE_ESCALATE, "sent" if escalation_sent else "failed",
+            audit.record(audit.STAGE_ESCALATE,
+                         "buffered" if buffered else "suppressed_by_cooldown",
                          rule["id"], service_label, pod_name, dry_run,
                          remediation_id=remediation_id,
                          severity="critical", reason="circuit breaker dang mo")
@@ -168,11 +169,12 @@ def process_oom_policy(policy, rule, cfg, prom, osc, core_v1, alerter, blast_gua
                          remediation_id=remediation_id,
                          max_ratio=sb["error_budget_check"].get("max_ratio"),
                          reason="error budget can hoac khong doc duoc")
-            escalation_sent = alerter.send(
+            buffered = alerter.send(
                 f"remediation-budget-halt:{dedup_key}", "critical", f"remediation-halt-error-budget:{rule['id']}",
                 f"Error budget đã cạn — TẠM DỪNG auto-remediation cho {service_label}, cần người xử lý thủ công.",
             )
-            audit.record(audit.STAGE_ESCALATE, "sent" if escalation_sent else "failed",
+            audit.record(audit.STAGE_ESCALATE,
+                         "buffered" if buffered else "suppressed_by_cooldown",
                          rule["id"], service_label, pod_name, dry_run,
                          remediation_id=remediation_id,
                          severity="critical", reason="error budget can hoac khong doc duoc")
@@ -191,13 +193,14 @@ def process_oom_policy(policy, rule, cfg, prom, osc, core_v1, alerter, blast_gua
                          max_actions=sb["blast_radius"]["max_actions"],
                          time_window_seconds=sb["blast_radius"]["time_window_seconds"],
                          reason="da het han muc trong cua so")
-            escalation_sent = alerter.send(
+            buffered = alerter.send(
                 f"remediation-blast-radius:{dedup_key}", "critical", f"remediation-blast-radius-exceeded:{rule['id']}",
                 f"Đã vượt giới hạn blast-radius ({sb['blast_radius']['max_actions']} action / "
                 f"{sb['blast_radius']['time_window_seconds']}s / {sb['blast_radius']['scope']}) cho {scope_key} — "
                 f"từ chối restart thêm, cần người kiểm tra.",
             )
-            audit.record(audit.STAGE_ESCALATE, "sent" if escalation_sent else "failed",
+            audit.record(audit.STAGE_ESCALATE,
+                         "buffered" if buffered else "suppressed_by_cooldown",
                          rule["id"], service_label, pod_name, dry_run,
                          remediation_id=remediation_id,
                          severity="critical", reason="blast radius vuot gioi han")
@@ -287,12 +290,13 @@ def process_oom_policy(policy, rule, cfg, prom, osc, core_v1, alerter, blast_gua
                              reset_timeout_seconds=breaker.reset_timeout_seconds)
             severity = "critical" if just_opened else "warning"
             suffix = " — CIRCUIT BREAKER VỪA MỞ, dừng tự động remediate cho tới khi người xử lý." if just_opened else ""
-            escalation_sent = alerter.send(
+            buffered = alerter.send(
                 f"remediation-verify-failed:{dedup_key}:{time.time()}", severity, f"remediation-verify-failed:{rule['id']}",
                 f"Restart pod {pod_name} (service={service_label}) KHÔNG khắc phục được — verify FAIL.{suffix}",
                 fields=evidence_fields,
             )
-            audit.record(audit.STAGE_ESCALATE, "sent" if escalation_sent else "failed",
+            audit.record(audit.STAGE_ESCALATE,
+                         "buffered" if buffered else "suppressed_by_cooldown",
                          rule["id"], service_label, pod_name, dry_run,
                          remediation_id=remediation_id,
                          severity=severity, circuit_breaker_opened=just_opened,

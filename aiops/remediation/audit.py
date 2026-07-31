@@ -71,7 +71,9 @@ def record(stage, decision, rule_id, service=None, pod=None, dry_run=None,
     rec = {
         "schema_version": SCHEMA_VERSION,
         "event_id": f"evt-{uuid.uuid4().hex}",
-        "remediation_id": remediation_id or new_remediation_id(),
+        # Khong tu tao ID o day: caller quen truyen thi de None de correlation gap
+        # hien ro trong audit, thay vi im lang bia mot attempt moi cho tung record.
+        "remediation_id": remediation_id,
         "ts": ts,
         "ts_utc": datetime.fromtimestamp(ts, tz=timezone.utc).isoformat(),
         "stage": stage,
@@ -82,6 +84,8 @@ def record(stage, decision, rule_id, service=None, pod=None, dry_run=None,
         "dry_run": dry_run,
     }
     rec.update(detail)
+    if remediation_id is None:
+        log.warning("audit record thieu remediation_id (stage=%s, rule=%s)", stage, rule_id)
     try:
         with open(audit_path(), "a", encoding="utf-8") as fh:
             fh.write(json.dumps(rec, default=str) + "\n")

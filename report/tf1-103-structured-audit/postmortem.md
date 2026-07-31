@@ -54,7 +54,7 @@ minh đầy đủ quyết định của hệ thống sau sự cố**.
 | Correlation | Một `remediation_id` được tạo sau khi xác nhận OOM pod và truyền qua mọi stage | Query được trọn một attempt |
 | Event identity | Mỗi record có `schema_version`, `event_id`, `ts`, `ts_utc` | Schema có version và thời gian dễ điều tra |
 | Rollback | Ghi `rollback_performed` cùng `not_required` hoặc `not_available` | Không suy diễn rollback từ verify |
-| Escalation | Ghi stage `escalate` sau safety deny hoặc verify fail | Chứng minh handoff cho người trực |
+| Escalation | Ghi stage `escalate` sau safety deny hoặc verify fail | Phân biệt alert được buffer và bị cooldown suppress; không suy diễn delivery |
 | Reporting | `audit_report.py` tạo summary và timeline Markdown | Có artifact post-incident tái tạo được |
 | Legacy | Generator nhóm evidence cũ bắt đầu từ `detect` | Không bỏ dữ liệu live đã capture |
 | Replay | In các field stage-level có thật | Không còn report dựa trên schema tưởng tượng |
@@ -65,7 +65,7 @@ minh đầy đủ quyết định của hệ thống sau sự cố**.
 |---|---|
 | Dry-run | Chung một `remediation_id`; terminal stage `dry_run`; không có action thật |
 | Verify pass | `action=acted` → `verify=pass` → `rollback=not_required`, `rollback_performed=false` |
-| Verify fail | `action=acted` → `verify=fail` → `rollback=not_available` → `escalate=sent` |
+| Verify fail | `action=acted` → `verify=fail` → `rollback=not_available` → `escalate=buffered` hoặc `suppressed_by_cooldown` |
 | Legacy JSONL | Generator đọc được file chưa có schema/correlation ID và đánh dấu rollback `not recorded` |
 | Invalid JSONL | Generator báo đúng file và số dòng thay vì tạo report sai |
 
@@ -89,4 +89,3 @@ không cần và không nên xóa; generator mới vẫn đọc schema legacy.
 
 Do chưa có live rollout của code mới, artifact này không tuyên bố TF1-103 đã được
 verify end-to-end trên cluster.
-

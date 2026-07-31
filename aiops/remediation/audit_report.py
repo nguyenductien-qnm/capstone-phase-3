@@ -43,10 +43,16 @@ def group_attempts(records):
     groups = OrderedDict()
     legacy_current = {}
     legacy_count = 0
+    missing_id_count = 0
 
     for record in sorted(records, key=lambda item: item.get("ts", 0)):
         remediation_id = record.get("remediation_id")
-        if not remediation_id:
+        if not remediation_id and record.get("schema_version") is not None:
+            # Schema moi ma thieu ID la correlation gap, khong phai legacy. Tach
+            # tung record de report lam lo loi thay vi gom no thanh attempt gia.
+            missing_id_count += 1
+            remediation_id = f"missing-remediation-id-{missing_id_count}"
+        elif not remediation_id:
             target = (
                 record.get("rule_id"),
                 record.get("service"),
@@ -61,25 +67,31 @@ def group_attempts(records):
 
 
 def attempt_outcome(records):
-    by_stage = {record.get("stage"): record for record in records}
-    verify = by_stage.get("verify")
-    action = by_stage.get("action")
-    escalation = by_stage.get("escalate")
+    # Lay record dau tien cua tung stage mot cach tuong minh. Khong dung dict
+    # last-wins vi mot stage (vd circuit_breaker allow -> opened) co the lap lai.
+    def first(stage):
+        return next((record for record in records if record.get("stage") == stage), None)
+
+    verify = first("verify")
+    action = first("action")
+    escalation = first("escalate")
     denied = next((r for r in records if r.get("decision") == "deny"), None)
 
     if verify and verify.get("decision") == "pass":
         return "recovered"
     if verify and verify.get("decision") == "fail":
-        if escalation and escalation.get("decision") == "sent":
-            return "verify failed; escalated"
+        if escalation and escalation.get("decision") == "buffered":
+            return "verify failed; escalation buffered"
+        if escalation and escalation.get("decision") == "suppressed_by_cooldown":
+            return "verify failed; escalation suppressed by cooldown"
         if escalation:
-            return "verify failed; escalation failed"
+            return f"verify failed; escalation {escalation.get('decision', 'unknown')}"
         return "verify failed; escalation not recorded"
     if action and action.get("decision") == "error":
         return "action error"
     if denied:
         return f"blocked at {denied.get('stage', 'unknown')}"
-    if by_stage.get("dry_run"):
+    if first("dry_run"):
         return "dry-run only"
     return "incomplete/no terminal record"
 

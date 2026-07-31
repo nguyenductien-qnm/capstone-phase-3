@@ -27,6 +27,10 @@ Các trường chung:
 | `rule_id`, `service`, `pod`, `dry_run` | Target và chế độ chạy |
 | Các trường bổ sung | Threshold, thời lượng verify, lỗi, lý do rollback/escalate |
 
+`remediation_id` được tạo tường minh ở đầu remediation attempt. Nếu call site mới
+quên truyền ID, writer giữ giá trị `null` và cảnh báo; report hiển thị
+`missing-remediation-id-*` thay vì tự tạo correlation giả.
+
 Thứ tự terminal hợp lệ:
 
 ```text
@@ -41,8 +45,9 @@ configuration hoặc release. Vì vậy nếu verify fail, hệ thống ghi trun
 `rollback_performed=false`, dừng automation/cập nhật circuit breaker và escalate,
 thay vì báo một rollback không tồn tại.
 
-Stage `escalate` chỉ ghi `decision=sent` khi notifier trả về thành công; nếu delivery
-không thành công, record ghi `decision=failed`.
+Stage `escalate` ghi `decision=buffered` khi notifier nhận alert vào buffer, hoặc
+`decision=suppressed_by_cooldown` khi dedup cooldown chủ động chặn alert. Hai giá trị
+này không tuyên bố delivery thành công hay thất bại; delivery thật xảy ra ở `flush()`.
 
 ## Tạo artifact Markdown
 

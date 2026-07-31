@@ -388,7 +388,7 @@ def test_verify_failure_audit(_mock_verify, audit_file):
 
     escalated = [r for r in records if r["stage"] == audit.STAGE_ESCALATE]
     assert len(escalated) == 1
-    assert escalated[0]["decision"] == "sent"
+    assert escalated[0]["decision"] == "buffered"
 
     # Trigger -> action -> verify -> rollback/escalate phai la MOT chuoi truy duoc.
     assert len({r["remediation_id"] for r in records}) == 1
@@ -464,7 +464,7 @@ def test_report_shows_no_rollback():
         {
             "schema_version": 1, "event_id": "evt-5", "remediation_id": "rem-1",
             "ts": 5.0, "ts_utc": "2026-07-31T00:00:05+00:00",
-            "stage": "escalate", "decision": "sent", "rule_id": "oom-detected",
+            "stage": "escalate", "decision": "buffered", "rule_id": "oom-detected",
             "service": "email", "pod": "email-1", "dry_run": False,
         },
     ]
@@ -473,7 +473,7 @@ def test_report_shows_no_rollback():
         source="test.jsonl",
         generated_at="2026-07-31T00:01:00+00:00",
     )
-    assert "verify failed; escalated" in report
+    assert "verify failed; escalation buffered" in report
     assert "not performed (not_available)" in report
     assert "Attempt `rem-1`" in report
     assert "| `rollback` | `not_available` |" in report
@@ -495,7 +495,17 @@ def test_report_reads_legacy_audit():
     assert audit_report.attempt_outcome(groups["legacy-1"]) == "dry-run only"
 
 
-def test_audit_marks_failed_escalation(audit_file):
+def test_missing_correlation_id_stays_visible(audit_file):
+    record = audit.record(
+        audit.STAGE_DETECT, "detected", "oom-detected", "email", "email-1", False,
+    )
+
+    assert record["remediation_id"] is None
+    groups = audit_report.group_attempts(_read_audit(audit_file))
+    assert list(groups) == ["missing-remediation-id-1"]
+
+
+def test_audit_marks_cooldown_suppression(audit_file):
     prom, osc, core_v1, alerter = _mocks()
     alerter.send.return_value = False
     guard = BlastRadiusGuard(1, 3600)
@@ -511,7 +521,7 @@ def test_audit_marks_failed_escalation(audit_file):
         if record["stage"] == audit.STAGE_ESCALATE
     ]
     assert len(escalated) == 1
-    assert escalated[0]["decision"] == "failed"
+    assert escalated[0]["decision"] == "suppressed_by_cooldown"
 
 
 def test_report_rejects_invalid_jsonl(tmp_path):
