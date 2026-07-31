@@ -1175,6 +1175,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      # OIDC cho bước "Verify tag tồn tại trên ECR" bên dưới. Job này trước đây
+      # thuần thao tác Git nên không cần AWS; nay phải hỏi ECR trước khi commit.
+      id-token: write
     steps:
       # GitHub App token: danh tính bot riêng, ephemeral (~1h), quyền fine-grained
       # contents:write. App PHẢI nằm trong bypass list của ruleset develop để push
@@ -1194,6 +1197,15 @@ jobs:
 
       - name: Install yq
         uses: mikefarah/yq@1b9b4ac5187171d2e5e3129be0cfa827c7f9d53d # v4
+
+      # Chỉ để ĐỌC ECR (describe-images) ở bước verify cuối job. Dùng lại đúng role
+      # OIDC mà job merge dùng để push, không thêm quyền mới nào.
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4
+        with:
+          role-to-assume: ${{ vars.TF_AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-bump-${{ github.run_id }}
 
       - name: Bump imageOverride.tag từng service
         # Chỉ khi nhánh build chart thật sự đã push image. build-aiops chạy một mình
@@ -1321,6 +1333,102 @@ jobs:
           # version phải khớp matrix của build-aiops — lệch là bump ra tag không tồn tại.
           bump_aiops detector    1.3
           bump_aiops remediation 1.1
+
+      # ------------------------------------------------------------------ #
+      # GATE CUỐI: tag sắp commit vào GitOps PHẢI tồn tại thật trên ECR.
+      #
+      # Vì sao cần, dù đã có gate "Verify diff chỉ chạm service đã build":
+      # gate đó chỉ kiểm ĐÚNG SERVICE nào được bump, KHÔNG kiểm chuỗi tag có
+      # phân giải được trên ECR không. Sự cố 31/07/2026 lọt qua đúng khe này —
+      # service bump hoàn toàn đúng, chỉ chuỗi SHA dài hơn ECR một ký tự, nên
+      # CI xanh rực trong khi 6 Deployment kẹt cứng.
+      #
+      # Vì sao triệu chứng câm: Kyverno verify-image-signature phải kéo chữ ký
+      # cosign về để xác minh. Tag không tồn tại -> không kéo được -> nó CHẶN
+      # ngay tại admission, tức object Pod KHÔNG BAO GIỜ được tạo. Không có pod
+      # nào Pending, không có ImagePullBackOff, pod cũ vẫn chạy tiếp. `kubectl
+      # get pods` báo 0 lỗi trong khi Deployment kẹt "exceeded its progress
+      # deadline". Không ai nhìn ra trừ khi chủ động chạy `rollout status`.
+      #
+      # Nên lưới an toàn phải nằm ở CI, TRƯỚC khi commit — sau khi commit thì
+      # ArgoCD selfHeal sync trong ~3 phút và hỏng lặng lẽ.
+      #
+      # HAI MỨC, cố ý khác nhau:
+      #   - Tag do RUN NÀY ghi  -> thiếu là FAIL. Đây là trách nhiệm của run.
+      #   - Tag có sẵn từ trước -> thiếu chỉ WARN. Chúng có thể bị ECR lifecycle
+      #     policy dọn (đúng sự cố 2026-07-16) và đó là vấn đề có thật cần biết,
+      #     nhưng đánh đỏ build của người khác vì nợ cũ là chặn nhầm người.
+      - name: Verify tag tồn tại trên ECR trước khi commit
+        run: |
+          set -euo pipefail
+
+          # Gom tag mà HAI bước bump ở trên vừa ghi. Đọc từ working tree rồi so
+          # với HEAD để biết cái nào THẬT SỰ đổi trong run này.
+          declare -a CHANGED=() UNCHANGED=()
+
+          if [ -f "$TAGS_FILE" ]; then
+            git show "HEAD:$TAGS_FILE" > /tmp/tags-head.yaml 2>/dev/null || : > /tmp/tags-head.yaml
+            while read -r svc; do
+              [ -n "$svc" ] || continue
+              new=$(yq -r ".components.\"$svc\".imageOverride.tag // \"\"" "$TAGS_FILE")
+              old=$(yq -r ".components.\"$svc\".imageOverride.tag // \"\"" /tmp/tags-head.yaml)
+              [ -n "$new" ] || continue
+              if [ "$new" != "$old" ]; then CHANGED+=("$new"); else UNCHANGED+=("$new"); fi
+            done < <(yq -r '.components | keys | .[]' "$TAGS_FILE")
+          fi
+
+          # aiops deploy bằng manifest trần -> tag nằm trong chuỗi image đầy đủ.
+          for f in aiops/detector/deploy/deployment.yaml aiops/remediation/deploy/deployment.yaml; do
+            [ -f "$f" ] || continue
+            new=$(yq -r '.spec.template.spec.containers[0].image' "$f" | sed 's/.*://')
+            old=$(git show "HEAD:$f" 2>/dev/null | yq -r '.spec.template.spec.containers[0].image' 2>/dev/null | sed 's/.*://' || echo "")
+            [ -n "$new" ] || continue
+            if [ "$new" != "$old" ]; then CHANGED+=("$new"); else UNCHANGED+=("$new"); fi
+          done
+
+          if [ "${#CHANGED[@]}" -eq 0 ]; then
+            echo "ℹ️ Run này không ghi tag mới nào — bỏ qua kiểm."
+            exit 0
+          fi
+
+          # `|| true` để vòng lặp không chết giữa chừng vì set -e: ta muốn LIỆT KÊ
+          # đủ mọi tag hỏng trong một lần chạy, không dừng ở cái đầu tiên.
+          exists() {
+            aws ecr describe-images \
+              --repository-name "$ECR_REPOSITORY" \
+              --region "$AWS_REGION" \
+              --image-ids imageTag="$1" \
+              --query 'imageDetails[0].imageDigest' --output text >/dev/null 2>&1
+          }
+
+          echo "== Tag run này ghi (${#CHANGED[@]}) =="
+          MISSING=()
+          for tag in "${CHANGED[@]}"; do
+            if exists "$tag"; then echo "  ✅ $tag"; else echo "  🔴 $tag  KHÔNG CÓ TRÊN ECR"; MISSING+=("$tag"); fi
+          done
+
+          if [ "${#UNCHANGED[@]}" -gt 0 ]; then
+            echo "== Tag có sẵn từ trước (${#UNCHANGED[@]}) — chỉ cảnh báo =="
+            for tag in "${UNCHANGED[@]}"; do
+              exists "$tag" || echo "::warning::Tag cũ '$tag' không còn trên ECR — có thể đã bị lifecycle policy dọn, service này đang hoặc sẽ kẹt."
+            done
+          fi
+
+          if [ "${#MISSING[@]}" -gt 0 ]; then
+            {
+              echo "### 🔴 Chặn commit GitOps: ${#MISSING[@]} tag không tồn tại trên ECR"
+              echo
+              for tag in "${MISSING[@]}"; do echo "- \`$tag\`"; done
+              echo
+              echo "Commit tag không tồn tại thì ArgoCD sync xong Kyverno chặn Pod tại"
+              echo "admission — pod cũ chạy tiếp, cụm trông xanh, Deployment kẹt âm thầm."
+              echo "Kiểm chuỗi tag mà job build/merge thực sự đẩy lên ECR trước khi chạy lại."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::${#MISSING[@]} tag không tồn tại trên ECR — không commit. Xem job summary."
+            exit 1
+          fi
+
+          echo "✅ Toàn bộ ${#CHANGED[@]} tag run này ghi đều phân giải được trên ECR."
 
       - name: Commit & push
         env:
