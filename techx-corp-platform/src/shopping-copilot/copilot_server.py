@@ -78,7 +78,7 @@ def _session_cache_fingerprint(question: str, session: list, session_id: str) ->
     if _CONTEXT_DEPENDENT_QUERY.search(question):
         scope = {"session_id": session_id or "anonymous-session", "history": session}
     payload = json.dumps(scope, ensure_ascii=False, sort_keys=True)
-    return hashlib.md5(payload.encode()).hexdigest()[:8]
+    return hashlib.sha256(payload.encode()).hexdigest()
 
 
 def _code_fingerprint() -> str:

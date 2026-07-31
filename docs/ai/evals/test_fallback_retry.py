@@ -35,6 +35,11 @@ from botocore.exceptions import ClientError, ReadTimeoutError
 logging.getLogger("main").setLevel(logging.ERROR)
 
 class TestFallbackRetry(unittest.TestCase):
+    def assert_friendly_english_fallback(self, response):
+        normalized = response.lower()
+        self.assertIn("temporarily unavailable", normalized)
+        self.assertIn("customer reviews", normalized)
+
     def setUp(self):
         # Reset global state and env vars
         os.environ["LLM_REVIEWS_MAIN_MODEL"] = "amazon.nova-lite-v1:0"
@@ -131,8 +136,7 @@ class TestFallbackRetry(unittest.TestCase):
         with patch("time.sleep", return_value=None):
             res = product_reviews_server.get_ai_assistant_response("PROD123", "Tóm tắt review")
 
-        # Must return the friendly Mock Summary
-        self.assertTrue("Không thể tạo tóm tắt" in res.response or "Không thể" in res.response or "tham khảo" in res.response)
+        self.assert_friendly_english_fallback(res.response)
 
     def test_scenario_4_dynamic_deadline_fail_fast(self):
         """4. Dynamic Deadlines Flow: remaining time < fallback timeout, fails fast without Bedrock calls."""
@@ -140,7 +144,7 @@ class TestFallbackRetry(unittest.TestCase):
         mock_context.time_remaining.return_value = 1.5 # Less than fallback timeout (2s)
 
         res = product_reviews_server.get_ai_assistant_response("PROD123", "Tóm tắt review", context=mock_context)
-        self.assertTrue("Không thể tạo tóm tắt" in res.response or "Không thể" in res.response or "tham khảo" in res.response)
+        self.assert_friendly_english_fallback(res.response)
         product_reviews_server.bedrock_primary_client.converse.assert_not_called()
         product_reviews_server.bedrock_fallback_client.converse.assert_not_called()
 

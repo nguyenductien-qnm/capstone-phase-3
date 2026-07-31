@@ -1,9 +1,19 @@
 import unittest
+import re
 
 from copilot_server import _session_cache_fingerprint
 
 
 class SessionCacheFingerprintTest(unittest.TestCase):
+    def test_context_fingerprint_uses_strong_fixed_length_digest(self):
+        session_id = "user-session-sensitive-123"
+        fingerprint = _session_cache_fingerprint(
+            "How much is the first one?", [], session_id
+        )
+
+        self.assertRegex(fingerprint, re.compile(r"^[0-9a-f]{64}$"))
+        self.assertNotIn(session_id, fingerprint)
+
     def test_repeated_standalone_question_ignores_growing_session(self):
         question = "Recommend a beginner telescope under $200."
         empty = []
