@@ -1198,6 +1198,24 @@ jobs:
       && github.ref == 'refs/heads/develop'
       && (needs.merge.result == 'success' || needs.merge-aiops.result == 'success') }}
     runs-on: ubuntu-latest
+    # BẮT BUỘC để lấy được AWS credential — không phải chỉ để gắn nhãn môi trường.
+    # Trust policy của GithubActionRole ghim CHÍNH XÁC (StringEquals, không wildcard):
+    #   token.actions.githubusercontent.com:sub
+    #     = repo:nguyenductien-qnm/capstone-phase-3:environment:sandbox
+    # Claim `sub` chỉ mang dạng ":environment:<tên>" khi JOB có khai `environment`.
+    # Job không khai thì sub là ":ref:refs/heads/develop" -> StringEquals trượt ->
+    # AssumeRoleWithWebIdentity bị từ chối, dù permissions đã có id-token: write.
+    #
+    # Gặp thật 31/07/2026: thêm bước "Verify tag tồn tại trên ECR" vào job này mà
+    # quên dòng environment -> "Could not assume role with OIDC: Not authorized to
+    # perform sts:AssumeRoleWithWebIdentity", cả job bump đỏ, tag không được ghi.
+    # id-token: write là điều kiện CẦN (runner mới phát token), environment là điều
+    # kiện ĐỦ (nội dung token mới khớp trust policy). Thiếu vế nào cũng hỏng.
+    #
+    # Mọi job khác gọi AWS trong file này (build, merge, build-aiops, merge-aiops,
+    # attest-sbom) đều đã khai environment: sandbox — đây chỉ là bù cho đồng bộ.
+    # Environment sandbox không cài protection rule nào nên KHÔNG sinh bước chờ duyệt.
+    environment: sandbox
     permissions:
       contents: write
       # OIDC cho bước "Verify tag tồn tại trên ECR" bên dưới. Job này trước đây
