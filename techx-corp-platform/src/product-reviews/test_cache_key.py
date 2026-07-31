@@ -8,12 +8,16 @@ import os
 # database.py reads this at import time (must_map_env) — dummy value, no real connection made.
 os.environ.setdefault("DB_CONNECTION_STRING", "host=test user=test password=test dbname=test")
 
+import hashlib
 import inspect
 
 from product_reviews_server import (
+    ANSWER_RULES,
     MOCK_SUMMARY_VI,
+    SYSTEM_PROMPT,
     build_ai_assistant_cache_key,
     get_ai_assistant_response,
+    prompt_ver,
 )
 
 
@@ -28,6 +32,9 @@ def main():
     key_c = build_ai_assistant_cache_key(*args, "  What age(s) IS this recommended for?  ")
     assert key_b == key_c, "case/whitespace-only differences should still hit the cache"
 
+    expected_prompt_ver = hashlib.md5(f"{SYSTEM_PROMPT}\n{ANSWER_RULES}".encode()).hexdigest()[:8]
+    assert prompt_ver == expected_prompt_ver, "cache version must include all answer-shaping rules"
+
     # poisoned-cache guard (repro'd 17/07): every guardrail/deadline/bulkhead fallback
     # branch sets result = MOCK_SUMMARY_VI without an early return, then falls into the
     # cache-write block. The write must be gated on result != MOCK_SUMMARY_VI so the
@@ -38,7 +45,7 @@ def main():
         "get cached for 7 days"
     )
 
-    print("cache_key self-check: OK (3 assertions)")
+    print("cache_key self-check: OK (4 assertions)")
 
 
 if __name__ == "__main__":

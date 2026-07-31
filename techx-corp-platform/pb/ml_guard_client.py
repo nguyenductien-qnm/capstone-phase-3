@@ -18,11 +18,12 @@ logger = logging.getLogger(__name__)
 
 ML_GUARD_URL = os.environ.get("ML_GUARD_URL", "ml-guard:8090").replace("http://", "")
 ML_GUARD_TIMEOUT = float(os.environ.get("ML_GUARD_TIMEOUT", "25.0"))
+ML_GUARD_OUTPUT_TIMEOUT = float(os.environ.get("ML_GUARD_OUTPUT_TIMEOUT", "8.0"))
 MAX_FIELD_CHARS = 1000
 
 _PII_CC = re.compile(r'\b(?:\d[ -]*){13,16}\b')
 _PII_EMAIL = re.compile(r'[\w.+-]+@[\w-]+\.[\w.-]+')
-_PII_PHONE = re.compile(r'\+?\d[\d\s().-]{7,}\d')
+_PII_PHONE = re.compile(r'\+?\d[\d \t().-]{7,}\d')
 _NUMBER_PATTERN = re.compile(r'\b\d+\.?\d*%?\b')
 _INVISIBLE_CHARS_RE = re.compile("[\u200b-\u200f\u2060\ufeff]")
 _OBVIOUS_INJECTION = re.compile(
@@ -79,11 +80,11 @@ def apply_guardrail_output(bedrock_client, answer, source_text, query):
     try:
         stub = _get_stub()
         req = ml_guard_pb2.CheckOutputRequest(answer=answer, grounding_source=source_text, query=query)
-        resp = stub.CheckOutput(req, timeout=ML_GUARD_TIMEOUT)
+        resp = stub.CheckOutput(req, timeout=ML_GUARD_OUTPUT_TIMEOUT)
         return (resp.blocked, resp.sanitized_text)
     except Exception as e:
-        # Fallback to fail-open when ml-guard is unavailable (as per ADR-014/015),
-        # but ensure PII is still masked.
+        # Grounding is an optional judge; deterministic PII/citation/system-prompt
+        # guards still run locally, so an unavailable judge must not brick answers.
         logger.warning("CheckOutput fail-open (error): %s", e)
         return (False, redact_pii(answer))
 

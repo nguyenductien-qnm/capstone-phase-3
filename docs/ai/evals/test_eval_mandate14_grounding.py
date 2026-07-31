@@ -1,3 +1,4 @@
+import pytest
 import eval_mandate14 as m
 
 
@@ -44,3 +45,20 @@ def test_hallucination_fails_even_when_tool_and_rail_would_pass():
     )
     assert not passed
     assert "ungrounded content" in reason
+
+
+def test_extract_trace_tokens_falls_back_to_safe_ui_trace_metadata(monkeypatch):
+    monkeypatch.setattr(m, "jaeger_client", None)
+    data = {
+        "traceSteps": [
+            {"detail": '{"model_id":"amazon.nova-pro-v1:0","tokens_in":120,"tokens_out":30,"cost_usd":0.000192}'},
+            {"detail": '{"tool_calls":["search_products"]}'},
+            {"detail": '{"model_id":"amazon.nova-pro-v1:0","tokens_in":80,"tokens_out":20,"cost_usd":0.000128}'},
+        ]
+    }
+
+    _, _, tokens_in, tokens_out, cost, _, _ = m.extract_trace_and_tokens(data)
+
+    assert tokens_in == 200
+    assert tokens_out == 50
+    assert cost == pytest.approx(0.00032)

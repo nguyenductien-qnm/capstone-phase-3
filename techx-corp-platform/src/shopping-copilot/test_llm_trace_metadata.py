@@ -94,3 +94,4 @@ def test_ui_trace_step_contains_model_usage_cost_and_outcome(monkeypatch):
     assert detail["cost_usd"] > 0
     assert detail["outcome"] == "ok"
     assert detail["timestamp_utc"]
+    assert "[REDACTED" not in detail["timestamp_utc"]

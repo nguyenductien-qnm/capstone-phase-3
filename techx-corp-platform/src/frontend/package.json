@@ -9,7 +9,7 @@
     "lint": "next lint",
     "cy:open": "cypress open",
     "grpc:generate": "mkdir -p ./protos && protoc -I ./pb  --plugin=./node_modules/.bin/protoc-gen-ts_proto --ts_proto_opt=esModuleInterop=true --ts_proto_out=./protos --ts_proto_opt=outputServices=grpc-js demo.proto shopping_copilot.proto",
-    "test": "node --test components/CopilotChat/copilotEvidence.test.mjs"
+    "test": "node --test components/CopilotChat/copilotEvidence.test.mjs components/TraceCitationPanel/traceEvidence.test.mjs"
   },
   "dependencies": {
     "@assistant-ui/react": "^0.15.1",

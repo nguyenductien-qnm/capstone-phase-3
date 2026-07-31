@@ -21,8 +21,19 @@ const Recommendations = () => {
 
   return (
     <section data-cy={CypressFields.RecommendationList} className="mt-16 w-full py-8">
-      <div className="mb-8 flex items-center justify-between">
-        <h2 className="text-3xl font-bold tracking-tight text-foreground">You May Also Like</h2>
+      <div className="mb-8 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <div className="mb-2 flex items-center gap-2">
+            <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+              AI recommendations
+            </span>
+            <span className="text-xs text-muted-foreground">Semantic similarity with safe fallback</span>
+          </div>
+          <h2 className="text-3xl font-bold tracking-tight text-foreground">You May Also Like</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Related products ranked from the item you are viewing.
+          </p>
+        </div>
       </div>
       
       <div className="px-12 relative w-full">

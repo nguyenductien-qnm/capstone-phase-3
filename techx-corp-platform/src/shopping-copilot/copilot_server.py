@@ -24,6 +24,7 @@ import hashlib
 from pathlib import Path
 import redis
 import os
+import re
 import time
 import uuid
 from concurrent import futures
@@ -63,6 +64,21 @@ MAX_SESSION_MESSAGES = int(os.environ.get("COPILOT_MAX_SESSION_MESSAGES", "20"))
 COPILOT_CACHE_TTL = int(os.environ.get("COPILOT_CACHE_TTL", "3600"))
 SESSION_TTL = int(os.environ.get("COPILOT_SESSION_TTL", "3600"))
 SEMANTIC_CACHE_MIN_SIM = float(os.environ.get("SEMANTIC_CACHE_MIN_SIM", "0.85"))
+
+_CONTEXT_DEPENDENT_QUERY = re.compile(
+    r"\b(it|that|those|them|the first|the second|first one|second one)\b"
+    r"|\b(nó|cái đó|cái này|cái đầu tiên|cái thứ hai|sản phẩm đó|loại đó)\b",
+    re.IGNORECASE,
+)
+
+
+def _session_cache_fingerprint(question: str, session: list, session_id: str) -> str:
+    """Scope follow-up answers to their session; standalone answers are user-scoped by the outer key."""
+    scope = {"context": "standalone"}
+    if _CONTEXT_DEPENDENT_QUERY.search(question):
+        scope = {"session_id": session_id or "anonymous-session", "history": session}
+    payload = json.dumps(scope, ensure_ascii=False, sort_keys=True)
+    return hashlib.md5(payload.encode()).hexdigest()[:8]
 
 
 def _code_fingerprint() -> str:
@@ -168,7 +184,7 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
             # (MANDATE-14 chấm quyết định chặn bằng span guardrail.blocked). Bỏ trống
             # trace_id thì eval buộc phải đoán qua chuỗi ký tự trong câu trả lời.
             blocked_resp = pb.ChatWithCopilotResponse(
-                response="Xin lỗi, tôi không thể xử lý yêu cầu này do vi phạm quy định an toàn.",
+                response="Sorry, I cannot process that request because it violates safety rules.",
                 degraded=False,
                 trace_id=format(trace.get_current_span().get_span_context().trace_id, "032x"),
                 cache_status="bypass",
@@ -219,11 +235,9 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
 
         # Ngữ cảnh phiên vào key: câu phụ thuộc lượt trước ("Nó có phù hợp không?")
         # mà chỉ băm chữ thì phiên khác hỏi y hệt sẽ nhận lại câu trả lời của phiên
-        # trước — "nó" trỏ sản phẩm khác → trả sai im lặng (đo 27/07: lượt 3 ra
-        # hit_exact với nội dung phiên cũ). Lượt đầu session rỗng → fp cố định nên
-        # yêu cầu lặp nguyên văn vẫn hit bình thường.
-        sess_fp = hashlib.md5(
-            json.dumps(session, ensure_ascii=False, sort_keys=True).encode()).hexdigest()[:8]
+        # Scope theo session ID: cùng session lặp lại sẽ hit, session khác không
+        # thể nhận câu trả lời đã sinh từ lịch sử của session này.
+        sess_fp = _session_cache_fingerprint(sanitized_question, session, request.session_id)
 
         l1_key = f"copilot:answer:{request.user_id}:{model_ver}:{prompt_ver}:{catalog_fp}:{mem_fp}:{sess_fp}:{question_fp}"
         scope_key = f"copilot:{request.user_id}:{model_ver}:{prompt_ver}:{catalog_fp}:{mem_fp}:{sess_fp}"
@@ -348,15 +362,15 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
         entry = self._pending.take(request.confirmation_token)
         if entry is None:
             return pb.ChatWithCopilotResponse(
-                response="Xác nhận đã hết hạn hoặc không hợp lệ. Vui lòng thử thêm lại.")
+                response="The confirmation expired or is invalid. Please add the item again.")
         started = time.time()
         out = tools.execute_add_item(entry["user_id"], entry["product_id"], entry["quantity"])
         ok = '"error"' not in out
         args_json = json.dumps({"product_id": entry["product_id"], "quantity": entry["quantity"]}, ensure_ascii=False)
         logger.info("audit confirmed-write tool=add_item_to_cart args=%s ok=%s", args_json, ok)
         resp = pb.ChatWithCopilotResponse(
-            response=(f"✅ Đã thêm {entry['quantity']}x {entry['product_id']} vào giỏ hàng."
-                      if ok else "❌ Không thể thêm vào giỏ. Vui lòng thử lại."))
+            response=(f"✅ Added {entry['quantity']}x {entry['product_id']} to your cart."
+                      if ok else "❌ I could not add the item to your cart. Please try again."))
         resp.actions_taken.append(pb.ToolCallRecord(
             tool_name="add_item_to_cart",
             arguments_json=args_json,

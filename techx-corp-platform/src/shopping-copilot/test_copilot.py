@@ -14,6 +14,7 @@ Run: ``python test_copilot.py``
 """
 
 import os
+import json
 os.environ["LLM_INJECTION_JUDGE"] = "false"
 os.environ["ML_GUARD_URL"] = ""  # offline test: no ml-guard, skip gRPC
 
@@ -75,6 +76,10 @@ def test_confirmation_gate_two_phase():
         token = r1.pending_confirmation.confirmation_token
         assert token, "no confirmation token returned"
         assert r1.pending_confirmation.tool_name == "add_item_to_cart"
+        assert not any(
+            a.tool_name == "add_item_to_cart" and a.succeeded
+            for a in r1.actions_taken
+        ), "pending write was reported as executed"
 
         # Phase 2: confirm — now the real AddItem runs, exactly once, right args.
         r2 = servicer.ChatWithCopilot(_Req(confirmation_token=token), None)
@@ -83,7 +88,7 @@ def test_confirmation_gate_two_phase():
 
         # Token is single-use.
         r3 = servicer.ChatWithCopilot(_Req(confirmation_token=token), None)
-        assert "hết hạn" in r3.response or "không hợp lệ" in r3.response
+        assert "expired" in r3.response or "invalid" in r3.response
         assert executed == [("u1", "OLJCESPC7Z", 2)], "token reused!"
     finally:
         tools.execute_add_item = orig
@@ -121,7 +126,7 @@ def test_max_loop_limit():
     try:
         res = agent.run_agent(FakeBedrock(scripted), "m", [{"role": "user", "content": [{"text": "x"}]}], "u1")
         assert len(res.actions_taken) <= agent.MAX_TOOL_CALLS
-        assert "giới hạn" in res.text
+        assert "limit" in res.text
     finally:
         tools.get_cart = orig
 
@@ -130,7 +135,7 @@ def test_degraded_on_bedrock_failure():
     res = agent.run_agent(FakeBedrock([RuntimeError("boom")]), "m",
                           [{"role": "user", "content": [{"text": "hi"}]}], "u1")
     assert res.degraded is True
-    assert res.text and "trợ lý" in res.text.lower()
+    assert res.text and "assistant" in res.text.lower()
 
 
 def test_garbage_output_is_blocked_before_tool_execution():
@@ -192,3 +197,56 @@ if __name__ == "__main__":
     test_raw_reasoning_is_not_exposed_in_trace_steps()
 
     print("OK — all shopping-copilot self-checks passed")
+
+def test_duplicate_tool_fallback_formats_shipping_quote():
+    text = agent._duplicate_tool_fallback(
+        "get_shipping_quote",
+        '{"status":"ok","quote":{"cost_usd":{"currency_code":"USD","units":8,"nanos":990000000}},"is_estimate":true}',
+        "Estimate shipping to Hanoi",
+    )
+    assert "$8.99 USD" in text
+
+
+def test_cross_sell_completes_recommendations_after_early_model_answer(monkeypatch):
+    calls = []
+    monkeypatch.setattr(tools, "search_products", lambda query, category=None: json.dumps({
+        "status": "ok", "products": [{"id": "scope-1", "name": "Starter Scope"}]
+    }))
+    monkeypatch.setattr(tools, "list_recommendations", lambda product_ids: (
+        calls.append(product_ids) or json.dumps({"status": "ok", "recommended_product_ids": ["filter-1"]})
+    ))
+
+    result = agent.run_agent(FakeBedrock([
+        _tool_use("search_products", {"query": "telescope"}),
+        _end("I found a telescope."),
+        _end("A solar filter is a compatible recommendation."),
+    ]), "m", [{"role": "user", "content": [{"text": "What accessories should I buy with a telescope?"}]}], "u1")
+
+    assert calls == [["scope-1"]]
+    assert [call.tool_name for call in result.actions_taken] == ["search_products", "list_recommendations"]
+
+
+def test_multi_intent_completes_currency_after_early_shipping_answer(monkeypatch):
+    conversions = []
+    monkeypatch.setattr(tools, "get_shipping_quote", lambda items=None, address=None: json.dumps({
+        "status": "ok", "quote": {"cost_usd": {"currency_code": "USD", "units": 8, "nanos": 0}}
+    }))
+    monkeypatch.setattr(tools, "convert_currency", lambda amount, from_code, to_code: (
+        conversions.append((amount, from_code, to_code)) or
+        json.dumps({"status": "ok", "amount": 13000000, "currency": "VND"})
+    ))
+
+    result = agent.run_agent(FakeBedrock([
+        _tool_use("get_shipping_quote", {"address": {"city": "Hanoi"}}),
+        _end("Shipping is estimated at $8."),
+        _end("500 USD is about 13,000,000 VND, plus the shipping estimate."),
+    ]), "m", [{"role": "user", "content": [{"text": "Convert 500 USD to VND and estimate shipping to Hanoi."}]}], "u1")
+
+    assert conversions == [(500.0, "USD", "VND")]
+    assert [call.tool_name for call in result.actions_taken] == ["get_shipping_quote", "convert_currency"]
+
+
+def test_normal_chat_does_not_force_tools():
+    result = agent.run_agent(FakeBedrock([_end("How can I help with your telescope search?")]), "m",
+                             [{"role": "user", "content": [{"text": "Hello!"}]}], "u1")
+    assert result.actions_taken == []

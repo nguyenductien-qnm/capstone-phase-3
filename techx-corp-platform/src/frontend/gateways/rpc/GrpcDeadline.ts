@@ -14,7 +14,8 @@ export const GrpcDeadlineMs = {
   catalog: 1_000,
   recommendation: 1_000,
   checkout: 10_000,
-  productReview: 25_000,
+  copilot: 60_000,
+  productReview: 60_000,
   productSearch: 5_000,
 } as const;
 

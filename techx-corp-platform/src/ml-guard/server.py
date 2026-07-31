@@ -88,7 +88,7 @@ _OBVIOUS_INJECTION = re.compile(
 )
 _PII_CC = re.compile(r'\b(?:\d[ -]*){13,16}\b')
 _PII_EMAIL = re.compile(r'[\w.+-]+@[\w-]+\.[\w.-]+')
-_PII_PHONE = re.compile(r'\+?\d[\d\s().-]{7,}\d')
+_PII_PHONE = re.compile(r'\+?\d[\d \t().-]{7,}\d')
 _VN_DIACRITICS = re.compile(r'[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]', re.IGNORECASE)
 _NUMBER_PATTERN = re.compile(r'\b\d+\.?\d*%?\b')
 

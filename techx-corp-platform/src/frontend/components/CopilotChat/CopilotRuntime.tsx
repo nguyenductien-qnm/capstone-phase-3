@@ -31,8 +31,8 @@ export const useCopilotAdapter = (onResponse?: (data: CopilotResponse) => void, 
       const lastMessage = messages[messages.length - 1];
       if (!lastMessage || lastMessage.role !== "user") return;
 
-      const userId = options.userId || SessionGateway.getSession().userId || 'anonymous';
-      const sessionId = options.sessionId || userId;
+      const userId = identity.current.userId || SessionGateway.getSession().userId || 'anonymous';
+      const sessionId = identity.current.sessionId || userId;
       const token = confirmationToken.current;
       confirmationToken.current = '';
       const question = token ? '' : lastMessage.content.map((part: any) => part.text || '').join(' ').trim();
@@ -41,7 +41,7 @@ export const useCopilotAdapter = (onResponse?: (data: CopilotResponse) => void, 
       setIsConfirming(false);
       yield { content: [{ type: "text" as const, text: data.response }] };
     }
-  }), [options.userId, options.sessionId, recordResponse]);
+  }), [recordResponse, options.userId, options.sessionId]);
 
   return {
     adapter,

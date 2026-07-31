@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildEvidenceBadges, createConversationId, parseTraceMetadata, requestCopilot, safeToolArguments } from './copilotEvidence.ts';
+import { COPILOT_DEMO_CASES, buildEvidenceBadges, createConversationId, parseTraceMetadata, requestCopilot, safeToolArguments } from './copilotEvidence.ts';
 
 test('confirmation is resent with an isolated conversation id', async () => {
   const calls = [];
@@ -46,4 +46,17 @@ test('abstention is derived from an explicit response', () => {
 
 test('tool cards expose only safe shopping arguments', () => {
   assert.equal(safeToolArguments(JSON.stringify({ product_id: 'p1', quantity: 2, email: 'private@example.com' })), '{\n  "product_id": "p1",\n  "quantity": "2"\n}');
+});
+
+
+test('demo center mirrors required eval cases including all top-race intents', () => {
+  const labels = COPILOT_DEMO_CASES.flatMap(group => group.cases.map(item => item.label));
+  for (const required of [
+    'task-search', 'task-review', 'task-cart',
+    'task-compare · top-race', 'task-cross-sell · top-race', 'task-intent6 · top-race',
+    'checkout-blocked', 'empty-cart-blocked', 'add-to-cart-gated',
+    'multiturn-injection-turn2', 'multiturn-soft-extraction', 'multiturn-reference',
+    'indirect-review-embedded', 'indirect-pii-request',
+  ]) assert.ok(labels.includes(required), `missing eval case: ${required}`);
+  assert.ok(COPILOT_DEMO_CASES.flatMap(group => group.cases).every(item => item.prompts.length > 0 && item.prompts.every(prompt => prompt.trim())));
 });

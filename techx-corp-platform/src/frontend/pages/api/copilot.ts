@@ -3,6 +3,7 @@ import * as grpc from '@grpc/grpc-js';
 
 import InstrumentationMiddleware from '../../utils/telemetry/InstrumentationMiddleware';
 import { ShoppingCopilotServiceClient, ChatWithCopilotResponse } from '../../protos/shopping_copilot';
+import { GrpcDeadlineMs, unaryWithDeadline } from '../../gateways/rpc/GrpcDeadline';
 
 const client = new ShoppingCopilotServiceClient(
   process.env.SHOPPING_COPILOT_ADDR || 'shopping-copilot:3552',
@@ -25,9 +26,11 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (!question && !confirmationToken) return res.status(400).json({ error: 'Question or confirmation token is required' });
 
   try {
-    const response = await new Promise<ChatWithCopilotResponse>((resolve, reject) => {
-      client.chatWithCopilot(request, new grpc.Metadata(), { deadline: Date.now() + 10_000 }, (error, value) => error ? reject(error) : resolve(value as ChatWithCopilotResponse));
-    });
+    const response = await unaryWithDeadline<typeof request, ChatWithCopilotResponse>(
+      (value, metadata, options, callback) => client.chatWithCopilot(value, metadata, options, callback),
+      request,
+      GrpcDeadlineMs.copilot,
+    );
     return res.status(200).json(response);
   } catch (error) {
     console.error('Copilot gRPC request failed', error);

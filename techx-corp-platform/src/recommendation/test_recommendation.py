@@ -1,62 +1,58 @@
-import sys
 import os
+import sys
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-# Add recommendation module to path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-sys.modules['openfeature.contrib.hook.opentelemetry'] = MagicMock()
-sys.modules['openfeature.contrib.hook'] = MagicMock()
-sys.modules['openfeature.contrib.provider'] = MagicMock()
-sys.modules['openfeature.contrib.provider.flagd'] = MagicMock()
-sys.modules['openfeature.contrib'] = MagicMock()
-sys.modules['psycopg2'] = MagicMock()
-sys.modules['psycopg2.extensions'] = MagicMock()
-sys.modules['pgvector'] = MagicMock()
-sys.modules['pgvector.psycopg2'] = MagicMock()
-sys.modules['grpc_health'] = MagicMock()
-sys.modules['grpc_health.v1'] = MagicMock()
-sys.modules['demo_pb2'] = MagicMock()
-sys.modules['demo_pb2_grpc'] = MagicMock()
+for module in (
+    'openfeature.contrib.hook.opentelemetry', 'openfeature.contrib.hook',
+    'openfeature.contrib.provider', 'openfeature.contrib.provider.flagd',
+    'openfeature.contrib', 'psycopg2', 'psycopg2.pool',
+    'psycopg2.extensions', 'pgvector', 'pgvector.psycopg2',
+    'grpc_health', 'grpc_health.v1', 'demo_pb2', 'demo_pb2_grpc',
+):
+    sys.modules[module] = MagicMock()
+
 import recommendation_server
 
+
+class NumpyLikeFloat:
+    def __init__(self, value):
+        self.value = value
+
+    def __float__(self):
+        return self.value
+
+    def __repr__(self):
+        return f"np.float32({self.value})"
+
+
 class TestRecommendationServer(unittest.TestCase):
-    @patch('recommendation_server.psycopg2.connect')
-    @patch('recommendation_server.register_vector')
-    def test_get_recommendations(self, mock_register_vector, mock_connect):
-        # Setup mock connection and cursor
-        mock_conn = MagicMock()
-        mock_cursor = MagicMock()
-        mock_conn.__enter__.return_value = mock_conn
-        mock_cursor.__enter__.return_value = mock_cursor
-        mock_connect.return_value = mock_conn
-        mock_conn.cursor.return_value = mock_cursor
+    def test_get_recommendations_serializes_pgvector_values_as_plain_floats(self):
+        cursor = MagicMock()
+        cursor.__enter__.return_value = cursor
+        cursor.fetchone.return_value = ([NumpyLikeFloat(0.1), NumpyLikeFloat(0.2)],)
+        cursor.fetchall.return_value = [("p1",), ("p2",)]
 
-        # First fetchone() returns the embedding vector for the source product
-        mock_cursor.fetchone.return_value = ([0.1, 0.2, 0.3],)
+        connection = MagicMock()
+        connection.cursor.return_value = cursor
+        pool = MagicMock()
+        pool.getconn.return_value = connection
+        tracer = MagicMock()
+        tracer.start_as_current_span.return_value.__enter__.return_value = MagicMock()
 
-        # Second fetchall() returns 5 similar product IDs
-        mock_cursor.fetchall.return_value = [("p1",), ("p2",), ("p3",), ("p4",), ("p5",)]
+        with patch.object(recommendation_server, 'tracer', tracer, create=True), \
+             patch.object(recommendation_server, 'get_db_pool', return_value=pool), \
+             patch.object(recommendation_server, 'register_vector'), \
+             patch.object(recommendation_server, '_get_random_recommendations') as fallback:
+            results = recommendation_server._get_ai_recommendations(["source_product"], max_results=2)
 
-        # Call the actual method being tested
-        with patch.dict(os.environ, {'DB_CONNECTION_STRING': 'postgresql://dummy:dummy@localhost:5432/dummy'}):
-            try:
-                results = recommendation_server._get_ai_recommendations(["source_product"], max_results=5)
+        self.assertEqual(results, ["p1", "p2"])
+        fallback.assert_not_called()
+        second_query_params = cursor.execute.call_args_list[1].args[1]
+        self.assertEqual(second_query_params[1], "[0.1, 0.2]")
+        pool.putconn.assert_called_once_with(connection, close=False)
 
-                # Assertions
-                self.assertEqual(len(results), 5)
-                self.assertEqual(results[0], "p1")
-
-                # Check if pgvector <=> distance was used in the query
-                query_calls = mock_cursor.execute.call_args_list
-                self.assertTrue(len(query_calls) >= 2)
-                second_query = query_calls[1][0][0].lower()
-                self.assertTrue("<=>" in second_query)
-
-                print("✅ PASSED: Recommendation pgvector logic is correct.")
-            except Exception as e:
-                print(f"❌ FAILED: {e}")
-                sys.exit(1)
 
 if __name__ == '__main__':
     unittest.main()

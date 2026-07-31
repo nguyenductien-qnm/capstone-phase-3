@@ -145,9 +145,9 @@ def _get_ai_recommendations(input_product_ids, max_results=5):
                     if avg_embedding is None:
                         return _get_random_recommendations(input_product_ids, max_results)
                     
-                    # PostgreSQL requires vector types to be cast properly or converted to string format
-                    # The python list is casted to string format e.g. '[0.1, 0.2, ...]'
-                    embedding_str = str(list(avg_embedding))
+                    # pgvector returns numpy.float32 values; stringify plain floats so
+                    # PostgreSQL receives "[0.1, ...]", not "[np.float32(0.1), ...]".
+                    embedding_str = str([float(value) for value in avg_embedding])
                     cursor.execute("""
                         SELECT product_id as id
                         FROM catalog.product_embeddings_v2
