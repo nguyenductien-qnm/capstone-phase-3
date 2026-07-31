@@ -65,6 +65,17 @@ networkPolicy:
   # Service ở rìa public (nhận traffic từ ALB/Internet) — mở ingress từ mọi nguồn.
   publicIngress:
     - frontend-proxy
+  # Ops UI (grafana/jaeger/locust) expose qua Tailscale Ingress — proxy chạy ở namespace
+  # `tailscale` (ts-<name>-*), KHÁC namespace app. default-deny chặn cross-namespace nên
+  # phải mở ingress cho từng ops tool nhận traffic từ namespace đó. Thiếu -> vào UI qua
+  # tailnet bị timeout (verify sandbox 08/2026: ts-grafana proxy -> grafana = download
+  # timed out). Không giới hạn cổng vì tailscale proxy là ingress tin cậy + jaeger nhiều cổng.
+  tailscaleIngress:
+    namespace: tailscale
+    targets:
+      - grafana
+      - jaeger
+      - load-generator
   # Observability (subchart -> nhãn app.kubernetes.io/name, KHÁC opentelemetry.io/name).
   observability:
     # Được phép scrape/nhận từ MỌI pod app (nếu thiếu -> mất metrics -> mất dashboard SLO).

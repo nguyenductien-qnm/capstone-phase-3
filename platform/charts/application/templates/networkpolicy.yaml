@@ -91,6 +91,27 @@ spec:
   ingress:
     - {}
 {{- end }}
+{{- /* 5a-bis) Ops UI expose qua Tailscale: cho ingress từ namespace `tailscale` (proxy
+       ts-<name>-* ở namespace khác). Không giới hạn cổng (tailscale proxy tin cậy). */}}
+{{- if $np.tailscaleIngress }}
+{{- $ts := $np.tailscaleIngress }}
+{{- range $t := ($ts.targets | default list) }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-tailscale-ingress-{{ $t }}
+  labels: { app.kubernetes.io/part-of: techx-corp }
+spec:
+  podSelector:
+    matchLabels: { app.kubernetes.io/name: {{ $t }} }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: {{ $ts.namespace }} }
+{{- end }}
+{{- end }}
 {{- /* 5b) per-service INGRESS: mỗi đích chỉ nhận từ đúng caller (đồ thị phụ thuộc đã xác minh). */}}
 {{- range $svc, $sources := $np.serviceIngress }}
 ---
