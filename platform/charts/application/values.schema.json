@@ -110,6 +110,24 @@
         "allowIntraNamespaceEgress": {
           "type": "boolean"
         },
+        "podIdentityEgress": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "endpointCIDR",
+            "port"
+          ],
+          "properties": {
+            "endpointCIDR": {
+              "type": "string"
+            },
+            "port": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            }
+          }
+        },
         "flagdPort": {
           "type": "integer"
         },
