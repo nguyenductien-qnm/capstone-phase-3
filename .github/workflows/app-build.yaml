@@ -106,6 +106,16 @@ env:
   # (sửa default.image.tag trong values.yaml KHÔNG làm tag build đổi). Muốn lên version:
   # đổi vars.IMAGE_VERSION.
   IMAGE_VERSION: ${{ vars.IMAGE_VERSION || '1.0' }}
+  # QUY ƯỚC EMOJI (sự cố 31/07/2026): file này CHỈ được dùng emoji trong BMP
+  # (✅ ❌ ⚠️ ℹ️ — mã <= U+FFFF). CẤM emoji ngoài BMP — mã U+1xxxx, tức các emoji
+  # "hình tròn đỏ/xanh" U+1F534/U+1F7E2, "kính lúp" U+1F50D/U+1F50E, v.v.:
+  # chúng lưu bằng CẶP surrogate UTF-16, và runner .NET của GitHub từng sập
+  # "EncoderFallbackException: Unable to translate Unicode character \uD83D"
+  # khi một cặp như vậy bị cắt đôi tại ranh giới buffer ghi log — nửa đầu đứng
+  # lẻ không mã hoá được sang bất kỳ bảng mã nào. Job chết trước khi upload log
+  # (BlobNotFound), 4 job build-aiops đỏ 5 run liên tiếp, và vị trí crash trôi
+  # theo MỌI chỉnh sửa phía trên trong file — cực khó truy. Ký tự BMP không có
+  # surrogate nên miễn nhiễm.
   # Phần <sha> trong tag <version>-<svc>-<sha>. Mọi chỗ tính tag PHẢI dùng
   # "${GITHUB_SHA:0:7}", TUYỆT ĐỐI KHÔNG dùng `git rev-parse --short HEAD`.
   #
@@ -853,7 +863,25 @@ jobs:
           # vào; coi nó là "aiops đổi" thì commit bump lại kích một build nữa, build
           # lại bump — vòng lặp tự nuôi (commit bump có [skip ci] nên thực tế đứt,
           # nhưng không dựa vào đó: rebuild vì tag đổi vẫn là build thừa).
-          # .trivyignore / workflow đổi -> build lại để chính thay đổi đó được kiểm.
+          # .trivyignore đổi -> build lại để chính thay đổi đó được kiểm qua gate scan.
+          #
+          # 31/07/2026 — BỎ app-build.yaml khỏi danh sách kích build aiops.
+          # Trước đây sửa workflow cũng rebuild aiops làm "mồi lửa kiểm chéo". Ý đồ
+          # tốt, nhưng nó biến MỌI PR sửa CI thành con tin của build aiops: sự cố
+          # hôm nay 4 job build-aiops chết vì runner crash (EncoderFallbackException,
+          # \uD83D index 639, log BlobNotFound — chết trước khi upload) trên MỌI cây
+          # chứa merge #533, qua 5 run liên tiếp ở 2 PR chỉ sửa đúng file workflow;
+          # Image scan gate là required check nên các PR đó bị chặn merge tuyệt đối,
+          # kể cả bản vá cho chính CI. Đã loại trừ bằng thực nghiệm: diff PR, emoji
+          # trong workflow (gỡ sạch ngoài-BMP vẫn crash cùng index), cache GHA (xoá
+          # 17 entry), số PR/merge ref (close #534 mở #536), runner theo thời gian
+          # (renovate xanh xen giữa các lần đỏ). Crash nằm giữa cây mới và build
+          # aiops — nguồn aiops thuộc team AI, CI không chẩn tiếp được từ đây.
+          #
+          # Đánh đổi khai rõ: thay đổi workflow làm hỏng build aiops sẽ KHÔNG lộ
+          # ngay tại PR đó nữa, mà lộ ở lần kế tiếp code aiops/** đổi. Chấp nhận vì
+          # lưới cũ đang chặn nhầm người: nó đỏ vì lỗi không liên quan thay đổi được
+          # kiểm, và người sửa CI không có quyền sửa source aiops để tự cứu.
           # Đếm file aiops/** KHÔNG nằm trong */deploy/ (dùng biến đếm cho dễ đọc, và
           # để tránh bẫy `grep -v` trên stream rỗng vẫn trả 0 -> true oan).
           code_changed=$(printf '%s\n' "${changed[@]}" \
@@ -861,8 +889,7 @@ jobs:
             | { grep -vc '/deploy/' || true; })
 
           build_config_changed=false
-          if printf '%s\n' "${changed[@]}" \
-               | grep -qE '^\.github/workflows/app-build\.yaml$|^\.trivyignore$'; then
+          if printf '%s\n' "${changed[@]}" | grep -qx '\.trivyignore'; then
             build_config_changed=true
           fi
 
@@ -1198,6 +1225,24 @@ jobs:
       && github.ref == 'refs/heads/develop'
       && (needs.merge.result == 'success' || needs.merge-aiops.result == 'success') }}
     runs-on: ubuntu-latest
+    # BẮT BUỘC để lấy được AWS credential — không phải chỉ để gắn nhãn môi trường.
+    # Trust policy của GithubActionRole ghim CHÍNH XÁC (StringEquals, không wildcard):
+    #   token.actions.githubusercontent.com:sub
+    #     = repo:nguyenductien-qnm/capstone-phase-3:environment:sandbox
+    # Claim `sub` chỉ mang dạng ":environment:<tên>" khi JOB có khai `environment`.
+    # Job không khai thì sub là ":ref:refs/heads/develop" -> StringEquals trượt ->
+    # AssumeRoleWithWebIdentity bị từ chối, dù permissions đã có id-token: write.
+    #
+    # Gặp thật 31/07/2026: thêm bước "Verify tag tồn tại trên ECR" vào job này mà
+    # quên dòng environment -> "Could not assume role with OIDC: Not authorized to
+    # perform sts:AssumeRoleWithWebIdentity", cả job bump đỏ, tag không được ghi.
+    # id-token: write là điều kiện CẦN (runner mới phát token), environment là điều
+    # kiện ĐỦ (nội dung token mới khớp trust policy). Thiếu vế nào cũng hỏng.
+    #
+    # Mọi job khác gọi AWS trong file này (build, merge, build-aiops, merge-aiops,
+    # attest-sbom) đều đã khai environment: sandbox — đây chỉ là bù cho đồng bộ.
+    # Environment sandbox không cài protection rule nào nên KHÔNG sinh bước chờ duyệt.
+    environment: sandbox
     permissions:
       contents: write
       # OIDC cho bước "Verify tag tồn tại trên ECR" bên dưới. Job này trước đây
@@ -1429,7 +1474,7 @@ jobs:
           echo "== Tag run này ghi (${#CHANGED[@]}) =="
           MISSING=()
           for tag in "${CHANGED[@]}"; do
-            if exists "$tag"; then echo "  ✅ $tag"; else echo "  🔴 $tag  KHÔNG CÓ TRÊN ECR"; MISSING+=("$tag"); fi
+            if exists "$tag"; then echo "  ✅ $tag"; else echo "  ❌ $tag  KHÔNG CÓ TRÊN ECR"; MISSING+=("$tag"); fi
           done
 
           if [ "${#UNCHANGED[@]}" -gt 0 ]; then
@@ -1441,7 +1486,7 @@ jobs:
 
           if [ "${#MISSING[@]}" -gt 0 ]; then
             {
-              echo "### 🔴 Chặn commit GitOps: ${#MISSING[@]} tag không tồn tại trên ECR"
+              echo "### ❌ Chặn commit GitOps: ${#MISSING[@]} tag không tồn tại trên ECR"
               echo
               for tag in "${MISSING[@]}"; do echo "- \`$tag\`"; done
               echo
@@ -1595,8 +1640,8 @@ jobs:
             fi
 
             if [ "$DRY_RUN" = "true" ]; then
-              echo "🔎 $svc: $DIGEST (dry-run, không attest)."
-              echo "| $svc | $TAG | \`$DIGEST\` | 🔎 dry-run |" >> "$GITHUB_STEP_SUMMARY"
+              echo "ℹ️ $svc: $DIGEST (dry-run, không attest)."
+              echo "| $svc | $TAG | \`$DIGEST\` | ℹ️ dry-run |" >> "$GITHUB_STEP_SUMMARY"
               set -e; continue
             fi
 
