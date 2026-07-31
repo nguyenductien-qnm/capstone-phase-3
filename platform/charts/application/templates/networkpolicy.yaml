@@ -42,6 +42,26 @@ spec:
         - { protocol: UDP, port: 53 }
         - { protocol: TCP, port: 53 }
 {{- end }}
+{{- with $np.podIdentityEgress }}
+---
+# 2b) Pod dùng EKS Pod Identity lấy temporary credentials từ agent link-local trên node.
+# Endpoint này dùng HTTP cố định, không thuộc intra-namespace và không lọt Internet egress 443.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-eks-pod-identity-egress
+  labels: { app.kubernetes.io/part-of: techx-corp }
+spec:
+  podSelector:
+    matchLabels: { eks.amazonaws.com/pod-identity: "enabled" }
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: {{ .endpointCIDR }}
+      ports:
+        - { protocol: TCP, port: {{ .port }} }
+{{- end }}
 {{- if $np.allowIntraNamespaceEgress }}
 ---
 # 3) Allow intra-namespace EGRESS: caller gọi được callee trong cùng namespace.
@@ -248,7 +268,7 @@ spec:
 ---
 # 5d-bis) Datastore backend ({{ $ri.name }}) — ingress CHỈ cho client cụ thể, KHÁC sink
 # all-pods. opensearch giữ log nhạy cảm + không auth; mở all-pods = pod bị chiếm đọc sạch
-# log (trái R3). Chỉ cho otel-collector/grafana/aiops chạm cổng {{ $ri.port }}.
+# log (trái R3). Chỉ cho các client khai báo trong values chạm cổng {{ $ri.port }}.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
