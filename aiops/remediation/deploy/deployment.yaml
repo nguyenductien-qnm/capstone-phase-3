@@ -77,7 +77,7 @@ spec:
                   name: aiops-alert
                   key: webhook
                   optional: true
-            # TF1-112 (MANDATE-22 DoD doi "audit log lan do"). rootfs read-only
+            # TF1-103/TF1-112 structured audit. rootfs read-only
             # (MANDATE-05, khong duoc lui) nen phai tro sang emptyDir writable —
             # dung mau ALERTER_HISTORY_FILE ma detector da dung.
             #
@@ -103,9 +103,9 @@ spec:
               cpu: "200m"
               memory: "128Mi"
       volumes:
-        # Ephemeral: MAT khi pod restart. Du de tra loi "lan chay vua roi da qua nhung
-        # cong nao", KHONG phai durable audit store — de giu qua nhieu lan restart thi
-        # phai day ra ngoai (S3/OpenSearch), pham vi lon hon va chua lam.
-        # Ghi ra day thay vi giau: mot audit log mat khi restart la audit log yeu.
+        # Ephemeral: song qua container restart nhung MAT khi pod bi thay the. Du de
+        # tra loi "lan chay vua roi da qua nhung cong nao", KHONG phai durable audit
+        # store — de giu qua pod replacement thi can PVC hoac log shipping.
+        # Ghi ra day thay vi giau: audit retention van la follow-up van hanh.
         - name: aiops-data
           emptyDir: {}

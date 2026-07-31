@@ -22,6 +22,8 @@ import json
 import logging
 import os
 import time
+import uuid
+from datetime import datetime, timezone
 
 log = logging.getLogger("aiops.remediation.audit")
 
@@ -39,23 +41,39 @@ STAGE_BLAST_RADIUS = "blast_radius"
 STAGE_DRY_RUN = "dry_run"
 STAGE_ACTION = "action"
 STAGE_VERIFY = "verify"
+STAGE_ROLLBACK = "rollback"
+STAGE_ESCALATE = "escalate"
+
+SCHEMA_VERSION = 1
 
 
 def audit_path():
     return os.environ.get("REMEDIATION_AUDIT_FILE", _DEFAULT_AUDIT)
 
 
-def record(stage, decision, rule_id, service=None, pod=None, dry_run=None, **detail):
+def new_remediation_id():
+    """Return one correlation id for a complete trigger->terminal-decision attempt."""
+    return f"rem-{uuid.uuid4().hex}"
+
+
+def record(stage, decision, rule_id, service=None, pod=None, dry_run=None,
+           remediation_id=None, **detail):
     """Ghi mot dong JSONL vao audit log.
 
     stage    — cong nao (dung hang so STAGE_* o tren)
     decision — "allow" | "deny" | "acted" | "pass" | "fail" | "skipped"
+    remediation_id — khoa noi TAT CA quyet dinh cua cung mot lan remediation
     detail   — moi truong phu khac, vd threshold da dung, gia tri do duoc, loi gap phai
 
     Tra ve dict da ghi (de test doc duoc), hoac None neu ghi hong.
     """
+    ts = time.time()
     rec = {
-        "ts": time.time(),
+        "schema_version": SCHEMA_VERSION,
+        "event_id": f"evt-{uuid.uuid4().hex}",
+        "remediation_id": remediation_id or new_remediation_id(),
+        "ts": ts,
+        "ts_utc": datetime.fromtimestamp(ts, tz=timezone.utc).isoformat(),
         "stage": stage,
         "decision": decision,
         "rule_id": rule_id,
