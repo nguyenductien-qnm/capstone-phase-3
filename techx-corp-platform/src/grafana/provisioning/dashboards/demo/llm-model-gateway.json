@@ -1,0 +1,64 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "${prometheus}"},
+      "fieldConfig": {"defaults": {"unit": "reqps"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "id": 1,
+      "targets": [{"expr": "sum by (model_id, task_type) (rate(llm_gateway_requests_total[$__rate_interval]))", "legendFormat": "{{task_type}} / {{model_id}}", "refId": "A"}],
+      "title": "Traffic split by model and AI surface",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${prometheus}"},
+      "fieldConfig": {"defaults": {"unit": "ms"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "id": 2,
+      "targets": [{"expr": "histogram_quantile(0.95, sum by (le, model_id, task_type) (rate(llm_gateway_latency_milliseconds_bucket[$__rate_interval])))", "legendFormat": "p95 {{task_type}} / {{model_id}}", "refId": "A"}],
+      "title": "Model invocation latency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${prometheus}"},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "id": 3,
+      "targets": [{"expr": "sum by (model_id, task_type) (rate(llm_gateway_requests_total{status=\"error\"}[$__rate_interval])) / clamp_min(sum by (model_id, task_type) (rate(llm_gateway_requests_total[$__rate_interval])), 1e-9)", "legendFormat": "{{task_type}} / {{model_id}}", "refId": "A"}],
+      "title": "Error rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${prometheus}"},
+      "fieldConfig": {"defaults": {"unit": "currencyUSD"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "id": 4,
+      "targets": [{"expr": "sum by (model_id, task_type) (increase(llm_gateway_estimated_cost_total[$__range]))", "legendFormat": "{{task_type}} / {{model_id}}", "refId": "A"}],
+      "title": "Estimated cost in selected range",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${prometheus}"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 16},
+      "id": 5,
+      "targets": [
+        {"expr": "sum by (model_id, task_type) (increase(llm_gateway_input_tokens_total[$__range]))", "legendFormat": "input {{task_type}} / {{model_id}}", "refId": "A"},
+        {"expr": "sum by (model_id, task_type) (increase(llm_gateway_output_tokens_total[$__range]))", "legendFormat": "output {{task_type}} / {{model_id}}", "refId": "B"}
+      ],
+      "title": "Token consumption",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": ["ai", "model-gateway", "ab-testing"],
+  "templating": {"list": [{"current": {}, "hide": 0, "includeAll": false, "label": "Prometheus", "name": "prometheus", "options": [], "query": "prometheus", "refresh": 1, "type": "datasource"}]},
+  "time": {"from": "now-1h", "to": "now"},
+  "timezone": "browser",
+  "title": "LLM Model Gateway A/B Testing",
+  "uid": "llm-model-gateway",
+  "version": 1
+}

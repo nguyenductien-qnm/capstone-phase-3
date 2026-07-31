@@ -49,7 +49,7 @@ from openai import OpenAI
 
 # Model Router
 from model_router import ModelRouter
-from llm_trace import build_trace_record, record_trace
+from llm_trace import build_trace_record, record_gateway_metrics, record_trace
 
 from botocore.exceptions import ClientError, ReadTimeoutError, ConnectTimeoutError, BotoCoreError
 from botocore.config import Config
@@ -492,7 +492,7 @@ def invoke_bedrock_converse_with_fallback(messages, system_prompt, tool_config=N
     - Prompt caching enabled to reduce token reuse cost.
     """
     router = ModelRouter()
-    main_model = os.environ.get('LLM_REVIEWS_MAIN_MODEL', router.get_main_model())
+    main_model = router.get_main_model()
     fallback_model = os.environ.get('LLM_REVIEWS_FALLBACK_MODEL', 'amazon.nova-micro-v1:0')
     max_retries = int(os.environ.get('LLM_REVIEWS_MAX_RETRIES', '2'))
     fallback_max_retries = int(os.environ.get('LLM_REVIEWS_FALLBACK_RETRIES', '1'))
@@ -672,6 +672,7 @@ def _public_model_id(model_id):
 
 def _model_trace_step(response, model_id, outcome, latency_ms):
     usage = response.get("usage", {}) if response else {}
+    record_gateway_metrics(model_id, "reviews_summary", outcome, usage, latency_ms / 1000)
     metadata = build_trace_record(
         trace_id="", session_id="", model_id=_public_model_id(model_id), usage=usage,
         latency_s=latency_ms / 1000, outcome=outcome, tool_calls=[],

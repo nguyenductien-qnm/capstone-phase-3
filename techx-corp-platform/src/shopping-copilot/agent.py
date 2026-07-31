@@ -41,7 +41,7 @@ from guardrails import (
     sanitize_json_for_llm, redact_pii, leaks_system_prompt, validate_citations,
     apply_guardrail_output,
 )
-from llm_trace import build_trace_record, record_trace
+from llm_trace import build_trace_record, record_gateway_metrics, record_trace
 from output_validator import validate_tool_calls as _validate_tool_calls
 
 from concurrent.futures import ThreadPoolExecutor
@@ -514,6 +514,7 @@ def invoke_bedrock_converse_with_fallback(primary_client, model_id, system, mess
 def _record_model_trace(vc, trace_id, session_id, model_id, usage, latency_s, outcome, blocks, messages):
     """Return UI-safe metadata and persist it best-effort."""
     try:
+        record_gateway_metrics(model_id, "copilot", outcome, usage, latency_s)
         tool_names = [b["toolUse"]["name"] for b in blocks if "toolUse" in b]
         trace_data = build_trace_record(
             trace_id=trace_id, session_id=session_id, model_id=model_id,

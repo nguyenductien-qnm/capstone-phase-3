@@ -3,6 +3,7 @@ import os
 os.environ.setdefault("DB_CONNECTION_STRING", "host=test user=test password=test dbname=test")
 
 import product_reviews_server as server
+from unittest.mock import MagicMock
 
 
 class FakeBedrock:
@@ -179,3 +180,37 @@ def test_model_trace_step_redacts_internal_model_arn():
     detail = json.loads(step.detail)
     assert detail["model_id"] == "internal"
     assert "123456789012" not in step.detail
+
+
+def test_gateway_metrics_cover_usage_latency_cost_and_outcome(monkeypatch):
+    import llm_trace
+    instruments = {name: MagicMock() for name in (
+        "requests", "latency", "input_tokens", "output_tokens", "cost"
+    )}
+    for name, instrument in instruments.items():
+        monkeypatch.setattr(llm_trace, f"gateway_{name}", instrument)
+    llm_trace.record_gateway_metrics(
+        "amazon.nova-lite-v1:0", "reviews_summary", "fallback",
+        {"inputTokens": 200, "outputTokens": 100}, 0.05,
+    )
+    attrs = {"model_id": "amazon.nova-lite-v1:0", "task_type": "reviews_summary", "status": "fallback"}
+    instruments["requests"].add.assert_called_once_with(1, attrs)
+    instruments["latency"].record.assert_called_once_with(50.0, attrs)
+    instruments["input_tokens"].add.assert_called_once_with(200, attrs)
+    instruments["output_tokens"].add.assert_called_once_with(100, attrs)
+    assert instruments["cost"].add.call_args.args[0] > 0
+
+def test_gateway_metrics_redact_arn_and_never_break_serving(monkeypatch):
+    import llm_trace
+    requests = MagicMock()
+    requests.add.side_effect = RuntimeError("exporter unavailable")
+    monkeypatch.setattr(llm_trace, "gateway_requests", requests)
+
+    llm_trace.record_gateway_metrics(
+        "arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/public-name",
+        "reviews_summary", "ok", {}, 0.01,
+    )
+
+    attributes = requests.add.call_args.args[1]
+    assert attributes["model_id"] == "public-name"
+    assert "123456789012" not in str(attributes)
