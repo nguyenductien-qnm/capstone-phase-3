@@ -30,6 +30,7 @@ COPY ./src/frontend/utils/mockData.ts utils/mockData.ts
 COPY ./src/frontend/utils/resilience/ utils/resilience/
 
 COPY ./src/frontend/next.config.js next.config.js
+COPY ./src/frontend/postcss.config.mjs postcss.config.mjs
 COPY ./src/frontend/tsconfig.json tsconfig.json
 
 RUN npm run build
