@@ -863,7 +863,25 @@ jobs:
           # vào; coi nó là "aiops đổi" thì commit bump lại kích một build nữa, build
           # lại bump — vòng lặp tự nuôi (commit bump có [skip ci] nên thực tế đứt,
           # nhưng không dựa vào đó: rebuild vì tag đổi vẫn là build thừa).
-          # .trivyignore / workflow đổi -> build lại để chính thay đổi đó được kiểm.
+          # .trivyignore đổi -> build lại để chính thay đổi đó được kiểm qua gate scan.
+          #
+          # 31/07/2026 — BỎ app-build.yaml khỏi danh sách kích build aiops.
+          # Trước đây sửa workflow cũng rebuild aiops làm "mồi lửa kiểm chéo". Ý đồ
+          # tốt, nhưng nó biến MỌI PR sửa CI thành con tin của build aiops: sự cố
+          # hôm nay 4 job build-aiops chết vì runner crash (EncoderFallbackException,
+          # \uD83D index 639, log BlobNotFound — chết trước khi upload) trên MỌI cây
+          # chứa merge #533, qua 5 run liên tiếp ở 2 PR chỉ sửa đúng file workflow;
+          # Image scan gate là required check nên các PR đó bị chặn merge tuyệt đối,
+          # kể cả bản vá cho chính CI. Đã loại trừ bằng thực nghiệm: diff PR, emoji
+          # trong workflow (gỡ sạch ngoài-BMP vẫn crash cùng index), cache GHA (xoá
+          # 17 entry), số PR/merge ref (close #534 mở #536), runner theo thời gian
+          # (renovate xanh xen giữa các lần đỏ). Crash nằm giữa cây mới và build
+          # aiops — nguồn aiops thuộc team AI, CI không chẩn tiếp được từ đây.
+          #
+          # Đánh đổi khai rõ: thay đổi workflow làm hỏng build aiops sẽ KHÔNG lộ
+          # ngay tại PR đó nữa, mà lộ ở lần kế tiếp code aiops/** đổi. Chấp nhận vì
+          # lưới cũ đang chặn nhầm người: nó đỏ vì lỗi không liên quan thay đổi được
+          # kiểm, và người sửa CI không có quyền sửa source aiops để tự cứu.
           # Đếm file aiops/** KHÔNG nằm trong */deploy/ (dùng biến đếm cho dễ đọc, và
           # để tránh bẫy `grep -v` trên stream rỗng vẫn trả 0 -> true oan).
           code_changed=$(printf '%s\n' "${changed[@]}" \
@@ -871,8 +889,7 @@ jobs:
             | { grep -vc '/deploy/' || true; })
 
           build_config_changed=false
-          if printf '%s\n' "${changed[@]}" \
-               | grep -qE '^\.github/workflows/app-build\.yaml$|^\.trivyignore$'; then
+          if printf '%s\n' "${changed[@]}" | grep -qx '\.trivyignore'; then
             build_config_changed=true
           fi
 
