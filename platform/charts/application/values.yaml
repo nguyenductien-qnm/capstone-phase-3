@@ -90,12 +90,18 @@ networkPolicy:
     # client hợp lệ của kho log — đánh đổi lấy việc không phơi log cho mọi pod.
     restrictedIngress:
       - name: opensearch
+        # 9200 REST — client bên ngoài đọc/ghi.
         port: 9200
         clients:
           - { app.kubernetes.io/name: opentelemetry-collector }
           - { app.kubernetes.io/name: grafana }
           - { app: aiops-detector }
           - { app: aiops-remediation }
+        # 9300 transport — node opensearch peer với nhau (cluster 3 node, hình thành
+        # quorum). KHÁC 9200: nguồn là CHÍNH opensearch, không phải client ngoài. Thiếu
+        # dòng này thì default-deny cắt peer -> cluster vỡ quorum, node stuck. (AIO flag:
+        # opensearch multi-node cần peerPort; verify sandbox: statefulset replicas=3.)
+        peerPort: 9300
     # Pod cần egress tới Kubernetes API server (443) — SD/list-watch/k8sattributes.
     apiServerEgress:
       - prometheus

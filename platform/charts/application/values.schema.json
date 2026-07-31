@@ -143,6 +143,7 @@
                 "properties": {
                   "name": { "type": "string" },
                   "port": { "type": "integer" },
+                  "peerPort": { "type": "integer" },
                   "clients": {
                     "type": "array",
                     "items": { "type": "object" }

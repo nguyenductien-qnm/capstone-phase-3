@@ -248,6 +248,15 @@ spec:
       {{- end }}
       ports:
         - { protocol: TCP, port: {{ $ri.port }} }
+  {{- if $ri.peerPort }}
+    # Peer transport ({{ $ri.name }} node <-> node): nguồn là CHÍNH nó, không phải
+    # client ngoài. Multi-node cần cổng này để hình thành/giữ quorum.
+    - from:
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: {{ $ri.name }} }
+      ports:
+        - { protocol: TCP, port: {{ $ri.peerPort }} }
+  {{- end }}
 {{- end }}
 {{- end }}
 {{- if $np.datastoreEgress }}
