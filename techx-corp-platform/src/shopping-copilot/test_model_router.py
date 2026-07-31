@@ -60,3 +60,17 @@ def test_route_emits_gateway_metrics():
     attrs = {"model_id": "amazon.nova-lite-v1:0", "task_type": "copilot", "outcome": "experiment"}
     counter.add.assert_called_once_with(1, attrs)
     assert latency.record.call_args.args[1] == attrs
+
+def test_routing_key_is_sticky_and_forwarded_without_pii():
+    client = _client({"amazon.nova-lite-v1:0": 80, "amazon.nova-pro-v1:0": 20})
+    with patch.object(model_router, "_ensure_provider"), patch.object(
+        model_router.api, "get_client", return_value=client
+    ), patch.object(model_router.random, "choices") as choices:
+        first = model_router.get_routed_model("copilot", "amazon.nova-lite-v1:0", "user-42")
+        second = model_router.get_routed_model("copilot", "amazon.nova-lite-v1:0", "user-42")
+
+    assert first == second
+    choices.assert_not_called()
+    context = client.get_object_value.call_args.args[2]
+    assert context.targeting_key != "user-42"
+    assert len(context.targeting_key) == 64

@@ -275,7 +275,7 @@ class ShoppingCopilotServicer(pb_grpc.ShoppingCopilotServiceServicer):
 
         session.append({"role": "user", "content": [{"text": enriched_question}]})
 
-        routed_model = model_router.get_routed_model("copilot", MAIN_MODEL)
+        routed_model = model_router.get_routed_model("copilot", MAIN_MODEL, request.user_id)
         logger.info(f"Routed model for copilot: {routed_model}")
 
         cached_records = []

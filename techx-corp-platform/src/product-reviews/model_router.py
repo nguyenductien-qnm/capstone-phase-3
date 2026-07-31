@@ -1,4 +1,5 @@
 import logging
+import hashlib
 import math
 import os
 import random
@@ -52,7 +53,7 @@ class ModelRouter:
     def __init__(self):
         self.of_client = api.get_client()
 
-    def get_main_model(self):
+    def get_main_model(self, routing_key: str = ""):
         default_model = os.environ.get("LLM_REVIEWS_MAIN_MODEL", os.environ.get("AWS_BEDROCK_MODEL", _DEFAULT_MODEL))
         task_type = "reviews_summary"
         started_at = time.perf_counter()
@@ -64,8 +65,22 @@ class ModelRouter:
                     span.set_attribute("routed_model", default_model)
                     span.set_attribute("route.outcome", "fallback_invalid_config")
                     return _record_route(started_at, default_model, task_type, "fallback_invalid_config")
-                models, weights = zip(*routes)
-                selected = random.choices(list(models), weights=list(weights), k=1)[0]
+                if routing_key:
+                    digest = hashlib.sha256(
+                        f"reviews-model-gateway:v1:{routing_key}".encode()
+                    ).digest()
+                    bucket = int.from_bytes(digest[:8], "big") / 2**64
+                    total = sum(weight for _, weight in routes)
+                    cursor = 0.0
+                    selected = routes[-1][0]
+                    for model_id, weight in routes:
+                        cursor += weight / total
+                        if bucket < cursor:
+                            selected = model_id
+                            break
+                else:
+                    models, weights = zip(*routes)
+                    selected = random.choices(list(models), weights=list(weights), k=1)[0]
                 span.set_attribute("routed_model", selected)
                 span.set_attribute("route.outcome", "experiment")
                 return _record_route(started_at, selected, task_type, "experiment")

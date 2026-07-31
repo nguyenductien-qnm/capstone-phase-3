@@ -484,7 +484,8 @@ def _record_bedrock_metrics(response, model_id, status="success"):
     except Exception as e:
         logger.error(f"Error recording Bedrock metrics: {e}")
 
-def invoke_bedrock_converse_with_fallback(messages, system_prompt, tool_config=None):
+def invoke_bedrock_converse_with_fallback(
+        messages, system_prompt, tool_config=None, routing_key=""):
     """
     Invokes AWS Bedrock converse API with retry and fallback routing.
     - Timeout, retries, and models are resolved dynamically from environment variables.
@@ -492,7 +493,7 @@ def invoke_bedrock_converse_with_fallback(messages, system_prompt, tool_config=N
     - Prompt caching enabled to reduce token reuse cost.
     """
     router = ModelRouter()
-    main_model = router.get_main_model()
+    main_model = router.get_main_model(routing_key)
     fallback_model = os.environ.get('LLM_REVIEWS_FALLBACK_MODEL', 'amazon.nova-micro-v1:0')
     max_retries = int(os.environ.get('LLM_REVIEWS_MAX_RETRIES', '2'))
     fallback_max_retries = int(os.environ.get('LLM_REVIEWS_FALLBACK_RETRIES', '1'))
@@ -990,7 +991,8 @@ def get_ai_assistant_response(request_product_id, question, context=None):
                 response, actual_model_id, model_outcome = invoke_bedrock_converse_with_fallback(
                     messages=messages,
                     system_prompt=system_prompt,
-                    tool_config=None
+                    tool_config=None,
+                    routing_key=request_product_id,
                 )
                 if response is None:
                     raise RuntimeError("All model attempts exhausted or failed")

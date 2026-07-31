@@ -34,3 +34,19 @@ def test_reviews_route_emits_gateway_metrics(monkeypatch):
     attrs = {"model_id": "amazon.nova-lite-v1:0", "task_type": "reviews_summary", "outcome": "experiment"}
     counter.add.assert_called_once_with(1, attrs)
     assert latency.record.call_args.args[1] == attrs
+
+def test_reviews_routing_key_is_sticky():
+    client = MagicMock()
+    client.get_object_value.return_value = {
+        "amazon.nova-lite-v1:0": 80,
+        "amazon.nova-pro-v1:0": 20,
+    }
+    with patch("model_router.api.get_client", return_value=client), patch(
+        "model_router.random.choices"
+    ) as choices:
+        router = ModelRouter()
+        first = router.get_main_model("product-1")
+        second = router.get_main_model("product-1")
+
+    assert first == second
+    choices.assert_not_called()

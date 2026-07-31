@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import math
 import os
@@ -69,22 +70,40 @@ def _validated_routes(config):
     return routes
 
 
-def get_routed_model(task_type: str, default_model: str) -> str:
+def _sticky_choice(routes, routing_key: str):
+    digest = hashlib.sha256(f"llm-model-gateway:v1:{routing_key}".encode()).digest()
+    bucket = int.from_bytes(digest[:8], "big") / 2**64
+    total = sum(weight for _, weight in routes)
+    cursor = 0.0
+    for model_id, weight in routes:
+        cursor += weight / total
+        if bucket < cursor:
+            return model_id
+    return routes[-1][0]
+
+
+def get_routed_model(task_type: str, default_model: str, routing_key: str = "") -> str:
     """Select a model from the validated flagd traffic split."""
     started_at = time.perf_counter()
     with tracer.start_as_current_span("model_gateway.route") as span:
         span.set_attribute("task_type", task_type)
         try:
             _ensure_provider()
-            context = EvaluationContext(attributes={"task_type": task_type})
+            anonymized_key = hashlib.sha256(routing_key.encode()).hexdigest() if routing_key else ""
+            context = EvaluationContext(
+                targeting_key=anonymized_key, attributes={"task_type": task_type}
+            )
             config = api.get_client().get_object_value("llmModelRouting", {}, context)
             routes = _validated_routes(config)
             if not routes:
                 span.set_attribute("routed_model", default_model)
                 span.set_attribute("route.outcome", "fallback_invalid_config")
                 return _record_route(started_at, default_model, task_type, "fallback_invalid_config")
-            models, weights = zip(*routes)
-            model_name = random.choices(list(models), weights=list(weights), k=1)[0]
+            if routing_key:
+                model_name = _sticky_choice(routes, routing_key)
+            else:
+                models, weights = zip(*routes)
+                model_name = random.choices(list(models), weights=list(weights), k=1)[0]
             span.set_attribute("routed_model", model_name)
             span.set_attribute("route.outcome", "experiment")
             return _record_route(started_at, model_name, task_type, "experiment")
