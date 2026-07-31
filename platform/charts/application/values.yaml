@@ -875,6 +875,12 @@ components:
       env: true
     service:
       port: 8080
+    # M17-R2 (mandate-21 gap fix, 31-07-2026): email trước đây thiếu hẳn PDB +
+    # topologySpread — 2 pod có thể rơi chung 1 AZ, mất trọn 1 AZ là mất cả email.
+    # Thêm cho khớp pattern các service luồng ra tiền khác.
+    podDisruptionBudget:
+      maxUnavailable: 1
+    topologySpread: true
     # M17 deploy-safety: dependency luồng ra tiền — readiness gate + preStop sleep native + grace 30s. Fix rớt request khi drain/Karpenter consolidate.
     terminationGracePeriodSeconds: 30
     lifecycle:
@@ -1713,6 +1719,13 @@ components:
       env: true
     service:
       port: 8080
+    # M17-R2 (mandate-21 gap fix, 31-07-2026): quote trước đây thiếu hẳn PDB +
+    # topologySpread — evidence live cho thấy 2 pod có thể rơi chung 1 AZ (tuy đang
+    # ăn may spread do lịch schedule, không phải do config ép). Thêm cho khớp
+    # pattern các service luồng ra tiền khác (checkout/currency/payment/shipping).
+    podDisruptionBudget:
+      maxUnavailable: 1
+    topologySpread: true
     # M17 deploy-safety: dependency luồng ra tiền (shipping→quote) — readiness gate + preStop sleep native + grace 30s. Fix rớt request khi drain/Karpenter consolidate.
     terminationGracePeriodSeconds: 30
     lifecycle:
