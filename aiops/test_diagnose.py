@@ -305,3 +305,105 @@ def test_dao_canh_thi_ket_luan_phai_doi():
     assert dung["root_suspect"] == "cart"
     assert dao["root_suspect"] == "frontend", \
         "dao canh ma ket luan khong doi nghia la do thi khong he duoc dung"
+
+
+# ---------------------------------------------------------------------------
+# Suy do thi tu spanmetrics — ten span TRAN sinh canh gia (su co 31/07)
+# ---------------------------------------------------------------------------
+def _rows(cap):
+    """[(service_name, span_name), ...] -> dang Prometheus tra ve."""
+    return [{"metric": {"service_name": s, "span_name": n}} for s, n in cap]
+
+
+def _gia_lap_prom(monkeypatch, client, server):
+    def fake(base_url, promql, timeout=10):
+        return _rows(server) if "SERVER" in promql else _rows(client)
+    monkeypatch.setattr(diagnose, "_prom_query", fake)
+
+
+def test_ten_span_tran_khong_duoc_sinh_canh(monkeypatch):
+    """Thu nho lai dung su co do tren cum 31/07.
+
+    `POST` la span_name ma CHI `frontend-proxy` xuat hien lam SERVER, nen bo loc mo ho
+    (chi bo ten ung voi >1 server) KHONG bat duoc. Ba service phat span CLIENT ten `POST`
+    vi chung goi ElastiCache/RDS — nhung dich khong duoc trace. Neu noi canh theo ten do
+    thi ca ba deu bi tro ve `frontend-proxy`, va `frontend-proxy` — RIA NGOAI CUNG — thanh
+    "thu ma ai cung phu thuoc".
+    """
+    _gia_lap_prom(
+        monkeypatch,
+        client=[("cart", "POST"), ("checkout", "POST"), ("shipping", "POST")],
+        server=[("frontend-proxy", "POST")],
+    )
+    graph, stats = diagnose.graph_from_spanmetrics("http://x")
+    assert graph == {}, f"ten span tran khong duoc sinh canh nao, nhung ra {graph}"
+    assert stats["generic_span_names"] >= 1
+    assert stats["edges"] == 0
+
+
+def test_ten_span_cu_the_van_sinh_canh_binh_thuong(monkeypatch):
+    """Bo loc phai bo DUNG ten tran, khong duoc bo lan sang ten that.
+
+    Thieu test nay thi mot bo loc qua tay (vi du bo moi ten bat dau bang GET/POST) se lam
+    do thi rong ma khong ai biet — do thi rong thi RCA lang le tut ve xep hang theo thoi
+    gian, dung kieu xuong cap am tham ma resolve_topology sinh ra de chan.
+    """
+    _gia_lap_prom(
+        monkeypatch,
+        client=[("frontend", "oteldemo.CartService/GetCart"),
+                ("frontend", "GET /api/products/index")],
+        server=[("cart", "oteldemo.CartService/GetCart"),
+                ("product-catalog", "GET /api/products/index")],
+    )
+    graph, stats = diagnose.graph_from_spanmetrics("http://x")
+    assert graph == {"frontend": ["cart", "product-catalog"]}
+    assert stats["generic_span_names"] == 0
+    assert stats["edges"] == 2
+
+
+def test_hop_nhat_giu_lai_canh_chi_co_o_file_tinh(monkeypatch):
+    """resolve_topology phai HOP NHAT, khong duoc de spanmetrics thay the file tinh.
+
+    Suy luan co recall thap (do 30/07: 13/28 canh sync). Thay the = vut bo phan da kiem tay.
+    """
+    _gia_lap_prom(
+        monkeypatch,
+        client=[("frontend", "oteldemo.CartService/GetCart")],
+        server=[("cart", "oteldemo.CartService/GetCart")],
+    )
+    graph, source, note = diagnose.resolve_topology(prom_url="http://x")
+    assert source == "spanmetrics+static"
+    assert "cart" in graph.get("frontend", []), "canh suy duoc phai co"
+    assert "quote" in graph.get("shipping", []), \
+        "canh chi co o topology.json phai duoc giu — day la cho thay the lam mat"
+    assert "hop nhat" in note and "loi thoi" in note, "nguon phai tu khai, khong xuong cap am tham"
+
+
+def test_goc_van_tim_duoc_khi_suy_luan_THIEU_canh():
+    """Regression cua su co 31/07: giet `quote` ma RCA cham `frontend-proxy` lam goc.
+
+    Do thi suy ra thieu `frontend-proxy -> frontend` (span CLIENT cua frontend-proxy ten
+    `router frontend egress`, khong khop SERVER span_name nao) va thieu ca nhanh
+    frontend -> shipping -> quote. Chi voi no thi khong ai phu thuoc vao `shipping`.
+    """
+    do_thi_suy = {
+        "checkout": ["currency", "product-catalog"],
+        "frontend": ["ad", "checkout", "currency", "product-catalog"],
+        "recommendation": ["product-catalog"],
+    }
+    # Giu dung THU TU quan sat duoc tren cum (shipping keu truoc, frontend-proxy thu hai);
+    # khoang cach thu nho lai cho vua cua so cua `_run`.
+    alerts = [
+        _alert("shipping", 0), _alert("frontend-proxy", 100),
+        _alert("frontend", 300), _alert("checkout", 300), _alert("shopping-copilot", 350),
+    ]
+    chi_suy = _run(alerts, graph=do_thi_suy, source="spanmetrics")
+    assert chi_suy["root_suspect"] != "shipping", \
+        "neu chi-suy da ra dung roi thi test nay khong chung minh duoc gi ve hop nhat"
+
+    gop = diagnose._hop_nhat_do_thi(do_thi_suy, diagnose.load_static_topology())
+    res = _run(alerts, graph=gop, source="spanmetrics+static")
+    assert res["root_suspect"] == "shipping", \
+        "shipping goi thang `quote` (thu bi giet) — day la cau tra loi dung nhat co the"
+    assert res["ranking"][-1]["service"] == "frontend-proxy", \
+        "ria ngoai cung phai xep cuoi, khong duoc len lam goc"

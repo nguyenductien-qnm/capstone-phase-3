@@ -151,6 +151,33 @@ def _prom_query(base_url, promql, timeout=10):
     return payload["data"]["result"]
 
 
+def _ten_span_cu_the(span_name):
+    """Ten span co du dinh danh MOT endpoint khong.
+
+    Chi nhan ten co '/' hoac '.':
+        gRPC          `oteldemo.CartService/GetCart`      -> co ca hai
+        HTTP co route `GET /api/cart`                     -> co '/'
+        TRAN          `GET` `POST` `redis` `resolve`      -> khong co gi -> LOAI
+
+    VI SAO CAN RIENG BO LOC NAY, du da co bo loc mo ho ben duoi. Bo loc mo ho chi bo mot
+    `span_name` khi no ung voi >1 service SERVER — tuc no phu thuoc vao LUU LUONG tai thoi
+    diem query. Do 31/07 tren cum: co luc `GET` chi co `frontend-proxy` lam SERVER (mot
+    service -> khong mo ho -> LOT LUOI), luc khac lai co ca `frontend` (hai service -> bi
+    bo). Cung mot cai ten, hai ket qua khac nhau tuy gio.
+
+    Hau qua cua lan lot luoi do, do that: 6 service phat span CLIENT ten tran (`cart`,
+    `checkout`, `shipping`, `shopping-copilot`, `product-reviews`, `load-generator` — chung
+    goi ElastiCache/RDS/Bedrock, nhung dich KHONG duoc trace) deu bi noi mot canh gia ve
+    `frontend-proxy`. 5 canh SAI tren tong 16, tat ca do ve MOT nut, khien `frontend-proxy`
+    thanh "thu ma ai cung phu thuoc" va RCA cham no lam goc voi confidence 0.8 — trong khi
+    goc that la `quote`, con `frontend-proxy` la RIA NGOAI CUNG. Dung thu mandate cam:
+    "khong dung o trieu chung downstream".
+
+    Bo loc nay khong phu thuoc luu luong nen khong co ca lot luoi theo gio.
+    """
+    return "/" in span_name or "." in span_name
+
+
 def graph_from_spanmetrics(prom_url, timeout=10):
     """Suy canh A->B bang khop `span_name` giua span CLIENT cua A va span SERVER cua B.
 
@@ -176,11 +203,17 @@ def graph_from_spanmetrics(prom_url, timeout=10):
         timeout,
     )
 
+    generic = set()
+
     servers_by_span = defaultdict(set)
     for row in server_rows:
         m = row.get("metric", {})
-        if m.get("span_name") and m.get("service_name"):
-            servers_by_span[m["span_name"]].add(m["service_name"])
+        if not (m.get("span_name") and m.get("service_name")):
+            continue
+        if not _ten_span_cu_the(m["span_name"]):
+            generic.add(m["span_name"])
+            continue
+        servers_by_span[m["span_name"]].add(m["service_name"])
 
     graph = defaultdict(set)
     ambiguous = set()
@@ -188,6 +221,9 @@ def graph_from_spanmetrics(prom_url, timeout=10):
         m = row.get("metric", {})
         caller, span = m.get("service_name"), m.get("span_name")
         if not caller or not span:
+            continue
+        if not _ten_span_cu_the(span):
+            generic.add(span)
             continue
         callees = servers_by_span.get(span)
         if not callees:
@@ -202,6 +238,7 @@ def graph_from_spanmetrics(prom_url, timeout=10):
     stats = {
         "client_series": len(client_rows),
         "server_series": len(server_rows),
+        "generic_span_names": len(generic),
         "ambiguous_span_names": len(ambiguous),
         "edges": sum(len(v) for v in graph.values()),
     }
@@ -216,38 +253,79 @@ def load_static_topology(path=DEFAULT_TOPOLOGY):
     return {k: list(v) for k, v in (data.get("edges") or {}).items()}
 
 
+def _hop_nhat_do_thi(*do_thi):
+    """Hop (union) cac do thi {caller: [callee]}. Khong ghi de, chi gop."""
+    gop = defaultdict(set)
+    for g in do_thi:
+        for caller, callees in (g or {}).items():
+            gop[caller].update(callees)
+    return {k: sorted(v) for k, v in gop.items()}
+
+
 def resolve_topology(prom_url=None, static_path=DEFAULT_TOPOLOGY, timeout=10):
     """Tra ve (graph, source, note). KHONG BAO GIO xuong cap am tham.
 
-    Thu tu: spanmetrics (dung nhat vi doc tu he dang chay) -> file tinh -> rong.
-    `source` luon di kem ket qua RCA de nguoi doc biet ket luan dua tren gi.
+    HOP NHAT spanmetrics voi file tinh, KHONG phai "cai nay thay cai kia". Truoc day
+    spanmetrics thay the file tinh moi khi no tra > 0 canh, nen tren cum file tinh khong
+    bao gio duoc dung — va suy luan thi RECALL THAP: do 30/07 chi suy duoc 13/28 canh sync
+    (46%) va 0/4 canh async.
+
+    Vi sao thieu canh cung sai chu khong chi "kem chinh xac", do that 31/07: giet `quote`,
+    canh THAT `frontend-proxy -> frontend` bi thieu (span CLIENT cua frontend-proxy ten
+    `router frontend egress`, khong khop SERVER span_name nao). Chi voi do thi suy ra,
+    khong service do nao phu thuoc vao `shipping` nen `shipping` duoc 0 diem. Hop nhat voi
+    file tinh — noi co `frontend -> shipping`, `checkout -> shipping`, `shipping -> quote` —
+    thi `shipping` giai thich duoc 4/4 va len dung vi tri goc.
+
+    Danh doi da biet, ghi ra chu khong giau: file tinh co the LOI THOI (vi du
+    `checkout -> payment` da chuyen sang Kafka 25/07, nen no nam o `async_edges` chu khong
+    o `edges`). Hop nhat co the keo lai mot canh cu ma suy luan da dung khi bo qua. Doi lai
+    la khong mat canh that. Voi RCA, thieu canh va thua canh deu dan toi ket luan sai, nen
+    `note` phai noi ro bao nhieu canh den tu dau de nguoi doc tu kiem duoc.
     """
+    suy = {}
+    stats = None
     if prom_url:
         try:
-            graph, stats = graph_from_spanmetrics(prom_url, timeout)
-            if stats["edges"] > 0:
-                note = (
-                    f"{stats['edges']} canh suy tu spanmetrics "
-                    f"({stats['client_series']} chuoi CLIENT, {stats['server_series']} chuoi SERVER"
-                )
-                if stats["ambiguous_span_names"]:
-                    note += f", bo {stats['ambiguous_span_names']} span_name mo ho"
-                return graph, "spanmetrics", note + ")"
-            fallback_note = "spanmetrics tra 0 canh"
+            suy, stats = graph_from_spanmetrics(prom_url, timeout)
+            ghi_chu_suy = (
+                f"{stats['edges']} canh suy tu spanmetrics "
+                f"({stats['client_series']} chuoi CLIENT, {stats['server_series']} chuoi SERVER"
+            )
+            if stats["generic_span_names"]:
+                ghi_chu_suy += f", bo {stats['generic_span_names']} span_name tran"
+            if stats["ambiguous_span_names"]:
+                ghi_chu_suy += f", bo {stats['ambiguous_span_names']} span_name mo ho"
+            ghi_chu_suy += ")"
+            if stats["edges"] == 0:
+                ghi_chu_suy = "spanmetrics tra 0 canh"
         except Exception as exc:  # noqa: BLE001
-            fallback_note = f"khong query duoc Prometheus ({exc})"
+            suy, ghi_chu_suy = {}, f"khong query duoc Prometheus ({exc})"
     else:
-        fallback_note = "khong dua --prom-url"
+        ghi_chu_suy = "khong dua --prom-url"
 
-    graph = load_static_topology(static_path)
-    if graph:
-        edges = sum(len(v) for v in graph.values())
-        return graph, "static-fallback", (
-            f"{fallback_note} -> dung {os.path.basename(static_path)} ({edges} canh). "
+    tinh = load_static_topology(static_path)
+    ten_file = os.path.basename(static_path)
+
+    if suy and tinh:
+        gop = _hop_nhat_do_thi(suy, tinh)
+        n_gop = sum(len(v) for v in gop.values())
+        n_suy = sum(len(v) for v in suy.values())
+        n_tinh = sum(len(v) for v in tinh.values())
+        return gop, "spanmetrics+static", (
+            f"{n_gop} canh = hop nhat cua {n_suy} canh spanmetrics va {n_tinh} canh "
+            f"{ten_file}. {ghi_chu_suy}. CANH BAO: phan tu file tinh co the da loi thoi."
+        )
+    if suy:
+        return suy, "spanmetrics", f"{ghi_chu_suy}, khong co {ten_file} de hop nhat"
+    if tinh:
+        edges = sum(len(v) for v in tinh.values())
+        return tinh, "static-fallback", (
+            f"{ghi_chu_suy} -> dung {ten_file} ({edges} canh). "
             "CANH BAO: file tinh co the da loi thoi so voi kien truc that."
         )
     return {}, "none", (
-        f"{fallback_note}, va khong co file topology -> KHONG loai duoc tuong quan. "
+        f"{ghi_chu_suy}, va khong co file topology -> KHONG loai duoc tuong quan. "
         "Xep hang duoi day CHI dua tren thu tu thoi gian."
     )
 

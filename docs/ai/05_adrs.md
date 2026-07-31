@@ -1475,6 +1475,58 @@ giải thích nói thẳng rằng kết luận yếu hơn bình thường.
 - Bộ đo hoàn toàn offline (19 test, `aiops/test_diagnose.py`), mỗi fixture có gốc thật biết
   trước, và **có kiểm chiều fail**: phá 8 cơ chế thì cả 8 đều có test đỏ.
 
+### Addendum 2026-07-31 — nợ ở mục Consequences đã đến hạn: suy luận `span_name` chỉ SAI gốc trên cụm
+
+Verify được trên cụm lần đầu (giết `quote` bằng `blast_radius_probe.py`, cửa sổ 38 alert / 32
+phút). **RCA chỉ sai gốc**, và sai theo đúng kiểu mandate cấm:
+
+| Đồ thị | Root suspect | Sự thật |
+|---|---|---|
+| spanmetrics (đang mặc định) | `frontend-proxy` conf **0.8** | tôi giết `quote` |
+| `topology.json` tĩnh | `shipping` conf 0.444 | đúng nhất có thể |
+
+`frontend-proxy` là **rìa ngoài cùng** — chính là "triệu chứng downstream" mà mandate cấm dừng
+lại ở đó. Và RCA tự khai nó đã **đè lên** thứ tự thời gian đúng để chọn: *"KHÔNG kêu đầu tiên
+(hạng 2/5) — được chọn nhờ hướng phụ thuộc"*.
+
+**Nguyên nhân 1 — bộ lọc mơ hồ phụ thuộc lưu lượng.** Bộ lọc cũ chỉ bỏ `span_name` ứng với >1
+service SERVER. `GET`/`POST` có lúc chỉ ứng với `frontend-proxy` (một service → lọt lưới), lúc
+khác ứng với cả `frontend` (bị bỏ). *Cùng một cái tên, hai kết quả khác nhau tuỳ giờ.* Lúc lọt
+lưới: 6 service phát span CLIENT tên trơ (gọi ElastiCache/RDS/Bedrock — đích không được trace)
+đều bị nối một cạnh giả về `frontend-proxy` → **5 cạnh sai / 16**, tất cả đổ về một nút.
+
+Sửa: thêm bộ lọc **đặc thù** `_ten_span_cu_the()` — chỉ nhận tên có `/` hoặc `.`. Đo trên cụm,
+36 tên SERVER thì đúng 2 tên bị loại (`GET`, `POST`); 8 tên CLIENT bị loại và cả 8 đều là đích
+ngoài cluster (`redis`, `postgresql`, `ecommerce_db`, `resolve`, `router * egress`). Bộ lọc này
+không phụ thuộc lưu lượng nên không có ca lọt lưới theo giờ.
+
+**Nguyên nhân 2 — đảo lại quyết định "spanmetrics thay thế file tĩnh".** Suy luận có recall
+thấp (đo 30/07: 13/28 cạnh sync, 0/4 async), mà `resolve_topology` lại ưu tiên nó **mỗi khi
+edges > 0** — nên trên cụm `topology.json` không bao giờ được dùng. Cạnh thật
+`frontend-proxy → frontend` bị thiếu (span CLIENT của nó tên `router frontend egress`, không
+khớp SERVER span_name nào), nên không service đỏ nào phụ thuộc vào `shipping` → `shipping` được
+0 điểm.
+
+Sửa: **hợp nhất** thay vì thay thế, nguồn mới `spanmetrics+static`. Chỉ lọc thôi thì ra
+`checkout` — đỡ sai hơn nhưng vẫn chưa đúng; phải có hợp nhất mới ra `shipping`.
+
+Sau khi sửa, chạy lại đúng cửa sổ đó: **`ROOT SUSPECT: shipping`**, `frontend-proxy` xếp cuối,
+nguồn ghi rõ *"28 cạnh = hợp nhất của 10 cạnh spanmetrics và 28 cạnh topology.json, bỏ 8
+span_name trơ"*. Đáng chú ý: 10 cạnh suy được giờ **nằm trọn** trong file tĩnh — tức sau khi
+lọc, suy luận không còn mâu thuẫn với đồ thị đã kiểm tay, nhưng cũng chưa bổ sung được cạnh nào.
+
+**Đánh đổi đã biết, ghi ra chứ không giấu:** hợp nhất có thể kéo lại một cạnh **lỗi thời** của
+file tĩnh mà suy luận đã đúng khi bỏ qua (`checkout → payment` chuyển sang Kafka 25/07 là ví dụ
+sống). Đổi lại là không mất cạnh thật. Với RCA thì thiếu cạnh và thừa cạnh đều dẫn tới kết luận
+sai, nên `topology_note` phải nói rõ bao nhiêu cạnh đến từ đâu để người đọc tự kiểm.
+
+Kiểm chiều fail: phá 4 cơ chế (bỏ bộ lọc · bộ lọc quá tay · bỏ hợp nhất ở `resolve_topology` ·
+phá chính `_hop_nhat_do_thi`) thì cả 4 đều có test đỏ; khôi phục → 23 xanh.
+
+**Bài học riêng:** trước hôm nay `graph_from_spanmetrics` và `resolve_topology` **không có một
+test nào** — 19 test cũ đều nhận đồ thị dựng sẵn. Phần được test thì đúng; phần dựng ra cái
+đồ thị đó thì chưa ai đụng, và đó chính là chỗ hỏng.
+
 ---
 
 # ADR-019: Đóng băng baseline khi đang có sự cố — sự cố kéo dài không được thành "bình thường mới" (MANDATE-28)
