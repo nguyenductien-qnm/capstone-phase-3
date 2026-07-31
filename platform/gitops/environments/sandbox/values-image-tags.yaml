@@ -8,6 +8,25 @@
 # app-attest + app-promote tạm ngưng, KHÔNG còn PR promote nào ghi vào đây nữa.
 # Ghi chú "chi doi qua promote PR" ở khối cart bên dưới là trạng thái CŨ, giữ lại
 # để truy vết. Dựng lại môi trường thứ hai thì khôi phục đường promote trước.
+#
+# SỬA TAY 1 LẦN (31/07/2026) — 6 tag của commit bd2681d4 bị dư đúng một ký tự.
+# CI ghi "…-bd2681d4" (8 ký tự) trong khi ảnh trên ECR là "…-bd2681d" (7 ký tự),
+# nên Kyverno verify-image-signature không kéo được chữ ký và CHẶN Pod ngay tại
+# admission. Pod không được tạo -> không có ImagePullBackOff để nhìn thấy, pod cũ
+# vẫn chạy tiếp, cụm trông xanh trong khi 6 Deployment kẹt "exceeded its progress
+# deadline". Triệu chứng câm này là lý do lỗi nằm im vài ngày.
+#
+# Nguyên nhân gốc nằm ở app-build.yaml chứ không ở file này: job build/merge dùng
+# checkout mặc định (fetch-depth 1) còn job bump dùng fetch-depth 0, mà
+# `git rev-parse --short` chọn độ dài theo SỐ LƯỢNG object trong repo
+# (core.abbrev=auto) chứ không theo va chạm prefix. Repo nông 1.974 object -> 7 ký
+# tự; repo đầy 20.072 object -> 8 ký tự. Cùng một commit, hai job, hai chuỗi khác
+# nhau. Đã kiểm: prefix bd2681d chỉ ứng với ĐÚNG 1 object, không hề đụng độ.
+#
+# PR này CHỈ cầm máu: 6 ảnh đã có sẵn trên ECR, đủ amd64+arm64, đã ký cosign, nên
+# chỉ cần bỏ ký tự thừa là ArgoCD sync được ngay, KHÔNG phải build lại gì. Vá gốc
+# (ghi cứng ${GITHUB_SHA:0:7} ở 6 chỗ + gate kiểm tag tồn tại trên ECR trước khi
+# commit GitOps) tách sang PR riêng để lần bump kế tiếp không ghi đè lại lỗi này.
 components:
   cart:
     imageOverride:
@@ -32,13 +51,13 @@ components:
       tag: 1.0-ad-5b99f29
   currency:
     imageOverride:
-      tag: 1.0-currency-bd2681d4
+      tag: 1.0-currency-bd2681d
   accounting:
     imageOverride:
       tag: 1.0-accounting-5b99f29
   product-reviews:
     imageOverride:
-      tag: 1.0-product-reviews-bd2681d4
+      tag: 1.0-product-reviews-bd2681d
   llm:
     imageOverride:
       tag: 1.0-llm-5b99f29
@@ -50,22 +69,22 @@ components:
       tag: 1.0-quote-5b99f29
   recommendation:
     imageOverride:
-      tag: 1.0-recommendation-bd2681d4
+      tag: 1.0-recommendation-bd2681d
   shipping:
     imageOverride:
       tag: 1.0-shipping-5b99f29
   shopping-copilot:
     imageOverride:
-      tag: 1.0-shopping-copilot-bd2681d4
+      tag: 1.0-shopping-copilot-bd2681d
   ml-guard:
     imageOverride:
-      tag: 1.0-ml-guard-bd2681d4
+      tag: 1.0-ml-guard-bd2681d
   fraud-detection:
     imageOverride:
       tag: 1.0-fraud-detection-9ef67dd
   frontend:
     imageOverride:
-      tag: 1.0-frontend-bd2681d4
+      tag: 1.0-frontend-bd2681d
   image-provider:
     imageOverride:
       tag: 1.0-image-provider-5b99f29
