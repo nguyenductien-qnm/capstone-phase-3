@@ -166,13 +166,13 @@ networkPolicy:
     stores:
       - name: elasticache      # Redis/Valkey (VALKEY_ADDR, TLS)
         ports: [6379]
-        consumers: [cart, cart-consumer-worker, product-reviews]
+        consumers: [cart, cart-consumer-worker, product-reviews, shopping-copilot]
       - name: msk              # Kafka (KAFKA_ADDR; 9092 plaintext / 9094 TLS / 9096 SASL)
         ports: [9092, 9094, 9096]
         consumers: [accounting, cart, cart-consumer-worker, checkout, email, fraud-detection, payment, shipping]
       - name: rds              # Postgres (DB_CONNECTION_STRING)
         ports: [5432]
-        consumers: [accounting, checkout, product-catalog, product-reviews, recommendation]
+        consumers: [accounting, checkout, product-catalog, product-reviews, recommendation, shopping-copilot]
   # per-service INGRESS: mỗi đích chỉ nhận từ đúng caller (đồ thị phụ thuộc đã xác minh từ *_ADDR).
   # flagd xử lý riêng ở trên; DB/queue (valkey-cart, kafka) và service lá cũng liệt kê.
   serviceIngress:
