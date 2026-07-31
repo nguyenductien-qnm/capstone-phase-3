@@ -119,6 +119,14 @@
             "type": "string"
           }
         },
+        "tailscaleIngress": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "namespace": { "type": "string" },
+            "targets": { "type": "array", "items": { "type": "string" } }
+          }
+        },
         "observability": {
           "type": "object",
           "additionalProperties": false,
