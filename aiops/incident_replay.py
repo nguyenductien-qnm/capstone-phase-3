@@ -401,8 +401,14 @@ def _print_report(scenario, score, remediation_records=None, rca=None):
         print("-" * 70)
         print(f"  remediation audit records in window: {len(remediation_records)}")
         for r in remediation_records:
-            print(f"    outcome={r.get('outcome')} verify={r.get('verify')} "
-                  f"rollback_or_escalate={r.get('rollback_or_escalate')}")
+            line = (
+                f"    remediation_id={r.get('remediation_id', 'legacy')} "
+                f"stage={r.get('stage')} decision={r.get('decision')} "
+                f"service={r.get('service')} pod={r.get('pod')}"
+            )
+            if r.get("stage") == "rollback":
+                line += f" rollback_performed={r.get('rollback_performed')}"
+            print(line)
     print("=" * 70 + "\n")
     if rca is not None:
         print(diagnose.format_report(rca))

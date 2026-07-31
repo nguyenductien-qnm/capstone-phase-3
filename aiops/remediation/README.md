@@ -27,12 +27,13 @@ restart_pod() ── xoa pod, ReplicaSet tu tao lai
    ▼
 verify_oom_recovery() ── poll 120s/lần 20s, pass = Ready ổn định + không OOM mới
    │
-   ├─ PASS ──► reset circuit breaker, alert info
+   ├─ PASS ──► audit rollback=not_required, reset circuit breaker, alert info
    └─ FAIL ──► tăng circuit breaker (KHÔNG "rollback" giả — action restart-pod
-               không đổi config gì để mà hoàn tác); mở CB sau 3 lần liên tiếp
+               không đổi config gì để mà hoàn tác), audit rollback=not_available,
+               escalate; mở CB sau 3 lần liên tiếp
 ```
 
-**Ràng buộc sinh tử (RULES.md §8):** không module nào ở đây được đọc/gọi flagd, kể cả "phòng thủ" — có test tường minh (`test_no_flagd_or_helm_reference_anywhere_in_remediation_module`) canh việc này.
+**Ràng buộc sinh tử (RULES.md §8):** không module nào ở đây được đọc/gọi flagd, kể cả "phòng thủ" — có test tường minh (`test_remediation_excludes_flagd_and_helm`) canh việc này.
 
 ## Chạy (local/dev)
 
@@ -51,9 +52,28 @@ python remediation.py                     # chạy liên tục theo poll_interva
 ## Test
 
 ```sh
-pytest -q   # 14 test: blast-radius, circuit-breaker (đơn vị), process_oom_policy
-            # (tích hợp, mock K8s/Prometheus/OpenSearch), guard test flagd/helm
+pytest -q   # blast-radius, circuit-breaker, remediation flow, structured audit,
+            # report generator và guard test flagd/helm
 ```
+
+## Structured audit và postmortem (TF1-103)
+
+Mỗi remediation attempt có một `remediation_id` xuyên suốt các stage
+`detect → safety gates → action → verify → rollback/escalate`. Mỗi dòng JSONL có
+`schema_version`, `event_id`, Unix/UTC timestamp và detail của quyết định:
+
+```sh
+export REMEDIATION_AUDIT_FILE=/tmp/audit_log.jsonl
+python remediation.py --once --dry-run
+
+python audit_report.py \
+  --input /tmp/audit_log.jsonl \
+  --output /tmp/remediation-audit-report.md
+```
+
+Runtime deployment ghi tại `/data/audit_log.jsonl`. Volume hiện là `emptyDir`, nên
+đây là structured local audit store nhưng chưa durable qua pod replacement. Schema,
+cách capture evidence và postmortem: [`../../report/tf1-103-structured-audit/`](../../report/tf1-103-structured-audit/).
 
 ## Deploy in-cluster
 

@@ -223,7 +223,7 @@ def test_circuit_breaker_already_open_skips_and_escalates():
 
 
 @patch("remediation.verify_oom_recovery")
-def test_live_action_restarts_and_records_success_on_verify_pass(mock_verify):
+def test_verify_pass_audit(mock_verify, audit_file):
     mock_verify.return_value = True
     prom, osc, core_v1, alerter = _mocks()
     blast_guard = BlastRadiusGuard(1, 3600)
@@ -235,10 +235,18 @@ def test_live_action_restarts_and_records_success_on_verify_pass(mock_verify):
     assert breaker.is_open("oom-detected:email") is False
     sent_titles = [call.args[2] for call in alerter.send.call_args_list]
     assert any("remediation-verified" in t for t in sent_titles)
+    records = _read_audit(audit_file)
+    verified = [r for r in records if r["stage"] == audit.STAGE_VERIFY]
+    rollback = [r for r in records if r["stage"] == audit.STAGE_ROLLBACK]
+    assert len(verified) == 1
+    assert verified[0]["decision"] == "pass"
+    assert len(rollback) == 1
+    assert rollback[0]["decision"] == "not_required"
+    assert rollback[0]["rollback_performed"] is False
 
 
 @patch("remediation.verify_oom_recovery")
-def test_live_action_verify_fail_records_failure_no_rollback_action(mock_verify):
+def test_verify_failure_has_no_fake_rollback(mock_verify):
     """Verify fail -> chi tang circuit breaker + escalate, KHONG co lenh K8s/flagd/helm
     nao khac duoc goi ngoai restart_pod ban dau (rollback = dung lai, khong phai hanh
     dong hoan tac gia)."""
@@ -258,7 +266,7 @@ def test_live_action_verify_fail_records_failure_no_rollback_action(mock_verify)
     assert called_methods <= {"list_namespaced_pod", "delete_namespaced_pod"}
 
 
-def test_no_flagd_or_helm_reference_anywhere_in_remediation_module():
+def test_remediation_excludes_flagd_and_helm():
     """Guard test tuong minh (bai hoc RULES.md Sec8): khong CODE nao (loai tru comment
     giai thich ly do tranh) trong aiops/remediation/ duoc phep doc/goi flagd hay helm
     rollback."""
@@ -287,6 +295,7 @@ def test_no_flagd_or_helm_reference_anywhere_in_remediation_module():
 import json as _json
 
 import audit
+import audit_report
 
 
 @pytest.fixture(autouse=True)
@@ -308,7 +317,7 @@ def _read_audit(path):
     return [_json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
-def test_audit_log_ghi_tung_cong_chu_khong_chi_ket_qua_cuoi(audit_file):
+def test_audit_records_all_gates(audit_file):
     """Khi vong tu dap KHONG hanh dong, cau hoi luon la "no bi chan o cong nao".
     Chi ghi ket qua cuoi thi khong tra loi duoc."""
     prom, osc, core_v1, alerter = _mocks()
@@ -316,7 +325,8 @@ def test_audit_log_ghi_tung_cong_chu_khong_chi_ket_qua_cuoi(audit_file):
         POLICY, RULE, CFG, prom, osc, core_v1, alerter,
         BlastRadiusGuard(1, 3600), CircuitBreaker(3, 86400), dry_run=True,
     )
-    stages = [r["stage"] for r in _read_audit(audit_file)]
+    records = _read_audit(audit_file)
+    stages = [r["stage"] for r in records]
     # Di het cac cong truoc do roi dung o dry-run.
     assert stages == [
         audit.STAGE_DETECT,
@@ -325,9 +335,14 @@ def test_audit_log_ghi_tung_cong_chu_khong_chi_ket_qua_cuoi(audit_file):
         audit.STAGE_BLAST_RADIUS,
         audit.STAGE_DRY_RUN,
     ], stages
+    # TF1-103: moi quyet dinh phai noi duoc ve CUNG mot lan remediation.
+    assert len({r["remediation_id"] for r in records}) == 1
+    assert len({r["event_id"] for r in records}) == len(records)
+    assert all(r["schema_version"] == audit.SCHEMA_VERSION for r in records)
+    assert all(r["ts_utc"].endswith("+00:00") for r in records)
 
 
-def test_audit_log_ghi_ro_cong_nao_da_chan(audit_file):
+def test_audit_records_blocking_gate(audit_file):
     """Blast radius het han muc -> phai truy duoc chinh xac cong do tu choi."""
     prom, osc, core_v1, alerter = _mocks()
     guard = BlastRadiusGuard(1, 3600)
@@ -347,7 +362,7 @@ def test_audit_log_ghi_ro_cong_nao_da_chan(audit_file):
 
 
 @patch("remediation.verify_oom_recovery", return_value=False)
-def test_audit_log_ghi_hanh_dong_that_va_verify_fail(_mock_verify, audit_file):
+def test_verify_failure_audit(_mock_verify, audit_file):
     prom, osc, core_v1, alerter = _mocks()
     remediation.process_oom_policy(
         POLICY, RULE, CFG, prom, osc, core_v1, alerter,
@@ -366,9 +381,21 @@ def test_audit_log_ghi_hanh_dong_that_va_verify_fail(_mock_verify, audit_file):
     assert verified[0]["decision"] == "fail"
     assert "elapsed_seconds" in verified[0]
 
+    rollback = [r for r in records if r["stage"] == audit.STAGE_ROLLBACK]
+    assert len(rollback) == 1
+    assert rollback[0]["decision"] == "not_available"
+    assert rollback[0]["rollback_performed"] is False
+
+    escalated = [r for r in records if r["stage"] == audit.STAGE_ESCALATE]
+    assert len(escalated) == 1
+    assert escalated[0]["decision"] == "buffered"
+
+    # Trigger -> action -> verify -> rollback/escalate phai la MOT chuoi truy duoc.
+    assert len({r["remediation_id"] for r in records}) == 1
+
 
 @patch("remediation.verify_oom_recovery", return_value=False)
-def test_audit_log_ghi_lai_luc_circuit_breaker_vua_mo(_mock_verify, audit_file):
+def test_audit_records_open_breaker(_mock_verify, audit_file):
     """Vet quan trong nhat cua ca "rollback": breaker mo -> tu choi tu dong tu do."""
     prom, osc, core_v1, alerter = _mocks()
     breaker = CircuitBreaker(1, 86400)  # mo ngay sau 1 fail cho gon test
@@ -382,7 +409,7 @@ def test_audit_log_ghi_lai_luc_circuit_breaker_vua_mo(_mock_verify, audit_file):
     assert opened[0]["reset_timeout_seconds"] == 86400
 
 
-def test_audit_ghi_hong_khong_lam_chet_vong_lap(monkeypatch, capsys):
+def test_audit_failure_keeps_loop_running(monkeypatch, capsys):
     """Audit la thu yeu so voi viec dap su co. Dia day / mount read-only thi log
     warning roi di tiep, KHONG duoc nem exception lam sap tien trinh remediation."""
     monkeypatch.setenv("REMEDIATION_AUDIT_FILE", "/khong/ton/tai/audit.jsonl")
@@ -397,7 +424,7 @@ def test_audit_ghi_hong_khong_lam_chet_vong_lap(monkeypatch, capsys):
     alerter.send.assert_called()  # van chay het duong di binh thuong
 
 
-def test_audit_log_dung_dung_duong_dan_ma_incident_replay_mong_doi(monkeypatch):
+def test_audit_path_matches_replay(monkeypatch):
     """incident_replay.py da tro san vao aiops/remediation/audit_log.jsonl tu truoc.
     Neu doi ten mac dinh o day thi ca duong cham diem remediation cua harness chet im."""
     import pathlib
@@ -406,7 +433,106 @@ def test_audit_log_dung_dung_duong_dan_ma_incident_replay_mong_doi(monkeypatch):
     assert pathlib.Path(audit.audit_path()) == expected
 
 
-def test_moi_module_python_deu_duoc_copy_vao_image():
+def test_report_shows_no_rollback():
+    records = [
+        {
+            "schema_version": 1, "event_id": "evt-1", "remediation_id": "rem-1",
+            "ts": 1.0, "ts_utc": "2026-07-31T00:00:01+00:00",
+            "stage": "detect", "decision": "detected", "rule_id": "oom-detected",
+            "service": "email", "pod": "email-1", "dry_run": False,
+        },
+        {
+            "schema_version": 1, "event_id": "evt-2", "remediation_id": "rem-1",
+            "ts": 2.0, "ts_utc": "2026-07-31T00:00:02+00:00",
+            "stage": "action", "decision": "acted", "rule_id": "oom-detected",
+            "service": "email", "pod": "email-1", "dry_run": False,
+            "action": "k8s_restart_pod",
+        },
+        {
+            "schema_version": 1, "event_id": "evt-3", "remediation_id": "rem-1",
+            "ts": 3.0, "ts_utc": "2026-07-31T00:00:03+00:00",
+            "stage": "verify", "decision": "fail", "rule_id": "oom-detected",
+            "service": "email", "pod": "email-1", "dry_run": False,
+        },
+        {
+            "schema_version": 1, "event_id": "evt-4", "remediation_id": "rem-1",
+            "ts": 4.0, "ts_utc": "2026-07-31T00:00:04+00:00",
+            "stage": "rollback", "decision": "not_available", "rule_id": "oom-detected",
+            "service": "email", "pod": "email-1", "dry_run": False,
+            "rollback_performed": False,
+        },
+        {
+            "schema_version": 1, "event_id": "evt-5", "remediation_id": "rem-1",
+            "ts": 5.0, "ts_utc": "2026-07-31T00:00:05+00:00",
+            "stage": "escalate", "decision": "buffered", "rule_id": "oom-detected",
+            "service": "email", "pod": "email-1", "dry_run": False,
+        },
+    ]
+    report = audit_report.render_markdown(
+        records,
+        source="test.jsonl",
+        generated_at="2026-07-31T00:01:00+00:00",
+    )
+    assert "verify failed; escalation buffered" in report
+    assert "not performed (not_available)" in report
+    assert "Attempt `rem-1`" in report
+    assert "| `rollback` | `not_available` |" in report
+
+
+def test_report_reads_legacy_audit():
+    legacy = [
+        {
+            "ts": 1.0, "stage": "detect", "decision": "detected",
+            "rule_id": "oom-detected", "service": "email", "pod": "email-1",
+        },
+        {
+            "ts": 2.0, "stage": "dry_run", "decision": "skipped",
+            "rule_id": "oom-detected", "service": "email", "pod": "email-1",
+        },
+    ]
+    groups = audit_report.group_attempts(legacy)
+    assert list(groups) == ["legacy-1"]
+    assert audit_report.attempt_outcome(groups["legacy-1"]) == "dry-run only"
+
+
+def test_missing_correlation_id_stays_visible(audit_file):
+    record = audit.record(
+        audit.STAGE_DETECT, "detected", "oom-detected", "email", "email-1", False,
+    )
+
+    assert record["remediation_id"] is None
+    groups = audit_report.group_attempts(_read_audit(audit_file))
+    assert list(groups) == ["missing-remediation-id-1"]
+
+
+def test_audit_marks_cooldown_suppression(audit_file):
+    prom, osc, core_v1, alerter = _mocks()
+    alerter.send.return_value = False
+    guard = BlastRadiusGuard(1, 3600)
+    guard.record("techx-tf1")
+
+    remediation.process_oom_policy(
+        POLICY, RULE, CFG, prom, osc, core_v1, alerter,
+        guard, CircuitBreaker(3, 86400), dry_run=False,
+    )
+
+    escalated = [
+        record for record in _read_audit(audit_file)
+        if record["stage"] == audit.STAGE_ESCALATE
+    ]
+    assert len(escalated) == 1
+    assert escalated[0]["decision"] == "suppressed_by_cooldown"
+
+
+def test_report_rejects_invalid_jsonl(tmp_path):
+    source = tmp_path / "broken.jsonl"
+    source.write_text('{"stage":"detect"}\nnot-json\n', encoding="utf-8")
+
+    with pytest.raises(ValueError, match=r"broken\.jsonl:2: invalid JSONL"):
+        audit_report.load_jsonl(source)
+
+
+def test_dockerfile_copies_all_modules():
     """Dockerfile liet ke TUNG FILE thay vi COPY ca thu muc.
 
     Loi that 28/07 (TF1-112): them audit.py vao remediation/ nhung quen them vao

@@ -123,7 +123,9 @@ def process_oom_policy(policy, rule, cfg, prom, osc, core_v1, alerter, blast_gua
     for oom in oom_pods:
         pod_name = oom["pod_name"]
         service_label = oom["service_label"]
+        remediation_id = audit.new_remediation_id()
         audit.record(audit.STAGE_DETECT, "detected", rule["id"], service_label, pod_name, dry_run,
+                     remediation_id=remediation_id,
                      trigger_type=trigger_type, log_count=log_count,
                      terminated_at=oom.get("terminated_at"))
         scope_key = namespace if sb["blast_radius"]["scope"] == "namespace" else f"{namespace}:{service_label}"
@@ -140,51 +142,72 @@ def process_oom_policy(policy, rule, cfg, prom, osc, core_v1, alerter, blast_gua
         if breaker.is_open(dedup_key):
             log.warning("circuit breaker DANG MO cho %s - tu choi hanh dong, chi escalate", dedup_key)
             audit.record(audit.STAGE_CIRCUIT_BREAKER, "deny", rule["id"], service_label, pod_name, dry_run,
+                         remediation_id=remediation_id,
                          dedup_key=dedup_key,
                          max_consecutive_failures=breaker.max_consecutive_failures,
                          reason="breaker dang mo")
-            alerter.send(
+            buffered = alerter.send(
                 f"remediation-cb-open:{dedup_key}", "critical", f"remediation-circuit-breaker-open:{rule['id']}",
                 f"Circuit breaker đang MỞ cho {service_label} (namespace={namespace}) — đã fail liên tiếp quá "
                 f"{breaker.max_consecutive_failures} lần, từ chối tự động remediate. CẦN người can thiệp thủ công.",
             )
+            audit.record(audit.STAGE_ESCALATE,
+                         "buffered" if buffered else "suppressed_by_cooldown",
+                         rule["id"], service_label, pod_name, dry_run,
+                         remediation_id=remediation_id,
+                         severity="critical", reason="circuit breaker dang mo")
             continue
 
         audit.record(audit.STAGE_CIRCUIT_BREAKER, "allow", rule["id"], service_label, pod_name, dry_run,
+                     remediation_id=remediation_id,
                      dedup_key=dedup_key)
 
         # 2. Error-budget guard (spec Sec4.2)
         if not check_error_budget_ok(prom, sb["error_budget_check"]):
             log.warning("error budget can/khong an toan - Halt Automation & Page Human")
             audit.record(audit.STAGE_ERROR_BUDGET, "deny", rule["id"], service_label, pod_name, dry_run,
+                         remediation_id=remediation_id,
                          max_ratio=sb["error_budget_check"].get("max_ratio"),
                          reason="error budget can hoac khong doc duoc")
-            alerter.send(
+            buffered = alerter.send(
                 f"remediation-budget-halt:{dedup_key}", "critical", f"remediation-halt-error-budget:{rule['id']}",
                 f"Error budget đã cạn — TẠM DỪNG auto-remediation cho {service_label}, cần người xử lý thủ công.",
             )
+            audit.record(audit.STAGE_ESCALATE,
+                         "buffered" if buffered else "suppressed_by_cooldown",
+                         rule["id"], service_label, pod_name, dry_run,
+                         remediation_id=remediation_id,
+                         severity="critical", reason="error budget can hoac khong doc duoc")
             continue
 
         audit.record(audit.STAGE_ERROR_BUDGET, "allow", rule["id"], service_label, pod_name, dry_run,
+                     remediation_id=remediation_id,
                      max_ratio=sb["error_budget_check"].get("max_ratio"))
 
         # 3. Blast-radius guard (spec Sec4.3)
         if not blast_guard.allow(scope_key):
             log.warning("blast-radius vuot gioi han cho scope=%s - tu choi + escalate", scope_key)
             audit.record(audit.STAGE_BLAST_RADIUS, "deny", rule["id"], service_label, pod_name, dry_run,
+                         remediation_id=remediation_id,
                          scope_key=scope_key,
                          max_actions=sb["blast_radius"]["max_actions"],
                          time_window_seconds=sb["blast_radius"]["time_window_seconds"],
                          reason="da het han muc trong cua so")
-            alerter.send(
+            buffered = alerter.send(
                 f"remediation-blast-radius:{dedup_key}", "critical", f"remediation-blast-radius-exceeded:{rule['id']}",
                 f"Đã vượt giới hạn blast-radius ({sb['blast_radius']['max_actions']} action / "
                 f"{sb['blast_radius']['time_window_seconds']}s / {sb['blast_radius']['scope']}) cho {scope_key} — "
                 f"từ chối restart thêm, cần người kiểm tra.",
             )
+            audit.record(audit.STAGE_ESCALATE,
+                         "buffered" if buffered else "suppressed_by_cooldown",
+                         rule["id"], service_label, pod_name, dry_run,
+                         remediation_id=remediation_id,
+                         severity="critical", reason="blast radius vuot gioi han")
             continue
 
         audit.record(audit.STAGE_BLAST_RADIUS, "allow", rule["id"], service_label, pod_name, dry_run,
+                     remediation_id=remediation_id,
                      scope_key=scope_key,
                      max_actions=sb["blast_radius"]["max_actions"],
                      time_window_seconds=sb["blast_radius"]["time_window_seconds"])
@@ -194,6 +217,7 @@ def process_oom_policy(policy, rule, cfg, prom, osc, core_v1, alerter, blast_gua
             log.info("[DRY-RUN] se restart pod %s/%s (service=%s) - khong goi K8s API that",
                       namespace, pod_name, service_label)
             audit.record(audit.STAGE_DRY_RUN, "skipped", rule["id"], service_label, pod_name, dry_run,
+                         remediation_id=remediation_id,
                          would_action="k8s_restart_pod",
                          reason="REMEDIATION_DRY_RUN chua duoc set false")
             alerter.send(
@@ -212,9 +236,15 @@ def process_oom_policy(policy, rule, cfg, prom, osc, core_v1, alerter, blast_gua
         except Exception as exc:  # noqa: BLE001
             log.error("restart_pod that bai: %s", exc)
             audit.record(audit.STAGE_ACTION, "error", rule["id"], service_label, pod_name, dry_run,
+                         remediation_id=remediation_id,
                          action="k8s_restart_pod", error=str(exc))
+            audit.record(audit.STAGE_ROLLBACK, "not_required", rule["id"], service_label, pod_name, dry_run,
+                         remediation_id=remediation_id,
+                         rollback_performed=False,
+                         reason="action khong hoan tat nen khong co thay doi de rollback")
             continue
         audit.record(audit.STAGE_ACTION, "acted", rule["id"], service_label, pod_name, dry_run,
+                     remediation_id=remediation_id,
                      action="k8s_restart_pod",
                      grace_period_seconds=policy["action"]["grace_period_seconds"])
 
@@ -227,11 +257,16 @@ def process_oom_policy(policy, rule, cfg, prom, osc, core_v1, alerter, blast_gua
         )
 
         audit.record(audit.STAGE_VERIFY, "pass" if ok else "fail", rule["id"], service_label, pod_name, dry_run,
+                     remediation_id=remediation_id,
                      duration_seconds=verify_cfg["duration_seconds"],
                      poll_interval_seconds=verify_cfg["poll_interval_seconds"],
                      elapsed_seconds=round(time.time() - acted_at, 1))
 
         if ok:
+            audit.record(audit.STAGE_ROLLBACK, "not_required", rule["id"], service_label, pod_name, dry_run,
+                         remediation_id=remediation_id,
+                         rollback_performed=False,
+                         reason="verify pass; restart-pod da phuc hoi service")
             breaker.record_success(dedup_key)
             alerter.send(
                 f"remediation-success:{dedup_key}", "info", f"remediation-verified:{rule['id']}",
@@ -242,19 +277,30 @@ def process_oom_policy(policy, rule, cfg, prom, osc, core_v1, alerter, blast_gua
             # 7. "Rollback": action restart-pod khong doi config gi de ma rollback ve -
             # dung lai + tang circuit breaker + escalate (quyet dinh da chot voi user,
             # trung thuc voi nang luc that, khong bia hanh dong helm rollback gia).
+            audit.record(audit.STAGE_ROLLBACK, "not_available", rule["id"], service_label, pod_name, dry_run,
+                         remediation_id=remediation_id,
+                         rollback_performed=False,
+                         reason="restart-pod khong thay doi config/release nen khong co trang thai truoc de hoan tac")
             just_opened = breaker.record_failure(dedup_key)
             if just_opened:
                 audit.record(audit.STAGE_CIRCUIT_BREAKER, "opened", rule["id"], service_label, pod_name, dry_run,
+                             remediation_id=remediation_id,
                              dedup_key=dedup_key,
                              max_consecutive_failures=breaker.max_consecutive_failures,
                              reset_timeout_seconds=breaker.reset_timeout_seconds)
             severity = "critical" if just_opened else "warning"
             suffix = " — CIRCUIT BREAKER VỪA MỞ, dừng tự động remediate cho tới khi người xử lý." if just_opened else ""
-            alerter.send(
+            buffered = alerter.send(
                 f"remediation-verify-failed:{dedup_key}:{time.time()}", severity, f"remediation-verify-failed:{rule['id']}",
                 f"Restart pod {pod_name} (service={service_label}) KHÔNG khắc phục được — verify FAIL.{suffix}",
                 fields=evidence_fields,
             )
+            audit.record(audit.STAGE_ESCALATE,
+                         "buffered" if buffered else "suppressed_by_cooldown",
+                         rule["id"], service_label, pod_name, dry_run,
+                         remediation_id=remediation_id,
+                         severity=severity, circuit_breaker_opened=just_opened,
+                         reason="verify fail; can nguoi can thiep")
 
 
 def run_cycle(cfg, rules_cfg, prom, osc, core_v1, alerter, policy_state, dry_run):

@@ -19,9 +19,10 @@ COPY detector/sources.py detector/alerter.py ./
 # quen them vao day thi image thieu file -> pod CrashLoopBackOff voi
 # "ModuleNotFoundError" NGAY tren cum, va CI khong bat duoc vi test chay tren source
 # tree chu khong chay trong image. Da dinh dung loi nay 28/07 voi audit.py (TF1-112).
-# Co test chan: test_moi_module_python_deu_duoc_copy_vao_image.
+# Co test chan: test_dockerfile_copies_all_modules.
 COPY remediation/remediation.py remediation/k8s_actions.py remediation/verifier.py \
      remediation/blast_radius.py remediation/circuit_breaker.py remediation/audit.py \
+     remediation/audit_report.py \
      remediation/remediation_policy.yaml ./
 COPY detector/rules.yaml ./detector_rules.yaml
 
