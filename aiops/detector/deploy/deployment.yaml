@@ -15,6 +15,16 @@
 #   kubectl -n techx-tf1 create secret generic aiops-alert \
 #     --from-literal=webhook=<slack-or-discord-webhook-url>
 #
+# !!! DOC TRUOC KHI TAO SECRET DO (MANDATE-17 default-deny) !!!
+# Webhook di ra Internet 443. Duoi default-deny cua M17, chi pod gan nhan
+# `egress-internet: "true"` moi ra duoc ngoai (policy `allow-internet-egress-selected`).
+# Pod nay HIEN KHONG gan nhan do - co chu dich, vi khong co secret thi khong co goi ra
+# ngoai nao (provider=stdout), va nhan thua = mo 0.0.0.0/0:443 cho mot pod khong dung toi.
+# Nen: TAO SECRET va GAN NHAN phai di CUNG NHAU. Tao secret ma quen nhan thi
+# requests.post timeout 5s, bi `except Exception` trong alerter.py nuot, alerter tut ve
+# stdout - pod van 1/1 Running, khong alert nao toi Discord nua. Do la kieu hong IM LANG
+# ma chinh M17 dang di dep.
+#
 # LUU Y tag: PHAI co suffix -<git-sha> (khop convention app-build). Tag tran
 # kieu "1.2-aiops-detector" tung bi ECR lifecycle policy xoa -> ImagePullBackOff
 # (incident 2026-07-16).
