@@ -743,7 +743,7 @@ components:
       - name: PRODUCT_CATALOG_ADDR
         value: product-catalog:8080
       - name: SHIPPING_ADDR
-        value: shipping:8080
+        value: http://shipping:8080
       - name: KAFKA_ADDR
         valueFrom:
           secretKeyRef:
