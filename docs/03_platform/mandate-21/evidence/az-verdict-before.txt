@@ -1,0 +1,9 @@
+cart            OK    -  spread  
+checkout        FAIL  -  single  AZ
+currency        FAIL  -  single  AZ
+email           FAIL  -  single  AZ
+frontend        FAIL  -  single  AZ
+frontend-proxy  OK    -  spread  
+payment         OK    -  spread  
+quote           OK    -  spread  
+shipping        OK    -  spread  

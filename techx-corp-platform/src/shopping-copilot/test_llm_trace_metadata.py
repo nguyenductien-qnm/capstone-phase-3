@@ -1,4 +1,5 @@
 import os
+from unittest.mock import MagicMock
 
 os.environ["LLM_INJECTION_JUDGE"] = "false"
 os.environ["ML_GUARD_URL"] = ""
@@ -95,3 +96,39 @@ def test_ui_trace_step_contains_model_usage_cost_and_outcome(monkeypatch):
     assert detail["outcome"] == "ok"
     assert detail["timestamp_utc"]
     assert "[REDACTED" not in detail["timestamp_utc"]
+
+
+def test_gateway_metrics_cover_usage_latency_cost_and_outcome(monkeypatch):
+    import llm_trace
+    instruments = {name: MagicMock() for name in (
+        "requests", "latency", "input_tokens", "output_tokens", "cost"
+    )}
+    for name, instrument in instruments.items():
+        monkeypatch.setattr(llm_trace, f"gateway_{name}", instrument)
+
+    llm_trace.record_gateway_metrics(
+        "amazon.nova-pro-v1:0", "copilot", "ok",
+        {"inputTokens": 1000, "outputTokens": 500}, 0.125,
+    )
+
+    attrs = {"model_id": "amazon.nova-pro-v1:0", "task_type": "copilot", "status": "ok"}
+    instruments["requests"].add.assert_called_once_with(1, attrs)
+    instruments["latency"].record.assert_called_once_with(125.0, attrs)
+    instruments["input_tokens"].add.assert_called_once_with(1000, attrs)
+    instruments["output_tokens"].add.assert_called_once_with(500, attrs)
+    assert instruments["cost"].add.call_args.args[0] > 0
+
+def test_gateway_metrics_redact_arn_and_never_break_serving(monkeypatch):
+    import llm_trace
+    requests = MagicMock()
+    requests.add.side_effect = RuntimeError("exporter unavailable")
+    monkeypatch.setattr(llm_trace, "gateway_requests", requests)
+
+    llm_trace.record_gateway_metrics(
+        "arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/public-name",
+        "copilot", "ok", {}, 0.01,
+    )
+
+    attributes = requests.add.call_args.args[1]
+    assert attributes["model_id"] == "public-name"
+    assert "123456789012" not in str(attributes)

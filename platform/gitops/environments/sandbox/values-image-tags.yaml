@@ -32,13 +32,13 @@ components:
       tag: 1.0-ad-5b99f29
   currency:
     imageOverride:
-      tag: 1.0-currency-aaa392b
+      tag: 1.0-currency-bd2681d4
   accounting:
     imageOverride:
       tag: 1.0-accounting-5b99f29
   product-reviews:
     imageOverride:
-      tag: 1.0-product-reviews-aaa392b
+      tag: 1.0-product-reviews-bd2681d4
   llm:
     imageOverride:
       tag: 1.0-llm-5b99f29
@@ -50,22 +50,22 @@ components:
       tag: 1.0-quote-5b99f29
   recommendation:
     imageOverride:
-      tag: 1.0-recommendation-aaa392b
+      tag: 1.0-recommendation-bd2681d4
   shipping:
     imageOverride:
       tag: 1.0-shipping-5b99f29
   shopping-copilot:
     imageOverride:
-      tag: 1.0-shopping-copilot-aaa392b
+      tag: 1.0-shopping-copilot-bd2681d4
   ml-guard:
     imageOverride:
-      tag: 1.0-ml-guard-aaa392b
+      tag: 1.0-ml-guard-bd2681d4
   fraud-detection:
     imageOverride:
       tag: 1.0-fraud-detection-9ef67dd
   frontend:
     imageOverride:
-      tag: 1.0-frontend-9ef67dd
+      tag: 1.0-frontend-bd2681d4
   image-provider:
     imageOverride:
       tag: 1.0-image-provider-5b99f29
