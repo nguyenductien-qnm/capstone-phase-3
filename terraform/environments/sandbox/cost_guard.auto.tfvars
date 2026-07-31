@@ -3,8 +3,9 @@
 
 # ============ Cost Guard Automation ============
 
-# Enable the Cost Guard Automation module
-enable_cost_guard_automation = true
+# Hotfix 2026-07-31: disable Cost Guard Automation. Its partial scale-down
+# changed the HA primary MNG from 3 nodes to 1 and stranded zonal Thanos PVCs.
+enable_cost_guard_automation = false
 
 # Budget configuration
 # If budget_periods is set, these weekly periods will be used instead of a monthly budget.
