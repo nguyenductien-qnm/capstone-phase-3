@@ -135,6 +135,22 @@
                 "type": "string"
               }
             },
+            "restrictedIngress": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "name": { "type": "string" },
+                  "port": { "type": "integer" },
+                  "peerPort": { "type": "integer" },
+                  "clients": {
+                    "type": "array",
+                    "items": { "type": "object" }
+                  }
+                }
+              }
+            },
             "apiServerEgress": {
               "type": "array",
               "items": {

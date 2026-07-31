@@ -223,6 +223,41 @@ spec:
     - from:
         - podSelector: {}
 {{- end }}
+{{- range $ri := ($np.observability.restrictedIngress | default list) }}
+---
+# 5d-bis) Datastore backend ({{ $ri.name }}) — ingress CHỈ cho client cụ thể, KHÁC sink
+# all-pods. opensearch giữ log nhạy cảm + không auth; mở all-pods = pod bị chiếm đọc sạch
+# log (trái R3). Chỉ cho otel-collector/grafana/aiops chạm cổng {{ $ri.port }}.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-restricted-ingress-{{ $ri.name }}
+  labels: { app.kubernetes.io/part-of: techx-corp }
+spec:
+  podSelector:
+    matchLabels: { app.kubernetes.io/name: {{ $ri.name }} }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+      {{- range $c := $ri.clients }}
+        - podSelector:
+            matchLabels:
+            {{- range $k, $v := $c }}
+              {{ $k }}: {{ $v }}
+            {{- end }}
+      {{- end }}
+      ports:
+        - { protocol: TCP, port: {{ $ri.port }} }
+  {{- if $ri.peerPort }}
+    # Peer transport ({{ $ri.name }} node <-> node): nguồn là CHÍNH nó, không phải
+    # client ngoài. Multi-node cần cổng này để hình thành/giữ quorum.
+    - from:
+        - podSelector:
+            matchLabels: { app.kubernetes.io/name: {{ $ri.name }} }
+      ports:
+        - { protocol: TCP, port: {{ $ri.peerPort }} }
+  {{- end }}
+{{- end }}
 {{- end }}
 {{- if $np.datastoreEgress }}
 {{- $ds := $np.datastoreEgress }}
