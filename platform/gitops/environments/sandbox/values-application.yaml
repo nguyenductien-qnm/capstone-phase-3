@@ -1,3 +1,22 @@
+# M17-R3: bật NetworkPolicy cho sandbox — môi trường sống duy nhất (cluster develop đã tắt).
+# 3/4 yêu cầu M17 đã tự áp: R2 (topologySpread+PDB) & R4 (automount=false) là chart default;
+# R1 (circuit breaker) trong image frontend. Chỉ R3 cần bật cờ này.
+#
+# KHÔNG cần override CIDR: VPC sandbox 10.0.0.0/16 + ClusterIP 172.20.0.1 trùng đúng default
+# chart (apiServerCIDR/nodeCIDR/vpcCidr=10.0.0.0/16, apiServerClusterIP=172.20.0.1/32).
+#
+# ĐIỀU KIỆN TIÊN QUYẾT trước khi merge (đã audit trên cluster 08/2026):
+#   - CNI enforce ON (aws-eks-nodeagent --enable-network-policy=true) ✔
+#   - PR #524 (AIOps egress) + PR opensearch-sink phải live TRƯỚC — nếu không, log-path
+#     AIOps và aiops-remediation (restart pod) chết im lặng dưới default-deny.
+#   - Pre-flight audit: 7 pod mount token đều được phủ (chart 5 + thanos tự lo + aiops #524);
+#     datastore external (ElastiCache/MSK/RDS) phủ bởi datastoreEgress; không workload lạ.
+#
+# LƯU Ý VẬN HÀNH: sandbox auto-sync (prune+selfHeal) — merge là áp NGAY, không cổng tay.
+# Bật giờ thấp tải, canh ksm + grafana sidecar + aiops + thanos + ảnh storefront.
+networkPolicy:
+  enabled: true
+
 # Mandate-19: port sizing + HPA đã đo trên develop sang PROD (techx-tf1).
 # Bằng chứng AFTER: docs/mandate-19/loadtest/EVIDENCE.md E7/E8 + ADR throughput-ceiling.
 # Develop đo trên node t3.large cùng cỡ prod (parity dựng ở PR #237) nên số mang sang được.
