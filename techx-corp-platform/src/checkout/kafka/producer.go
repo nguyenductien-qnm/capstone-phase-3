@@ -49,6 +49,10 @@ func CreateKafkaProducer(brokers []string, logger *slog.Logger) (sarama.AsyncPro
 	// Wait for leader ACK
 	saramaConfig.Producer.RequiredAcks = sarama.WaitForLocal
 
+	// Enable Idemptent Producer 
+	saramaConfig.Producer.Idempotent = true
+	saramaConfig.Net.MaxOpenRequests = 5 
+	
 	// Enable TLS & SASL/SCRAM authentication when credentials exist (MSK)
 	saramaConfig.Net.TLS.Enable = true
 	saramaConfig.Net.SASL.Enable = true	
