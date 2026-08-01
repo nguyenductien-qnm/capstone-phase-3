@@ -146,7 +146,9 @@ pub fn start_kafka_consumer() {
     };
 
     let mut producer_config = ClientConfig::new();
-    producer_config.set("bootstrap.servers", &kafka_addr);
+    producer_config
+        .set("bootstrap.servers", &kafka_addr)
+        .set("compression.type", "zstd");
     if !kafka_user.is_empty() && !kafka_password.is_empty() {
         producer_config
             .set("security.protocol", "sasl_ssl")

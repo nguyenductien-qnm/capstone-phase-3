@@ -132,6 +132,7 @@ async function publishPaymentEvent(encodedEvent, orderId, topic = process.env.KA
 
   await producerInstance.send({
     topic: topic,
+    compression: CompressionTypes.ZSTD,
     messages: [
       {
         key: orderId,
@@ -139,7 +140,7 @@ async function publishPaymentEvent(encodedEvent, orderId, topic = process.env.KA
       },
     ],
   });
-  logger.info({ topic: topic, orderId: orderId }, `Payment service published fulfillment event to topic '${topic}'.`);
+  logger.info({ topic: topic, orderId: orderId }, `Payment service published ZSTD Protobuf event to topic '${topic}'.`);
 }
 
 async function stopConsumer() {
