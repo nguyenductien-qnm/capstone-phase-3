@@ -695,7 +695,8 @@ services:
       - OTEL_RESOURCE_ATTRIBUTES
       - OTEL_SERVICE_NAME=shipping
       - KAFKA_ADDR
-      - KAFKA_TOPIC=domain.checkout.orders
+      - KAFKA_TOPIC=domain.checkout.payment
+      - KAFKA_SHIPPING_TOPIC=domain.checkout.shipping
       - KAFKA_GROUP_ID=shipping
       - OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE
     depends_on:

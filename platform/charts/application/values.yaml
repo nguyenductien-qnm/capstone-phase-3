@@ -2040,7 +2040,9 @@ components:
             name: msk-secret
             key: password
       - name: KAFKA_TOPIC
-        value: "domain.checkout.orders"
+        value: "domain.checkout.payment"
+      - name: KAFKA_SHIPPING_TOPIC
+        value: "domain.checkout.shipping"
       - name: KAFKA_GROUP_ID
         value: "shipping"
     resources:
