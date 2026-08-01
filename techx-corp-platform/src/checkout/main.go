@@ -20,6 +20,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/singleflight"
 
@@ -28,6 +29,7 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/IBM/sarama"
 	"github.com/jackc/pgx/v5/pgxpool"
 	otelhooks "github.com/open-feature/go-sdk-contrib/hooks/open-telemetry/pkg"
 	flagd "github.com/open-feature/go-sdk-contrib/providers/flagd/pkg"
@@ -49,6 +51,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 
 	pb "github.com/open-telemetry/techx-corp/src/checkout/genproto/oteldemo"
+	"github.com/open-telemetry/techx-corp/src/checkout/kafka"
 	"github.com/open-telemetry/techx-corp/src/checkout/money"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -185,9 +188,11 @@ type checkout struct {
 	emailSvcClient          pb.EmailServiceClient
 	paymentSvcClient        pb.PaymentServiceClient
 
-	dbPool              *pgxpool.Pool
 	productCatalogGroup singleflight.Group
 	currencyGroup       singleflight.Group
+
+	kafkaProducer sarama.AsyncProducer
+	kafkaTopic string
 }
 
 func (cs *checkout) sendToPostProcessor(context context.Context, result *pb.OrderResult) any {
@@ -242,27 +247,6 @@ func main() {
 
 	svc := new(checkout)
 
-	dbURL := os.Getenv("DATABASE_URL")
-	if dbURL != "" {
-		poolConfig, err := pgxpool.ParseConfig(dbURL)
-		if err != nil {
-			logger.Error(fmt.Sprintf("Unable to parse DATABASE_URL: %v", err))
-		} else {
-			dbPool, err := pgxpool.NewWithConfig(context.Background(), poolConfig)
-			if err != nil {
-				logger.Error(fmt.Sprintf("Unable to create connection pool: %v", err))
-			} else {
-				// Reachability is decided by watchDatabaseReadiness, not by a single
-				// ping here: a pod that starts during a failover or switchover must be
-				// able to become ready once the database returns, without a restart.
-				svc.dbPool = dbPool
-				defer dbPool.Close()
-			}
-		}
-	} else {
-		logger.Warn("DATABASE_URL not set, DB features disabled")
-	}
-
 	mustMapEnv(&svc.shippingSvcAddr, "SHIPPING_ADDR")
 	c := mustCreateClient(svc.shippingSvcAddr)
 	svc.shippingSvcClient = pb.NewShippingServiceClient(c)
@@ -283,18 +267,27 @@ func main() {
 	svc.currencySvcClient = pb.NewCurrencyServiceClient(c)
 	defer c.Close()
 
-	mustMapEnv(&svc.emailSvcAddr, "EMAIL_ADDR")
-	c = mustCreateClient(svc.emailSvcAddr)
-	svc.emailSvcClient = pb.NewEmailServiceClient(c)
-	defer c.Close()
-
 	mustMapEnv(&svc.paymentSvcAddr, "PAYMENT_ADDR")
 	c = mustCreateClient(svc.paymentSvcAddr)
 	svc.paymentSvcClient = pb.NewPaymentServiceClient(c)
 	defer c.Close()
 
-	// Initialize Kafka Broker address if set
 	svc.kafkaBrokerSvcAddr = os.Getenv("KAFKA_ADDR")
+	if svc.kafkaBrokerSvcAddr != "" {
+		brokers := strings.Split(svc.kafkaBrokerSvcAddr, ",")
+		for i := range brokers {
+			brokers[i] = strings.TrimSpace(brokers[i])
+		}
+		if producer, err := kafka.CreateKafkaProducer(brokers, logger); err == nil {
+			svc.kafkaProducer = producer
+		} else {
+			logger.Error(fmt.Sprintf("Failed to initialize Kafka producer: %v", err))
+		}
+	}
+	svc.kafkaTopic = os.Getenv("KAFKA_TOPIC")
+	if svc.kafkaTopic == "" {
+		svc.kafkaTopic = "domain.checkout.orders"
+	}
 
 	logger.Info(fmt.Sprintf("service config: %+v", svc))
 
@@ -313,10 +306,6 @@ func main() {
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGKILL)
 	defer cancel()
-
-	if svc.dbPool != nil {
-		go watchDatabaseReadiness(ctx, svc.dbPool, healthcheck)
-	}
 
 	logger.Info(fmt.Sprintf("starting to listen on tcp: %q", lis.Addr().String()))
 	go func() {
@@ -455,42 +444,25 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		}
 	}()
 
-	idempotencyKey, err := idempotencyKeyFromContext(ctx)
+	span.AddEvent("prepared")
+
+	orderId, err := uuid.NewUUID()
 	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid idempotency key: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to generate order uuid")
 	}
-	if cs.dbPool == nil {
-		return nil, status.Error(codes.Unavailable, "order persistence is unavailable")
-	}
-
-	requestHash, err := checkoutRequestHash(req)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to hash checkout request: %v", err)
-	}
-
-	phase := currentOrderSchemaPhase()
-	orderID := idempotentOrderID(req.UserId, idempotencyKey)
-	if existing, found, lookupErr := cs.findPersistedOrder(ctx, phase, orderPersistenceRecord{
-		OrderID:        orderID,
-		UserID:         req.UserId,
-		IdempotencyKey: idempotencyKey,
-		RequestHash:    requestHash,
-	}); lookupErr != nil {
-		if errors.Is(lookupErr, errIdempotencyConflict) {
-			return nil, status.Error(codes.AlreadyExists, lookupErr.Error())
-		}
-		if !isTransientDBError(lookupErr) {
-			return nil, status.Errorf(codes.Internal, "failed idempotency lookup: %v", lookupErr)
-		}
-	} else if found {
-		return &pb.PlaceOrderResponse{Order: existing}, nil
-	}
-
-	prep, err := cs.prepareOrderItemsAndShippingQuoteFromCart(ctx, req.UserId, req.UserCurrency, req.Address)
+	
+	prep, err := cs.prepareOrderItemsAndShippingQuoteFromCart(ctx, req.UserId, req.UserCurrency)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
-
+	
+	// Calculate total order cost 
+	total := &pb.Money{CurrencyCode: req.UserCurrency, Units: 0, Nanos: 0}
+	for _, it := range prep.orderItems {
+		multPrice := money.Multiply(it.Cost, uint32(it.GetItem().GetQuantity()))
+		total = money.Must(money.Sum(total, multPrice))
+	} 
+	
 	// In-memory validation
 	if err := validator.ValidateCreditCard(req.CreditCard); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid payment information: %v", err)
@@ -499,67 +471,38 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		return nil, status.Errorf(codes.InvalidArgument, "invalid shipping address: %v", err)
 	}
 
+	cardNum := req.CreditCard.GetCreditCardNumber()
+	lastFour := cardLastFour(cardNum)
+	cardType := validator.DetectCardType(cardNum)
+	// Generate single-use payment token
+	paymentToken := fmt.Sprintf("tok_%s_%s", cardType, strings.ReplaceAll(uuid.New().String(), "-", ""))
+
 	// 36.75$
 	// {
 	//   "currencyCode": "USD",
 	//   "units": 36,
 	//   "nanos": 750000000
 	// }
-	total := &pb.Money{CurrencyCode: req.UserCurrency, Units: 0, Nanos: 0}
-	total = money.Must(money.Sum(total, prep.shippingCostLocalized))
-	for _, it := range prep.orderItems {
-		multPrice := money.Multiply(it.Cost, uint32(it.GetItem().GetQuantity()))
-		total = money.Must(money.Sum(total, multPrice))
+		
+	paymentSummary := &pb.PaymentSummary{
+		PaymentToken: paymentToken,
+		CardLastFour: lastFour,
+		CardType: cardType,
+		TotalAmount: total,
 	}
 
-	span.AddEvent("prepared")
-
+	// 2. Construct complete OrderResult with all downstream fields
 	orderResult := &pb.OrderResult{
-		OrderId:            orderID,
-		ShippingTrackingId: "",
-		ShippingCost:       prep.shippingCostLocalized,
+		OrderId: orderId.String(),
+		TotalOrderCost: total,
 		ShippingAddress:    req.Address,
-		Items:              prep.orderItems,
+		Items:              prep.orderItems, // Pre-calculated order items array
 	}
 
-	orderResultBytes, err := marshalOrderResult(orderResult)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to marshal order result: %v", err)
-	}
-	orderMetadataBytes, err := marshalOrderMetadata(
-		req,
-		prep.orderItems,
-		prep.cartItems,
-		prep.shippingCostLocalized,
-		total,
-		requestHash,
-		orderResultBytes,
-	)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to marshal order metadata: %v", err)
-	}
-
-	orderResult, err = cs.persistOrderWithRetry(ctx, orderPersistenceRecord{
-		OrderID:           orderID,
-		UserID:            req.UserId,
-		CurrencyCode:      req.UserCurrency,
-		OrderMetadataJSON: orderMetadataBytes,
-		OrderResultJSON:   orderResultBytes,
-		OrderResult:       orderResult,
-		IdempotencyKey:    idempotencyKey,
-		RequestHash:       requestHash,
-	})
-	if err != nil {
-		return nil, persistenceStatusError(err)
-	}
-	logger.Info("successfully saved order and outbox event to DB")
-
-	shippingCostFloat, _ := strconv.ParseFloat(fmt.Sprintf("%d.%02d", prep.shippingCostLocalized.GetUnits(), prep.shippingCostLocalized.GetNanos()/1000000000), 64)
 	totalPriceFloat, _ := strconv.ParseFloat(fmt.Sprintf("%d.%02d", total.GetUnits(), total.GetNanos()/1000000000), 64)
 
 	span.SetAttributes(
 		attribute.String("app.order.id", orderResult.GetOrderId()),
-		attribute.Float64("app.shipping.amount", shippingCostFloat),
 		attribute.Float64("app.order.amount", totalPriceFloat),
 		attribute.Int("app.order.items.count", len(prep.orderItems)),
 	)
@@ -567,10 +510,21 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 		ctx,
 		slog.LevelInfo, "order placed (asynchronous)",
 		slog.String("app.order.id", orderResult.GetOrderId()),
-		slog.Float64("app.shipping.amount", shippingCostFloat),
 		slog.Float64("app.order.amount", totalPriceFloat),
 		slog.Int("app.order.items.count", len(prep.orderItems)),
 	)
+
+	err = kafka.PublishOrderEvent(
+		cs.kafkaProducer,
+		cs.kafkaTopic,
+		req.UserId,
+		orderId.String(),
+		orderResult,
+		paymentSummary,
+	)
+	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to publish to MSK: %v", err))
+	}
 
 	resp := &pb.PlaceOrderResponse{Order: orderResult}
 	return resp, nil
@@ -620,11 +574,7 @@ type orderPrep struct {
 //  2. prepOrderItems:
 //     - For each item in the cart, calls the Product Catalog service to fetch the product's base price (USD).
 //     - It then calls the Currency service to convert that base price into the user's local currency (userCurrency).
-//  3. Gets a Shipping Quote (quoteShipping):
-//     - It sends the cart items and the destination address to the Shipping service to get a calculated shipping cost (returned in USD).
-//  4. Converts the Shipping Currency (convertCurrency):
-//     - It calls the Currency service again to convert the USD shipping cost into the user's local userCurrency.
-func (cs *checkout) prepareOrderItemsAndShippingQuoteFromCart(ctx context.Context, userID, userCurrency string, address *pb.Address) (orderPrep, error) {
+func (cs *checkout) prepareOrderItemsAndShippingQuoteFromCart(ctx context.Context, userID, userCurrency string) (orderPrep, error) {
 
 	ctx, span := tracer.Start(ctx, "prepareOrderItemsAndShippingQuoteFromCart")
 	defer span.End()
@@ -637,8 +587,7 @@ func (cs *checkout) prepareOrderItemsAndShippingQuoteFromCart(ctx context.Contex
 
 	group, groupCtx := errgroup.WithContext(ctx)
 	var orderItems []*pb.OrderItem
-	var shippingPrice *pb.Money
-
+	
 	group.Go(func() error {
 		var prepErr error
 		orderItems, prepErr = cs.prepOrderItems(groupCtx, cartItems, userCurrency)
@@ -648,25 +597,25 @@ func (cs *checkout) prepareOrderItemsAndShippingQuoteFromCart(ctx context.Contex
 		return nil
 	})
 
-	group.Go(func() error {
-		shippingUSD, quoteErr := cs.quoteShipping(groupCtx, address, cartItems)
-		if quoteErr != nil {
-			return fmt.Errorf("shipping quote failure: %+v", quoteErr)
-		}
+	// group.Go(func() error {
+	// 	shippingUSD, quoteErr := cs.quoteShipping(groupCtx, address, cartItems)
+	// 	if quoteErr != nil {
+	// 		return fmt.Errorf("shipping quote failure: %+v", quoteErr)
+	// 	}
 
-		var conversionErr error
-		shippingPrice, conversionErr = cs.convertCurrency(groupCtx, shippingUSD, userCurrency)
-		if conversionErr != nil {
-			return fmt.Errorf("failed to convert shipping cost to currency: %+v", conversionErr)
-		}
-		return nil
-	})
+	// 	var conversionErr error
+	// 	shippingPrice, conversionErr = cs.convertCurrency(groupCtx, shippingUSD, userCurrency)
+	// 	if conversionErr != nil {
+	// 		return fmt.Errorf("failed to convert shipping cost to currency: %+v", conversionErr)
+	// 	}
+	// 	return nil
+	// })
 
 	if err := group.Wait(); err != nil {
 		return out, err
 	}
 
-	out.shippingCostLocalized = shippingPrice
+	// out.shippingCostLocalized = shippingPrice
 	out.cartItems = cartItems
 	out.orderItems = orderItems
 
@@ -674,10 +623,10 @@ func (cs *checkout) prepareOrderItemsAndShippingQuoteFromCart(ctx context.Contex
 	for _, ci := range cartItems {
 		totalCart += ci.Quantity
 	}
-	shippingCostFloat, _ := strconv.ParseFloat(fmt.Sprintf("%d.%02d", shippingPrice.GetUnits(), shippingPrice.GetNanos()/1000000000), 64)
+	// shippingCostFloat, _ := strconv.ParseFloat(fmt.Sprintf("%d.%02d", shippingPrice.GetUnits(), shippingPrice.GetNanos()/1000000000), 64)
 
 	span.SetAttributes(
-		attribute.Float64("app.shipping.amount", shippingCostFloat),
+		// attribute.Float64("app.shipping.amount", shippingCostFloat),
 		attribute.Int("app.cart.items.count", int(totalCart)),
 		attribute.Int("app.order.items.count", len(orderItems)),
 	)

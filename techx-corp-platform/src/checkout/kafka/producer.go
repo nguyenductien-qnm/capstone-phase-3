@@ -86,11 +86,13 @@ func CreateKafkaProducer(brokers []string, logger *slog.Logger) (sarama.AsyncPro
 
 // Serializes order event to Protobuf binary and pushes it to Kafka
 func PublishOrderEvent(
-	producer sarama.AsyncProducer, 
-	topic string, 
-	userID string,
-	orderID string,
-	orderResult *pb.OrderResult) error {
+		producer sarama.AsyncProducer, 
+		topic string, 
+		userID string,
+		orderID string,
+		orderResult *pb.OrderResult,
+		paymentSummary *pb.PaymentSummary,
+	) error {
 	if producer == nil || orderResult == nil {
 		return fmt.Errorf("producer or orderResult is nil")
 	}
@@ -100,6 +102,7 @@ func PublishOrderEvent(
 		OrderId: orderResult.GetOrderId(),
 		UserId: userID,
 		OrderResult: orderResult,
+		PaymentSummary: paymentSummary,
 		Timestamp: time.Now().Format(time.RFC3339),
 	}
 
