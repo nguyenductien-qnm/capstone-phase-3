@@ -125,3 +125,27 @@ func passesLuhnCheck(cardNumber string) bool {
 
 	return sum%10 == 0
 }
+
+func DetectCardType(cardNumber string) string {
+	cleanNum := strings.ReplaceAll(cardNumber, "-", "")
+	cleanNum = strings.ReplaceAll(cleanNum, " ", "")
+
+	if len(cleanNum) == 0 {
+		return "unknown"
+	}
+
+	switch{
+	case strings.HasPrefix(cleanNum, "4"):
+		return "visa"
+
+	// MasterCard starts with 51-55 or 2221-2720
+	case strings.HasPrefix(cleanNum, "51"), strings.HasPrefix(cleanNum, "52"),                                                                                                                    
+            strings.HasPrefix(cleanNum, "53"), strings.HasPrefix(cleanNum, "54"),                                                                                                                         
+            strings.HasPrefix(cleanNum, "55"), strings.HasPrefix(cleanNum, "222"),                                                                                                                        
+            strings.HasPrefix(cleanNum, "27"):                                                                                                                                                            
+        return "mastercard"
+	
+	default:
+		return "visa"
+	}
+}
