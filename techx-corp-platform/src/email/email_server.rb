@@ -143,7 +143,7 @@ def start_kafka_consumer
   kafka_addr = ENV["KAFKA_ADDR"]
   return if kafka_addr.nil? || kafka_addr.empty?
 
-  topic = ENV.fetch("KAFKA_TOPIC", "domain.fulfillment.events")
+  topic = ENV.fetch("KAFKA_SHIPPING_TOPIC", ENV.fetch("KAFKA_TOPIC", "domain.checkout.shipping")
   group_id = ENV.fetch("KAFKA_GROUP_ID", "email")
   kafka_user = ENV["KAFKA_USER"]
   kafka_password = ENV["KAFKA_PASSWORD"]

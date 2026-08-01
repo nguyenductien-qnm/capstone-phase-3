@@ -38,7 +38,9 @@ internal class DBContext : DbContext
 
 internal class Consumer : IDisposable
 {
-    private static readonly string TopicName = Environment.GetEnvironmentVariable("KAFKA_TOPIC") ?? "domain.fulfillment.events";
+    private static readonly string TopicName = Environment.GetEnvironmentVariable("KAFKA_SHIPPING_TOPIC") 
+                                            ?? Environment.GetEnvironmentVariable("KAFKA_TOPIC") 
+                                            ?? "domain.checkout.shipping";
     private static readonly string GroupId = Environment.GetEnvironmentVariable("KAFKA_GROUP_ID") ?? "accounting";
 
     private ILogger _logger;

@@ -358,6 +358,8 @@ components:
           secretKeyRef:
             name: msk-secret
             key: password
+      - name: KAFKA_TOPIC
+        value: "domain.checkout.shipping"
       - name: OTEL_EXPORTER_OTLP_ENDPOINT
         value: http://$(OTEL_COLLECTOR_NAME):4318
       - name: DB_CONNECTION_STRING
@@ -560,6 +562,8 @@ components:
           secretKeyRef:
             name: msk-secret
             key: password
+      - name: KAFKA_TOPIC
+        value: "domain.checkout.shipping"
       - name: OTEL_EXPORTER_OTLP_ENDPOINT
         value: http://$(OTEL_COLLECTOR_NAME):4317
     resources:
@@ -959,7 +963,7 @@ components:
             name: msk-secret
             key: password
       - name: KAFKA_TOPIC
-        value: "domain.fulfillment.events"
+        value: "domain.checkout.shipping"
       - name: KAFKA_GROUP_ID
         value: "email"
     resources:
@@ -1033,6 +1037,8 @@ components:
           secretKeyRef:
             name: msk-secret
             key: password
+      - name: KAFKA_TOPIC
+        value: "domain.checkout.shipping"
       - name: FLAGD_HOST
         value: flagd
       - name: FLAGD_PORT

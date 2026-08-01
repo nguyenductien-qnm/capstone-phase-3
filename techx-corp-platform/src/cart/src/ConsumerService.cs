@@ -44,8 +44,11 @@ public class ConsumerService : BackgroundService
                     SaslPassword = Environment.GetEnvironmentVariable("KAFKA_PASSWORD") ?? ""
                 };
 
+                var topicName = Environment.GetEnvironmentVariable("KAFKA_SHIPPING_TOPIC")
+                            ?? Environment.GetEnvironmentVariable("KAFKA_TOPIC")
+                            ?? "domain.checkout.shipping";
                 using var consumer = new ConsumerBuilder<string, string>(config).Build();
-                consumer.Subscribe("domain.fulfillment.events");
+                consumer.Subscribe(topicName);
 
                 while (!stoppingToken.IsCancellationRequested)
                 {
