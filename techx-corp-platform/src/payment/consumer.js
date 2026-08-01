@@ -54,9 +54,10 @@ async function startConsumer() {
   producerInstance = kafka.producer();
 
   try {
+    // Connect both Consumer and Producer
     await consumerInstance.connect();
     await producerInstance.connect();
-    logger.info({ brokers, topic, fulfillmentTopic, groupId }, `Payment Kafka client connected to brokers.`);
+    logger.info({ brokers, topic, paymentTopic, groupId }, `Payment Kafka client connected to brokers.`);
 
     await consumerInstance.subscribe({ topic, fromBeginning: true });
     logger.info({ topic, groupId }, `Payment Kafka consumer subscribed to topic '${topic}' under consumer group '${groupId}'.`);
@@ -66,7 +67,7 @@ async function startConsumer() {
       eachMessage: async ({ topic, partition, message }) => {
         let orderEvent;
 
-        // Protobuf Deserialization (ZSTD decompressed automatically by KafkaJS)
+        // 1. Decode Protobuf OrderEvent
         try {
           orderEvent = OrderEvent.decode(message.value);
         } catch (err) {
@@ -77,7 +78,7 @@ async function startConsumer() {
         const { orderId, userId, orderResult, paymentSummary } = orderEvent;
         logger.info({ orderId, userId }, "Payment consumer successfully decoded Protobuf OrderEvent");
 
-        // Charge Payment Token
+        // 2. Charge Payment Token via charge.js
         if (paymentSummary && paymentSummary.paymentToken) {
           try {
             await chargeWithToken({
@@ -86,10 +87,11 @@ async function startConsumer() {
               orderId: orderId,
             })
           } catch (error) {
-            logger.error({ err: chargeErr, orderId }, "Failed to process token charge");
+            logger.error({ err: error, orderId }, "Failed to process token charge");
           }
         }
-
+        
+        // 3. Construct and publish PaymentEvent to domain.checkout.payment
         try {
           const paymentCompletedEvent = PaymentEvent.create({
             eventType: 'PAYMENT_COMPLETED',
@@ -100,7 +102,6 @@ async function startConsumer() {
             timestamp: new Date().toISOString,
           })
 
-          // Publish to domain.checkout.payment 
           await publishPaymentEvent(
             PaymentEvent.encode(paymentCompletedEvent).finish(),
             orderId,
@@ -108,7 +109,7 @@ async function startConsumer() {
           );
         } catch (error) {
           logger.error(
-						{ err: pubErr, orderId },
+						{ err: error, orderId },
 						`Failed to publish PaymentEvent to topic '${paymentTopic}'`,
 					);
         }        
@@ -122,8 +123,13 @@ async function startConsumer() {
   }
 }
 
+// Helper function to publish result to domain.checkout.payment
 async function publishPaymentEvent(encodedEvent, orderId, topic = process.env.KAFKA_PAYMENT_TOPIC || 'domain.checkout.payment') {
-  if (!producerInstance) return;
+  if (!producerInstance) {
+    logger.warn({ orderId, topic }, "Producer instance not connected, skipping publish.");
+    return;
+  }
+
   await producerInstance.send({
     topic: topic,
     messages: [
@@ -140,9 +146,18 @@ async function stopConsumer() {
   if (consumerInstance) {
     try {
       await consumerInstance.disconnect();
-      logger.info("Payment Kafka consumer disconnected cleanly.");
+      logger.info("Payment Kafka consumer disconnected cleanly");
     } catch (err) {
-      logger.error({ err }, "Error disconnecting Payment Kafka consumer.");
+      logger.error({ err }, "Error disconnecting Payment Kafka consumer");
+    }
+  }
+
+  if (producerInstance) {
+    try {
+      await producerInstance.disconnect();
+      logger.info("Payment Kafka producer disconnected cleanly");
+    } catch (error) {
+      logger.error({ err }, "Error disconnecting PaymentKafka producer")
     }
   }
 }
