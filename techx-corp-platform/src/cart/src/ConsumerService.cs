@@ -59,15 +59,9 @@ public class ConsumerService : BackgroundService
                         if (consumeResult?.Message?.Value == null) continue;
 
                         // 1. Decode event from domain.checkout.shipping
-                        var eventData = JsonSerializer.Deserialize<FulfillmentEvent>(consumeResult.Message.Value, JsonOptions);
                         var orderId = eventData?.OrderId ?? consumeResult.Message.Key ?? "";                                                                                 
                         var userId = eventData?.UserId;
-
-                        var joinState = _pendingJoins.GetOrAdd(
-                            eventData.OrderId,
-                            id => new JoinState { OrderId = id, UserId = eventData.UserId }
-                        );
-
+ 
                         // 2. Empty cart
                         if (!string.IsNullOrEmpty(userId))
                         {
