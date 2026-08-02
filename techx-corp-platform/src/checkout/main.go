@@ -57,7 +57,6 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
 	"github.com/open-telemetry/techx-corp/src/checkout/validator"
@@ -529,26 +528,6 @@ func (cs *checkout) PlaceOrder(ctx context.Context, req *pb.PlaceOrderRequest) (
 	return resp, nil
 }
 
-func idempotencyKeyFromContext(ctx context.Context) (string, error) {
-	md, ok := metadata.FromIncomingContext(ctx)
-	if !ok {
-		return "", fmt.Errorf("%s metadata is required", idempotencyMetadataKey)
-	}
-	values := md.Get(idempotencyMetadataKey)
-	if len(values) != 1 || strings.TrimSpace(values[0]) == "" {
-		if len(values) > 1 {
-			return "", fmt.Errorf("%s metadata must contain exactly one value", idempotencyMetadataKey)
-		}
-		return "", fmt.Errorf("%s metadata is required", idempotencyMetadataKey)
-	}
-	key := strings.TrimSpace(values[0])
-	if err := validateIdempotencyKey(key); err != nil {
-		return "", err
-	}
-	return key, nil
-}
-
-
 type orderPrep struct {
 	orderItems            []*pb.OrderItem
 	cartItems             []*pb.CartItem
@@ -951,3 +930,13 @@ func (cs *checkout) getIntFeatureFlag(ctx context.Context, featureFlagName strin
 
 	return int(featureFlagValue)
 }
+
+func cardLastFour(cardNumber string) string {
+	cleanNum := strings.ReplaceAll(cardNumber, "-", "")
+	cleanNum = strings.ReplaceAll(cleanNum, " ", "")
+	
+	return cleanNum[len(cleanNum)-4:]
+}
+
+
+

@@ -173,3 +173,24 @@ func TestDependencyChainLeavesRoomToPersistTheOrder(t *testing.T) {
 			worstCase, placeOrderDeadline)
 	}
 }
+
+func TestCardLastFour(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"4532015112830366", "0366"},
+		{"4532-0151-1283-0366", "0366"},
+		{" 4532 0151 1283 0366 ", "0366"},
+	}
+
+	for _, tt := range tests {
+		got := cardLastFour(tt.input)
+		if got != tt.expected {
+			t.Errorf("cardLastFour(%q) = %q; want %q", tt.input, got, tt.expected)
+		}
+	}
+}
+
