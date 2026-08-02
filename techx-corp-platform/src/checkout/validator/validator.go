@@ -23,6 +23,7 @@ var (
 	ErrInvalidCVV        = errors.New("invalid CVV (must be 3 or 4 digits)")
 	ErrCardExpired       = errors.New("credit card has expired")
 	ErrInvalidAddress    = errors.New("shipping address fields are incomplete or invalid")
+	ErrInvalidCardType = errors.New("card type is not supported")
 )
 
 var (
@@ -40,6 +41,11 @@ func ValidateCreditCard(card *pb.CreditCardInfo) error {
 	cleanNum := strings.ReplaceAll(card.CreditCardNumber, "-", "")
 	cleanNum = strings.ReplaceAll(cleanNum, " ", "")
 
+	cardType := DetectCardType(cleanNum)
+	if cardType == "unknown" {
+		return ErrInvalidCardType	
+	}
+	
 	if len(cleanNum) < 13 || len(cleanNum) > 19 || !digitOnly.MatchString(cleanNum) {
 		return ErrInvalidCardNumber
 	}
@@ -146,6 +152,6 @@ func DetectCardType(cardNumber string) string {
         return "mastercard"
 	
 	default:
-		return "visa"
+		return "unknown"
 	}
 }
