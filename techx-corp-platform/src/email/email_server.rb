@@ -138,12 +138,12 @@ def build_email_data(order_id, state)
   OpenStruct.new(email: email, order: order)
 end
 
-# Kafka Fulfillment Stream Joiner for Email Consumer Group
+# Kafka Fulfillment Consumer for Email Service
 def start_kafka_consumer
   kafka_addr = ENV["KAFKA_ADDR"]
   return if kafka_addr.nil? || kafka_addr.empty?
 
-  topic = ENV.fetch("KAFKA_SHIPPING_TOPIC", ENV.fetch("KAFKA_TOPIC", "domain.checkout.shipping")
+  topic = ENV.fetch("KAFKA_SHIPPING_TOPIC", ENV.fetch("KAFKA_TOPIC", "domain.checkout.shipping"))
   group_id = ENV.fetch("KAFKA_GROUP_ID", "email")
   kafka_user = ENV["KAFKA_USER"]
   kafka_password = ENV["KAFKA_PASSWORD"]
@@ -173,9 +173,6 @@ def start_kafka_consumer
 
       puts "Email Kafka consumer started. Subscribed to topic '#{topic}' under group '#{group_id}'."
 
-      pending_joins = {}
-      mutex = Mutex.new
-
       consumer.each_message do |message|
         order_id = message.key
         payload_str = message.value || ""
@@ -188,56 +185,25 @@ def start_kafka_consumer
         end
 
         if order_id.nil? || order_id.empty?
-          order_id = json_data["orderId"] || json_data["key"] || json_data["order_id"]
+          order_id = json_data["orderId"] || json_data["key"] || json_data["order_id"] || "UNKNOWN"
         end
 
-        next if order_id.nil? || order_id.empty?
+        puts "Email consumer received shipping event for order #{order_id} on topic '#{topic}'"
 
-        is_payment = payload_str.include?("payment") || payload_str.include?("PAYMENT")
-        is_shipping = payload_str.include?("shipping") || payload_str.include?("SHIPPING")
+        $logger.on_emit(
+          timestamp: Time.now,
+          severity_text: 'INFO',
+          body: "Email shipping event received for order #{order_id}",
+          attributes: { 'app.order.id' => order_id }
+        ) if $logger
 
-        details_data = {}
-        if json_data["details"].is_a?(String)
-          begin
-            details_data = JSON.parse(json_data["details"])
-          rescue StandardError
-            details_data = {}
-          end
-        elsif json_data["details"].is_a?(Hash)
-          details_data = json_data["details"]
-        end
+        $confirmation_counter.add(1) if $confirmation_counter
 
-        mutex.synchronize do
-          state = pending_joins[order_id] ||= { payment: false, shipping: false }
-          state[:payment] = true if is_payment
-          state[:shipping] = true if is_shipping
-
-          extracted_email = json_data["email"] || details_data["email"]
-          state[:email] = extracted_email if extracted_email
-
-          extracted_order = details_data["order"] || json_data["order"]
-          state[:order] = to_ostruct(extracted_order) if extracted_order
-
-          puts "Email consumer received fulfillment event for order #{order_id}. Payment: #{state[:payment]}, Shipping: #{state[:shipping]}"
-
-          # Kafka Stream Join Condition: both payment and shipping completed for order_id
-          if state[:payment] && state[:shipping]
-            puts "Email Stream Join completed successfully for order #{order_id}. Both payment and shipping operations processed."
-            $logger.on_emit(
-              timestamp: Time.now,
-              severity_text: 'INFO',
-              body: "Email Stream Join completed for order #{order_id}",
-              attributes: { 'app.order.id' => order_id },
-            )
-            $confirmation_counter.add(1) if $confirmation_counter
-
-            # Send order confirmation email to user after completing the Stream Join
-            data = build_email_data(order_id, state)
-            send_email(data)
-
-            pending_joins.delete(order_id)
-          end
-        end
+        # Send order confirmation email directly upon receiving shipping completion event
+        state = { email: json_data["email"], order_id: order_id }
+        data = build_email_data(order_id, state)
+        send_email(data)
+        puts "Successfully sent order confirmation email for order #{order_id}"
       end
     rescue StandardError => e
       puts "Email Kafka consumer error or ruby-kafka not available: #{e.message}"
