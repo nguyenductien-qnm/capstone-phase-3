@@ -79,7 +79,7 @@ internal class Consumer : IDisposable
                 {
                     using var activity = MyActivitySource.StartActivity("order-consumed",  ActivityKind.Internal);
                     var consumeResult = _consumer.Consume();
-                    if (ProcessMessage(consumeResult.Message).GetAwaiter().GetResult())
+                    if (ProcessMessage(consumeResult.Message))
                     {
                         _consumer.StoreOffset(consumeResult);
                     }
@@ -106,7 +106,7 @@ internal class Consumer : IDisposable
         }
     }
 
-    private async Task<bool> ProcessMessage(Message<string, byte[]> message)
+    private bool ProcessMessage(Message<string, byte[]> message)
     {
         try
         {
