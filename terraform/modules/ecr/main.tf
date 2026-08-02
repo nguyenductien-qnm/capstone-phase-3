@@ -14,10 +14,9 @@ resource "aws_ecr_repository" "this" {
   }
 
   # Ngăn chặn việc xóa ECR khi chạy lệnh destroy để bảo vệ các docker image đã build
-  # TẠM GỠ để teardown sandbox (run 30732128337). BẬT LẠI sau khi destroy xong.
-  # lifecycle {
-  #   prevent_destroy = true
-  # }
+  lifecycle {
+    prevent_destroy = true
+  }
 
   tags = {
     Name        = "${var.project_name}-${var.environment}-${each.key}"

@@ -227,11 +227,7 @@ resource "aws_cloudtrail" "main_trail" {
   }
 
   depends_on = [aws_s3_bucket_policy.cloudtrail_bucket_policy, aws_iam_role_policy.cloudtrail_cloudwatch]
-
-  # TẠM GỠ để teardown sandbox (run 30732128337). `prevent_destroy` không nhận
-  # biến nên không thể bật/tắt theo environment — chỉ có cách comment.
-  # BẬT LẠI ngay sau khi destroy xong.
-  # lifecycle { prevent_destroy = true }
+  lifecycle { prevent_destroy = true }
 }
 
 # CMK cho topic mandate-12. Tách khỏi key `audit` (mã hoá log CloudTrail) vì hai thứ có
