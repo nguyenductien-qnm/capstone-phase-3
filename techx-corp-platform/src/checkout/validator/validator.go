@@ -23,6 +23,7 @@ var (
 	ErrInvalidCVV        = errors.New("invalid CVV (must be 3 or 4 digits)")
 	ErrCardExpired       = errors.New("credit card has expired")
 	ErrInvalidAddress    = errors.New("shipping address fields are incomplete or invalid")
+	ErrInvalidCardType = errors.New("card type is not supported")
 )
 
 var (
@@ -40,6 +41,11 @@ func ValidateCreditCard(card *pb.CreditCardInfo) error {
 	cleanNum := strings.ReplaceAll(card.CreditCardNumber, "-", "")
 	cleanNum = strings.ReplaceAll(cleanNum, " ", "")
 
+	cardType := DetectCardType(cleanNum)
+	if cardType == "unknown" {
+		return ErrInvalidCardType	
+	}
+	
 	if len(cleanNum) < 13 || len(cleanNum) > 19 || !digitOnly.MatchString(cleanNum) {
 		return ErrInvalidCardNumber
 	}
@@ -124,4 +130,28 @@ func passesLuhnCheck(cardNumber string) bool {
 	}
 
 	return sum%10 == 0
+}
+
+func DetectCardType(cardNumber string) string {
+	cleanNum := strings.ReplaceAll(cardNumber, "-", "")
+	cleanNum = strings.ReplaceAll(cleanNum, " ", "")
+
+	if len(cleanNum) == 0 {
+		return "unknown"
+	}
+
+	switch{
+	case strings.HasPrefix(cleanNum, "4"):
+		return "visa"
+
+	// MasterCard starts with 51-55 or 2221-2720
+	case strings.HasPrefix(cleanNum, "51"), strings.HasPrefix(cleanNum, "52"),                                                                                                                    
+            strings.HasPrefix(cleanNum, "53"), strings.HasPrefix(cleanNum, "54"),                                                                                                                         
+            strings.HasPrefix(cleanNum, "55"), strings.HasPrefix(cleanNum, "222"),                                                                                                                        
+            strings.HasPrefix(cleanNum, "27"):                                                                                                                                                            
+        return "mastercard"
+	
+	default:
+		return "unknown"
+	}
 }

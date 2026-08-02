@@ -15,119 +15,69 @@ const transactionsCounter = meter.createCounter('app.payment.transactions');
 
 const LOYALTY_LEVEL = ['platinum', 'gold', 'silver', 'bronze'];
 
-
 //! Microservice best practice dictates that 
 //! a service should never blindly trust incoming messages from external event buses or upstream callers. 
 //! That's why I include some checkout validation checks here
 
-/** Return random element from given array */
-function random(arr) {
-  const index = Math.floor(Math.random() * arr.length);
-  return arr[index];
-}
-
-module.exports.charge = async request => {
-  const span = tracer.startSpan('charge');
-
-  await OpenFeature.setProviderAndWait(flagProvider);
-
-  const numberVariant =  await OpenFeature.getClient().getNumberValue("paymentFailure", 0);
-
-  if (numberVariant > 0) {
-    // n% chance to fail with app.loyalty.level=gold
-    if (Math.random() < numberVariant) {
-      span.setAttributes({'app.loyalty.level': 'gold' });
-      span.end();
-
-      throw new Error('Payment request failed. Invalid token. app.loyalty.level=gold');
-    }
-  }
-
-  const {
-    creditCardNumber: number,
-    creditCardExpirationYear: year,
-    creditCardExpirationMonth: month
-  } = request.creditCard;
-  const currentMonth = new Date().getMonth() + 1;
-  const currentYear = new Date().getFullYear();
-  const lastFourDigits = number.substr(-4);
-  const transactionId = uuidv4();
-
-  const card = cardValidator(number);
-  const { card_type: cardType, valid } = card.getCardDetails();
-
-  const loyalty_level = random(LOYALTY_LEVEL);
-
+//! PCI-DSS Compliance: Raw 16-digit credit card numbers are not exposed on Kafka topics
+module.exports.chargeWithToken = async ({ paymentToken, amount, orderId, cardType, lastFourDigits}) => {
+  const span = tracer.startSpan('chargeWithToken');
+  
   span.setAttributes({
-    'app.payment.card_type': cardType,
-    'app.payment.card_valid': valid,
-    'app.loyalty.level': loyalty_level
+		"app.payment.order_id": orderId || "",
+		"app.payment.token": paymentToken || "",
+		"app.payment.card_type": cardType || "",
   });
-
-  if (!valid) {
-    throw new Error('Credit card info is invalid.');
+  
+  // 1. Zero-Trust Check: Ensure mandatory parameters exist                                                                                                                  
+  if (!orderId || !paymentToken) {                                                                                                                                           
+    span.setStatus({ code: SpanStatusCode.ERROR, message: 'Missing mandatory orderId or paymentToken' });                                                                    
+    span.end();                                                                                                                                                              
+    throw new Error(`Defensive check failed: orderId (${orderId}) or paymentToken missing.`);                                                                                
+  }
+  
+  // 2. Security Check: Validate payment token format                                                                                                                        
+  if (!paymentToken.startsWith('tok_')) {                                                                                                                                    
+    span.setStatus({ code: SpanStatusCode.ERROR, message: 'Invalid payment token signature' });                                                                              
+    span.end();                                                                                                                                                              
+    throw new Error(`Defensive check failed: Invalid payment token format '${paymentToken}'`);                                                                               
   }
 
-  if (!['visa', 'mastercard'].includes(cardType)) {
-    throw new Error(`Sorry, we cannot process ${cardType} credit cards. Only VISA or MasterCard is accepted.`);
+  // 3. Financial Integrity Check: Ensure non-negative amounts & valid currency
+  const units = amount?.units || 0;
+  const nanos = amount?.nanos || 0;
+  const currencyCode = amount?.currencyCode || 'USD';
+  if (units < 0 || nanos < 0) {
+		span.setStatus({
+			code: SpanStatusCode.ERROR,
+			message: "Negative payment amount rejected",
+		});
+		span.end();
+		throw new Error(
+			`Defensive check failed: Invalid negative amount units=${units}, nanos=${nanos}`,
+		);
   }
-
-  if ((currentYear * 12 + currentMonth) > (year * 12 + month)) {
-    throw new Error(`The credit card (ending ${lastFourDigits}) expired on ${month}/${year}.`);
+  
+  // 4. Policy Check: Ensure card network compliance                                                                                                                         
+  if (cardType && !['visa', 'mastercard'].includes(cardType.toLowerCase())) {                                                                                                
+    span.setStatus({ code: SpanStatusCode.ERROR, message: 'Unsupported credit card network' });                                                                              
+    span.end();                                                                                                                                                              
+    throw new Error(`Defensive check failed: Unsupported card network '${cardType}'`);                                                                                       
   }
+  
+  const transactionId = uuidv4();
+  logger.info(
+		{
+			transactionId,
+			orderId,
+			paymentToken,
+			amount: { units, nanos, currencyCode },
+		},
+		"Token charge transaction complete.",
+  );
 
-  // Check baggage for synthetic_request=true, and add charged attribute accordingly
-  const baggage = propagation.getBaggage(context.active());
-  if (baggage && baggage.getEntry('synthetic_request') && baggage.getEntry('synthetic_request').value === 'true') {
-    span.setAttribute('app.payment.charged', false);
-  } else {
-    span.setAttribute('app.payment.charged', true);
-  }
-
-  const { units, nanos, currencyCode } = request.amount;
-  logger.info({ transactionId, cardType, lastFourDigits, amount: { units, nanos, currencyCode }, loyalty_level }, 'Transaction complete.');
   transactionsCounter.add(1, { 'app.payment.currency': currencyCode });
   span.end();
 
   return { transactionId };
-};
-
-module.exports.validate = async request => {
-  const span = tracer.startSpan('validate');
-  
-  const {
-    creditCardNumber: number,
-    creditCardExpirationYear: year,
-    creditCardExpirationMonth: month
-  } = request.creditCard;
-  
-  const currentMonth = new Date().getMonth() + 1;
-  const currentYear = new Date().getFullYear();
-  const lastFourDigits = number.substr(-4);
-
-  const card = cardValidator(number);
-  const { card_type: cardType, valid } = card.getCardDetails();
-
-  span.setAttributes({
-    'app.payment.card_type': cardType,
-    'app.payment.card_valid': valid,
-  });
-
-  if (!valid) {
-    span.end();
-    throw new Error('Credit card info is invalid.');
-  }
-
-  if (!['visa', 'mastercard'].includes(cardType)) {
-    span.end();
-    throw new Error(`Sorry, we cannot process ${cardType} credit cards. Only VISA or MasterCard is accepted.`);
-  }
-
-  if ((currentYear * 12 + currentMonth) > (year * 12 + month)) {
-    span.end();
-    throw new Error(`The credit card (ending ${lastFourDigits}) expired on ${month}/${year}.`);
-  }
-
-  span.end();
-  return { valid: true, message: "Valid credit card" };
-};
+}

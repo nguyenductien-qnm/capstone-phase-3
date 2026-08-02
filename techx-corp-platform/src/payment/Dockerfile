@@ -6,10 +6,17 @@ FROM docker.io/library/node:22-slim@sha256:f32b81066cde10a75dbac96646099533316d9
 
 WORKDIR /usr/src/app/
 
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY ./src/payment/package.json package.json
 COPY ./src/payment/package-lock.json package-lock.json
 
-RUN npm ci --omit=dev
+ENV CXXFLAGS="-std=c++20"
+RUN NODE_ENV=production npm ci
 
 # -----------------------------------------------------------------------------
 

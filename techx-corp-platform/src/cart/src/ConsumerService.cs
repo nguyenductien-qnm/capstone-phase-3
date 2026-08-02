@@ -1,9 +1,8 @@
-using Confluent.Kafka;                                                                                                                   
-using Microsoft.Extensions.Hosting;                                                                                                      
-using Microsoft.Extensions.Logging;                                                                                                      
+using Confluent.Kafka;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Oteldemo;
 using System;
-using System.Collections.Concurrent;                                                                                                     
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using cart.cartstore;
@@ -12,10 +11,8 @@ namespace cart.services;
                                                                                                                                          
 public class ConsumerService : BackgroundService                                                                              
 {
-    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
     private readonly ICartStore _cartStore;                                                                                              
-    private readonly ILogger<ConsumerService> _logger;                                                                        
-    private readonly ConcurrentDictionary<string, JoinState> _pendingJoins = new();                                                      
+    private readonly ILogger<ConsumerService> _logger;                                                                                                                           
                                                                                                                                          
     public ConsumerService(ICartStore cartStore, ILogger<ConsumerService> logger)                                  
     {                                                                                                                                    
@@ -35,7 +32,7 @@ public class ConsumerService : BackgroundService
                 var config = new ConsumerConfig
                 {
                     BootstrapServers = kafkaAddr,
-                    GroupId = "cart-fulfillment-consumer",
+                    GroupId = "cart-cleanup",
                     AutoOffsetReset = AutoOffsetReset.Earliest,
                     EnableAutoCommit = true,
                     SecurityProtocol = SecurityProtocol.SaslSsl,
@@ -44,8 +41,13 @@ public class ConsumerService : BackgroundService
                     SaslPassword = Environment.GetEnvironmentVariable("KAFKA_PASSWORD") ?? ""
                 };
 
-                using var consumer = new ConsumerBuilder<string, string>(config).Build();
-                consumer.Subscribe("domain.fulfillment.events");
+                var topicName = Environment.GetEnvironmentVariable("KAFKA_SHIPPING_TOPIC")
+                            ?? Environment.GetEnvironmentVariable("KAFKA_TOPIC")
+                            ?? "domain.checkout.shipping";
+
+                using var consumer = new ConsumerBuilder<string, byte[]>(config).Build();
+                consumer.Subscribe(topicName);
+                _logger.LogInformation("Cart ConsumerService listening on topic '{Topic}'", topicName);
 
                 while (!stoppingToken.IsCancellationRequested)
                 {
@@ -54,68 +56,47 @@ public class ConsumerService : BackgroundService
                         var consumeResult = consumer.Consume(TimeSpan.FromMilliseconds(500));
                         if (consumeResult?.Message?.Value == null) continue;
 
-                        var eventData = JsonSerializer.Deserialize<FulfillmentEvent>(consumeResult.Message.Value, JsonOptions);
-                        if (eventData == null || string.IsNullOrEmpty(eventData.OrderId)) continue;
-
-                        var joinState = _pendingJoins.GetOrAdd(
-                            eventData.OrderId,
-                            id => new JoinState { OrderId = id, UserId = eventData.UserId }
-                        );
-
-                        if (!string.IsNullOrEmpty(eventData.UserId))
+                        // 1. Decode Protobuf message from domain.checkout.shipping
+                        ShippingEvent shippingEvent;
+                        try
                         {
-                            joinState.UserId = eventData.UserId;
+                            shippingEvent = ShippingEvent.Parser.ParseFrom(consumeResult.Message.Value);
+                        }
+                        catch (Exception parseEx)
+                        {
+                            _logger.LogWarning(parseEx, "Failed to parse ShippingEvent Protobuf message from topic '{Topic}'", topicName);
+                            continue;
                         }
 
-                        if (eventData.EventType == "PAYMENT_COMPLETED") joinState.HasPayment = true;
-                        if (eventData.EventType == "SHIPPING_COMPLETED") joinState.HasShipping = true;
+                        var orderId = !string.IsNullOrEmpty(shippingEvent.OrderId) ? shippingEvent.OrderId : (consumeResult.Message.Key ?? "");
+                        var userId = shippingEvent.UserId;
 
-                        if (joinState.HasPayment && joinState.HasShipping)
+                        // 2. Empty cart
+                        if (!string.IsNullOrEmpty(userId))
                         {
-                            _logger.LogInformation(
-                                "Payment and Shipping completed for Order {OrderId}. Clearing cart for user {UserId}...",
-                                eventData.OrderId, joinState.UserId
+                            _logger.LogInformation(                                                                                                                          
+                                "Shipping completed for Order {OrderId}. Clearing cart for user {UserId}...",                                                                
+                                orderId, userId                                                                                                                              
                             );
-
-                            var targetUserId = !string.IsNullOrEmpty(joinState.UserId) ? joinState.UserId : eventData.UserId;
-                            if (!string.IsNullOrEmpty(targetUserId))
-                            {
-                                // Async ThreadPool safe
-                                await _cartStore.EmptyCartAsync(targetUserId).ConfigureAwait(false);
-                                _logger.LogInformation("Successfully cleared cart for user {UserId} (Order {OrderId})", targetUserId, eventData.OrderId);
-                            }
-
-                            _pendingJoins.TryRemove(eventData.OrderId, out _);
+                           
+                            // Async ThreadPool safe
+                            await _cartStore.EmptyCartAsync(userId).ConfigureAwait(false);
+                            _logger.LogInformation("Successfully cleared cart for user {UserId} (Order {OrderId})", userId, orderId);
                         }
                     }
                     catch (OperationCanceledException) { break; }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Error processing fulfillment event in CartService consumer");
+                        _logger.LogError(ex, "Error processing event in CartService consumer");
                     }
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Kafka consumer background task failed");
+                _logger.LogError(ex, "Cart ConsumerService background task failed");
             }
         }, stoppingToken);
 
         return Task.CompletedTask;
     }
-}                                                                                                                                        
-                                                                                                                                         
-public class FulfillmentEvent                                                                                                            
-{                                                                                                                                        
-    public string EventType { get; set; } = "";                                                                                          
-    public string OrderId { get; set; } = "";                                                                                            
-    public string UserId { get; set; } = "";                                                                                             
-}                                                                                                                                        
-                                                                                                                                         
-public class JoinState                                                                                                                   
-{                                                                                                                                        
-    public string OrderId { get; set; } = "";                                                                                            
-    public string UserId { get; set; } = "";
-    public bool HasPayment { get; set; }
-    public bool HasShipping { get; set; }
 }

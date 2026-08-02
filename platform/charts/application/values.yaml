@@ -365,6 +365,8 @@ components:
           secretKeyRef:
             name: msk-secret
             key: password
+      - name: KAFKA_TOPIC
+        value: "domain.checkout.shipping"
       - name: OTEL_EXPORTER_OTLP_ENDPOINT
         value: http://$(OTEL_COLLECTOR_NAME):4318
       - name: DB_CONNECTION_STRING
@@ -378,8 +380,6 @@ components:
         value: "legacy"
       - name: OTEL_DOTNET_AUTO_TRACES_ENTITYFRAMEWORKCORE_INSTRUMENTATION_ENABLED
         value: "false"
-      - name: KAFKA_TOPIC
-        value: "domain.fulfillment.events"
       - name: KAFKA_GROUP_ID
         value: "accounting"
     resources:
@@ -567,6 +567,8 @@ components:
           secretKeyRef:
             name: msk-secret
             key: password
+      - name: KAFKA_TOPIC
+        value: "domain.checkout.shipping"
       - name: OTEL_EXPORTER_OTLP_ENDPOINT
         value: http://$(OTEL_COLLECTOR_NAME):4317
     resources:
@@ -966,7 +968,7 @@ components:
             name: msk-secret
             key: password
       - name: KAFKA_TOPIC
-        value: "domain.fulfillment.events"
+        value: "domain.checkout.shipping"
       - name: KAFKA_GROUP_ID
         value: "email"
     resources:
@@ -1040,6 +1042,8 @@ components:
           secretKeyRef:
             name: msk-secret
             key: password
+      - name: KAFKA_TOPIC
+        value: "domain.checkout.shipping"
       - name: FLAGD_HOST
         value: flagd
       - name: FLAGD_PORT
@@ -2047,7 +2051,9 @@ components:
             name: msk-secret
             key: password
       - name: KAFKA_TOPIC
-        value: "domain.checkout.orders"
+        value: "domain.checkout.payment"
+      - name: KAFKA_SHIPPING_TOPIC
+        value: "domain.checkout.shipping"
       - name: KAFKA_GROUP_ID
         value: "shipping"
     resources:

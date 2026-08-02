@@ -4,7 +4,7 @@
 use actix_web::{post, web, HttpResponse, Responder};
 use tracing::info;
 
-mod quote;
+pub mod quote;
 use quote::create_quote_from_count;
 
 mod tracking;
@@ -13,6 +13,15 @@ use tracking::create_tracking_id;
 mod shipping_types;
 pub use shipping_types::*;
 use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Deserialize, Serialize)]                                                                                                                                     
+pub struct GetQuoteRequest {                                                                                                                                                 
+    pub items: Vec<CartItem>,                                                                                                                                                
+    pub address: Option<Address>,                                                                                                                                            
+    pub currency: Option<String>,                                                                                                                                            
+    #[serde(alias = "currencyCode", alias = "user_currency", alias = "userCurrency")]                                                                                        
+    pub currency_code: Option<String>,                                                                                                                                       
+}
 
 #[derive(Serialize, Deserialize)]
 pub struct ValidateAddressRequest {
@@ -31,6 +40,17 @@ const NANOS_MULTIPLE: u32 = 10000000u32;
 pub async fn get_quote(req: web::Json<GetQuoteRequest>) -> impl Responder {
     let itemct: u32 = req.items.iter().map(|item| item.quantity as u32).sum();
 
+    // Extract currency from request message                                                                                                     
+    let currency_code = req                                                                                                                                                  
+        .currency                                                                                                                                                            
+        .as_ref()                                                                                                                                                            
+        .or(req.currency_code.as_ref())                                                                                                                                      
+        .filter(|c| !c.is_empty())                                                                                                                                           
+        .cloned()                                                                                                                                                            
+        .unwrap_or_else(|| "USD".into());
+    
+    // Shipping service owns calculating the shipping fee quote logic 
+    // based on address & item count
     let quote = match create_quote_from_count(itemct).await {
         Ok(q) => q,
         Err(e) => {
@@ -40,7 +60,7 @@ pub async fn get_quote(req: web::Json<GetQuoteRequest>) -> impl Responder {
 
     let reply = GetQuoteResponse {
         cost_usd: Some(Money {
-            currency_code: "USD".into(),
+            currency_code,
             units: quote.dollars,
             nanos: quote.cents * NANOS_MULTIPLE,
         }),

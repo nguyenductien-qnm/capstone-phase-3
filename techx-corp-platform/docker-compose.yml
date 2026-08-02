@@ -37,7 +37,7 @@ services:
       - OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE
       - OTEL_RESOURCE_ATTRIBUTES
       - OTEL_SERVICE_NAME=accounting
-      - KAFKA_TOPIC=domain.fulfillment.events
+      - KAFKA_TOPIC=domain.checkout.shipping
       - KAFKA_GROUP_ID=accounting
       - DB_CONNECTION_STRING=Host=${POSTGRES_HOST};Username=otelu;Password=otelp;Database=${POSTGRES_DB}
       - OTEL_DOTNET_AUTO_TRACES_ENTITYFRAMEWORKCORE_INSTRUMENTATION_ENABLED=false
@@ -110,6 +110,7 @@ services:
       - OTEL_RESOURCE_ATTRIBUTES
       - OTEL_SERVICE_NAME=cart
       - ASPNETCORE_URLS=http://*:${CART_PORT}
+      - KAFKA_TOPIC=domain.checkout.shipping
     depends_on:
       valkey-cart:
         condition: service_started
@@ -229,7 +230,7 @@ services:
       - OTEL_RESOURCE_ATTRIBUTES
       - OTEL_SERVICE_NAME=email
       - KAFKA_ADDR
-      - KAFKA_TOPIC=domain.fulfillment.events
+      - KAFKA_TOPIC=domain.checkout.shipping
       - KAFKA_GROUP_ID=email
     depends_on:
       otel-collector:
@@ -262,6 +263,7 @@ services:
       - OTEL_INSTRUMENTATION_MESSAGING_EXPERIMENTAL_RECEIVE_TELEMETRY_ENABLED=true
       - OTEL_RESOURCE_ATTRIBUTES
       - OTEL_SERVICE_NAME=fraud-detection
+      - KAFKA_TOPIC=domain.checkout.shipping
     depends_on:
       otel-collector:
         condition: service_started
@@ -695,7 +697,8 @@ services:
       - OTEL_RESOURCE_ATTRIBUTES
       - OTEL_SERVICE_NAME=shipping
       - KAFKA_ADDR
-      - KAFKA_TOPIC=domain.checkout.orders
+      - KAFKA_TOPIC=domain.checkout.payment
+      - KAFKA_SHIPPING_TOPIC=domain.checkout.shipping
       - KAFKA_GROUP_ID=shipping
       - OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE
     depends_on:

@@ -17,31 +17,37 @@ import { IProductCheckout } from '../../../../types/Cart';
 
 const Checkout: NextPage = () => {
   const { query } = useRouter();
-  const { orderId, items = [], shippingAddress, shippingCost = { units: 0, currencyCode: 'USD', nanos: 0 } } = JSON.parse((query.order || '{}') as string) as IProductCheckout;
+  const {
+    orderId,
+    items = [],
+    shippingAddress = { streetAddress: '', city: '', state: '', zipCode: '', country: '' },
+  } = JSON.parse((query.order || '{}') as string) as IProductCheckout;
 
   const orderTotal = useMemo<Money>(() => {
-    const itemsTotal = items.reduce((acc, { item, cost = { units: 0, nanos: 0, currencyCode: 'USD' } }) => {
-      return {
-        units: acc.units + (cost.units || 0) * item.quantity,
-        nanos: acc.nanos + (cost.nanos || 0) * item.quantity,
-        currencyCode: cost.currencyCode || 'USD',
-      };
-    }, { units: 0, nanos: 0, currencyCode: 'USD' });
+    const itemsTotal = items.reduce(
+      (acc, { item, cost = { units: 0, nanos: 0, currencyCode: 'USD' } }) => {
+        const qty = item?.quantity || 1;
+        return {
+          units: acc.units + (cost.units || 0) * qty,
+          nanos: acc.nanos + (cost.nanos || 0) * qty,
+          currencyCode: cost.currencyCode || 'USD',
+        };
+      },
+      { units: 0, nanos: 0, currencyCode: 'USD' }
+    );
 
-    const totalNanos = itemsTotal.nanos + (shippingCost.nanos || 0);
-    const nanoExceed = Math.floor(totalNanos / 1000000000);
-
+    const nanoExceed = Math.floor(itemsTotal.nanos / 1000000000);
     return {
-      units: itemsTotal.units + (shippingCost.units || 0) + nanoExceed,
-      nanos: totalNanos % 1000000000,
-      currencyCode: shippingCost.currencyCode || 'USD',
+      units: itemsTotal.units + nanoExceed,
+      nanos: itemsTotal.nanos % 1000000000,
+      currencyCode: itemsTotal.currencyCode,
     };
-  }, [items, shippingCost]);
+  }, [items]);
 
   return (
     <AdProvider
       productIds={items.map(({ item }) => item?.productId || '')}
-      contextKeys={[...new Set(items.flatMap(({ item }) => item.product.categories))]}
+      contextKeys={[...new Set(items.flatMap(({ item }) => item?.product?.categories || []))]}
     >
       <Head>
         <title>Otel Demo - Checkout</title>
@@ -60,18 +66,19 @@ const Checkout: NextPage = () => {
 
             <div className="flex flex-col gap-2 p-5 bg-gray-50 rounded-lg lg:col-start-2 lg:col-end-3 text-right">
               <h4 className="m-0 mb-3 text-xl text-gray-700 font-bold">Shipping Address</h4>
-              <p className="m-0 my-1 text-base text-gray-700">{shippingAddress.streetAddress}</p>
-              <p className="m-0 my-1 text-base text-gray-700">{shippingAddress.city}, {shippingAddress.state} {shippingAddress.zipCode}</p>
-              <p className="m-0 my-1 text-base text-gray-700">{shippingAddress.country}</p>
+              <p className="m-0 my-1 text-base text-gray-700">{shippingAddress?.streetAddress}</p>
+              <p className="m-0 my-1 text-base text-gray-700">{shippingAddress?.city}, {shippingAddress?.state} {shippingAddress?.zipCode}</p>
+              <p className="m-0 my-1 text-base text-gray-700">{shippingAddress?.country}</p>
             </div>
 
             <div className="flex flex-col gap-6 lg:col-span-2">
               <h4 className="m-0 mb-3 text-xl text-gray-700 font-bold">Order Items</h4>
               <div className="flex flex-col gap-4">
                 {items.map(({ item, cost = { units: 0, currencyCode: 'USD', nanos: 0 } }) => {
+                  const quantity = item?.quantity || 1;
                   const itemTotal: Money = {
-                    units: (cost.units || 0) * item.quantity,
-                    nanos: (cost.nanos || 0) * item.quantity,
+                    units: (cost.units || 0) * quantity,
+                    nanos: (cost.nanos || 0) * quantity,
                     currencyCode: cost.currencyCode || 'USD',
                   };
                   // Handle nanos overflow
@@ -79,12 +86,15 @@ const Checkout: NextPage = () => {
                   itemTotal.units += nanoExceed;
                   itemTotal.nanos = itemTotal.nanos % 1000000000;
 
+                  const picture = item?.product?.picture || '';
+                  const name = item?.product?.name || '';
+
                   return (
-                    <div key={item.productId} className="flex gap-4 items-center p-4 bg-white border border-gray-200 rounded-lg">
-                      <img className="w-20 h-20 object-contain rounded-sm shrink-0" src={"/images/products/" + item.product.picture} alt={item.product.name}/>
+                    <div key={item?.productId || name} className="flex gap-4 items-center p-4 bg-white border border-gray-200 rounded-lg">
+                      <img className="w-20 h-20 object-contain rounded-sm shrink-0" src={"/images/products/" + picture} alt={name}/>
                       <div className="flex flex-col gap-1 flex-1">
-                        <h5 className="m-0 text-lg font-normal">{item.product.name}</h5>
-                        <p className="m-0 text-base text-gray-400">Quantity: {item.quantity}</p>
+                        <h5 className="m-0 text-lg font-normal">{name}</h5>
+                        <p className="m-0 text-base text-gray-400">Quantity: {quantity}</p>
                       </div>
                       <div className="text-lg font-bold text-gray-700 text-right whitespace-nowrap">
                         <ProductPrice price={itemTotal} />
@@ -93,12 +103,8 @@ const Checkout: NextPage = () => {
                   );
                 })}
               </div>
-
+               
               <div className="flex flex-col gap-3 p-6 bg-gray-50 rounded-lg mt-4">
-                <div className="flex justify-between items-center text-base text-gray-700">
-                  <span>Shipping:</span>
-                  <ProductPrice price={shippingCost} />
-                </div>
                 <div className="flex justify-between items-center pt-3 border-t-2 border-gray-200 mt-2">
                   <span className="text-xl font-bold text-gray-700">Total:</span>
                   <span className="text-xl font-bold text-gray-700">

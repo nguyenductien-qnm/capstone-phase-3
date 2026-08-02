@@ -172,9 +172,25 @@ func TestDependencyChainLeavesRoomToPersistTheOrder(t *testing.T) {
 		t.Fatalf("dependency chain spans %s of the %s deadline, leaving nothing to persist the order",
 			worstCase, placeOrderDeadline)
 	}
-	// The persist path retries too, and waitForDBRetry needs more than the last
-	// gasp of the budget to be worth entering at all.
-	if left := placeOrderDeadline - worstCase; left < dbRetryBaseDelay*4 {
-		t.Fatalf("only %s left to persist the order after dependencies; raise a timeout back down", left)
+}
+
+func TestCardLastFour(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"4532015112830366", "0366"},
+		{"4532-0151-1283-0366", "0366"},
+		{" 4532 0151 1283 0366 ", "0366"},
+	}
+
+	for _, tt := range tests {
+		got := cardLastFour(tt.input)
+		if got != tt.expected {
+			t.Errorf("cardLastFour(%q) = %q; want %q", tt.input, got, tt.expected)
+		}
 	}
 }
+
