@@ -4,7 +4,7 @@
 use actix_web::{post, web, HttpResponse, Responder};
 use tracing::info;
 
-mod quote;
+pub mod quote;
 use quote::create_quote_from_count;
 
 mod tracking;
