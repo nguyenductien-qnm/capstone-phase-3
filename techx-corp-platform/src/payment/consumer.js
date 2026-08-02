@@ -3,7 +3,7 @@
 
 const path = require('path');
 const { Kafka, CompressionCodecs, CompressionTypes } = require('kafkajs');
-const KAFKAJS_ZSTD = require('kafkajs-zstd');
+const KAFKAJS_ZSTD = require('@kafkajs/zstd');
 const protobuf = require('protobufjs');
 const logger = require('./logger');
 const { chargeWithToken } = require('./charge');
