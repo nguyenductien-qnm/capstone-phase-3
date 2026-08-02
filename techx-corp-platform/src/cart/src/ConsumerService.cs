@@ -1,9 +1,8 @@
-using Confluent.Kafka;                                                                                                                   
-using Microsoft.Extensions.Hosting;                                                                                                      
-using Microsoft.Extensions.Logging;                                                                                                      
+using Confluent.Kafka;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Oteldemo;
 using System;
-using System.Collections.Concurrent;                                                                                                     
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using cart.cartstore;
@@ -12,7 +11,6 @@ namespace cart.services;
                                                                                                                                          
 public class ConsumerService : BackgroundService                                                                              
 {
-    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
     private readonly ICartStore _cartStore;                                                                                              
     private readonly ILogger<ConsumerService> _logger;                                                                                                                           
                                                                                                                                          
@@ -47,7 +45,7 @@ public class ConsumerService : BackgroundService
                             ?? Environment.GetEnvironmentVariable("KAFKA_TOPIC")
                             ?? "domain.checkout.shipping";
 
-                using var consumer = new ConsumerBuilder<string, string>(config).Build();
+                using var consumer = new ConsumerBuilder<string, byte[]>(config).Build();
                 consumer.Subscribe(topicName);
                 _logger.LogInformation("Cart ConsumerService listening on topic '{Topic}'", topicName);
 
@@ -58,10 +56,21 @@ public class ConsumerService : BackgroundService
                         var consumeResult = consumer.Consume(TimeSpan.FromMilliseconds(500));
                         if (consumeResult?.Message?.Value == null) continue;
 
-                        // 1. Decode event from domain.checkout.shipping
-                        var orderId = eventData?.OrderId ?? consumeResult.Message.Key ?? "";                                                                                 
-                        var userId = eventData?.UserId;
- 
+                        // 1. Decode Protobuf message from domain.checkout.shipping
+                        ShippingEvent shippingEvent;
+                        try
+                        {
+                            shippingEvent = ShippingEvent.Parser.ParseFrom(consumeResult.Message.Value);
+                        }
+                        catch (Exception parseEx)
+                        {
+                            _logger.LogWarning(parseEx, "Failed to parse ShippingEvent Protobuf message from topic '{Topic}'", topicName);
+                            continue;
+                        }
+
+                        var orderId = !string.IsNullOrEmpty(shippingEvent.OrderId) ? shippingEvent.OrderId : (consumeResult.Message.Key ?? "");
+                        var userId = shippingEvent.UserId;
+
                         // 2. Empty cart
                         if (!string.IsNullOrEmpty(userId))
                         {
@@ -90,5 +99,4 @@ public class ConsumerService : BackgroundService
 
         return Task.CompletedTask;
     }
-}                                                                                                                                        
-                                                                                                                                         
+}
