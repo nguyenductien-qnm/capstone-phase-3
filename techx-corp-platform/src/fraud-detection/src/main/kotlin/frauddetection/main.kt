@@ -25,8 +25,8 @@ import dev.openfeature.sdk.OpenFeatureAPI
 
 val topic = System.getenv("KAFKA_SHIPPING_TOPIC")
         ?: System.getenv("KAFKA_TOPIC")
-        ?" "domain.checkout.shipping"
-      
+        ?: "domain.checkout.shipping"
+
 const val groupID = "fraud-detection"
 
 private val logger: Logger = LogManager.getLogger(groupID)
@@ -69,8 +69,18 @@ fun main() {
                         logger.info("FeatureFlag 'kafkaQueueProblems' is enabled, sleeping 1 second")
                         Thread.sleep(1000)
                     }
-                    val orders = OrderResult.parseFrom(record.value())
-                    logger.info("Consumed record with orderId: ${orders.orderId}, and updated total count to: $newCount")
+                    val orderId = try {
+                        val shippingEvent = ShippingEvent.parseFrom(record.value())
+                        if (shippingEvent.orderId.isNotEmpty()) shippingEvent.orderId else (record.key() ?: "")
+                    } catch (e: Exception) {
+                        try {
+                            val orderResult = OrderResult.parseFrom(record.value())
+                            if (orderResult.orderId.isNotEmpty()) orderResult.orderId else (record.key() ?: "")
+                        } catch (e2: Exception) {
+                            record.key() ?: ""
+                        }
+                    }
+                    logger.info("Consumed shipping record with orderId: $orderId, updated total count to: $newCount")
                     newCount
                 }
         }
