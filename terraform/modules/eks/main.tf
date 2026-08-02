@@ -58,7 +58,8 @@ resource "aws_kms_key" "control_plane_logs" {
     ]
   })
 
-  lifecycle { prevent_destroy = true }
+  # TẠM GỠ để teardown sandbox. BẬT LẠI sau khi destroy xong.
+  # lifecycle { prevent_destroy = true }
   tags = { Name = "${local.cluster_name}-control-plane-logs" }
 }
 
