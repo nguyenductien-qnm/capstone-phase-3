@@ -12,8 +12,7 @@ locals {
 resource "aws_s3_bucket" "cloudtrail_logs" {
   bucket              = "${var.project_name}-${var.environment}-cloudtrail-logs"
   object_lock_enabled = var.enable_object_lock
-  # TẠM GỠ để teardown sandbox. BẬT LẠI sau khi destroy xong.
-  # lifecycle { prevent_destroy = true }
+  lifecycle { prevent_destroy = true }
 }
 
 resource "aws_s3_bucket_public_access_block" "cloudtrail_logs" {
@@ -115,8 +114,7 @@ resource "aws_kms_key" "audit" {
       }
     ]
   })
-  # TẠM GỠ để teardown sandbox. BẬT LẠI sau khi destroy xong.
-  # lifecycle { prevent_destroy = true }
+  lifecycle { prevent_destroy = true }
   tags = { Name = "${local.trail_name}-logs" }
 }
 
@@ -158,8 +156,7 @@ resource "aws_cloudwatch_log_group" "cloudtrail" {
   name              = "/aws/cloudtrail/${local.trail_name}"
   retention_in_days = var.cloudwatch_log_retention_days
   kms_key_id        = local.kms_key_arn
-  # TẠM GỠ để teardown sandbox. BẬT LẠI sau khi destroy xong.
-  # lifecycle { prevent_destroy = true }
+  lifecycle { prevent_destroy = true }
 }
 
 resource "aws_iam_role" "cloudtrail_cloudwatch" {
