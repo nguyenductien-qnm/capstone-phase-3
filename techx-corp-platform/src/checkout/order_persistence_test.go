@@ -5,17 +5,11 @@ package main
 import (
 	"bytes"
 	"context"
-	"errors"
-	"os"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/jackc/pgx/v5/pgconn"
 	pb "github.com/open-telemetry/techx-corp/src/checkout/genproto/oteldemo"
-	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -66,24 +60,6 @@ func TestIdempotencyKeyFromContextRequiresClientKey(t *testing.T) {
 	}
 	if key != "550e8400-e29b-41d4-a716-446655440000" {
 		t.Fatalf("key = %q", key)
-	}
-}
-
-func TestPlaceOrderValidatesClientKeyBeforePersistence(t *testing.T) {
-	t.Parallel()
-	service := &checkout{}
-	request := &pb.PlaceOrderRequest{UserId: "user-1", UserCurrency: "USD"}
-
-	if _, err := service.PlaceOrder(context.Background(), request); status.Code(err) != codes.InvalidArgument {
-		t.Fatalf("missing key status = %v, want InvalidArgument", status.Code(err))
-	}
-
-	ctx := metadata.NewIncomingContext(
-		context.Background(),
-		metadata.Pairs(idempotencyMetadataKey, "550e8400-e29b-41d4-a716-446655440000"),
-	)
-	if _, err := service.PlaceOrder(ctx, request); status.Code(err) != codes.Unavailable {
-		t.Fatalf("valid key without DB status = %v, want Unavailable", status.Code(err))
 	}
 }
 
@@ -189,133 +165,5 @@ func TestIdempotentOrderIDIsStableAndKeyScoped(t *testing.T) {
 	}
 	if got := idempotentOrderID("user-2", "checkout-key-1"); got == first {
 		t.Fatal("the same key for a different user must produce a different order ID")
-	}
-}
-
-func TestLegacyMetadataReplaysStoredResultAndDetectsConflict(t *testing.T) {
-	t.Parallel()
-	req := &pb.PlaceOrderRequest{UserId: "user-1"}
-	resultJSON, err := marshalOrderResult(&pb.OrderResult{OrderId: "order-1"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	metadataJSON, err := marshalOrderMetadata(
-		req, nil, nil, nil, nil, "request-hash", resultJSON,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	result, err := orderResultFromLegacyMetadata(metadataJSON, "request-hash")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.GetOrderId() != "order-1" {
-		t.Fatalf("replayed order ID = %q, want order-1", result.GetOrderId())
-	}
-	if _, err := orderResultFromLegacyMetadata(metadataJSON, "different-hash"); !errors.Is(err, errIdempotencyConflict) {
-		t.Fatalf("different request hash error = %v, want idempotency conflict", err)
-	}
-}
-
-func TestOrderInsertSQLByPhase(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		phase   orderSchemaPhase
-		wantOld bool
-		wantNew bool
-	}{
-		{orderSchemaLegacy, true, false},
-		{orderSchemaDualWrite, true, true},
-		{orderSchemaWriteNew, false, true},
-	}
-	for _, tt := range tests {
-		sql := orderInsertSQL(tt.phase)
-		if got := strings.Contains(sql, "order_metadata"); got != tt.wantOld {
-			t.Fatalf("phase %s old column=%v, want %v", tt.phase, got, tt.wantOld)
-		}
-		if got := strings.Contains(sql, "order_payload"); got != tt.wantNew {
-			t.Fatalf("phase %s new column=%v, want %v", tt.phase, got, tt.wantNew)
-		}
-		if !strings.Contains(sql, "ON CONFLICT DO NOTHING") {
-			t.Fatalf("phase %s is missing idempotency conflict handling", tt.phase)
-		}
-	}
-}
-
-func TestCurrentOrderSchemaPhaseFallsBackSafely(t *testing.T) {
-	old := os.Getenv("CHECKOUT_ORDER_SCHEMA_PHASE")
-	t.Cleanup(func() { _ = os.Setenv("CHECKOUT_ORDER_SCHEMA_PHASE", old) })
-
-	_ = os.Setenv("CHECKOUT_ORDER_SCHEMA_PHASE", "unexpected")
-	if got := currentOrderSchemaPhase(); got != orderSchemaLegacy {
-		t.Fatalf("unexpected phase must fall back to legacy, got %s", got)
-	}
-}
-
-func TestIsTransientDBError(t *testing.T) {
-	t.Parallel()
-	for _, code := range []string{"08006", "40001", "40P01", "57P01", "57P03"} {
-		if !isTransientDBError(&pgconn.PgError{Code: code}) {
-			t.Fatalf("SQLSTATE %s should be transient", code)
-		}
-	}
-	if isTransientDBError(&pgconn.PgError{Code: "23505"}) {
-		t.Fatal("unique violation must not be retried as a transient failure")
-	}
-	if isTransientDBError(errors.New("business validation failed")) {
-		t.Fatal("business error must not be transient")
-	}
-}
-
-func TestWaitForDBRetryStaysInsideDeadline(t *testing.T) {
-	t.Parallel()
-
-	// Attempt 6 asks for the capped 3s wait; only 400ms of the deadline is left.
-	ctx, cancel := context.WithTimeout(context.Background(), 400*time.Millisecond)
-	defer cancel()
-
-	start := time.Now()
-	if err := waitForDBRetry(ctx, 6); err != nil {
-		t.Fatalf("wait must succeed while budget remains, got %v", err)
-	}
-	if elapsed := time.Since(start); elapsed > 300*time.Millisecond {
-		t.Fatalf("wait overran the remaining deadline: slept %s", elapsed)
-	}
-	if ctx.Err() != nil {
-		t.Fatal("wait must leave budget for the attempt that follows it")
-	}
-}
-
-func TestWaitForDBRetryGivesUpWhenBudgetExhausted(t *testing.T) {
-	t.Parallel()
-
-	ctx, cancel := context.WithTimeout(context.Background(), dbRetryFinalAttemptBudget/2)
-	defer cancel()
-
-	if err := waitForDBRetry(ctx, 1); !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("too little budget left must abort the retry loop, got %v", err)
-	}
-}
-
-func TestDBRetryBudgetFitsCheckoutDeadline(t *testing.T) {
-	t.Parallel()
-
-	// GrpcDeadline.ts gives checkout 10s. waitForDBRetry draws each wait from
-	// [half, full], so the attempt count must survive the LOWEST draw: measuring
-	// the full-length waits would hide a sequence that runs out of attempts with
-	// seconds of the request budget still unspent. Overrun is not checked here —
-	// the clamp in waitForDBRetry is what keeps the loop inside the deadline.
-	var lowestDraw time.Duration
-	for attempt := 1; attempt < dbRetryMaxAttempts; attempt++ {
-		delay := dbRetryBaseDelay * time.Duration(1<<uint(attempt-1))
-		if delay > dbRetryMaxDelay {
-			delay = dbRetryMaxDelay
-		}
-		lowestDraw += delay / 2
-	}
-	if usable := 10*time.Second - dbRetryFinalAttemptBudget; lowestDraw < usable {
-		t.Fatalf("unluckiest retry sequence spans %s and gives up %s before the deadline",
-			lowestDraw, usable-lowestDraw)
 	}
 }

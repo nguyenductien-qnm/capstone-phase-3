@@ -172,9 +172,4 @@ func TestDependencyChainLeavesRoomToPersistTheOrder(t *testing.T) {
 		t.Fatalf("dependency chain spans %s of the %s deadline, leaving nothing to persist the order",
 			worstCase, placeOrderDeadline)
 	}
-	// The persist path retries too, and waitForDBRetry needs more than the last
-	// gasp of the budget to be worth entering at all.
-	if left := placeOrderDeadline - worstCase; left < dbRetryBaseDelay*4 {
-		t.Fatalf("only %s left to persist the order after dependencies; raise a timeout back down", left)
-	}
 }

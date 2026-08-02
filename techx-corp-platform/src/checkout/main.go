@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -549,18 +548,6 @@ func idempotencyKeyFromContext(ctx context.Context) (string, error) {
 	return key, nil
 }
 
-func persistenceStatusError(err error) error {
-	switch {
-	case errors.Is(err, errIdempotencyConflict):
-		return status.Error(codes.AlreadyExists, err.Error())
-	case isTransientDBError(err),
-		errors.Is(err, context.DeadlineExceeded),
-		errors.Is(err, context.Canceled):
-		return status.Errorf(codes.Unavailable, "database temporarily unavailable: %v", err)
-	default:
-		return status.Errorf(codes.Internal, "failed to persist order: %v", err)
-	}
-}
 
 type orderPrep struct {
 	orderItems            []*pb.OrderItem
