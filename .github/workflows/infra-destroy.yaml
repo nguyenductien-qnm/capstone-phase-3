@@ -76,6 +76,14 @@ env:
   TF_VAR_subdomain: ${{ vars.TF_VAR_SUBDOMAIN }}
   TF_VAR_acm_certificate_arn: ${{ vars.TF_VAR_ACM_CERTIFICATE_ARN }}
   TF_VAR_enable_cloudfront: ${{ vars.TF_VAR_ENABLE_CLOUDFRONT }}
+  # Bốn biến dưới đây không có `default`, nên Terraform bắt buộc phải có giá trị
+  # KỂ CẢ khi chạy destroy — nó vẫn phải nạp hết config trước khi lập plan.
+  # Thiếu chúng thì destroy chết ngay trước khi xoá được resource nào.
+  # Nguồn secret giống hệt infra-cd.yaml để hai workflow không lệch nhau nữa.
+  TF_VAR_audit_slack_webhook_url: ${{ secrets.AUDIT_SLACK_WEBHOOK_URL }}
+  TF_VAR_audit_pipeline_health_email: ${{ secrets.AUDIT_PIPELINE_HEALTH_EMAIL }}
+  TF_VAR_tailscale_oauth_client_id: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
+  TF_VAR_tailscale_oauth_client_secret: ${{ secrets.TAILSCALE_OAUTH_CLIENT_SECRET }}
 
 jobs:
   # ------------------------------------------------------------------ #
