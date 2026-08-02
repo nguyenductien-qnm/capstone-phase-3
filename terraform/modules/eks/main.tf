@@ -17,9 +17,10 @@ resource "aws_cloudwatch_log_group" "control_plane" {
   retention_in_days = var.control_plane_log_retention_days
   kms_key_id        = var.enable_control_plane_log_kms ? aws_kms_key.control_plane_logs[0].arn : null
 
-  lifecycle {
-    prevent_destroy = true
-  }
+  # TẠM GỠ để teardown sandbox (run 30732128337). BẬT LẠI sau khi destroy xong.
+  # lifecycle {
+  #   prevent_destroy = true
+  # }
 
   tags = {
     Name = "${local.cluster_name}-control-plane"
