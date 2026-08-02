@@ -373,8 +373,6 @@ components:
         value: "legacy"
       - name: OTEL_DOTNET_AUTO_TRACES_ENTITYFRAMEWORKCORE_INSTRUMENTATION_ENABLED
         value: "false"
-      - name: KAFKA_TOPIC
-        value: "domain.fulfillment.events"
       - name: KAFKA_GROUP_ID
         value: "accounting"
     resources:
