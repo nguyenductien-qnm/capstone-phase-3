@@ -13,7 +13,16 @@ import re
 from datetime import datetime, timezone
 from typing import Optional
 
+from opentelemetry import metrics
+
 logger = logging.getLogger(__name__)
+
+meter = metrics.get_meter("model-gateway")
+gateway_requests = meter.create_counter("llm.gateway.requests", unit="1")
+gateway_latency = meter.create_histogram("llm.gateway.latency", unit="ms")
+gateway_input_tokens = meter.create_counter("llm.gateway.input_tokens", unit="1")
+gateway_output_tokens = meter.create_counter("llm.gateway.output_tokens", unit="1")
+gateway_cost = meter.create_counter("llm.gateway.estimated_cost", unit="1")
 
 # Pricing per 1M tokens (source: docs/ai/03_specs/model_gateway_ab_testing.md)
 _PRICING = {
@@ -43,6 +52,28 @@ def compute_cost(model_id: str, usage: dict) -> float:
     price = _pricing_key(model_id)
     return (usage.get("inputTokens", 0) * price["input"] +
             usage.get("outputTokens", 0) * price["output"]) / 1_000_000
+
+
+def _public_model_id(model_id: str) -> str:
+    value = str(model_id or "unknown")
+    return value.rsplit("/", 1)[-1] if value.startswith("arn:") else value
+
+def record_gateway_metrics(model_id: str, task_type: str, status: str,
+                           usage: dict, latency_s: float) -> None:
+    """Record low-cardinality gateway telemetry without affecting serving."""
+    try:
+        attributes = {
+            "model_id": _public_model_id(model_id),
+            "task_type": task_type,
+            "status": status,
+        }
+        gateway_requests.add(1, attributes)
+        gateway_latency.record(max(0.0, latency_s) * 1000, attributes)
+        gateway_input_tokens.add(max(0, usage.get("inputTokens", 0)), attributes)
+        gateway_output_tokens.add(max(0, usage.get("outputTokens", 0)), attributes)
+        gateway_cost.add(max(0.0, compute_cost(model_id, usage)), attributes)
+    except Exception:
+        logger.exception("record_gateway_metrics failed")
 
 
 def mask_pii(text: str) -> str:
