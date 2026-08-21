@@ -7,8 +7,8 @@ opentelemetry-exporter-otlp-proto-grpc>=1.30.0
 # của chúng (app.search.mode, bedrock_embed của Titan) rơi vào trace RIÊNG, không
 # nối được với trace copilot mà eval MANDATE-14 dùng làm bằng chứng.
 opentelemetry-instrumentation-grpc>=0.51b0
-python-json-logger==4.0.0
-boto3==1.34.135
-openfeature-provider-flagd==0.2.3
+python-json-logger==4.2.0
+boto3==1.43.77
+openfeature-provider-flagd==0.5.2
 redis>=5.0.0
 psycopg2-binary>=2.9.0
