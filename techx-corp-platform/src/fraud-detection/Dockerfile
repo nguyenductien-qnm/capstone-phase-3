@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
-FROM --platform=${BUILDPLATFORM} gradle:8-jdk17@sha256:b7d2b978cad21a07a1192b9112029bc1a80ffe58db7ec828c3f399f833a468cb AS builder
+FROM --platform=${BUILDPLATFORM} gradle:9-jdk17@sha256:89c4573e06e11f51751d5037357f4d8df4807b10101623fdecfdacbab52832bd AS builder
 
 WORKDIR /usr/src/app/
 
