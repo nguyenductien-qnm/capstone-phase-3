@@ -2736,7 +2736,7 @@ telemetryRetention:
   policyId: otel-logs-retention
   indexPattern: "otel-logs-*"
   minIndexAge: 3d
-  image: curlimages/curl:8.9.1
+  image: curlimages/curl:8.21.0
 
 externalSecrets:
   enabled: false
