@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
-FROM --platform=${BUILDPLATFORM} eclipse-temurin:21-jdk@sha256:da9d3a4f7650db39b918fc5a2c3da76556fb8cc8e5f3767cdea0bb409286951a AS builder
+FROM --platform=${BUILDPLATFORM} eclipse-temurin:25-jdk@sha256:32861ec22e54af9597a3875c69001f57c0954648f5e3fcb6be601b4e35290ab5 AS builder
 ARG _JAVA_OPTIONS
 WORKDIR /usr/src/app/
 
@@ -24,7 +24,7 @@ RUN ./gradlew installDist -PprotoSourceDir=./proto
 # app, không config nào ref tới, nhưng mang 5 CVE HIGH (x/net, stdlib) làm Trivy
 # gate đỏ. Tag noble không có pebble và scan sạch 0 CVE; vẫn JRE 21, chỉ khác
 # ubuntu 24.04 vs 26.04.
-FROM eclipse-temurin:21-jre-noble@sha256:373787d1d45a87f084fda43e7de0e9acf5eedee049446efac738f13587ec4c64
+FROM eclipse-temurin:25-jre-noble@sha256:1a99f30a84d58729f1184c1c693f25fb6f91970ddf05395515540bc5773b8edd
 
 ARG OTEL_JAVA_AGENT_VERSION
 ARG _JAVA_OPTIONS
