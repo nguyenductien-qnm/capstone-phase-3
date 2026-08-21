@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
-FROM docker.io/library/ruby:3.4.9-alpine3.22@sha256:2f1913c4f4880a5d3f6d0b314029153989f35b72b88591495089ebfb6ca86252 AS builder
+FROM docker.io/library/ruby:4.0.5-alpine3.22@sha256:fae3127404cb61d6897d7eed08e65ec7ccc96ba0542dc7c44712efa9b2ef78f0 AS builder
 
 WORKDIR /email_server
 
@@ -15,7 +15,7 @@ RUN apk update && \
     bundle config set --local path 'vendor/bundle' && \
     bundle install
 
-FROM docker.io/library/ruby:3.4.9-alpine3.22@sha256:2f1913c4f4880a5d3f6d0b314029153989f35b72b88591495089ebfb6ca86252
+FROM docker.io/library/ruby:4.0.5-alpine3.22@sha256:fae3127404cb61d6897d7eed08e65ec7ccc96ba0542dc7c44712efa9b2ef78f0
 
 # Patch OS packages from the base image.
 RUN apk upgrade --no-cache
