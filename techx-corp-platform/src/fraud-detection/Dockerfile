@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
-FROM --platform=${BUILDPLATFORM} gradle:8-jdk17@sha256:b7d2b978cad21a07a1192b9112029bc1a80ffe58db7ec828c3f399f833a468cb AS builder
+FROM --platform=${BUILDPLATFORM} gradle:8-jdk17@sha256:daf223983fb0f4cca2d814a3f68443afda41835f8b1f86f0f3345242d6c43683 AS builder
 
 WORKDIR /usr/src/app/
 
@@ -13,7 +13,7 @@ RUN gradle shadowJar
 
 # -----------------------------------------------------------------------------
 
-FROM gcr.io/distroless/java17-debian13:nonroot@sha256:0be8a887d880a9a2b4734f3cef50c5c4f594d983db4dae5878eb6c218bfb3d7e
+FROM gcr.io/distroless/java17-debian13:nonroot@sha256:c163251b62cd635e85d19014ce7b6bbf769146b576c69fc220a05c3d3c99d94b
 
 ARG OTEL_JAVA_AGENT_VERSION
 WORKDIR /usr/src/app/
