@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
-FROM docker.io/library/python:3.12-alpine3.22@sha256:a190708a2dec1bd18b1decb539f8e8f5407abaa9bf39cacda583f7f8c11db322 AS build-venv
+FROM docker.io/library/python:3.14-alpine3.22@sha256:6b91e66ab2a880ce9ca5a1b91c70f45963ff71ff68268df056336e1a657d5efd AS build-venv
 
 RUN apk update && \
     apk add gcc g++ linux-headers
@@ -51,7 +51,7 @@ RUN venv/bin/opentelemetry-bootstrap -a install
 # sau này bản đó cũng có advisory thì gỡ thêm ở stage runtime, đừng quay lại ignore.
 RUN venv/bin/pip uninstall -y pip
 
-FROM docker.io/library/python:3.12-alpine3.22@sha256:a190708a2dec1bd18b1decb539f8e8f5407abaa9bf39cacda583f7f8c11db322
+FROM docker.io/library/python:3.14-alpine3.22@sha256:6b91e66ab2a880ce9ca5a1b91c70f45963ff71ff68268df056336e1a657d5efd
 
 # Vá CVE ở package hệ thống của base image (vd CVE-2026-45447 libcrypto3).
 # Base image tag không đổi nhưng repo alpine đã có bản vá -> upgrade lúc build.
