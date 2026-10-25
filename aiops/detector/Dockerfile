@@ -1,5 +1,5 @@
 # TF1-53 [AIOps-W1-T5] - image cho AIOps detector (dung khi deploy in-cluster o Tuan 2)
-FROM python:3.12-slim@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de
+FROM python:3.12-slim@sha256:a0f57064cbdcd6285fa45f51237ab0b35ea8ebaed06a1f5973e89e19dfb86704
 
 WORKDIR /app
 COPY requirements.txt .
