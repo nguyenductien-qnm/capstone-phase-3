@@ -1,5 +1,5 @@
 # ml-guard — grounding NLI gate (MANDATE-06 / ADR-014). MANDATE-05: non-root, pinned base.
-FROM python:3.12-slim-trixie@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de AS build
+FROM python:3.12-slim-trixie@sha256:aa943ce411423c7582288f18707ff66eddcbaeb510502d747a72aeb34f30d159 AS build
 
 WORKDIR /app
 COPY ./src/ml-guard/requirements.txt .
@@ -10,7 +10,7 @@ RUN PYTHONPATH=/install/lib/python3.12/site-packages /install/bin/opentelemetry-
 
 
 # Bake model vào image: pod không cần egress tới HF Hub, không cold-download.
-FROM python:3.12-slim-trixie@sha256:57cd7c3a7a273101a6485ba99423ee568157882804b1124b4dd04266317710de
+FROM python:3.12-slim-trixie@sha256:aa943ce411423c7582288f18707ff66eddcbaeb510502d747a72aeb34f30d159
 
 COPY --from=build /install /usr/local
 WORKDIR /app
